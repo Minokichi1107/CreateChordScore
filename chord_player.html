@@ -606,10 +606,33 @@ function convertApiResponse(cr, br, filename) {
 function normalizeJson(raw, filename) {
   // 内部形式（chordsが文字列配列）
   if (Array.isArray(raw.chords) && typeof raw.chords[0]==='string')
-    return { source:'JSON', model:'—', ...raw };
-  // API形式（chordsがオブジェクト配列）
+    return { source:'JSON', model: raw.model||'—', ...raw };
+
+  // ChordMini ブラウザ取得形式（chord_dict フィールドあり、start/end形式）
+  // { chord_dict, chords:[{chord,start,end,confidence}], duration, model_name, ... }
+  if (raw.chord_dict !== undefined && Array.isArray(raw.chords)) {
+    const chords=[], times=[];
+    let prev = null;
+    for (const item of raw.chords) {
+      const ch = normalizeApiChord(item.chord||'');
+      const t  = parseFloat((item.start??0).toFixed(3));
+      if (ch !== prev) { chords.push(ch); times.push(t); prev=ch; }
+    }
+    return {
+      file: filename,
+      duration: parseFloat((raw.duration||0).toFixed(2)),
+      tempo: 0,
+      key: raw.key || estimateKey(chords),
+      chords, times,
+      model: raw.model_name || raw.detector_selected || 'Chord-CNN-LSTM',
+      source: 'ChordMini (ブラウザ取得)',
+    };
+  }
+
+  // ChordMini API形式（chordsがオブジェクト配列、time形式）
   if (Array.isArray(raw.chords) && raw.chords[0]?.chord !== undefined)
     return convertApiResponse(raw, null, filename);
+
   return raw;
 }
 

@@ -1,0 +1,20 @@
+セットアップ（1回だけ）
+pip install requests
+
+毎回の使い方
+cd C:\work\Projects\CreateChordScore
+py -3.11 chordmini_fetch.py "曲.mp3"
+成功すると 曲_chords.json が自動保存されます。
+
+オプション
+bash# 大きいファイルはffmpegで圧縮してから送信
+py -3.11 chordmini_fetch.py "曲.mp3" --compress
+
+# ffmpegのパスを直接指定する場合
+py -3.11 chordmini_fetch.py "曲.mp3" --compress --ffmpeg "C:\tools\yt-dlp\ffmpeg.exe"
+
+# ビート検出も同時に行う（BPMが取得できる）
+py -3.11 chordmini_fetch.py "曲.mp3" --beats
+
+APIサーバーが落ちている場合
+スクリプトが「接続エラー」を返したときは、引き続きブラウザでchordmini.meを開いてF12で取得する方法が確実なバックアップになります。今回のrororo.jsonのように既に取得済みのJSONもそのまま読み込めます。

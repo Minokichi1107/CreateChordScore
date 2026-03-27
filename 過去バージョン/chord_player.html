@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChordPlayer</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --accent: #e8ff47;
+    --accent2: #ff6b35;
+    --text: #f0f0f0;
+    --text-muted: #666;
+    --chord-active: #e8ff47;
+    --chord-next: #ff6b35;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ノイズテクスチャ */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 4px;
+    color: var(--accent);
+  }
+
+  .logo span { color: var(--text-muted); }
+
+  .song-info {
+    text-align: right;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .song-info strong {
+    color: var(--text);
+    font-size: 13px;
+    display: block;
+  }
+
+  /* メインレイアウト */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 0;
+    height: calc(100vh - 65px);
+  }
+
+  /* 左：コード譜エリア */
+  .chord-area {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  /* 現在のコード表示 */
+  .now-playing {
+    padding: 24px 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+
+  .current-chord-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 96px;
+    line-height: 1;
+    color: var(--accent);
+    text-shadow: 0 0 40px rgba(232,255,71,0.3);
+    min-width: 200px;
+    transition: all 0.15s ease;
+  }
+
+  .current-chord-display.change {
+    animation: chordPop 0.2s ease;
+  }
+
+  @keyframes chordPop {
+    0% { transform: scale(1.15); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .next-chord-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .next-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .next-chord {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 42px;
+    color: var(--accent2);
+    line-height: 1;
+  }
+
+  /* プログレスバー */
+  .progress-wrap {
+    padding: 12px 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .time-display {
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 42px;
+  }
+
+  .progress-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s linear;
+    position: relative;
+  }
+
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    right: -4px;
+    top: -4px;
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(232,255,71,0.6);
+  }
+
+  /* プレイヤーコントロール */
+  .controls {
+    padding: 12px 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    font-weight: 700;
+    padding: 8px 32px;
+  }
+
+  .btn.primary:hover {
+    background: #fff;
+    border-color: #fff;
+  }
+
+  #audio-upload-label {
+    background: none;
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+    padding: 8px 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  #audio-upload-label:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* コード譜スクロールエリア */
+  .chord-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 32px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .chord-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+  }
+
+  .chord-cell {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.12s;
+    position: relative;
+  }
+
+  .chord-cell .chord-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--text);
+    transition: color 0.12s;
+  }
+
+  .chord-cell .chord-time {
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+
+  .chord-cell.active {
+    background: rgba(232,255,71,0.12);
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(232,255,71,0.15);
+  }
+
+  .chord-cell.active .chord-name {
+    color: var(--accent);
+  }
+
+  .chord-cell.next-up {
+    border-color: var(--accent2);
+  }
+
+  .chord-cell.next-up .chord-name {
+    color: var(--accent2);
+  }
+
+  /* 右パネル */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .panel-section {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-title {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  /* カポセレクター */
+  .capo-selector {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+
+  .capo-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 6px 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.12s;
+    text-align: center;
+    border-radius: 2px;
+  }
+
+  .capo-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .capo-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    font-weight: 700;
+  }
+
+  .capo-display {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .capo-display span { color: var(--accent); }
+
+  /* ギターダイアグラム */
+  .diagram-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .diagram-chord-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+
+  .diagram-capo-note {
+    font-size: 10px;
+    color: var(--accent2);
+    letter-spacing: 1px;
+  }
+
+  canvas.diagram {
+    display: block;
+  }
+
+  /* 曲情報 */
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+
+  .info-row:last-child { border-bottom: none; }
+  .info-row .label { color: var(--text-muted); }
+  .info-row .value { color: var(--accent); font-weight: 700; }
+
+  /* 読み込み画面 */
+  .drop-zone {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 48px;
+    color: var(--text-muted);
+  }
+
+  .drop-zone.hidden { display: none; }
+
+  .drop-icon {
+    font-size: 64px;
+    opacity: 0.3;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .drop-text {
+    font-size: 13px;
+    text-align: center;
+    line-height: 2;
+    letter-spacing: 1px;
+  }
+
+  .drop-text strong {
+    color: var(--accent);
+    font-size: 15px;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .drop-note {
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0.6;
+    text-align: center;
+    line-height: 2;
+  }
+
+  input[type=file] { display: none; }
+
+  /* ドラッグオーバー */
+  body.drag-over .drop-zone {
+    border: 2px dashed var(--accent);
+    background: rgba(232,255,71,0.03);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Chord<span>Player</span></div>
+  <div class="song-info" id="song-meta">
+    <strong>ファイル未読込</strong>
+    JSONファイルを読み込んでください
+  </div>
+</header>
+
+<div class="main">
+  <!-- 左：コード譜 -->
+  <div class="chord-area">
+
+    <!-- 現在のコード -->
+    <div class="now-playing">
+      <div class="current-chord-display" id="current-chord">—</div>
+      <div class="next-chord-info">
+        <div class="next-label">Next</div>
+        <div class="next-chord" id="next-chord">—</div>
+      </div>
+    </div>
+
+    <!-- プログレスバー -->
+    <div class="progress-wrap">
+      <span class="time-display" id="time-current">0:00</span>
+      <div class="progress-bar" id="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <span class="time-display" id="time-total">0:00</span>
+    </div>
+
+    <!-- コントロール -->
+    <div class="controls">
+      <label id="audio-upload-label" for="audio-file">🎵 音声ファイル</label>
+      <input type="file" id="audio-file" accept="audio/*">
+      <label id="audio-upload-label" for="json-file">📄 JSONファイル</label>
+      <input type="file" id="json-file" accept=".json">
+      <button class="btn primary" id="play-btn" disabled>▶ PLAY</button>
+    </div>
+
+    <!-- コード譜グリッド or ドロップゾーン -->
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-icon">🎸</div>
+      <div class="drop-text">
+        <strong>ChordPlayer</strong>
+        1. analyze.py で音声ファイルを解析<br>
+        2. 生成された chord_data.json を読み込む<br>
+        3. 音声ファイルを読み込んで再生
+      </div>
+      <div class="drop-note">
+        対応フォーマット: mp3 / wav / flac / m4a / ogg<br>
+        ※ファイルサイズ制限なし（ローカル処理）
+      </div>
+    </div>
+
+    <div class="chord-scroll hidden" id="chord-scroll">
+      <div class="chord-grid" id="chord-grid"></div>
+    </div>
+
+  </div>
+
+  <!-- 右：コントロールパネル -->
+  <div class="side-panel">
+
+    <!-- カポ設定 -->
+    <div class="panel-section">
+      <div class="panel-title">カポ設定</div>
+      <div class="capo-selector" id="capo-selector"></div>
+      <div class="capo-display" id="capo-display">カポなし</div>
+    </div>
+
+    <!-- ギターダイアグラム -->
+    <div class="panel-section">
+      <div class="panel-title">ギターダイアグラム</div>
+      <div class="diagram-wrap">
+        <div class="diagram-chord-name" id="diagram-name">—</div>
+        <div class="diagram-capo-note" id="diagram-capo-note"></div>
+        <canvas class="diagram" id="diagram-canvas" width="200" height="180"></canvas>
+      </div>
+    </div>
+
+    <!-- 曲情報 -->
+    <div class="panel-section">
+      <div class="panel-title">曲情報</div>
+      <div class="info-row">
+        <span class="label">推定キー</span>
+        <span class="value" id="info-key">—</span>
+      </div>
+      <div class="info-row">
+        <span class="label">テンポ</span>
+        <span class="value" id="info-tempo">—</span>
+      </div>
+      <div class="info-row">
+        <span class="label">コード数</span>
+        <span class="value" id="info-chords">—</span>
+      </div>
+      <div class="info-row">
+        <span class="label">曲の長さ</span>
+        <span class="value" id="info-duration">—</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<audio id="audio-player"></audio>
+
+<script>
+// ===== 状態管理 =====
+let chordData = null;
+let capoFret = 0;
+let currentChordIdx = -1;
+let animFrameId = null;
+
+const audio = document.getElementById('audio-player');
+
+// ===== ノート名・コード変換 =====
+const NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const NOTES_ALT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+
+function noteIndex(name) {
+  let idx = NOTES.indexOf(name);
+  if (idx === -1) idx = NOTES_ALT.indexOf(name);
+  return idx;
+}
+
+function transposeChord(chord, semitones) {
+  if (chord === 'N' || !chord) return chord;
+  // ルートノートを抽出
+  let root = '';
+  let quality = '';
+  if (chord.length >= 2 && (chord[1] === '#' || chord[1] === 'b')) {
+    root = chord.slice(0, 2);
+    quality = chord.slice(2);
+  } else {
+    root = chord.slice(0, 1);
+    quality = chord.slice(1);
+  }
+  const idx = noteIndex(root);
+  if (idx === -1) return chord;
+  const newIdx = ((idx + semitones) % 12 + 12) % 12;
+  return NOTES[newIdx] + quality;
+}
+
+// カポ変換：曲のコードをカポポジションでのフォームに変換
+function capoChord(chord, capo) {
+  return transposeChord(chord, -capo);
+}
+
+// ===== ギターコードダイアグラムデータ =====
+// [弦6→1の押弦フレット, -1=ミュート, 0=開放]
+const CHORD_SHAPES = {
+  'C':   [[-1,3,2,0,1,0], 0],
+  'Cm':  [[-1,3,5,5,4,3], 3],
+  'C7':  [[-1,3,2,3,1,0], 0],
+  'Cm7': [[-1,3,5,3,4,3], 3],
+  'D':   [[-1,-1,0,2,3,2], 0],
+  'Dm':  [[-1,-1,0,2,3,1], 0],
+  'D7':  [[-1,-1,0,2,1,2], 0],
+  'Dm7': [[-1,-1,0,2,1,1], 0],
+  'E':   [[0,2,2,1,0,0], 0],
+  'Em':  [[0,2,2,0,0,0], 0],
+  'E7':  [[0,2,0,1,0,0], 0],
+  'Em7': [[0,2,2,0,3,0], 0],
+  'F':   [[-1,-1,3,2,1,1], 0],  // 簡略コード
+  'Fm':  [[1,3,3,1,1,1], 1],
+  'F7':  [[1,3,1,2,1,1], 1],
+  'G':   [[3,2,0,0,0,3], 0],
+  'Gm':  [[3,5,5,3,3,3], 3],
+  'G7':  [[3,2,0,0,0,1], 0],
+  'Gm7': [[3,5,3,3,3,3], 3],
+  'A':   [[-1,0,2,2,2,0], 0],
+  'Am':  [[-1,0,2,2,1,0], 0],
+  'A7':  [[-1,0,2,0,2,0], 0],
+  'Am7': [[-1,0,2,0,1,0], 0],
+  'B':   [[-1,2,4,4,4,2], 2],
+  'Bm':  [[-1,2,4,4,3,2], 2],
+  'B7':  [[-1,2,1,2,0,2], 0],
+  'Bm7': [[-1,2,0,2,3,2], 0],
+  'C#':  [[-1,4,3,1,2,1], 0],
+  'C#m': [[-1,4,6,6,5,4], 4],
+  'D#':  [[-1,6,5,3,4,3], 0],
+  'D#m': [[-1,6,8,8,7,6], 6],
+  'F#':  [[2,4,4,3,2,2], 2],
+  'F#m': [[2,4,4,2,2,2], 2],
+  'G#':  [[4,6,6,5,4,4], 4],
+  'G#m': [[4,6,6,4,4,4], 4],
+  'A#':  [[-1,1,3,3,3,1], 1],
+  'A#m': [[-1,1,3,3,2,1], 1],
+  'Csus4':  [[-1,3,3,0,1,1], 0],
+  'Dsus4':  [[-1,-1,0,2,3,3], 0],
+  'Esus4':  [[0,2,2,2,0,0], 0],
+  'Gsus4':  [[3,3,0,0,1,3], 0],
+  'Asus4':  [[-1,0,2,2,3,0], 0],
+};
+
+function drawDiagram(canvas, chordName, displayName) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const shape = CHORD_SHAPES[chordName];
+  if (!shape || chordName === 'N') {
+    ctx.fillStyle = '#444';
+    ctx.font = '12px Space Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('ダイアグラムなし', W/2, H/2);
+    return;
+  }
+
+  const [frets, baseFret] = shape;
+  const numStrings = 6;
+  const numFrets = 5;
+  
+  const padL = 28, padR = 16, padT = 28, padB = 20;
+  const strW = (W - padL - padR) / (numStrings - 1);
+  const fretH = (H - padT - padB) / numFrets;
+
+  const sx = (s) => padL + s * strW;
+  const fy = (f) => padT + f * fretH;
+
+  // ナット（ベースフレット=0の場合）
+  if (baseFret === 0) {
+    ctx.strokeStyle = '#aaa';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(W - padR, padT);
+    ctx.stroke();
+  } else {
+    // ベースフレット番号
+    ctx.fillStyle = '#888';
+    ctx.font = '10px Space Mono';
+    ctx.textAlign = 'left';
+    ctx.fillText(baseFret + 'fr', 2, padT + fretH * 0.5 + 4);
+  }
+
+  // フレット線
+  ctx.strokeStyle = '#2a2a2a';
+  ctx.lineWidth = 1;
+  for (let f = 1; f <= numFrets; f++) {
+    ctx.beginPath();
+    ctx.moveTo(padL, fy(f));
+    ctx.lineTo(W - padR, fy(f));
+    ctx.stroke();
+  }
+
+  // 弦
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  for (let s = 0; s < numStrings; s++) {
+    ctx.beginPath();
+    ctx.moveTo(sx(s), padT);
+    ctx.lineTo(sx(s), padT + numFrets * fretH);
+    ctx.stroke();
+  }
+
+  // ミュート・開放・押弦
+  frets.forEach((fret, i) => {
+    const s = numStrings - 1 - i; // 6弦=左
+    const x = sx(s);
+    if (fret === -1) {
+      // ミュート ×
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 1.5;
+      const d = 5;
+      ctx.beginPath();
+      ctx.moveTo(x - d, padT - 18); ctx.lineTo(x + d, padT - 8);
+      ctx.moveTo(x + d, padT - 18); ctx.lineTo(x - d, padT - 8);
+      ctx.stroke();
+    } else if (fret === 0) {
+      // 開放 ○
+      ctx.strokeStyle = '#888';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, padT - 13, 5, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // 押弦 ●
+      const adjustedFret = fret - baseFret;
+      if (adjustedFret >= 1 && adjustedFret <= numFrets) {
+        const y = fy(adjustedFret - 1) + fretH / 2;
+        ctx.fillStyle = '#e8ff47';
+        ctx.beginPath();
+        ctx.arc(x, y, fretH * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  });
+
+  // バレーコードの横バー（セーハ）
+  const minFret = Math.min(...frets.filter(f => f > 0));
+  const barFrets = frets.filter(f => f === minFret);
+  if (barFrets.length >= 4 && minFret === baseFret + 1) {
+    const firstStr = frets.lastIndexOf(minFret);
+    const lastStr = frets.indexOf(minFret);
+    const adjustedFret = minFret - baseFret;
+    const y = fy(adjustedFret - 1) + fretH / 2;
+    ctx.fillStyle = '#e8ff47';
+    ctx.fillRect(sx(numStrings-1-firstStr), y - fretH*0.3,
+                 sx(numStrings-1-lastStr) - sx(numStrings-1-firstStr), fretH*0.6);
+  }
+}
+
+// ===== カポUI =====
+const capoSelector = document.getElementById('capo-selector');
+const capoDisplay = document.getElementById('capo-display');
+
+for (let i = 0; i <= 7; i++) {
+  const btn = document.createElement('button');
+  btn.className = 'capo-btn' + (i === 0 ? ' active' : '');
+  btn.textContent = i === 0 ? '0' : i;
+  btn.dataset.fret = i;
+  btn.addEventListener('click', () => {
+    capoFret = i;
+    document.querySelectorAll('.capo-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    capoDisplay.innerHTML = i === 0 ? 'カポなし' : `カポ <span>${i}フレット</span>`;
+    updateDisplay();
+    renderChordGrid();
+  });
+  capoSelector.appendChild(btn);
+}
+
+// ===== JSON読み込み =====
+document.getElementById('json-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      chordData = JSON.parse(ev.target.result);
+      loadChordData();
+    } catch {
+      alert('JSONファイルの読み込みに失敗しました');
+    }
+  };
+  reader.readAsText(file);
+});
+
+// ===== 音声ファイル読み込み =====
+document.getElementById('audio-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  audio.src = URL.createObjectURL(file);
+  document.getElementById('play-btn').disabled = !chordData;
+  document.getElementById('song-meta').innerHTML =
+    `<strong>${file.name}</strong>音声ファイル読み込み済み`;
+});
+
+// ===== チョードデータ読み込み =====
+function loadChordData() {
+  if (!chordData) return;
+
+  document.getElementById('info-key').textContent = chordData.key || '—';
+  document.getElementById('info-tempo').textContent = chordData.tempo ? chordData.tempo + ' BPM' : '—';
+  document.getElementById('info-chords').textContent = chordData.chords?.length || '—';
+  document.getElementById('info-duration').textContent = formatTime(chordData.duration || 0);
+  document.getElementById('time-total').textContent = formatTime(chordData.duration || 0);
+
+  const fileName = chordData.file?.split(/[/\\]/).pop() || 'Unknown';
+  document.getElementById('song-meta').innerHTML =
+    `<strong>${fileName}</strong>${chordData.key || ''} / ${chordData.tempo || ''}BPM`;
+
+  document.getElementById('drop-zone').classList.add('hidden');
+  document.getElementById('chord-scroll').classList.remove('hidden');
+  document.getElementById('play-btn').disabled = !audio.src || audio.src === window.location.href;
+
+  renderChordGrid();
+}
+
+function renderChordGrid() {
+  if (!chordData) return;
+  const grid = document.getElementById('chord-grid');
+  grid.innerHTML = '';
+  chordData.chords.forEach((chord, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'chord-cell';
+    cell.dataset.idx = i;
+    const displayChord = capoFret > 0 ? capoChord(chord, capoFret) : chord;
+    cell.innerHTML = `
+      <div class="chord-name">${displayChord === 'N' ? '—' : displayChord}</div>
+      <div class="chord-time">${formatTime(chordData.times[i])}</div>
+    `;
+    cell.addEventListener('click', () => {
+      if (audio.src) audio.currentTime = chordData.times[i];
+    });
+    grid.appendChild(cell);
+  });
+}
+
+// ===== 再生コントロール =====
+document.getElementById('play-btn').addEventListener('click', () => {
+  if (audio.paused) {
+    audio.play();
+    document.getElementById('play-btn').textContent = '⏸ PAUSE';
+    startLoop();
+  } else {
+    audio.pause();
+    document.getElementById('play-btn').textContent = '▶ PLAY';
+    cancelAnimationFrame(animFrameId);
+  }
+});
+
+audio.addEventListener('ended', () => {
+  document.getElementById('play-btn').textContent = '▶ PLAY';
+  cancelAnimationFrame(animFrameId);
+});
+
+// プログレスバークリック
+document.getElementById('progress-bar').addEventListener('click', (e) => {
+  if (!chordData) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const ratio = (e.clientX - rect.left) / rect.width;
+  audio.currentTime = ratio * chordData.duration;
+});
+
+// ===== アニメーションループ =====
+function startLoop() {
+  function loop() {
+    if (!audio.paused) {
+      updateDisplay();
+      animFrameId = requestAnimationFrame(loop);
+    }
+  }
+  loop();
+}
+
+function updateDisplay() {
+  if (!chordData) return;
+  const t = audio.currentTime;
+  const dur = chordData.duration || 1;
+
+  // プログレス
+  document.getElementById('progress-fill').style.width = (t / dur * 100) + '%';
+  document.getElementById('time-current').textContent = formatTime(t);
+
+  // 現在のコードインデックスを探す
+  let idx = 0;
+  for (let i = 0; i < chordData.times.length; i++) {
+    if (chordData.times[i] <= t) idx = i;
+    else break;
+  }
+
+  if (idx !== currentChordIdx) {
+    currentChordIdx = idx;
+
+    const chord = chordData.chords[idx];
+    const displayChord = capoFret > 0 ? capoChord(chord, capoFret) : chord;
+    const nextChord = chordData.chords[idx + 1];
+    const displayNext = nextChord ? (capoFret > 0 ? capoChord(nextChord, capoFret) : nextChord) : '—';
+
+    // 現在のコード
+    const currentEl = document.getElementById('current-chord');
+    currentEl.textContent = displayChord === 'N' ? '—' : displayChord;
+    currentEl.classList.remove('change');
+    void currentEl.offsetWidth;
+    currentEl.classList.add('change');
+
+    // 次のコード
+    document.getElementById('next-chord').textContent = displayNext === 'N' ? '—' : displayNext;
+
+    // ダイアグラム更新
+    document.getElementById('diagram-name').textContent = displayChord === 'N' ? '—' : displayChord;
+    if (capoFret > 0) {
+      document.getElementById('diagram-capo-note').textContent = `カポ${capoFret} → 実音: ${chord}`;
+    } else {
+      document.getElementById('diagram-capo-note').textContent = '';
+    }
+    drawDiagram(document.getElementById('diagram-canvas'), displayChord, displayChord);
+
+    // グリッドのハイライト
+    document.querySelectorAll('.chord-cell').forEach((cell, i) => {
+      cell.classList.remove('active', 'next-up');
+      if (i === idx) {
+        cell.classList.add('active');
+        cell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      if (i === idx + 1) cell.classList.add('next-up');
+    });
+  }
+}
+
+// ===== ユーティリティ =====
+function formatTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+// ===== ドラッグ＆ドロップ =====
+document.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  document.body.classList.add('drag-over');
+});
+document.addEventListener('dragleave', () => document.body.classList.remove('drag-over'));
+document.addEventListener('drop', (e) => {
+  e.preventDefault();
+  document.body.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files);
+  const jsonFile = files.find(f => f.name.endsWith('.json'));
+  const audioFile = files.find(f => f.type.startsWith('audio/'));
+  if (jsonFile) {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try { chordData = JSON.parse(ev.target.result); loadChordData(); }
+      catch { alert('JSONファイルの読み込みに失敗しました'); }
+    };
+    reader.readAsText(jsonFile);
+  }
+  if (audioFile) {
+    audio.src = URL.createObjectURL(audioFile);
+    document.getElementById('play-btn').disabled = !chordData;
+  }
+});
+
+// 初期ダイアグラム（空）
+drawDiagram(document.getElementById('diagram-canvas'), '', '');
+</script>
+</body>
+</html>

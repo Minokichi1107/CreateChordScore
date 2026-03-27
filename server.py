@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import http.server, socketserver, webbrowser, threading, os, sys, subprocess
 
-PORT = 8765
+PORT = 8766
 DIR  = os.path.dirname(os.path.abspath(__file__))
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -19,7 +19,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 def open_browser():
     import time
     time.sleep(1.5)
-    url = f'http://localhost:{PORT}/chord_player.html'
+    url = f'http://localhost:{PORT}/chord_score.html'
     try:
         if sys.platform == 'win32':
             os.startfile(url)
@@ -31,7 +31,7 @@ def open_browser():
         except Exception:
             print(f'ブラウザを手動で開いてください: {url}')
 
-url = f'http://localhost:{PORT}/chord_player.html'
+url = f'http://localhost:{PORT}/chord_score.html'
 print('=' * 52)
 print('  ChordPlayer サーバー起動中')
 print(f'  {url}')
