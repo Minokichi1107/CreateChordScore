@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import http.server, socketserver, webbrowser, threading, os, sys, subprocess
 
-PORT = 8766
+PORT = 8767
 DIR  = os.path.dirname(os.path.abspath(__file__))
 
 class Handler(http.server.SimpleHTTPRequestHandler):
