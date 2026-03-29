@@ -2,1174 +2,2180 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ChordScore Editor</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@700;900&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-/* ════════════════════════════════════
-   変数
-════════════════════════════════════ */
-:root{
-  --bg:#f0f2f8;
-  --bg2:#ffffff;
-  --header:#1e2640;
-  --border:#d4daea;
-  --border2:#b8c4d8;
-  --accent:#2563eb;
-  --accent-lt:#eff6ff;
-  --amber:#d97706;
-  --amber-lt:#fffbeb;
-  --green:#059669;
-  --green-lt:#ecfdf5;
-  --red:#dc2626;
-  --text:#1e2640;
-  --text2:#4a5568;
-  --text3:#8a9ab8;
-  --chord-col:#1d4ed8;
-  --chord-bg:#dbeafe;
-  --cell-h:72px;
-  --radius:8px;
-  --shadow:0 1px 6px rgba(0,0,0,.09);
-  --shadow2:0 4px 20px rgba(0,0,0,.14);
-}
-*{box-sizing:border-box;margin:0;padding:0;}
-html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);}
-body{display:flex;flex-direction:column;overflow:hidden;}
-
-/* ════════════════════════════════════
-   ヘッダー
-════════════════════════════════════ */
-header{
-  height:48px;flex-shrink:0;
-  background:var(--header);
-  display:flex;align-items:center;gap:8px;padding:0 12px;
-  position:relative;z-index:40;
-}
-.logo{font-family:'Outfit',sans-serif;font-size:16px;font-weight:900;color:#fff;white-space:nowrap;letter-spacing:.5px;}
-.logo em{color:#60a5fa;font-style:normal;}
-.hfile{
-  padding:3px 9px;font-size:10px;border-radius:4px;cursor:pointer;
-  border:1px dashed rgba(255,255,255,.25);color:#9ca3af;
-  font-family:'JetBrains Mono',monospace;transition:all .14s;
-}
-.hfile:hover{border-color:#60a5fa;color:#60a5fa;}
-input[type=file]{display:none;}
-.hdiv{width:1px;height:20px;background:rgba(255,255,255,.12);margin:0 2px;}
-.hbtn{
-  padding:4px 10px;font-size:10px;border-radius:4px;cursor:pointer;
-  font-family:'JetBrains Mono',monospace;letter-spacing:.5px;
-  border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#ccc;
-  transition:all .14s;white-space:nowrap;
-}
-.hbtn:hover{background:rgba(255,255,255,.16);color:#fff;}
-.hbtn.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;}
-.hbtn.amber{background:var(--amber);border-color:var(--amber);color:#fff;font-weight:700;}
-.hbtn.green{background:var(--green);border-color:var(--green);color:#fff;font-weight:700;}
-.hbtn:disabled{opacity:.3;pointer-events:none;}
-.hmeta{flex:1;min-width:0;padding:0 4px;}
-.hson{font-size:11px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.hbadges{display:flex;gap:4px;margin-top:1px;}
-.hbadge{font-size:9px;padding:1px 5px;border-radius:3px;font-family:'JetBrains Mono',monospace;}
-.hbadge.k{background:rgba(96,165,250,.2);color:#93c5fd;}
-.hbadge.b{background:rgba(251,191,36,.15);color:#fcd34d;}
-
-/* ════════════════════════════════════
-   トランスポート（共通）
-════════════════════════════════════ */
-.transport-bar{
-  flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border);
-  padding:7px 14px;display:flex;align-items:center;gap:10px;
-}
-.now-box{
-  background:var(--amber-lt);border:2px solid var(--amber);
-  border-radius:6px;padding:3px 12px;
-  display:flex;flex-direction:column;align-items:center;min-width:90px;flex-shrink:0;
-}
-.now-lbl{font-size:8px;color:#92400e;font-weight:700;letter-spacing:2px;}
-.now-ch{font-size:34px;font-weight:700;color:#92400e;line-height:1.1;font-family:'JetBrains Mono',monospace;}
-.now-ch.pop{animation:pop .15s ease;}
-@keyframes pop{0%{transform:scale(1.2);opacity:.5}100%{transform:scale(1);opacity:1}}
-.next-box{
-  background:var(--accent-lt);border:1.5px solid #93c5fd;
-  border-radius:6px;padding:3px 10px;
-  display:flex;flex-direction:column;align-items:center;min-width:68px;flex-shrink:0;
-}
-.next-lbl{font-size:8px;color:#1d4ed8;font-weight:700;letter-spacing:2px;}
-.next-ch{font-size:22px;font-weight:700;color:#1e40af;line-height:1.1;font-family:'JetBrains Mono',monospace;}
-.tp{flex:1;display:flex;flex-direction:column;gap:5px;}
-.pr-row{display:flex;align-items:center;gap:7px;}
-.tdisp{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text3);min-width:32px;}
-.prog-track{flex:1;height:4px;background:var(--bg);border-radius:2px;cursor:pointer;}
-.prog-fill{height:100%;width:0%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--amber));transition:width .07s linear;}
-.vr{display:flex;align-items:center;gap:5px;}
-.vi{font-size:10px;color:var(--text3);}
-input[type=range].vs{
-  -webkit-appearance:none;width:76px;height:3px;
-  background:var(--bg);border-radius:2px;cursor:pointer;outline:none;
-}
-input[type=range].vs::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;background:var(--amber);border-radius:50%;}
-.vpc{font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--text3);min-width:26px;}
-
-/* ════════════════════════════════════
-   メインレイアウト（2ペイン）
-════════════════════════════════════ */
-.main{flex:1;display:flex;overflow:hidden;}
-
-/* ════════════════════════════════════
-   左：コードグリッドペイン
-════════════════════════════════════ */
-.grid-pane{
-  flex:1;display:flex;flex-direction:column;overflow:hidden;
-  border-right:1px solid var(--border);
-}
-.grid-toolbar{
-  flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border);
-  padding:6px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-}
-.gtlbl{font-size:9px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;}
-select.gsel{
-  background:var(--bg);border:1px solid var(--border2);color:var(--text);
-  padding:3px 6px;font-size:10px;border-radius:4px;font-family:'JetBrains Mono',monospace;cursor:pointer;
-}
-.tbtn{
-  padding:3px 9px;font-size:10px;border-radius:4px;cursor:pointer;
-  border:1px solid var(--border2);background:var(--bg);color:var(--text2);
-  font-family:'JetBrains Mono',monospace;transition:all .12s;white-space:nowrap;
-}
-.tbtn:hover{border-color:var(--accent);color:var(--accent);}
-.tbtn.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;}
-
-/* グリッドスクロール */
-.grid-scroll{
-  flex:1;overflow-y:auto;padding:10px 12px 30px;
-  scrollbar-width:thin;scrollbar-color:var(--border2) transparent;
+/* ═══════════════════════════════════════
+   CSS VARIABLES & RESET
+═══════════════════════════════════════ */
+:root {
+  --bg:        #0f1117;
+  --bg2:       #171a24;
+  --bg3:       #1e2130;
+  --border:    #2a2f45;
+  --border2:   #3a4060;
+  --text:      #e2e6f0;
+  --text2:     #8890a8;
+  --text3:     #555e7a;
+  --accent:    #4f9eff;
+  --accent2:   #2d6fd4;
+  --green:     #3ddc84;
+  --amber:     #ffb840;
+  --red:       #ff5c5c;
+  --chord-bg:  #1a2540;
+  --chord-border: #2e4a8a;
+  --chord-text: #7eb8ff;
+  --tap-active: #3ddc84;
+  --radius:    6px;
+  --radius2:   10px;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'Noto Sans JP', sans-serif;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
 }
 
-/* ドロップゾーン */
-.drop-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;height:100%;color:var(--text3);}
-.drop-zone.hidden{display:none;}
-.dicon{font-size:42px;opacity:.3;animation:float 3s ease-in-out infinite;}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-.dtitle{font-size:14px;font-weight:700;color:var(--text2);}
-.dsteps{font-size:11px;line-height:2.2;color:var(--text3);text-align:center;}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
 
-/* セクション */
-.section-block{margin-bottom:14px;}
-.section-header{
-  display:flex;align-items:center;gap:6px;
-  margin-bottom:5px;
-}
-.section-label{
-  font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-  padding:2px 8px;border-radius:3px;color:#fff;background:var(--accent);
-  font-family:'JetBrains Mono',monospace;cursor:pointer;
-}
-.section-label.intro{background:#7c3aed;}
-.section-label.verse{background:#0891b2;}
-.section-label.chorus{background:#dc2626;}
-.section-label.bridge{background:#059669;}
-.section-label.outro{background:#6b7280;}
-.section-time{font-size:9px;color:var(--text3);font-family:'JetBrains Mono',monospace;}
-.section-del{
-  font-size:9px;color:var(--text3);cursor:pointer;
-  border:none;background:none;padding:1px 4px;
-  transition:color .12s;
-}
-.section-del:hover{color:var(--red);}
+/* ═══════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
-/* コードグリッド行 */
-.chord-row{
-  display:grid;
-  gap:4px;
-  margin-bottom:4px;
+/* ═══════════════════════════════════════
+   HEADER
+═══════════════════════════════════════ */
+#header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
-/* セル */
-.chord-cell{
-  background:var(--bg2);border:1.5px solid var(--border);
-  border-radius:var(--radius);
-  height:var(--cell-h);
-  padding:5px 7px;
-  position:relative;
-  cursor:pointer;
-  transition:border-color .12s,box-shadow .12s,background .12s;
-  overflow:hidden;
-  display:flex;flex-direction:column;
-  user-select:none;
+#header .logo {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+  white-space: nowrap;
 }
-.chord-cell:hover{border-color:var(--border2);box-shadow:var(--shadow);}
-.chord-cell.active{
-  background:var(--amber-lt);
-  border-color:var(--amber);
-  box-shadow:0 0 0 2px rgba(217,119,6,.25),var(--shadow);
+#header .logo span { color: var(--text2); font-weight: 400; }
+#project-title-input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  padding: 5px 10px;
+  min-width: 0;
 }
-.chord-cell.next-cell{background:var(--accent-lt);border-color:#93c5fd;}
-/* ドロップ受付ハイライト */
-.chord-cell.drag-over-cell{
-  background:#f0fdf4;border-color:var(--green);
-  box-shadow:0 0 0 2px rgba(5,150,105,.3);
-}
-.cell-num{font-size:8px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-bottom:2px;}
-.cell-chord{
-  font-size:18px;font-weight:700;color:var(--chord-col);
-  font-family:'JetBrains Mono',monospace;line-height:1.1;
-}
-.cell-chord.slash{font-size:12px;}
-.cell-lyric{
-  font-size:10px;color:var(--text2);margin-top:3px;
-  line-height:1.3;overflow:hidden;
-  border-top:1px solid var(--border);padding-top:2px;
-}
-.cell-lyric.empty{color:var(--text3);font-style:italic;}
-.cell-lyric-tag{
-  display:inline-block;font-size:9px;
-  background:var(--green-lt);color:var(--green);
-  border-radius:2px;padding:0 3px;margin-right:2px;
-  font-family:'JetBrains Mono',monospace;
-}
-/* 歌詞削除ボタン（編集モードのみ表示）*/
-.cell-lyric-del{
-  position:absolute;top:3px;right:3px;
-  font-size:9px;color:var(--text3);cursor:pointer;
-  display:none;border:none;background:none;
-  transition:color .12s;
-}
-.edit-mode .chord-cell:hover .cell-lyric-del{display:block;}
-.cell-lyric-del:hover{color:var(--red)!important;}
+#project-title-input:focus { outline: none; border-color: var(--accent); }
+#project-title-input::placeholder { color: var(--text3); }
 
-/* ════════════════════════════════════
-   右：歌詞＋設定ペイン
-════════════════════════════════════ */
-.right-pane{
-  width:270px;flex-shrink:0;background:var(--bg2);
-  display:flex;flex-direction:column;overflow:hidden;
+.hdr-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text2);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 10px;
+  white-space: nowrap;
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
-.rpanel{padding:11px 13px;border-bottom:1px solid var(--border);flex-shrink:0;}
-.rtitle{font-size:9px;letter-spacing:3px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-weight:700;}
+.hdr-btn:hover { border-color: var(--accent); color: var(--accent); }
+.hdr-btn.primary { background: var(--accent2); border-color: var(--accent); color: #fff; }
+.hdr-btn.primary:hover { background: var(--accent); }
+.hdr-btn.danger { border-color: transparent; }
+.hdr-btn.danger:hover { border-color: var(--red); color: var(--red); }
 
-/* 歌詞パネル */
-.lyric-list{
-  flex:1;overflow-y:auto;padding:8px 10px;
-  scrollbar-width:thin;scrollbar-color:var(--border2) transparent;
-  display:flex;flex-direction:column;gap:3px;
+/* ═══════════════════════════════════════
+   LAYOUT: 3 COLUMNS
+═══════════════════════════════════════ */
+#app {
+  display: grid;
+  grid-template-columns: 260px 1fr 280px;
+  grid-template-rows: 1fr;
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - 49px);
 }
-.lyric-item{
-  padding:5px 8px;border-radius:5px;
-  border:1.5px solid var(--border);background:var(--bg);
-  cursor:grab;font-size:12px;color:var(--text);
-  transition:all .12s;display:flex;align-items:center;gap:6px;
-  line-height:1.4;
-}
-.lyric-item:hover{border-color:var(--accent);background:var(--accent-lt);}
-.lyric-item.dragging{opacity:.4;}
-.lyric-item.used{
-  border-color:var(--green);background:var(--green-lt);
-  color:var(--green);
-}
-.lyric-item .li-icon{font-size:10px;flex-shrink:0;}
-.lyric-item .li-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.lyric-item .li-clear{
-  font-size:9px;color:var(--text3);cursor:pointer;
-  border:none;background:none;flex-shrink:0;padding:1px 3px;
-}
-.lyric-item .li-clear:hover{color:var(--red);}
 
-/* セクション追加 */
-.sec-form{display:flex;flex-direction:column;gap:5px;}
-.sec-row{display:flex;gap:5px;}
-.sec-input{
-  flex:1;padding:4px 6px;font-size:11px;
-  border:1px solid var(--border2);border-radius:4px;
-  font-family:'Noto Sans JP',sans-serif;outline:none;color:var(--text);
+/* ═══════════════════════════════════════
+   LEFT PANEL: FILES + CHORD PALETTE
+═══════════════════════════════════════ */
+#panel-left {
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-.sec-input:focus{border-color:var(--accent);}
-.sec-add{
-  padding:4px 10px;font-size:10px;border-radius:4px;
-  background:var(--accent);border:none;color:#fff;cursor:pointer;
-  font-weight:700;transition:background .12s;
-}
-.sec-add:hover{background:#1d4ed8;}
-.sec-list{margin-top:6px;display:flex;flex-direction:column;gap:3px;}
-.sec-tag{
-  display:flex;align-items:center;gap:5px;
-  padding:3px 6px;border-radius:4px;background:var(--bg);
-  border:1px solid var(--border);font-size:10px;
-}
-.sec-tag-name{font-weight:700;color:var(--accent);}
-.sec-tag-time{color:var(--text3);font-family:'JetBrains Mono',monospace;}
-.sec-tag-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;}
-.sec-tag-del:hover{color:var(--red);}
 
-/* 歌詞テキストエリア */
-.lyric-ta{
-  width:100%;height:100px;padding:7px;font-size:11px;
-  border:1px solid var(--border2);border-radius:6px;
-  font-family:'Noto Sans JP',sans-serif;resize:none;outline:none;
-  color:var(--text);background:var(--bg);line-height:1.9;
+.panel-section {
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
-.lyric-ta:focus{border-color:var(--accent);}
-.lhint{font-size:9px;color:var(--text3);margin-top:3px;line-height:1.7;}
+.panel-section-header {
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-section-body {
+  padding: 8px 10px;
+}
 
-/* カポ・情報 */
-.capo-row{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;margin-bottom:4px;}
-.cbtn{
-  background:var(--bg);border:1px solid var(--border);color:var(--text3);
-  padding:4px 0;font-size:10px;cursor:pointer;border-radius:3px;text-align:center;
-  font-family:'JetBrains Mono',monospace;transition:all .1s;
+/* File inputs */
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
 }
-.cbtn:hover{border-color:var(--amber);color:var(--amber);}
-.cbtn.on{background:var(--amber);border-color:var(--amber);color:#000;font-weight:700;}
-.capo-info{font-size:10px;color:var(--text3);text-align:center;}
-.capo-info b{color:var(--amber);}
-.irow{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:10px;}
-.irow:last-child{border:none;}
-.irow .lb{color:var(--text3);}
-.irow .vl{color:var(--amber);font-weight:700;font-family:'JetBrains Mono',monospace;}
+.file-row label {
+  font-size: 11px;
+  color: var(--text2);
+  width: 40px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+}
+.file-btn {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px dashed var(--border2);
+  border-radius: var(--radius);
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px 8px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.file-btn:hover { border-color: var(--accent); color: var(--accent); }
+.file-btn.loaded { border-style: solid; border-color: var(--green); color: var(--green); }
+input[type=file] { display: none; }
 
-/* ダイアグラム */
-.dname{font-size:20px;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace;}
-.dsub{font-size:9px;color:var(--amber);}
-.dwrap{background:var(--bg);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;padding:7px;}
+/* Capo */
+.capo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.capo-row label {
+  font-size: 11px;
+  color: var(--text2);
+  font-family: var(--mono);
+}
+.capo-row input[type=number] {
+  width: 50px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 3px 6px;
+  text-align: center;
+}
+.capo-row input[type=number]:focus { outline: none; border-color: var(--accent); }
 
-/* ローディング */
-.loading{position:fixed;inset:0;background:rgba(240,242,248,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:100;}
-.loading.hidden{display:none;}
-.sp{width:28px;height:28px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg)}}
-.lm{font-size:13px;color:var(--text);}
-.ls{font-size:10px;color:var(--text3);}
+/* Chord palette */
+#chord-palette-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+}
+#chord-palette-filter {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 5px 8px;
+  margin-bottom: 8px;
+}
+#chord-palette-filter:focus { outline: none; border-color: var(--accent); }
+#chord-palette-filter::placeholder { color: var(--text3); }
 
-/* 演奏モード用 */
-.play-score{display:none;flex:1;overflow-y:auto;padding:16px 20px 40px;scrollbar-width:thin;scrollbar-color:var(--border2) transparent;}
-.play-score.visible{display:block;}
-.ps-section{margin-bottom:18px;}
-.ps-sec-label{
-  font-size:10px;font-weight:700;letter-spacing:2px;padding:2px 8px;
-  border-radius:3px;color:#fff;background:var(--accent);
-  font-family:'JetBrains Mono',monospace;margin-bottom:6px;display:inline-block;
+#chord-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
-.ps-row{
-  display:flex;flex-wrap:wrap;align-items:flex-end;
-  padding:6px 8px;border-radius:6px;border:1.5px solid transparent;
-  margin-bottom:3px;cursor:pointer;transition:all .12s;
+.palette-chord {
+  background: var(--chord-bg);
+  border: 1px solid var(--chord-border);
+  border-radius: 4px;
+  color: var(--chord-text);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 7px;
+  transition: all .12s;
+  user-select: none;
 }
-.ps-row:hover{background:var(--bg);}
-.ps-row.active{background:var(--amber-lt);border-color:var(--amber);}
-.ps-block{display:inline-flex;flex-direction:column;margin-right:1px;}
-.ps-chord{
-  font-size:12px;font-weight:700;color:var(--chord-col);
-  font-family:'JetBrains Mono',monospace;min-height:16px;
-  padding:0 2px;white-space:nowrap;
+.palette-chord:hover {
+  background: var(--accent2);
+  border-color: var(--accent);
+  color: #fff;
+  transform: translateY(-1px);
 }
-.ps-chord.slash{font-size:9px;}
-.ps-chord.empty{visibility:hidden;}
-.ps-lyric{font-size:15px;color:var(--text);line-height:1.65;padding:0 2px;white-space:pre;}
+.palette-chord.active {
+  background: var(--accent2);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════
+   CENTER: AUDIO + EDITOR
+═══════════════════════════════════════ */
+#panel-center {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* Audio player */
+#audio-bar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+#audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.play-btn {
+  width: 36px;
+  height: 36px;
+  background: var(--accent2);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.play-btn:hover { background: var(--accent); }
+.play-btn:active { transform: scale(.95); }
+
+#time-display {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  min-width: 80px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+#seek-bar-wrap {
+  flex: 1;
+  position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+#seek-track {
+  width: 100%;
+  height: 4px;
+  background: var(--bg3);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+#seek-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  width: 0%;
+  transition: width .1s linear;
+}
+#seek-input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+}
+
+.transport-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 4px 8px;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.transport-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+#speed-select {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text2);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+#speed-select:focus { outline: none; border-color: var(--accent); }
+
+/* TAP button */
+#tap-btn {
+  background: var(--bg3);
+  border: 2px solid var(--border2);
+  border-radius: var(--radius2);
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 16px;
+  letter-spacing: 1px;
+  transition: all .1s;
+  user-select: none;
+}
+#tap-btn:hover { border-color: var(--tap-active); color: var(--tap-active); }
+#tap-btn.tapped {
+  background: var(--tap-active);
+  border-color: var(--tap-active);
+  color: #000;
+  transform: scale(.97);
+}
+#tap-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Current chord display */
+#current-chord-display {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#current-chord-name {
+  color: var(--chord-text);
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 40px;
+}
+
+/* ═══════════════════════════════════════
+   LYRIC EDITOR AREA
+═══════════════════════════════════════ */
+#editor-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px 60px;
+}
+
+/* Import lyric textarea */
+#lyric-import-area {
+  background: var(--bg2);
+  border: 1px dashed var(--border2);
+  border-radius: var(--radius2);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+#lyric-import-area h4 {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+#lyric-textarea {
+  width: 100%;
+  min-height: 80px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 8px 10px;
+  resize: vertical;
+}
+#lyric-textarea:focus { outline: none; border-color: var(--accent); }
+#lyric-textarea::placeholder { color: var(--text3); }
+#lyric-import-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.sm-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text2);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  transition: all .15s;
+}
+.sm-btn:hover { border-color: var(--accent); color: var(--accent); }
+.sm-btn.green { border-color: var(--green); color: var(--green); }
+.sm-btn.green:hover { background: var(--green); color: #000; }
+
+/* Line rows */
+.line-row {
+  display: grid;
+  grid-template-columns: 32px 80px 1fr;
+  gap: 0;
+  margin-bottom: 2px;
+  border-radius: var(--radius);
+  transition: background .1s;
+  position: relative;
+}
+.line-row:hover { background: var(--bg2); }
+.line-row.active-line { background: rgba(79,158,255,0.08); }
+.line-row.tap-highlight {
+  background: rgba(61,220,132,0.12);
+  transition: background 0s;
+}
+
+.line-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  padding: 8px 4px 8px 6px;
+  text-align: right;
+  align-self: start;
+  padding-top: 10px;
+  user-select: none;
+}
+
+.line-time-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  padding: 8px 6px;
+  cursor: pointer;
+  align-self: start;
+  padding-top: 10px;
+  white-space: nowrap;
+  transition: color .15s;
+  background: none;
+  border: none;
+}
+.line-time-btn:hover { color: var(--accent); }
+.line-time-btn.has-time { color: var(--amber); }
+.line-time-btn.has-time:hover { color: var(--accent); }
+
+.line-content {
+  padding: 6px 6px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Chord tags row */
+.chord-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 4px;
+}
+.chord-tag {
+  background: var(--chord-bg);
+  border: 1px solid var(--chord-border);
+  border-radius: 3px;
+  color: var(--chord-text);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 6px;
+  position: relative;
+  transition: all .1s;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.chord-tag:hover {
+  border-color: var(--accent);
+  background: rgba(79,158,255,0.1);
+}
+.chord-tag .del-chord {
+  color: var(--text3);
+  font-size: 9px;
+  line-height: 1;
+  margin-left: 1px;
+  padding: 1px;
+}
+.chord-tag .del-chord:hover { color: var(--red); }
+
+/* Lyric text */
+.lyric-text-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 2px 0;
+  width: 100%;
+  transition: border-color .15s;
+}
+.lyric-text-input:focus {
+  outline: none;
+  border-bottom-color: var(--border2);
+}
+.lyric-text-input::placeholder { color: var(--text3); }
+
+/* Add chord inline button */
+.add-chord-inline {
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 3px;
+  color: var(--text3);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  transition: all .15s;
+}
+.add-chord-inline:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Line actions (appears on hover) */
+.line-actions {
+  position: absolute;
+  right: 4px;
+  top: 6px;
+  display: none;
+  gap: 3px;
+}
+.line-row:hover .line-actions { display: flex; }
+.line-action-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 5px;
+  font-family: var(--mono);
+  transition: all .12s;
+}
+.line-action-btn:hover { color: var(--text); border-color: var(--border2); }
+.line-action-btn.del:hover { color: var(--red); border-color: var(--red); }
+
+/* Add line button */
+#add-line-btn {
+  background: var(--bg2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text3);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px;
+  text-align: center;
+  width: 100%;
+  margin-top: 8px;
+  transition: all .15s;
+}
+#add-line-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ═══════════════════════════════════════
+   RIGHT PANEL: DIAGRAM
+═══════════════════════════════════════ */
+#panel-right {
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#diagram-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+#diagram-chord-name {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 10px;
+  min-height: 28px;
+}
+#diagram-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.diagram-variant {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 10px;
+}
+.diagram-variant-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.diagram-svg-wrap {
+  display: flex;
+  justify-content: center;
+}
+.diagram-svg-wrap svg {
+  display: block;
+}
+.diagram-empty {
+  text-align: center;
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 30px 0;
+  line-height: 2;
+}
+
+/* Chord input in right panel */
+#diagram-search-wrap {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#diagram-chord-input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 6px 10px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+#diagram-chord-input:focus { outline: none; border-color: var(--accent); }
+#diagram-chord-input::placeholder { color: var(--text3); font-size: 11px; letter-spacing: 0; }
+
+/* ═══════════════════════════════════════
+   MODAL / POPUP
+═══════════════════════════════════════ */
+#modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+}
+#modal-overlay.open { display: flex; }
+#modal-box {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius2);
+  padding: 20px;
+  min-width: 280px;
+  max-width: 400px;
+  box-shadow: var(--shadow);
+}
+#modal-box h3 {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+#modal-input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 16px;
+  padding: 8px 10px;
+  text-align: center;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+#modal-input:focus { outline: none; border-color: var(--accent); }
+#modal-time-input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 6px 10px;
+  text-align: center;
+  margin-bottom: 10px;
+}
+#modal-time-input:focus { outline: none; border-color: var(--accent); }
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+.modal-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text2);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 14px;
+  transition: all .15s;
+}
+.modal-btn:hover { border-color: var(--accent); color: var(--accent); }
+.modal-btn.ok { background: var(--accent2); border-color: var(--accent); color: #fff; }
+.modal-btn.ok:hover { background: var(--accent); }
+.modal-btn.del { border-color: var(--red); color: var(--red); }
+.modal-btn.del:hover { background: var(--red); color: #fff; }
+
+/* ═══════════════════════════════════════
+   TOAST
+═══════════════════════════════════════ */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 18px;
+  z-index: 1000;
+  pointer-events: none;
+  transition: transform .25s cubic-bezier(.34,1.56,.64,1), opacity .25s;
+  opacity: 0;
+}
+#toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════
+   STATUS BAR
+═══════════════════════════════════════ */
+#status-bar {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  padding: 4px 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-shrink: 0;
+  grid-column: 1 / -1;
+}
+#status-bar span { color: var(--text2); }
+
+/* ═══════════════════════════════════════
+   CHORD DIAGRAM POPUP (hover)
+═══════════════════════════════════════ */
+#diagram-popup {
+  position: fixed;
+  display: none;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius2);
+  padding: 10px;
+  z-index: 300;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+#diagram-popup.show { display: block; }
+#diagram-popup .popup-chord-name {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 6px;
+}
+#diagram-popup .popup-variants {
+  display: flex;
+  gap: 10px;
+}
+
+/* Highlight in-sync chord */
+.chord-tag.in-sync {
+  background: rgba(61,220,132,0.15);
+  border-color: var(--green);
+  color: var(--green);
+}
 </style>
 </head>
 <body>
 
-<div class="loading hidden" id="ld"><div class="sp"></div><div class="lm" id="lm">…</div><div class="ls" id="ls"></div></div>
-
-<!-- HEADER -->
-<header>
-  <div class="logo">Chord<em>Score</em></div>
-  <label class="hfile" for="f-audio">🎵 音声</label><input type="file" id="f-audio" accept="audio/*">
-  <label class="hfile" for="f-json">📄 JSON/CSV</label><input type="file" id="f-json" accept=".json,.csv,.txt">
-  <div class="hdiv"></div>
-  <button class="hbtn" id="btn-edit" onclick="setMode('edit')">✏️ 編集</button>
-  <button class="hbtn" id="btn-play" onclick="setMode('play')">🎸 演奏</button>
-  <div class="hdiv"></div>
-  <div class="hmeta"><div class="hson" id="h-title">未読込</div><div class="hbadges"><span class="hbadge k" id="h-key" style="display:none"></span><span class="hbadge b" id="h-bpm" style="display:none"></span></div></div>
-  <button class="hbtn on" id="play-btn" disabled>▶ PLAY</button>
+<!-- ═══ HEADER ═══ -->
+<header id="header">
+  <div class="logo">Chord<span>Score</span></div>
+  <input type="text" id="project-title-input" placeholder="曲名を入力...">
+  <button class="hdr-btn" id="btn-load-project" title="プロジェクトを読み込む">📂 開く</button>
+  <button class="hdr-btn primary" id="btn-save-project" title="JSONとして保存">💾 保存</button>
+  <button class="hdr-btn danger" id="btn-new-project" title="新規プロジェクト">✕ 新規</button>
+  <input type="file" id="file-load-project" accept=".json">
 </header>
 
-<!-- TRANSPORT -->
-<div class="transport-bar">
-  <div class="now-box"><div class="now-lbl">NOW</div><div class="now-ch" id="now-ch">—</div></div>
-  <div class="next-box"><div class="next-lbl">NEXT</div><div class="next-ch" id="next-ch">—</div></div>
-  <div class="tp">
-    <div class="pr-row">
-      <span class="tdisp" id="tc">0:00</span>
-      <div class="prog-track" id="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
-      <span class="tdisp" id="tt">0:00</span>
-    </div>
-    <div class="vr">
-      <span class="vi">🔈</span>
-      <input type="range" class="vs" id="vol" min="0" max="1" step="0.01" value="0.85">
-      <span class="vpc" id="vpc">85%</span>
-    </div>
-  </div>
-</div>
+<!-- ═══ MAIN APP ═══ -->
+<main id="app">
 
-<!-- MAIN -->
-<div class="main" id="main-wrap">
-
-  <!-- 左：コードグリッド -->
-  <div class="grid-pane">
-    <div class="grid-toolbar">
-      <span class="gtlbl">表示</span>
-      <select class="gsel" id="sel-cols">
-        <option value="2">2列/行</option>
-        <option value="4" selected>4列/行</option>
-        <option value="8">8列/行</option>
-      </select>
-      <select class="gsel" id="sel-group">
-        <option value="1">1セル=1コード変化</option>
-        <option value="2">2小節ごと</option>
-        <option value="4" selected>4小節ごと</option>
-        <option value="8">8小節ごと</option>
-      </select>
-      <div class="hdiv" style="background:var(--border2);margin:0 2px;"></div>
-      <span class="gtlbl">拍/小節</span>
-      <select class="gsel" id="sel-beats">
-        <option value="3">3拍</option>
-        <option value="4" selected>4拍</option>
-        <option value="6">6拍</option>
-      </select>
-    </div>
-
-    <!-- ドロップゾーン -->
-    <div class="drop-zone" id="dz">
-      <div class="dicon">🎸</div>
-      <div class="dtitle">ChordScore Editor</div>
-      <div class="dsteps">
-        1. 「音声」で MP3/WAV を読込<br>
-        2. 「JSON/CSV」でコード情報を読込<br>
-        3. 右パネルで歌詞を入力・反映<br>
-        4. 歌詞行をコードセルにドラッグして紐付け<br>
-        5. 「演奏」モードでPLAY！
-      </div>
-    </div>
-
-    <!-- 編集モード：コードグリッド -->
-    <div class="grid-scroll hidden" id="grid-scroll"></div>
-
-    <!-- 演奏モード：U-FRETスタイル譜面 -->
-    <div class="play-score" id="play-score"></div>
-  </div>
-
-  <!-- 右パネル -->
-  <div class="right-pane" id="right-pane">
-
-    <!-- 歌詞入力 -->
-    <div class="rpanel">
-      <div class="rtitle">歌詞入力</div>
-      <textarea class="lyric-ta" id="lyric-ta" placeholder="歌詞を貼り付けてください&#10;&#10;1行 = 1フレーズ&#10;空行 = 段落区切り"></textarea>
-      <div class="lhint">空行を入れると段落（セクション）が分かれます</div>
-      <div style="display:flex;gap:4px;margin-top:6px;">
-        <label style="padding:4px 8px;font-size:10px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);background:var(--bg);color:var(--text2);font-family:'JetBrains Mono',monospace;" for="f-lrc">📄 .lrc</label>
-        <input type="file" id="f-lrc" accept=".lrc,.txt">
-        <button class="sec-add" style="flex:1;" onclick="applyLyrics()">▶ 譜面に反映</button>
-      </div>
-    </div>
-
-    <!-- 歌詞ドラッグリスト -->
-    <div class="rpanel" style="padding-bottom:6px;">
-      <div class="rtitle">歌詞行をセルにドラッグ</div>
-    </div>
-    <div class="lyric-list" id="lyric-list">
-      <div style="font-size:11px;color:var(--text3);text-align:center;padding:20px;">
-        歌詞を入力して「譜面に反映」を押してください
-      </div>
-    </div>
-
-    <!-- セクション管理 -->
-    <div class="rpanel">
-      <div class="rtitle">セクション</div>
-      <div class="sec-form">
-        <div class="sec-row">
-          <input class="sec-input" id="sec-name" placeholder="イントロ / Aメロ / サビ…" style="flex:1.5;">
-          <input class="sec-input" id="sec-time" placeholder="0:00" style="flex:1;max-width:60px;">
-          <button class="sec-add" onclick="addSection()">＋</button>
+  <!-- ── LEFT PANEL ── -->
+  <aside id="panel-left">
+    <div class="panel-section">
+      <div class="panel-section-header">FILES</div>
+      <div class="panel-section-body">
+        <div class="file-row">
+          <label>音声</label>
+          <button class="file-btn" id="audio-file-btn" onclick="document.getElementById('file-audio').click()">クリックして選択</button>
+          <input type="file" id="file-audio" accept="audio/*">
         </div>
-        <div class="sec-list" id="sec-list"></div>
+        <div class="file-row">
+          <label>コード</label>
+          <button class="file-btn" id="chord-file-btn" onclick="document.getElementById('file-chord').click()">JSON/CSV</button>
+          <input type="file" id="file-chord" accept=".json,.csv">
+        </div>
+        <div class="capo-row">
+          <label>Capo</label>
+          <input type="number" id="capo-input" value="0" min="0" max="12">
+          <span style="font-size:10px;color:var(--text3)">フレット</span>
+        </div>
       </div>
     </div>
 
-    <!-- カポ -->
-    <div class="rpanel">
-      <div class="rtitle">カポ</div>
-      <div class="capo-row" id="capo-row"></div>
-      <div class="capo-info" id="capo-info">カポなし</div>
-    </div>
-
-    <!-- ダイアグラム -->
-    <div class="rpanel">
-      <div class="rtitle">コードフォーム</div>
-      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:5px;">
-        <div class="dname" id="d-name">—</div>
-        <div class="dsub" id="d-sub"></div>
+    <div class="panel-section">
+      <div class="panel-section-header">
+        CHORD PALETTE
+        <span id="palette-count" style="color:var(--text3)">0</span>
       </div>
-      <div class="dwrap"><canvas id="diag" width="188" height="172"></canvas></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-top:6px;" id="orient-btns">
-        <button class="tbtn on" id="o-std"  onclick="setOrient('std')">6弦↑標準</button>
-        <button class="tbtn"   id="o-rev"  onclick="setOrient('rev')">1弦↑逆順</button>
-        <button class="tbtn"   id="o-rot"  onclick="setOrient('rot')">6弦←90°</button>
-        <button class="tbtn"   id="o-rotr" onclick="setOrient('rotr')">1弦←90°</button>
+      <div class="panel-section-body" style="padding-bottom:4px;">
+        <input type="text" id="chord-palette-filter" placeholder="絞り込み (例: m7)">
       </div>
     </div>
 
-    <!-- 情報 -->
-    <div class="rpanel">
-      <div class="rtitle">曲情報</div>
-      <div class="irow"><span class="lb">キー</span><span class="vl" id="i-k">—</span></div>
-      <div class="irow"><span class="lb">テンポ</span><span class="vl" id="i-b">—</span></div>
-      <div class="irow"><span class="lb">コード数</span><span class="vl" id="i-c">—</span></div>
-      <div class="irow"><span class="lb">長さ</span><span class="vl" id="i-d">—</span></div>
-      <div class="irow"><span class="lb">モデル</span><span class="vl" id="i-m">—</span></div>
+    <div id="chord-palette-wrap">
+      <div id="chord-palette">
+        <div style="color:var(--text3);font-size:11px;font-family:var(--mono);padding:4px;">
+          コードJSONを読み込むとここに表示されます
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── CENTER PANEL ── -->
+  <section id="panel-center">
+    <!-- Audio bar -->
+    <div id="audio-bar">
+      <div id="audio-controls">
+        <button class="play-btn" id="play-btn" title="再生/停止 (Space)">▶</button>
+        <div id="time-display">0:00.0 / 0:00</div>
+        <div id="seek-bar-wrap">
+          <div id="seek-track">
+            <div id="seek-fill"></div>
+          </div>
+          <input type="range" id="seek-input" min="0" max="1000" value="0" step="1">
+        </div>
+        <button class="transport-btn" id="btn-minus5" title="-5秒">-5s</button>
+        <select id="speed-select" title="再生速度">
+          <option value="0.5">0.5x</option>
+          <option value="0.75">0.75x</option>
+          <option value="1" selected>1.0x</option>
+          <option value="1.25">1.25x</option>
+          <option value="1.5">1.5x</option>
+        </select>
+        <button id="tap-btn" disabled title="再生中にタップして時刻を付ける">TAP</button>
+        <div id="current-chord-display">
+          ♩ <span id="current-chord-name">-</span>
+        </div>
+      </div>
     </div>
 
+    <!-- Editor area -->
+    <div id="editor-area">
+      <!-- Lyric import -->
+      <div id="lyric-import-area">
+        <h4>歌詞テキスト入力（改行で行分割）</h4>
+        <textarea id="lyric-textarea" placeholder="歌詞をここに貼り付け...&#10;&#10;例:&#10;とっても とっても&#10;あなたのことが&#10;好きだよ"></textarea>
+        <div id="lyric-import-btns">
+          <button class="sm-btn green" id="btn-import-lyrics">行を取り込む</button>
+          <button class="sm-btn" id="btn-append-lyrics">追記</button>
+          <button class="sm-btn" id="btn-clear-lyrics" style="color:var(--red);">クリア</button>
+        </div>
+      </div>
+
+      <!-- Lines -->
+      <div id="lines-container"></div>
+      <button id="add-line-btn">＋ 行を追加</button>
+    </div>
+  </section>
+
+  <!-- ── RIGHT PANEL ── -->
+  <aside id="panel-right">
+    <div class="panel-section-header" style="padding:10px 12px 8px;">CHORD DIAGRAM</div>
+    <div id="diagram-search-wrap">
+      <input type="text" id="diagram-chord-input" placeholder="コード名を入力 (例: Am7)">
+    </div>
+    <div id="diagram-panel">
+      <div id="diagram-chord-name"></div>
+      <div id="diagram-container">
+        <div class="diagram-empty">コードタグをホバーまたは<br>上の入力欄にコード名を入力</div>
+      </div>
+    </div>
+  </aside>
+
+</main>
+
+<!-- Status bar -->
+<div id="status-bar">
+  行数: <span id="stat-lines">0</span>
+  コード数: <span id="stat-chords">0</span>
+  時刻付き: <span id="stat-timed">0</span>
+  自動保存: <span id="stat-autosave">-</span>
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h3 id="modal-title">コードを編集</h3>
+    <div id="modal-body"></div>
+    <div class="modal-btns" id="modal-btns"></div>
   </div>
 </div>
 
-<audio id="aud"></audio>
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Hover diagram popup -->
+<div id="diagram-popup">
+  <div class="popup-chord-name" id="popup-chord-name"></div>
+  <div class="popup-variants" id="popup-variants"></div>
+</div>
+
+<!-- Hidden audio element -->
+<audio id="audio-player" preload="auto"></audio>
 
 <script>
-/* ════════════════════════════════════
-   定数・状態
-════════════════════════════════════ */
-const NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-const NOTESF=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-const QM={maj:'',min:'m',maj7:'maj7',min7:'m7',dom7:'7','7':'7',dim:'dim',aug:'aug',sus2:'sus2',sus4:'sus4',hdim7:'m7b5'};
+// ═══════════════════════════════════════════════════════
+//  GUITAR CHORD DATABASE
+//  Format: [frets array (6 strings E-e), barre fret, fingers]
+//  fret: -1=mute, 0=open, 1-12=fret number
+// ═══════════════════════════════════════════════════════
+const CHORD_DB = {
+  // ── C family ──
+  'C':    { variants: [
+    { name:'ロー', frets:[0,3,2,0,1,0], fingers:[0,3,2,0,1,0] },
+    { name:'バレー(3F)', frets:[-1,-1,3,5,5,3], barre:3 },
+    { name:'ハイ(8F)', frets:[-1,-1,10,9,8,8], barre:8 },
+  ]},
+  'Cm':   { variants: [
+    { name:'バレー(3F)', frets:[-1,3,5,5,4,3], barre:3 },
+    { name:'ロー', frets:[-1,-1,5,5,4,3], barre:3 },
+  ]},
+  'Cmaj7':{ variants: [
+    { name:'ロー', frets:[0,3,2,0,0,0], fingers:[0,3,2,0,0,0] },
+    { name:'バレー(3F)', frets:[-1,-1,3,5,4,3] },
+  ]},
+  'Cm7':  { variants: [
+    { name:'バレー(3F)', frets:[-1,3,5,3,4,3], barre:3 },
+  ]},
+  'C7':   { variants: [
+    { name:'ロー', frets:[0,3,2,3,1,0] },
+    { name:'バレー(3F)', frets:[-1,3,5,3,5,3], barre:3 },
+  ]},
+  'Csus2':{ variants: [{ name:'ロー', frets:[0,3,0,0,1,0] }]},
+  'Csus4':{ variants: [{ name:'ロー', frets:[0,3,3,0,1,3] }]},
 
-let D=null;          // コードデータ
-let cells=[];        // [{idx,time,chord,lyric,section}]
-let lyricItems=[];   // [{text,used,cellIdx}]
-let sections=[];     // [{name,time}]
-let capo=0;
-let orient='std';
-let appMode='edit';  // 'edit'|'play'
-let curCellIdx=-1;
-let rafId=null;
-let audioReady=false;
+  // ── D family ──
+  'D':    { variants: [
+    { name:'ロー', frets:[-1,-1,0,2,3,2] },
+    { name:'バレー(5F)', frets:[-1,-1,5,7,7,5], barre:5 },
+  ]},
+  'Dm':   { variants: [
+    { name:'ロー', frets:[-1,-1,0,2,3,1] },
+    { name:'バレー(5F)', frets:[-1,-1,5,7,6,5], barre:5 },
+  ]},
+  'Dmaj7':{ variants: [{ name:'ロー', frets:[-1,-1,0,2,2,2] }]},
+  'Dm7':  { variants: [
+    { name:'ロー', frets:[-1,-1,0,2,1,1] },
+    { name:'バレー(5F)', frets:[-1,-1,5,7,5,5], barre:5 },
+  ]},
+  'D7':   { variants: [
+    { name:'ロー', frets:[-1,-1,0,2,1,2] },
+  ]},
+  'Dsus4':{ variants: [{ name:'ロー', frets:[-1,-1,0,2,3,3] }]},
+  'Dadd9':{ variants: [{ name:'ロー', frets:[-1,-1,0,2,3,0] }]},
 
-const aud=document.getElementById('aud');
-aud.volume=0.85;
+  // ── E family ──
+  'E':    { variants: [
+    { name:'ロー', frets:[0,2,2,1,0,0] },
+    { name:'バレー(7F)', frets:[-1,-1,7,9,9,7], barre:7 },
+  ]},
+  'Em':   { variants: [
+    { name:'ロー', frets:[0,2,2,0,0,0] },
+    { name:'バレー(7F)', frets:[-1,-1,7,9,8,7], barre:7 },
+  ]},
+  'Emaj7':{ variants: [{ name:'ロー', frets:[0,2,1,1,0,0] }]},
+  'Em7':  { variants: [
+    { name:'ロー', frets:[0,2,2,0,3,0] },
+    { name:'バレー(7F)', frets:[-1,-1,7,9,7,7], barre:7 },
+  ]},
+  'E7':   { variants: [
+    { name:'ロー', frets:[0,2,0,1,0,0] },
+    { name:'バレー(7F)', frets:[-1,-1,7,9,7,9] },
+  ]},
+  'Esus4':{ variants: [{ name:'ロー', frets:[0,2,2,2,0,0] }]},
 
-/* ════════════════════════════════════
-   ユーティリティ
-════════════════════════════════════ */
-function fmtTime(s){const m=Math.floor(s/60),sec=Math.floor(s%60).toString().padStart(2,'0');return`${m}:${sec}`;}
-function parseFmtTime(s){const p=s.split(':');return p.length===2?parseInt(p[0])*60+parseFloat(p[1]):parseFloat(s)||0;}
-function noteIdx(n){let i=NOTES.indexOf(n);return i>=0?i:NOTESF.indexOf(n);}
-function applyCapo(chord,c){
-  if(!chord||chord==='N'||c===0)return chord;
-  return chord.split('/').map(p=>{
-    let root='',qual='';
-    if(p.length>=2&&(p[1]==='#'||p[1]==='b')){root=p.slice(0,2);qual=p.slice(2);}
-    else{root=p[0];qual=p.slice(1);}
-    const idx=noteIdx(root);
-    return idx<0?p:NOTES[((idx-c)%12+12)%12]+qual;
-  }).join('/');
-}
-function normChord(raw){
-  if(!raw||['N','X','n'].includes(raw))return'N';
-  if(raw.includes(':'))return raw.split(':')[0]+(QM[raw.split(':')[1]]??raw.split(':')[1]);
-  return raw;
-}
-function estKey(chords){
-  const f={};
-  chords.filter(c=>c!=='N').forEach(c=>{const m=c.split('/')[0].match(/^([A-G][b#]?)/);if(m)f[m[1]]=(f[m[1]]||0)+1;});
-  const t=Object.entries(f).sort((a,b)=>b[1]-a[1])[0];
-  return t?t[0]+' major':'';
-}
+  // ── F family ──
+  'F':    { variants: [
+    { name:'バレー(1F)', frets:[1,3,3,2,1,1], barre:1 },
+    { name:'ハイ(5F)', frets:[-1,-1,3,5,5,5] },
+  ]},
+  'Fm':   { variants: [
+    { name:'バレー(1F)', frets:[1,3,3,1,1,1], barre:1 },
+  ]},
+  'Fmaj7':{ variants: [
+    { name:'ロー', frets:[0,3,3,2,1,0] },
+    { name:'バレー(1F)', frets:[1,3,3,2,1,0] },
+  ]},
+  'Fm7':  { variants: [{ name:'バレー(1F)', frets:[1,3,3,1,4,1], barre:1 }]},
+  'F7':   { variants: [{ name:'バレー(1F)', frets:[1,3,1,2,1,1], barre:1 }]},
 
-/* ════════════════════════════════════
-   データ読込
-════════════════════════════════════ */
-function parseInput(text,fname){
-  if(!fname.endsWith('.json'))return parseCsv(text,fname);
-  const r=JSON.parse(text);
-  if(Array.isArray(r.chords)&&typeof r.chords[0]==='string')return{source:'JSON',model:r.model||'—',...r};
-  if(r.chord_dict!==undefined||Array.isArray(r.chords))return cvtChordMini(r,fname);
-  return r;
-}
-function cvtChordMini(r,fname){
-  const ch=[],ti=[];let prev=null;
-  for(const it of r.chords){
-    const c=normChord(it.chord||it.label||'');
-    const t=parseFloat((it.start??it.time??0).toFixed(3));
-    if(c!==prev){ch.push(c);ti.push(t);prev=c;}
+  // ── G family ──
+  'G':    { variants: [
+    { name:'ロー', frets:[3,2,0,0,0,3] },
+    { name:'ロー2', frets:[3,2,0,0,3,3] },
+    { name:'バレー(3F)', frets:[3,5,5,4,3,3], barre:3 },
+  ]},
+  'Gm':   { variants: [
+    { name:'バレー(3F)', frets:[3,5,5,3,3,3], barre:3 },
+  ]},
+  'Gmaj7':{ variants: [{ name:'ロー', frets:[3,2,0,0,0,2] }]},
+  'Gm7':  { variants: [{ name:'バレー(3F)', frets:[3,5,3,3,3,3], barre:3 }]},
+  'G7':   { variants: [
+    { name:'ロー', frets:[3,2,0,0,0,1] },
+    { name:'バレー(3F)', frets:[3,5,3,4,3,3], barre:3 },
+  ]},
+  'Gsus4':{ variants: [{ name:'ロー', frets:[3,3,0,0,1,3] }]},
+  'Gadd9':{ variants: [{ name:'ロー', frets:[3,2,0,2,0,3] }]},
+
+  // ── A family ──
+  'A':    { variants: [
+    { name:'ロー', frets:[-1,0,2,2,2,0] },
+    { name:'バレー(5F)', frets:[5,7,7,6,5,5], barre:5 },
+  ]},
+  'Am':   { variants: [
+    { name:'ロー', frets:[-1,0,2,2,1,0] },
+    { name:'バレー(5F)', frets:[5,7,7,5,5,5], barre:5 },
+  ]},
+  'Amaj7':{ variants: [{ name:'ロー', frets:[-1,0,2,1,2,0] }]},
+  'Am7':  { variants: [
+    { name:'ロー', frets:[-1,0,2,0,1,0] },
+    { name:'バレー(5F)', frets:[5,7,5,5,5,5], barre:5 },
+  ]},
+  'A7':   { variants: [
+    { name:'ロー', frets:[-1,0,2,0,2,0] },
+  ]},
+  'Asus2':{ variants: [{ name:'ロー', frets:[-1,0,2,2,0,0] }]},
+  'Asus4':{ variants: [{ name:'ロー', frets:[-1,0,2,2,3,0] }]},
+  'Aadd9':{ variants: [{ name:'ロー', frets:[-1,0,2,2,0,0] }]},
+
+  // ── B family ──
+  'B':    { variants: [
+    { name:'バレー(2F)', frets:[-1,2,4,4,4,2], barre:2 },
+    { name:'バレー(7F)', frets:[7,9,9,8,7,7], barre:7 },
+  ]},
+  'Bm':   { variants: [
+    { name:'バレー(2F)', frets:[-1,2,4,4,3,2], barre:2 },
+    { name:'バレー(7F)', frets:[7,9,9,7,7,7], barre:7 },
+  ]},
+  'Bmaj7':{ variants: [{ name:'バレー(2F)', frets:[-1,2,4,3,4,2], barre:2 }]},
+  'Bm7':  { variants: [
+    { name:'バレー(2F)', frets:[-1,2,4,2,3,2], barre:2 },
+  ]},
+  'B7':   { variants: [
+    { name:'ロー', frets:[-1,2,1,2,0,2] },
+    { name:'バレー(2F)', frets:[-1,2,4,2,4,2], barre:2 },
+  ]},
+
+  // ── Sharp/Flat ──
+  'C#':   { variants: [{ name:'バレー(4F)', frets:[-1,-1,4,6,6,4], barre:4 }]},
+  'C#m':  { variants: [{ name:'バレー(4F)', frets:[-1,-1,4,6,5,4], barre:4 }]},
+  'C#m7': { variants: [{ name:'バレー(4F)', frets:[-1,-1,4,6,4,4], barre:4 }]},
+  'C#maj7':{ variants: [{ name:'バレー(4F)', frets:[-1,-1,4,6,5,4], barre:4 }]},
+  'Db':   { variants: [{ name:'バレー(4F)', frets:[-1,-1,4,6,6,4], barre:4 }]},
+  'Dbm':  { variants: [{ name:'バレー(4F)', frets:[-1,-1,4,6,5,4], barre:4 }]},
+
+  'D#':   { variants: [{ name:'バレー(6F)', frets:[-1,-1,5,7,7,5], barre:5 }]},
+  'D#m':  { variants: [{ name:'バレー(6F)', frets:[-1,-1,6,8,7,6], barre:6 }]},
+  'Eb':   { variants: [{ name:'バレー(6F)', frets:[-1,-1,5,7,7,5], barre:5 }]},
+  'Ebm':  { variants: [{ name:'バレー(6F)', frets:[-1,-1,6,8,7,6], barre:6 }]},
+  'Ebmaj7':{ variants: [{ name:'バレー(6F)', frets:[-1,-1,5,7,6,5], barre:5 }]},
+
+  'F#':   { variants: [{ name:'バレー(2F)', frets:[2,4,4,3,2,2], barre:2 }]},
+  'F#m':  { variants: [{ name:'バレー(2F)', frets:[2,4,4,2,2,2], barre:2 }]},
+  'F#m7': { variants: [{ name:'バレー(2F)', frets:[2,4,2,2,2,2], barre:2 }]},
+  'F#maj7':{ variants: [{ name:'バレー(2F)', frets:[2,4,3,3,2,2] }]},
+  'Gb':   { variants: [{ name:'バレー(2F)', frets:[2,4,4,3,2,2], barre:2 }]},
+
+  'G#':   { variants: [{ name:'バレー(4F)', frets:[4,6,6,5,4,4], barre:4 }]},
+  'G#m':  { variants: [{ name:'バレー(4F)', frets:[4,6,6,4,4,4], barre:4 }]},
+  'G#m7': { variants: [{ name:'バレー(4F)', frets:[4,6,4,4,4,4], barre:4 }]},
+  'Ab':   { variants: [{ name:'バレー(4F)', frets:[4,6,6,5,4,4], barre:4 }]},
+  'Abm':  { variants: [{ name:'バレー(4F)', frets:[4,6,6,4,4,4], barre:4 }]},
+  'Abmaj7':{ variants: [{ name:'バレー(4F)', frets:[4,6,5,5,4,4] }]},
+
+  'A#':   { variants: [{ name:'バレー(6F)', frets:[6,8,8,7,6,6], barre:6 }]},
+  'A#m':  { variants: [{ name:'バレー(6F)', frets:[6,8,8,6,6,6], barre:6 }]},
+  'Bb':   { variants: [{ name:'バレー(1F)', frets:[-1,1,3,3,3,1], barre:1 }]},
+  'Bbm':  { variants: [{ name:'バレー(1F)', frets:[-1,1,3,3,2,1], barre:1 }]},
+  'Bbmaj7':{ variants: [{ name:'バレー(1F)', frets:[-1,1,3,2,3,0] }]},
+
+  'B♭':   { variants: [{ name:'バレー(1F)', frets:[-1,1,3,3,3,1], barre:1 }]},
+  'B♭m':  { variants: [{ name:'バレー(1F)', frets:[-1,1,3,3,2,1], barre:1 }]},
+};
+
+// Aliases
+['C#','Db'].forEach(r=>{ if(CHORD_DB[r]) { CHORD_DB[r+'m7'] = CHORD_DB[r+'m7'] || { variants: [{ name:'バレー', frets:[-1,-1,4,6,4,4], barre:4 }]}; }});
+
+// ═══════════════════════════════════════════════════════
+//  SVG CHORD DIAGRAM RENDERER
+// ═══════════════════════════════════════════════════════
+function renderChordDiagram(frets, barre, title) {
+  const W = 90, H = 110;
+  const strings = 6, fretCount = 4;
+  const marginLeft = 16, marginTop = 24;
+  const strSpacing = 12, fretSpacing = 16;
+  const gridW = strSpacing * (strings - 1);
+  const gridH = fretSpacing * fretCount;
+
+  // Determine start fret
+  const nonMuted = frets.filter(f => f > 0);
+  let startFret = 1;
+  if (nonMuted.length > 0) {
+    const minF = Math.min(...nonMuted);
+    const maxF = Math.max(...nonMuted);
+    if (maxF > 4) startFret = minF;
   }
-  return{file:fname,duration:parseFloat((r.duration||0).toFixed(2)),tempo:parseFloat((r.bpm||0).toFixed(1)),key:r.key||estKey(ch),chords:ch,times:ti,model:r.model_name||'Chord-CNN-LSTM',source:'ChordMini'};
-}
-function parseCsv(text,fname){
-  const ch=[],ti=[];let prev=null;
-  for(const line of text.replace(/\r/g,'').split('\n')){
-    const p=line.split(',');if(p.length<2)continue;
-    const t=parseFloat(p[0]),c=p[1].trim()||'N';
-    if(isNaN(t))continue;
-    if(c!==prev){ti.push(parseFloat(t.toFixed(3)));ch.push(c);prev=c;}
+  if (barre) startFret = barre;
+
+  let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  const color = '#e2e6f0';
+  const mutedColor = '#ff5c5c';
+  const openColor = '#3ddc84';
+  const dotColor = '#4f9eff';
+  const barreColor = 'rgba(79,158,255,0.6)';
+
+  // Nut (if starting from fret 1)
+  if (startFret === 1) {
+    svg += `<rect x="${marginLeft}" y="${marginTop - 3}" width="${gridW}" height="4" rx="2" fill="${color}" opacity="0.6"/>`;
+  } else {
+    // Fret position label
+    svg += `<text x="${marginLeft - 4}" y="${marginTop + fretSpacing * 0.6}" font-size="8" fill="#8890a8" text-anchor="end" font-family="IBM Plex Mono">${startFret}fr</text>`;
   }
-  return{file:fname,duration:ti[ti.length-1]+2||0,tempo:0,key:estKey(ch),chords:ch,times:ti,model:'Chordino',source:'CSV'};
-}
 
-function loadData(d){
-  D=d;
-  document.getElementById('h-title').textContent=d.file?.split(/[/\\]/).pop()||'';
-  const bk=document.getElementById('h-key'),bb=document.getElementById('h-bpm');
-  if(d.key){bk.textContent=d.key;bk.style.display='';}
-  if(d.tempo){bb.textContent=d.tempo+' BPM';bb.style.display='';}
-  document.getElementById('i-k').textContent=d.key||'—';
-  document.getElementById('i-b').textContent=d.tempo?d.tempo+' BPM':'—';
-  document.getElementById('i-c').textContent=d.chords.length;
-  document.getElementById('i-d').textContent=fmtTime(d.duration||0);
-  document.getElementById('i-m').textContent=d.model||'—';
-  document.getElementById('tt').textContent=fmtTime(d.duration||0);
-  document.getElementById('play-btn').disabled=!audioReady;
-  buildCells();
-  document.getElementById('dz').classList.add('hidden');
-  document.getElementById('grid-scroll').classList.remove('hidden');
-  setMode('edit');
-}
-
-/* ════════════════════════════════════
-   セル構築
-════════════════════════════════════ */
-function buildCells(){
-  if(!D)return;
-  const beats=parseInt(document.getElementById('sel-beats').value)||4;
-  const group=parseInt(document.getElementById('sel-group').value)||4;
-
-  if(D.tempo>0){
-    // テンポ既知：小節単位でセルを作る
-    const spb=60/D.tempo;
-    const spm=spb*beats;
-    const total=Math.ceil(D.duration/spm);
-    cells=[];
-    for(let m=0;m<total;m++){
-      const t=m*spm;
-      cells.push({idx:m,time:t,chord:chordAt(t),lyric:'',section:''});
-    }
-  }else{
-    // テンポ不明：コード変化点ごとにセル
-    cells=D.chords.map((ch,i)=>({idx:i,time:D.times[i],chord:ch,lyric:'',section:''}));
+  // Fret lines
+  for (let f = 0; f <= fretCount; f++) {
+    const y = marginTop + f * fretSpacing;
+    svg += `<line x1="${marginLeft}" y1="${y}" x2="${marginLeft + gridW}" y2="${y}" stroke="${color}" stroke-width="${f===0?0:0.5}" opacity="0.25"/>`;
   }
-  renderGrid();
-}
 
-function chordAt(t){
-  if(!D)return'N';
-  let c=D.chords[0];
-  for(let i=0;i<D.times.length;i++){if(D.times[i]<=t)c=D.chords[i];else break;}
-  return c;
-}
+  // String lines
+  for (let s = 0; s < strings; s++) {
+    const x = marginLeft + s * strSpacing;
+    svg += `<line x1="${x}" y1="${marginTop}" x2="${x}" y2="${marginTop + gridH}" stroke="${color}" stroke-width="0.7" opacity="0.4"/>`;
+  }
 
-/* ════════════════════════════════════
-   グリッド描画
-════════════════════════════════════ */
-function renderGrid(){
-  const scroll=document.getElementById('grid-scroll');
-  scroll.innerHTML='';
-  if(!cells.length)return;
-  const cols=parseInt(document.getElementById('sel-cols').value)||4;
-
-  // セクションでグループ化
-  const secMap={};
-  sections.forEach(s=>secMap[s.time]=s.name);
-
-  // セクション境界を見つけてブロック分割
-  let cur=[];
-  const blocks=[{label:'',items:[]}];
-
-  cells.forEach((cell,i)=>{
-    const secName=findSection(cell.time);
-    const lastBlock=blocks[blocks.length-1];
-    if(i>0&&secName!==findSection(cells[i-1].time)&&secName){
-      blocks.push({label:secName,items:[]});
+  // Barre
+  if (barre && barre >= startFret) {
+    const bf = barre - startFret;
+    const by = marginTop + bf * fretSpacing + fretSpacing / 2;
+    // Find barre span
+    const barreStrings = frets.filter(f => f === barre);
+    if (barreStrings.length >= 2) {
+      const firstS = frets.indexOf(barre);
+      const lastS = frets.lastIndexOf(barre);
+      const bx1 = marginLeft + firstS * strSpacing;
+      const bx2 = marginLeft + lastS * strSpacing;
+      svg += `<rect x="${bx1}" y="${by - 5}" width="${bx2 - bx1}" height="10" rx="5" fill="${barreColor}"/>`;
     }
-    blocks[blocks.length-1].items.push(cell);
-  });
-  if(!blocks[0].label&&blocks.length>1) blocks[0].label='—';
+  }
 
-  blocks.forEach(block=>{
-    if(!block.items.length)return;
-    const secDiv=document.createElement('div');
-    secDiv.className='section-block';
+  // Dots
+  for (let s = 0; s < strings; s++) {
+    const f = frets[s];
+    const x = marginLeft + s * strSpacing;
 
-    if(block.label){
-      const sh=document.createElement('div');
-      sh.className='section-header';
-      const sl=document.createElement('span');
-      sl.className='section-label '+labelClass(block.label);
-      sl.textContent=block.label;
-      sl.addEventListener('click',()=>{
-        if(aud.src)aud.currentTime=block.items[0].time;
-      });
-      sh.appendChild(sl);
-      const st=document.createElement('span');
-      st.className='section-time';
-      st.textContent=fmtTime(block.items[0].time);
-      sh.appendChild(st);
-      secDiv.appendChild(sh);
+    if (f === -1) {
+      // Muted
+      const ty = marginTop - 11;
+      svg += `<text x="${x}" y="${ty}" font-size="9" text-anchor="middle" fill="${mutedColor}" font-family="sans-serif">✕</text>`;
+    } else if (f === 0) {
+      // Open
+      const ty = marginTop - 11;
+      svg += `<circle cx="${x}" cy="${ty - 2}" r="4" fill="none" stroke="${openColor}" stroke-width="1.2"/>`;
+    } else {
+      // Fretted dot
+      const fretPos = f - startFret;
+      if (fretPos >= 0 && fretPos < fretCount) {
+        const dy = marginTop + fretPos * fretSpacing + fretSpacing / 2;
+        // Skip if already covered by barre rendering
+        const isBarreDot = (barre && f === barre);
+        if (!isBarreDot || frets.filter(ff => ff === barre).length < 2) {
+          svg += `<circle cx="${x}" cy="${dy}" r="5" fill="${dotColor}"/>`;
+        } else if (isBarreDot) {
+          // Show small indicator
+          svg += `<circle cx="${x}" cy="${dy}" r="5" fill="${dotColor}" opacity="0.8"/>`;
+        }
+      }
     }
+  }
 
-    // 行に分割
-    for(let r=0;r<block.items.length;r+=cols){
-      const row=document.createElement('div');
-      row.className='chord-row';
-      row.style.gridTemplateColumns=`repeat(${cols},1fr)`;
-      block.items.slice(r,r+cols).forEach(cell=>{
-        row.appendChild(makeCellEl(cell));
-      });
-      secDiv.appendChild(row);
-    }
-    scroll.appendChild(secDiv);
-  });
+  svg += `</svg>`;
+  return svg;
 }
 
-function findSection(time){
-  let name='';
-  sections.forEach(s=>{if(s.time<=time)name=s.name;});
-  return name;
-}
-function labelClass(name){
-  const n=name.toLowerCase();
-  if(n.includes('イントロ')||n.includes('intro'))return'intro';
-  if(n.includes('サビ')||n.includes('chorus'))return'chorus';
-  if(n.includes('アウトロ')||n.includes('outro'))return'outro';
-  if(n.includes('間奏')||n.includes('bridge'))return'bridge';
-  return'verse';
-}
-
-function makeCellEl(cell){
-  const el=document.createElement('div');
-  el.className='chord-cell';
-  el.dataset.idx=cell.idx;
-
-  const disp=applyCapo(cell.chord,capo);
-
-  el.innerHTML=`
-    <div class="cell-num">${cell.idx+1} · ${fmtTime(cell.time)}</div>
-    <div class="cell-chord${disp&&disp.length>6?' slash':''}">${disp==='N'?'—':disp||'—'}</div>
-    <div class="cell-lyric${cell.lyric?'':' empty'}">${
-      cell.lyric
-        ? `<span class="cell-lyric-tag">歌詞</span>${escHtml(cell.lyric)}`
-        : 'ドラッグで歌詞を配置'
-    }</div>
-    <button class="cell-lyric-del" title="歌詞削除" onclick="clearCellLyric(${cell.idx},event)">✕</button>
-  `;
-
-  // クリック→シーク
-  el.addEventListener('click',()=>{if(aud.src)aud.currentTime=cell.time;});
-
-  // ドラッグオーバー
-  el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag-over-cell');});
-  el.addEventListener('dragleave',()=>el.classList.remove('drag-over-cell'));
-  el.addEventListener('drop',e=>{
-    e.preventDefault();
-    el.classList.remove('drag-over-cell');
-    const li=parseInt(e.dataTransfer.getData('lyricIdx'));
-    if(isNaN(li)||!lyricItems[li])return;
-    // 既存の使用済みを解除
-    if(lyricItems[li].used&&lyricItems[li].cellIdx>=0){
-      cells[lyricItems[li].cellIdx].lyric='';
-    }
-    // 新規紐付け
-    cells[cell.idx].lyric=lyricItems[li].text;
-    lyricItems[li].used=true;
-    lyricItems[li].cellIdx=cell.idx;
-    renderGrid();
-    renderLyricList();
-  });
-
-  return el;
+// ═══════════════════════════════════════════════════════
+//  CHORD LOOKUP
+// ═══════════════════════════════════════════════════════
+function lookupChord(name) {
+  if (!name || name === 'N') return null;
+  // Strip bass note (e.g. C/G → C)
+  const base = name.split('/')[0];
+  // Direct lookup
+  if (CHORD_DB[base]) return { name: base, data: CHORD_DB[base] };
+  // Try common aliases
+  const aliases = { '♭': 'b', '♯': '#' };
+  let normalized = base;
+  for (const [k, v] of Object.entries(aliases)) normalized = normalized.replace(k, v);
+  if (CHORD_DB[normalized]) return { name: normalized, data: CHORD_DB[normalized] };
+  return null;
 }
 
-function clearCellLyric(idx,e){
-  e.stopPropagation();
-  const cell=cells[idx];
-  if(!cell)return;
-  // lyricItemsの使用済みフラグを解除
-  lyricItems.forEach(li=>{if(li.text===cell.lyric)li.used=false;});
-  cell.lyric='';
-  renderGrid();
-  renderLyricList();
-}
-function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-/* ════════════════════════════════════
-   歌詞処理
-════════════════════════════════════ */
-function applyLyrics(){
-  const raw=document.getElementById('lyric-ta').value.trim();
-  if(!raw){alert('歌詞を入力してください');return;}
-  const lines=raw.replace(/\r/g,'').split('\n').filter(l=>l.trim()!=='');
-  lyricItems=lines.map(text=>({text,used:false,cellIdx:-1}));
-  renderLyricList();
-  if(!D){alert('先にコードJSONを読み込んでください');return;}
-}
-
-function renderLyricList(){
-  const list=document.getElementById('lyric-list');
-  list.innerHTML='';
-  if(!lyricItems.length){
-    list.innerHTML='<div style="font-size:11px;color:var(--text3);text-align:center;padding:20px;">歌詞を入力して「譜面に反映」を押してください</div>';
+function renderDiagramPanel(chordName) {
+  const nameEl = document.getElementById('diagram-chord-name');
+  const container = document.getElementById('diagram-container');
+  nameEl.textContent = chordName || '';
+  if (!chordName || chordName === 'N') {
+    container.innerHTML = '<div class="diagram-empty">コードタグをホバー<br>または上で入力</div>';
     return;
   }
-  lyricItems.forEach((li,i)=>{
-    const el=document.createElement('div');
-    el.className='lyric-item'+(li.used?' used':'');
-    el.draggable=true;
-    el.dataset.idx=i;
-    el.innerHTML=`
-      <span class="li-icon">${li.used?'✅':'⋮⋮'}</span>
-      <span class="li-text">${escHtml(li.text)}</span>
-      ${li.used?`<button class="li-clear" onclick="removeLyricAssign(${i},event)">✕</button>`:''}
+  const result = lookupChord(chordName);
+  if (!result) {
+    container.innerHTML = `<div class="diagram-empty">"${chordName}"<br>のダイアグラムは<br>未登録です</div>`;
+    return;
+  }
+  container.innerHTML = '';
+  result.data.variants.forEach(v => {
+    const div = document.createElement('div');
+    div.className = 'diagram-variant';
+    div.innerHTML = `
+      <div class="diagram-variant-label">${v.name}</div>
+      <div class="diagram-svg-wrap">${renderChordDiagram(v.frets, v.barre || null, v.name)}</div>
     `;
-    el.addEventListener('dragstart',e=>{
-      el.classList.add('dragging');
-      e.dataTransfer.setData('lyricIdx',String(i));
-    });
-    el.addEventListener('dragend',()=>el.classList.remove('dragging'));
-    list.appendChild(el);
+    container.appendChild(div);
   });
 }
 
-function removeLyricAssign(i,e){
-  e.stopPropagation();
-  const li=lyricItems[i];
-  if(!li)return;
-  if(li.cellIdx>=0&&cells[li.cellIdx])cells[li.cellIdx].lyric='';
-  li.used=false;li.cellIdx=-1;
-  renderGrid();renderLyricList();
-}
-
-/* LRC */
-document.getElementById('f-lrc').addEventListener('change',e=>{
-  const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=ev=>{
-    const lines=ev.target.result.replace(/\r/g,'').split('\n');
-    const parsed=[];
-    for(const line of lines){
-      const m=line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
-      if(m&&m[3].trim())parsed.push(m[3].trim());
-    }
-    document.getElementById('lyric-ta').value=parsed.join('\n');
-    applyLyrics();
-  };
-  r.readAsText(f);
-});
-
-/* ════════════════════════════════════
-   セクション管理
-════════════════════════════════════ */
-function addSection(){
-  const name=document.getElementById('sec-name').value.trim();
-  const timeStr=document.getElementById('sec-time').value.trim();
-  if(!name){alert('セクション名を入力してください');return;}
-  const time=parseFmtTime(timeStr);
-  sections.push({name,time});
-  sections.sort((a,b)=>a.time-b.time);
-  document.getElementById('sec-name').value='';
-  document.getElementById('sec-time').value='';
-  renderSections();
-  renderGrid();
-}
-function renderSections(){
-  const list=document.getElementById('sec-list');
-  list.innerHTML='';
-  sections.forEach((s,i)=>{
-    const el=document.createElement('div');
-    el.className='sec-tag';
-    el.innerHTML=`<span class="sec-tag-name">${escHtml(s.name)}</span><span class="sec-tag-time">${fmtTime(s.time)}</span><button class="sec-tag-del" onclick="delSection(${i})">✕</button>`;
-    list.appendChild(el);
-  });
-}
-function delSection(i){sections.splice(i,1);renderSections();renderGrid();}
-
-/* ════════════════════════════════════
-   演奏モード（U-FRETスタイル）
-════════════════════════════════════ */
-function buildPlayScore(){
-  const ps=document.getElementById('play-score');
-  ps.innerHTML='';
-  if(!cells.length)return;
-
-  // セクションでグループ化
-  const blocks=[];
-  let cur={label:findSection(cells[0].time)||'',items:[]};
-  cells.forEach((cell,i)=>{
-    const sec=findSection(cell.time)||'';
-    if(i>0&&sec!==findSection(cells[i-1].time)){
-      if(cur.items.length)blocks.push(cur);
-      cur={label:sec,items:[]};
-    }
-    cur.items.push(cell);
-  });
-  if(cur.items.length)blocks.push(cur);
-
-  blocks.forEach(block=>{
-    const secEl=document.createElement('div');
-    secEl.className='ps-section';
-    if(block.label){
-      const sl=document.createElement('div');
-      sl.className='ps-sec-label '+labelClass(block.label);
-      sl.textContent=block.label;
-      secEl.appendChild(sl);
-    }
-
-    // 歌詞のある行を抽出してU-FRETスタイルで表示
-    // 歌詞がないセルはコードのみ横並び
-    let rowEl=null;
-    block.items.forEach((cell,i)=>{
-      if(!rowEl||(i>0&&cell.lyric&&block.items[i-1].lyric)){
-        if(rowEl)secEl.appendChild(rowEl);
-        rowEl=document.createElement('div');
-        rowEl.className='ps-row';
-        rowEl.dataset.time=cell.time;
-        rowEl.addEventListener('click',()=>{if(aud.src)aud.currentTime=cell.time;});
-      }
-      const disp=applyCapo(cell.chord,capo);
-      const blockEl=document.createElement('div');
-      blockEl.className='ps-block';
-      blockEl.innerHTML=`
-        <div class="ps-chord${disp==='N'?' empty':''}${disp&&disp.length>5?' slash':''}">${disp==='N'?'':disp}</div>
-        <div class="ps-lyric">${escHtml(cell.lyric||'　')}</div>
-      `;
-      rowEl.appendChild(blockEl);
-    });
-    if(rowEl)secEl.appendChild(rowEl);
-    ps.appendChild(secEl);
-  });
-}
-
-/* ════════════════════════════════════
-   モード切替
-════════════════════════════════════ */
-function setMode(m){
-  appMode=m;
-  document.getElementById('btn-edit').classList.toggle('amber',m==='edit');
-  document.getElementById('btn-play').classList.toggle('green',m==='play');
-  document.getElementById('btn-edit').classList.toggle('on',m!=='edit');
-  document.getElementById('btn-play').classList.toggle('on',m!=='play');
-
-  const gs=document.getElementById('grid-scroll');
-  const ps=document.getElementById('play-score');
-  const rp=document.getElementById('right-pane');
-
-  if(m==='play'){
-    gs.style.display='none';
-    buildPlayScore();
-    ps.classList.add('visible');
-    document.getElementById('main-wrap').classList.remove('edit-mode');
-  }else{
-    gs.style.display='';
-    ps.classList.remove('visible');
-    document.getElementById('main-wrap').classList.add('edit-mode');
-  }
-}
-
-/* ════════════════════════════════════
-   カポ
-════════════════════════════════════ */
-const capoRow=document.getElementById('capo-row');
-for(let i=0;i<=7;i++){
-  const b=document.createElement('button');
-  b.className='cbtn'+(i===0?' on':'');b.textContent=i;
-  b.addEventListener('click',()=>{
-    capo=i;
-    document.querySelectorAll('.cbtn').forEach(x=>x.classList.remove('on'));
-    b.classList.add('on');
-    document.getElementById('capo-info').innerHTML=i===0?'カポなし':`カポ <b>${i}フレット</b>`;
-    renderGrid();updateDisplay(true);
-    if(appMode==='play')buildPlayScore();
-  });
-  capoRow.appendChild(b);
-}
-
-/* ════════════════════════════════════
-   ダイアグラム
-════════════════════════════════════ */
-const SH={
-  C:[[-1,3,2,0,1,0],0],Cm:[[-1,3,5,5,4,3],3],C7:[[-1,3,2,3,1,0],0],Cm7:[[-1,3,5,3,4,3],3],Cmaj7:[[-1,3,2,0,0,0],0],
-  D:[[-1,-1,0,2,3,2],0],Dm:[[-1,-1,0,2,3,1],0],D7:[[-1,-1,0,2,1,2],0],Dm7:[[-1,-1,0,2,1,1],0],Dmaj7:[[-1,-1,0,2,2,2],0],
-  E:[[0,2,2,1,0,0],0],Em:[[0,2,2,0,0,0],0],E7:[[0,2,0,1,0,0],0],Em7:[[0,2,2,0,3,0],0],Emaj7:[[0,2,1,1,0,0],0],
-  F:[[1,3,3,2,1,1],1],Fm:[[1,3,3,1,1,1],1],F7:[[1,3,1,2,1,1],1],
-  G:[[3,2,0,0,0,3],0],Gm:[[3,5,5,3,3,3],3],G7:[[3,2,0,0,0,1],0],Gm7:[[3,5,3,3,3,3],3],Gmaj7:[[3,2,0,0,0,2],0],
-  A:[[-1,0,2,2,2,0],0],Am:[[-1,0,2,2,1,0],0],A7:[[-1,0,2,0,2,0],0],Am7:[[-1,0,2,0,1,0],0],Amaj7:[[-1,0,2,1,2,0],0],
-  B:[[-1,2,4,4,4,2],2],Bm:[[-1,2,4,4,3,2],2],B7:[[-1,2,1,2,0,2],0],Bm7:[[-1,2,0,2,3,2],0],
-  'C#':[[-1,4,3,1,2,1],0],'C#m':[[-1,4,6,6,5,4],4],Db:[[-1,4,3,1,2,1],0],
-  'D#':[[-1,6,5,3,4,3],0],'D#m':[[-1,6,8,8,7,6],6],Eb:[[-1,6,5,3,4,3],0],Ebm:[[-1,6,8,8,7,6],6],
-  'F#':[[2,4,4,3,2,2],2],'F#m':[[2,4,4,2,2,2],2],'F#7':[[2,4,2,3,2,2],2],
-  Gb:[[2,4,4,3,2,2],2],'G#':[[4,6,6,5,4,4],4],'G#m':[[4,6,6,4,4,4],4],Ab:[[4,6,6,5,4,4],4],Abm:[[4,6,6,4,4,4],4],
-  'A#':[[-1,1,3,3,3,1],1],'A#m':[[-1,1,3,3,2,1],1],Bb:[[-1,1,3,3,3,1],1],Bbm:[[-1,1,3,3,2,1],1],
-  E6:[[0,2,2,1,2,0],0],D6:[[-1,-1,0,2,0,2],0],A6:[[-1,0,2,2,2,2],0],Bb6:[[-1,1,3,3,3,3],1],
-  Csus4:[[-1,3,3,0,1,1],0],Dsus4:[[-1,-1,0,2,3,3],0],Esus4:[[0,2,2,2,0,0],0],Asus4:[[-1,0,2,2,3,0],0],
-  'F#/C#':[[2,4,4,3,2,2],2],'A7/C#':[[-1,4,2,0,2,0],0],'G/D':[[3,5,0,0,0,3],0],'G/B':[[-1,2,0,0,0,3],0],
-  'D/F#':[[-1,-1,4,2,3,2],0],'C/E':[[0,3,2,0,1,0],0],'E/G#':[[4,2,2,1,0,0],0],'Em/D':[[-1,-1,0,0,0,0],0],
+// ═══════════════════════════════════════════════════════
+//  PROJECT STATE
+// ═══════════════════════════════════════════════════════
+let project = {
+  title: '',
+  audio: '',
+  capo: 0,
+  lines: [],
+  chord_source: '',
 };
-let lastDiagChord='';
-function setOrient(o){
-  orient=o;
-  ['std','rev','rot','rotr'].forEach(x=>document.getElementById('o-'+x).classList.toggle('on',x===o));
-  const cv=document.getElementById('diag');
-  const isRot=o==='rot'||o==='rotr';
-  cv.width=isRot?200:188;cv.height=isRot?124:172;
-  redrawDiag();
+let chordPalette = []; // from loaded JSON
+let audioFile = null;
+let audioObjectURL = null;
+
+// ═══════════════════════════════════════════════════════
+//  AUDIO ENGINE
+// ═══════════════════════════════════════════════════════
+const audio = document.getElementById('audio-player');
+const playBtn = document.getElementById('play-btn');
+const timeDisplay = document.getElementById('time-display');
+const seekInput = document.getElementById('seek-input');
+const seekFill = document.getElementById('seek-fill');
+const tapBtn = document.getElementById('tap-btn');
+const currentChordName = document.getElementById('current-chord-name');
+
+let isSeeking = false;
+let tapLineIndex = -1;
+
+function formatTime(s, showTenth = false) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  if (showTenth) {
+    const t = Math.floor((s % 1) * 10);
+    return `${m}:${String(sec).padStart(2,'0')}.${t}`;
+  }
+  return `${m}:${String(sec).padStart(2,'0')}`;
 }
-function redrawDiag(){drawDiag(document.getElementById('diag'),lastDiagChord);}
-function drawDiag(cv,name){
-  lastDiagChord=name||'';
-  const ctx=cv.getContext('2d');const W=cv.width,H=cv.height;
-  ctx.clearRect(0,0,W,H);
-  let look=name||'';
-  if(look.includes('/')&&!SH[look])look=look.split('/')[0];
-  const sh=SH[look];
-  if(!sh||!name||name==='N'){ctx.fillStyle='#9ca3af';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText('—',W/2,H/2);return;}
-  let[fr,bf]=sh;fr=[...fr];
-  if(orient==='rev'||orient==='rotr')fr=[...fr].reverse();
-  (orient==='rot'||orient==='rotr')?drawH(ctx,W,H,fr,bf):drawVert(ctx,W,H,fr,bf);
+
+audio.addEventListener('timeupdate', () => {
+  if (isSeeking) return;
+  const t = audio.currentTime;
+  const d = audio.duration || 0;
+  timeDisplay.textContent = `${formatTime(t, true)} / ${formatTime(d)}`;
+  if (d > 0) {
+    const pct = (t / d) * 100;
+    seekFill.style.width = pct + '%';
+    seekInput.value = Math.round((t / d) * 1000);
+  }
+  // Update current chord from palette
+  updateCurrentChord(t);
+  // Highlight active line
+  highlightActiveLine(t);
+});
+
+audio.addEventListener('play', () => { playBtn.textContent = '⏸'; });
+audio.addEventListener('pause', () => { playBtn.textContent = '▶'; });
+audio.addEventListener('ended', () => { playBtn.textContent = '▶'; });
+
+audio.addEventListener('loadedmetadata', () => {
+  const d = audio.duration;
+  timeDisplay.textContent = `0:00.0 / ${formatTime(d)}`;
+  tapBtn.disabled = false;
+});
+
+playBtn.addEventListener('click', togglePlay);
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowLeft') { audio.currentTime = Math.max(0, audio.currentTime - 5); }
+  if (e.code === 'ArrowRight') { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5); }
+});
+
+function togglePlay() {
+  if (!audio.src) return;
+  if (audio.paused) audio.play();
+  else audio.pause();
 }
-function drawVert(ctx,W,H,fr,bf){
-  const nS=6,nF=5,pL=26,pR=12,pT=32,pB=12;
-  const sW=(W-pL-pR)/(nS-1),fH=(H-pT-pB)/nF;
-  const sx=s=>pL+s*sW,fy=f=>pT+f*fH;
-  if(bf===0){ctx.fillStyle='#1e2640';ctx.fillRect(pL,pT-3,W-pL-pR,3);}
-  else{ctx.fillStyle='#9ca3af';ctx.font='bold 8px monospace';ctx.textAlign='left';ctx.fillText(bf+'fr',2,pT+fH*.6);}
-  for(let f=1;f<=nF;f++){ctx.strokeStyle='#d4daea';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pL,fy(f));ctx.lineTo(W-pR,fy(f));ctx.stroke();}
-  for(let s=0;s<nS;s++){ctx.strokeStyle='#8090a8';ctx.lineWidth=s<2?2:s<4?1.5:1;ctx.beginPath();ctx.moveTo(sx(s),pT);ctx.lineTo(sx(s),pT+nF*fH);ctx.stroke();}
-  fr.forEach((fret,i)=>{
-    const x=sx(i);
-    if(fret===-1){ctx.strokeStyle='#cbd5e0';ctx.lineWidth=1.5;const d=3.5;ctx.beginPath();ctx.moveTo(x-d,pT-13);ctx.lineTo(x+d,pT-6);ctx.moveTo(x+d,pT-13);ctx.lineTo(x-d,pT-6);ctx.stroke();}
-    else if(fret===0){ctx.strokeStyle='#4a5568';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,pT-9,4.5,0,Math.PI*2);ctx.stroke();}
-    else{const af=fret-bf;if(af>=1&&af<=nF){const y=fy(af-1)+fH/2;ctx.fillStyle='#2563eb';ctx.beginPath();ctx.arc(x,y,fH*.28,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.fillText(fret,x,y+3);}}
-  });
-  const mf=Math.min(...fr.filter(f=>f>0));
-  if(fr.filter(f=>f===mf).length>=4&&mf===bf+1){
-    const pos=fr.map((f,i)=>f===mf?i:-1).filter(i=>i>=0);
-    const af=mf-bf,y=fy(af-1)+fH/2,r=fH*.28;
-    ctx.fillStyle='#2563eb';ctx.fillRect(Math.min(sx(pos[0]),sx(pos[pos.length-1])),y-r,Math.abs(sx(pos[pos.length-1])-sx(pos[0])),r*2);
+
+document.getElementById('btn-minus5').addEventListener('click', () => {
+  audio.currentTime = Math.max(0, audio.currentTime - 5);
+});
+
+document.getElementById('speed-select').addEventListener('change', e => {
+  audio.playbackRate = parseFloat(e.target.value);
+});
+
+seekInput.addEventListener('mousedown', () => { isSeeking = true; });
+seekInput.addEventListener('mouseup', () => {
+  isSeeking = false;
+  audio.currentTime = (seekInput.value / 1000) * (audio.duration || 0);
+});
+seekInput.addEventListener('input', () => {
+  if (!isSeeking) return;
+  const pct = seekInput.value / 10;
+  seekFill.style.width = pct + '%';
+  const t = (seekInput.value / 1000) * (audio.duration || 0);
+  timeDisplay.textContent = `${formatTime(t, true)} / ${formatTime(audio.duration || 0)}`;
+});
+
+// TAP
+tapBtn.addEventListener('click', () => {
+  if (!audio.src || audio.paused) return;
+  const t = audio.currentTime;
+  // Find the next untimed line, or the focused line
+  let idx = tapLineIndex;
+  if (idx < 0 || idx >= project.lines.length) {
+    idx = project.lines.findIndex(l => l.time === null || l.time === undefined);
+  }
+  if (idx < 0) idx = 0;
+  if (idx < project.lines.length) {
+    project.lines[idx].time = parseFloat(t.toFixed(3));
+    tapLineIndex = idx + 1;
+    renderLines();
+    flashLine(idx);
+    autoSave();
+  }
+});
+
+function flashLine(idx) {
+  const rows = document.querySelectorAll('.line-row');
+  if (rows[idx]) {
+    rows[idx].classList.add('tap-highlight');
+    setTimeout(() => rows[idx].classList.remove('tap-highlight'), 400);
   }
 }
-function drawH(ctx,W,H,fr,bf){
-  const nS=6,nF=5,pL=28,pR=8,pT=10,pB=10;
-  const fW=(W-pL-pR)/nF,sH=(H-pT-pB)/(nS-1);
-  const fx=f=>pL+f*fW,sy=s=>pT+s*sH;
-  if(bf===0){ctx.fillStyle='#1e2640';ctx.fillRect(pL-4,pT,4,H-pT-pB);}
-  else{ctx.fillStyle='#9ca3af';ctx.font='bold 8px monospace';ctx.textAlign='right';ctx.fillText(bf+'fr',pL-5,(pT+H-pB)/2+3);}
-  for(let f=1;f<=nF;f++){ctx.strokeStyle='#d4daea';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(fx(f),pT);ctx.lineTo(fx(f),H-pB);ctx.stroke();}
-  for(let s=0;s<nS;s++){ctx.strokeStyle='#8090a8';ctx.lineWidth=s<2?2:s<4?1.5:1;ctx.beginPath();ctx.moveTo(pL,sy(s));ctx.lineTo(W-pR,sy(s));ctx.stroke();}
-  fr.forEach((fret,i)=>{
-    const y=sy(i);
-    if(fret===-1){ctx.strokeStyle='#cbd5e0';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(pL-12,y-4);ctx.lineTo(pL-5,y+4);ctx.moveTo(pL-5,y-4);ctx.lineTo(pL-12,y+4);ctx.stroke();}
-    else if(fret===0){ctx.strokeStyle='#4a5568';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(pL-9,y,4,0,Math.PI*2);ctx.stroke();}
-    else{const af=fret-bf;if(af>=1&&af<=nF){const x=fx(af-1)+fW/2;ctx.fillStyle='#2563eb';ctx.beginPath();ctx.arc(x,y,sH*.28,0,Math.PI*2);ctx.fill();}}
-  });
+
+function updateCurrentChord(t) {
+  // Find current chord from palette times
+  if (!project.chord_source && chordPalette.length === 0) return;
+  // Use the chords/times from loaded chord JSON
+  if (!window._chordTimes || !window._chordNames) return;
+  let current = 'N';
+  for (let i = 0; i < window._chordTimes.length; i++) {
+    if (window._chordTimes[i] <= t) current = window._chordNames[i];
+    else break;
+  }
+  currentChordName.textContent = current;
 }
 
-/* ════════════════════════════════════
-   音声・JSON読込
-════════════════════════════════════ */
-document.getElementById('f-audio').addEventListener('change',e=>{
-  const f=e.target.files[0];if(!f)return;
-  aud.src=URL.createObjectURL(f);audioReady=true;
-  document.getElementById('h-title').textContent=f.name;
-  if(D)document.getElementById('play-btn').disabled=false;
-});
-document.getElementById('f-json').addEventListener('change',e=>{
-  const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=ev=>{try{loadData(parseInput(ev.target.result,f.name));}catch(err){alert('読込エラー: '+err.message);}};
-  r.readAsText(f);
-});
-['sel-cols','sel-group','sel-beats'].forEach(id=>{
-  document.getElementById(id).addEventListener('change',()=>{if(D)buildCells();});
-});
-
-/* ════════════════════════════════════
-   再生
-════════════════════════════════════ */
-document.getElementById('play-btn').addEventListener('click',()=>{
-  if(aud.paused){aud.play();document.getElementById('play-btn').textContent='⏸ PAUSE';startRaf();}
-  else{aud.pause();document.getElementById('play-btn').textContent='▶ PLAY';cancelAnimationFrame(rafId);}
-});
-aud.addEventListener('ended',()=>{document.getElementById('play-btn').textContent='▶ PLAY';cancelAnimationFrame(rafId);});
-document.getElementById('prog-track').addEventListener('click',e=>{
-  if(!D)return;
-  const r=e.currentTarget.getBoundingClientRect();
-  aud.currentTime=((e.clientX-r.left)/r.width)*(D.duration||0);
-});
-document.getElementById('vol').addEventListener('input',e=>{
-  aud.volume=parseFloat(e.target.value);
-  document.getElementById('vpc').textContent=Math.round(aud.volume*100)+'%';
-});
-
-/* ════════════════════════════════════
-   アニメーションループ
-════════════════════════════════════ */
-function startRaf(){function loop(){if(!aud.paused){updateDisplay(false);rafId=requestAnimationFrame(loop);}}loop();}
-
-function updateDisplay(force){
-  if(!D)return;
-  const t=aud.currentTime,dur=D.duration||1;
-  document.getElementById('prog-fill').style.width=(t/dur*100)+'%';
-  document.getElementById('tc').textContent=fmtTime(t);
-
-  // 現在のコードインデックス
-  let idx=0;
-  for(let i=0;i<D.times.length;i++){if(D.times[i]<=t)idx=i;else break;}
-  const ch=D.chords[idx],nch=D.chords[idx+1];
-  const disp=applyCapo(ch,capo),ndisp=nch?applyCapo(nch,capo):'—';
-
-  const nowEl=document.getElementById('now-ch');
-  if(nowEl.textContent!==(disp==='N'?'—':disp)||force){
-    nowEl.textContent=disp==='N'?'—':disp;
-    nowEl.classList.remove('pop');void nowEl.offsetWidth;nowEl.classList.add('pop');
-    document.getElementById('next-ch').textContent=ndisp==='N'?'—':ndisp;
-    document.getElementById('d-name').textContent=disp==='N'?'—':disp;
-    document.getElementById('d-sub').textContent=ch&&ch.includes('/')?'ベース:'+ch.split('/')[1]:capo>0?`カポ${capo}→実音:${ch}`:'';
-    drawDiag(document.getElementById('diag'),disp==='N'?'':disp);
-  }
-
-  // 現在セルのハイライト（編集モード）
-  let nearestCell=null,nearestDiff=Infinity;
-  cells.forEach(c=>{const d=t-c.time;if(d>=0&&d<nearestDiff){nearestDiff=d;nearestCell=c;}});
-
-  if(appMode==='edit'){
-    document.querySelectorAll('.chord-cell').forEach(el=>{
-      const ci=parseInt(el.dataset.idx);
-      el.classList.toggle('active',nearestCell&&nearestCell.idx===ci);
-      el.classList.toggle('next-cell',nearestCell&&nearestCell.idx+1===ci);
-    });
-    if(nearestCell){
-      const el=document.querySelector(`.chord-cell[data-idx="${nearestCell.idx}"]`);
-      if(el&&!force)el.scrollIntoView({behavior:'smooth',block:'nearest'});
+function highlightActiveLine(t) {
+  const rows = document.querySelectorAll('.line-row');
+  let activeIdx = -1;
+  for (let i = project.lines.length - 1; i >= 0; i--) {
+    if (project.lines[i].time !== null && project.lines[i].time !== undefined && project.lines[i].time <= t) {
+      activeIdx = i;
+      break;
     }
-  }else{
-    // 演奏モード：行ハイライト
-    document.querySelectorAll('.ps-row').forEach(row=>{
-      const rt=parseFloat(row.dataset.time||0);
-      row.classList.remove('active');
-    });
-    let activeRow=null,aDiff=Infinity;
-    document.querySelectorAll('.ps-row').forEach(row=>{
-      const rt=parseFloat(row.dataset.time||0);
-      const d=t-rt;
-      if(d>=0&&d<aDiff){aDiff=d;activeRow=row;}
-    });
-    if(activeRow){activeRow.classList.add('active');if(!force)activeRow.scrollIntoView({behavior:'smooth',block:'nearest'});}
   }
+  rows.forEach((r, i) => {
+    r.classList.toggle('active-line', i === activeIdx);
+  });
 }
 
-/* ════════════════════════════════════
-   ドラッグ＆ドロップ（ファイル）
-════════════════════════════════════ */
-document.addEventListener('dragover',e=>{if(!e.target.closest('.lyric-item')&&!e.target.closest('.chord-cell'))e.preventDefault();});
-document.addEventListener('drop',e=>{
-  if(e.target.closest('.chord-cell'))return;
-  e.preventDefault();
-  const files=Array.from(e.dataTransfer.files);
-  const jf=files.find(f=>f.name.match(/\.(json|csv|txt)$/i));
-  const af=files.find(f=>f.type.startsWith('audio/'));
-  if(jf){const r=new FileReader();r.onload=ev=>{try{loadData(parseInput(ev.target.result,jf.name));}catch{}};r.readAsText(jf);}
-  if(af){aud.src=URL.createObjectURL(af);audioReady=true;if(D)document.getElementById('play-btn').disabled=false;}
+// ═══════════════════════════════════════════════════════
+//  FILE LOADING
+// ═══════════════════════════════════════════════════════
+document.getElementById('file-audio').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  audioFile = file;
+  if (audioObjectURL) URL.revokeObjectURL(audioObjectURL);
+  audioObjectURL = URL.createObjectURL(file);
+  audio.src = audioObjectURL;
+  project.audio = file.name;
+  document.getElementById('audio-file-btn').textContent = file.name;
+  document.getElementById('audio-file-btn').classList.add('loaded');
+  tapBtn.disabled = false;
+  toast(`音声ファイルを読み込みました: ${file.name}`);
 });
 
-// 初期化
-setMode('edit');
-setOrient('std');
-drawDiag(document.getElementById('diag'),'');
+document.getElementById('file-chord').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const text = ev.target.result;
+    let data;
+    if (file.name.endsWith('.csv')) {
+      data = parseChordinoCSV(text);
+    } else {
+      try { data = JSON.parse(text); } catch { toast('JSONパースエラー'); return; }
+    }
+    loadChordData(data, file.name);
+  };
+  reader.readAsText(file, 'utf-8');
+});
+
+function parseChordinoCSV(text) {
+  const lines = text.split('\n');
+  const chords = [], times = [];
+  let prev = null;
+  for (const line of lines) {
+    const parts = line.trim().split(',');
+    if (parts.length < 2) continue;
+    const t = parseFloat(parts[0]);
+    if (isNaN(t)) continue;
+    const ch = normalizeChord(parts[1].trim());
+    if (ch !== prev) { chords.push(ch); times.push(t); prev = ch; }
+  }
+  return { chords, times, duration: times[times.length-1] + 2 || 0, key: '', tempo: 0 };
+}
+
+function normalizeChord(raw) {
+  if (!raw || ['N','X','n'].includes(raw)) return 'N';
+  const QUAL_MAP = {
+    'maj':'','min':'m','maj7':'maj7','min7':'m7',
+    'dom7':'7','7':'7','dim':'dim','aug':'aug',
+    'sus2':'sus2','sus4':'sus4','hdim7':'m7b5',
+    'maj9':'maj9','min9':'m9','add9':'add9',
+  };
+  if (raw.includes(':')) {
+    const [root, qual] = raw.split(':', 2);
+    return root + (QUAL_MAP[qual] ?? qual);
+  }
+  return raw;
+}
+
+function loadChordData(data, filename) {
+  project.chord_source = filename;
+  document.getElementById('chord-file-btn').textContent = filename;
+  document.getElementById('chord-file-btn').classList.add('loaded');
+
+  const chords = (data.chords || []).filter(c => c && c !== 'N');
+  const unique = [...new Set(chords)];
+  chordPalette = unique;
+
+  window._chordNames = data.chords || [];
+  window._chordTimes = data.times || [];
+
+  if (data.tempo) document.title = `ChordScore — ${data.file || filename}`;
+  renderPalette();
+  document.getElementById('palette-count').textContent = unique.length;
+  toast(`コードデータ読み込み: ${unique.length}種のコード`);
+}
+
+// ═══════════════════════════════════════════════════════
+//  PALETTE RENDERING
+// ═══════════════════════════════════════════════════════
+function renderPalette() {
+  const filter = document.getElementById('chord-palette-filter').value.toLowerCase();
+  const container = document.getElementById('chord-palette');
+  const filtered = chordPalette.filter(c => c.toLowerCase().includes(filter));
+  container.innerHTML = '';
+  if (filtered.length === 0) {
+    container.innerHTML = '<div style="color:var(--text3);font-size:11px;font-family:var(--mono);">なし</div>';
+    return;
+  }
+  filtered.forEach(chord => {
+    const btn = document.createElement('button');
+    btn.className = 'palette-chord';
+    btn.textContent = chord;
+    btn.addEventListener('click', () => addChordToFocusedLine(chord));
+    btn.addEventListener('mouseenter', () => showDiagramRight(chord));
+    container.appendChild(btn);
+  });
+}
+
+document.getElementById('chord-palette-filter').addEventListener('input', renderPalette);
+
+// ═══════════════════════════════════════════════════════
+//  LINE / LYRIC MANAGEMENT
+// ═══════════════════════════════════════════════════════
+let focusedLineIndex = -1;
+
+function createLine(lyric = '', time = null, chords = []) {
+  return { lyric, time, chords: chords.map(c => typeof c === 'string' ? { chord: c, offset: 0 } : c) };
+}
+
+function addLine(lyric = '', time = null, chords = []) {
+  project.lines.push(createLine(lyric, time, chords));
+  renderLines();
+  autoSave();
+}
+
+function removeLine(idx) {
+  project.lines.splice(idx, 1);
+  renderLines();
+  autoSave();
+}
+
+function renderLines() {
+  const container = document.getElementById('lines-container');
+  container.innerHTML = '';
+  project.lines.forEach((line, idx) => {
+    const row = document.createElement('div');
+    row.className = 'line-row';
+    row.dataset.idx = idx;
+
+    // Line number
+    const numEl = document.createElement('div');
+    numEl.className = 'line-num';
+    numEl.textContent = idx + 1;
+
+    // Time button
+    const timeBtn = document.createElement('button');
+    timeBtn.className = 'line-time-btn' + (line.time != null ? ' has-time' : '');
+    timeBtn.textContent = line.time != null ? formatTime(line.time, true) : '--:--.--';
+    timeBtn.title = '時刻を編集 / TAP時に使用';
+    timeBtn.addEventListener('click', () => openTimeModal(idx));
+
+    // Content
+    const content = document.createElement('div');
+    content.className = 'line-content';
+
+    // Chord tags
+    const tagsRow = document.createElement('div');
+    tagsRow.className = 'chord-tags';
+    line.chords.forEach((c, ci) => {
+      const tag = document.createElement('span');
+      tag.className = 'chord-tag';
+      tag.textContent = c.chord;
+      tag.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openChordEditModal(idx, ci);
+      });
+      tag.addEventListener('mouseenter', () => {
+        showDiagramRight(c.chord);
+        showDiagramPopup(c.chord, tag);
+      });
+      tag.addEventListener('mouseleave', hideDiagramPopup);
+      // Del button
+      const del = document.createElement('span');
+      del.className = 'del-chord';
+      del.textContent = '×';
+      del.title = '削除';
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        project.lines[idx].chords.splice(ci, 1);
+        renderLines();
+        autoSave();
+      });
+      tag.appendChild(del);
+      tagsRow.appendChild(tag);
+    });
+    // Add chord inline button
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-chord-inline';
+    addBtn.textContent = '+コード';
+    addBtn.addEventListener('click', () => openAddChordModal(idx));
+    tagsRow.appendChild(addBtn);
+    content.appendChild(tagsRow);
+
+    // Lyric input
+    const lyricInput = document.createElement('input');
+    lyricInput.type = 'text';
+    lyricInput.className = 'lyric-text-input';
+    lyricInput.value = line.lyric;
+    lyricInput.placeholder = '歌詞を入力...';
+    lyricInput.addEventListener('focus', () => {
+      focusedLineIndex = idx;
+      tapLineIndex = idx;
+    });
+    lyricInput.addEventListener('input', e => {
+      project.lines[idx].lyric = e.target.value;
+      autoSave();
+    });
+    lyricInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        // Insert new line after
+        project.lines.splice(idx + 1, 0, createLine());
+        renderLines();
+        // Focus next
+        setTimeout(() => {
+          const inputs = document.querySelectorAll('.lyric-text-input');
+          if (inputs[idx + 1]) inputs[idx + 1].focus();
+        }, 0);
+      }
+      if (e.key === 'Backspace' && e.target.value === '' && project.lines.length > 1) {
+        e.preventDefault();
+        removeLine(idx);
+        setTimeout(() => {
+          const inputs = document.querySelectorAll('.lyric-text-input');
+          if (inputs[Math.max(0, idx - 1)]) inputs[Math.max(0, idx - 1)].focus();
+        }, 0);
+      }
+    });
+    content.appendChild(lyricInput);
+    row.appendChild(numEl);
+    row.appendChild(timeBtn);
+    row.appendChild(content);
+
+    // Line actions
+    const actions = document.createElement('div');
+    actions.className = 'line-actions';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'line-action-btn del';
+    delBtn.textContent = '削除';
+    delBtn.addEventListener('click', () => removeLine(idx));
+    const insertBtn = document.createElement('button');
+    insertBtn.className = 'line-action-btn';
+    insertBtn.textContent = '↑挿入';
+    insertBtn.addEventListener('click', () => {
+      project.lines.splice(idx, 0, createLine());
+      renderLines();
+      autoSave();
+    });
+    // TAP set
+    const tapSet = document.createElement('button');
+    tapSet.className = 'line-action-btn';
+    tapSet.textContent = '⏱TAP';
+    tapSet.title = '次のTAPでこの行に時刻をセット';
+    tapSet.addEventListener('click', () => {
+      tapLineIndex = idx;
+      toast(`次のTAPで行${idx+1}に時刻をセットします`);
+    });
+    actions.appendChild(tapSet);
+    actions.appendChild(insertBtn);
+    actions.appendChild(delBtn);
+    row.appendChild(actions);
+
+    container.appendChild(row);
+  });
+  updateStatus();
+}
+
+// ═══════════════════════════════════════════════════════
+//  ADD CHORD TO LINE
+// ═══════════════════════════════════════════════════════
+function addChordToFocusedLine(chord) {
+  if (focusedLineIndex < 0 || focusedLineIndex >= project.lines.length) {
+    // Add to last line
+    if (project.lines.length === 0) addLine();
+    focusedLineIndex = project.lines.length - 1;
+  }
+  project.lines[focusedLineIndex].chords.push({ chord, offset: 0 });
+  renderLines();
+  autoSave();
+  // Re-focus the input
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.lyric-text-input');
+    if (inputs[focusedLineIndex]) inputs[focusedLineIndex].focus();
+  }, 0);
+}
+
+// ═══════════════════════════════════════════════════════
+//  LYRIC IMPORT
+// ═══════════════════════════════════════════════════════
+document.getElementById('btn-import-lyrics').addEventListener('click', () => {
+  const text = document.getElementById('lyric-textarea').value.trim();
+  if (!text) return;
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  project.lines = lines.map(l => createLine(l));
+  renderLines();
+  autoSave();
+  toast(`${lines.length}行を取り込みました`);
+});
+
+document.getElementById('btn-append-lyrics').addEventListener('click', () => {
+  const text = document.getElementById('lyric-textarea').value.trim();
+  if (!text) return;
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  lines.forEach(l => project.lines.push(createLine(l)));
+  renderLines();
+  autoSave();
+  toast(`${lines.length}行を追記しました`);
+});
+
+document.getElementById('btn-clear-lyrics').addEventListener('click', () => {
+  if (confirm('全ての行を削除しますか？')) {
+    project.lines = [];
+    renderLines();
+    autoSave();
+  }
+});
+
+document.getElementById('add-line-btn').addEventListener('click', () => {
+  addLine();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.lyric-text-input');
+    if (inputs.length > 0) inputs[inputs.length - 1].focus();
+  }, 0);
+});
+
+// ═══════════════════════════════════════════════════════
+//  MODAL SYSTEM
+// ═══════════════════════════════════════════════════════
+const modalOverlay = document.getElementById('modal-overlay');
+const modalTitle = document.getElementById('modal-title');
+const modalBody = document.getElementById('modal-body');
+const modalBtns = document.getElementById('modal-btns');
+
+function closeModal() {
+  modalOverlay.classList.remove('open');
+  modalBody.innerHTML = '';
+  modalBtns.innerHTML = '';
+}
+
+modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+
+function openTimeModal(lineIdx) {
+  const line = project.lines[lineIdx];
+  modalTitle.textContent = `行 ${lineIdx+1} の時刻を設定`;
+  modalBody.innerHTML = `
+    <div style="margin-bottom:8px;color:var(--text2);font-size:12px;font-family:var(--mono);">
+      歌詞: "${line.lyric || '(空)'}"
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+      <input type="number" id="modal-time-input" value="${line.time != null ? line.time.toFixed(3) : ''}" step="0.1" min="0" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:14px;padding:6px 10px;text-align:center;" placeholder="秒 (例: 12.500)">
+      <button onclick="setTimeFromCurrent(${lineIdx})" class="sm-btn" style="white-space:nowrap;">▶ 現在位置</button>
+    </div>
+  `;
+  modalBtns.innerHTML = '';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'modal-btn';
+  cancelBtn.textContent = 'キャンセル';
+  cancelBtn.onclick = closeModal;
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'modal-btn del';
+  clearBtn.textContent = '時刻を削除';
+  clearBtn.onclick = () => {
+    project.lines[lineIdx].time = null;
+    renderLines();
+    autoSave();
+    closeModal();
+  };
+
+  const okBtn = document.createElement('button');
+  okBtn.className = 'modal-btn ok';
+  okBtn.textContent = 'セット';
+  okBtn.onclick = () => {
+    const val = parseFloat(document.getElementById('modal-time-input').value);
+    if (!isNaN(val)) {
+      project.lines[lineIdx].time = val;
+      renderLines();
+      autoSave();
+      closeModal();
+    }
+  };
+  modalBtns.appendChild(cancelBtn);
+  modalBtns.appendChild(clearBtn);
+  modalBtns.appendChild(okBtn);
+  modalOverlay.classList.add('open');
+  setTimeout(() => document.getElementById('modal-time-input').focus(), 100);
+}
+
+window.setTimeFromCurrent = function(lineIdx) {
+  const t = audio.currentTime;
+  const input = document.getElementById('modal-time-input');
+  if (input) input.value = t.toFixed(3);
+};
+
+function openAddChordModal(lineIdx) {
+  modalTitle.textContent = `行 ${lineIdx+1} にコードを追加`;
+  modalBody.innerHTML = `
+    <div style="margin-bottom:8px;color:var(--text2);font-size:11px;font-family:var(--mono);">コード名を入力 (例: Am7, G/B)</div>
+    <input type="text" id="modal-input" placeholder="コード名" autocomplete="off">
+    ${chordPalette.length > 0 ? `
+    <div style="margin-top:8px;">
+      <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:5px;">楽曲のコードから選択:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;max-height:120px;overflow-y:auto;">
+        ${chordPalette.map(c => `<button class="palette-chord" style="font-size:11px;" onclick="quickAddChord(${lineIdx},'${c}')">${c}</button>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+  modalBtns.innerHTML = '';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'modal-btn';
+  cancelBtn.textContent = 'キャンセル';
+  cancelBtn.onclick = closeModal;
+  const okBtn = document.createElement('button');
+  okBtn.className = 'modal-btn ok';
+  okBtn.textContent = '追加';
+  okBtn.onclick = () => {
+    const val = document.getElementById('modal-input').value.trim();
+    if (val) {
+      project.lines[lineIdx].chords.push({ chord: val, offset: 0 });
+      renderLines();
+      autoSave();
+    }
+    closeModal();
+  };
+  modalBtns.appendChild(cancelBtn);
+  modalBtns.appendChild(okBtn);
+  modalOverlay.classList.add('open');
+  setTimeout(() => {
+    const inp = document.getElementById('modal-input');
+    if (inp) { inp.focus(); inp.addEventListener('keydown', e => { if (e.key==='Enter') okBtn.click(); }); }
+  }, 100);
+}
+
+window.quickAddChord = function(lineIdx, chord) {
+  project.lines[lineIdx].chords.push({ chord, offset: 0 });
+  renderLines();
+  autoSave();
+  closeModal();
+};
+
+function openChordEditModal(lineIdx, chordIdx) {
+  const chord = project.lines[lineIdx].chords[chordIdx];
+  modalTitle.textContent = `コードを編集`;
+  modalBody.innerHTML = `
+    <input type="text" id="modal-input" value="${chord.chord}" placeholder="コード名" autocomplete="off">
+  `;
+  modalBtns.innerHTML = '';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'modal-btn';
+  cancelBtn.textContent = 'キャンセル';
+  cancelBtn.onclick = closeModal;
+  const delBtn = document.createElement('button');
+  delBtn.className = 'modal-btn del';
+  delBtn.textContent = '削除';
+  delBtn.onclick = () => {
+    project.lines[lineIdx].chords.splice(chordIdx, 1);
+    renderLines();
+    autoSave();
+    closeModal();
+  };
+  const okBtn = document.createElement('button');
+  okBtn.className = 'modal-btn ok';
+  okBtn.textContent = '更新';
+  okBtn.onclick = () => {
+    const val = document.getElementById('modal-input').value.trim();
+    if (val) {
+      project.lines[lineIdx].chords[chordIdx].chord = val;
+      renderLines();
+      autoSave();
+    }
+    closeModal();
+  };
+  modalBtns.appendChild(cancelBtn);
+  modalBtns.appendChild(delBtn);
+  modalBtns.appendChild(okBtn);
+  modalOverlay.classList.add('open');
+  setTimeout(() => {
+    const inp = document.getElementById('modal-input');
+    if (inp) {
+      inp.focus(); inp.select();
+      inp.addEventListener('keydown', e => { if (e.key==='Enter') okBtn.click(); });
+      inp.addEventListener('input', () => showDiagramRight(inp.value));
+    }
+  }, 100);
+}
+
+// ═══════════════════════════════════════════════════════
+//  DIAGRAM HOVER POPUP
+// ═══════════════════════════════════════════════════════
+const diagramPopup = document.getElementById('diagram-popup');
+let popupTimer = null;
+
+function showDiagramPopup(chordName, anchorEl) {
+  clearTimeout(popupTimer);
+  const result = lookupChord(chordName);
+  if (!result) return;
+  document.getElementById('popup-chord-name').textContent = chordName;
+  const variantsEl = document.getElementById('popup-variants');
+  variantsEl.innerHTML = '';
+  result.data.variants.slice(0, 3).forEach(v => {
+    const wrap = document.createElement('div');
+    wrap.style.textAlign = 'center';
+    wrap.innerHTML = `
+      <div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-bottom:3px;">${v.name}</div>
+      ${renderChordDiagram(v.frets, v.barre || null, v.name)}
+    `;
+    variantsEl.appendChild(wrap);
+  });
+  // Position
+  const rect = anchorEl.getBoundingClientRect();
+  diagramPopup.style.left = rect.left + 'px';
+  diagramPopup.style.top = (rect.top - diagramPopup.offsetHeight - 8) + 'px';
+  diagramPopup.classList.add('show');
+  // Adjust if out of viewport
+  requestAnimationFrame(() => {
+    const pr = diagramPopup.getBoundingClientRect();
+    if (pr.top < 8) diagramPopup.style.top = (rect.bottom + 8) + 'px';
+    if (pr.right > window.innerWidth - 8) {
+      diagramPopup.style.left = (window.innerWidth - pr.width - 8) + 'px';
+    }
+    if (pr.left < 8) diagramPopup.style.left = '8px';
+  });
+}
+
+function hideDiagramPopup() {
+  popupTimer = setTimeout(() => diagramPopup.classList.remove('show'), 150);
+}
+
+function showDiagramRight(chord) {
+  document.getElementById('diagram-chord-input').value = chord;
+  renderDiagramPanel(chord);
+}
+
+document.getElementById('diagram-chord-input').addEventListener('input', e => {
+  renderDiagramPanel(e.target.value.trim());
+});
+
+// ═══════════════════════════════════════════════════════
+//  SAVE / LOAD PROJECT
+// ═══════════════════════════════════════════════════════
+function getProjectData() {
+  return {
+    title: document.getElementById('project-title-input').value,
+    audio: project.audio,
+    capo: parseInt(document.getElementById('capo-input').value) || 0,
+    lines: project.lines,
+    chord_source: project.chord_source,
+  };
+}
+
+document.getElementById('btn-save-project').addEventListener('click', () => {
+  const data = getProjectData();
+  const title = data.title || 'chordscore';
+  const filename = title.replace(/[^a-zA-Z0-9_\-ぁ-ん一-龯ァ-ヶ]/g, '_') + '_project.json';
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`💾 保存しました: ${filename}`);
+  autoSave();
+});
+
+document.getElementById('btn-load-project').addEventListener('click', () => {
+  document.getElementById('file-load-project').click();
+});
+
+document.getElementById('file-load-project').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      loadProject(data);
+      toast(`プロジェクトを読み込みました: ${data.title || file.name}`);
+    } catch { toast('JSONパースエラー'); }
+  };
+  reader.readAsText(file);
+});
+
+function loadProject(data) {
+  document.getElementById('project-title-input').value = data.title || '';
+  document.getElementById('capo-input').value = data.capo || 0;
+  project.audio = data.audio || '';
+  project.chord_source = data.chord_source || '';
+  project.lines = (data.lines || []).map(l => createLine(
+    l.lyric || '',
+    l.time != null ? l.time : null,
+    l.chords || []
+  ));
+  if (data.audio) document.getElementById('audio-file-btn').textContent = data.audio;
+  if (data.chord_source) document.getElementById('chord-file-btn').textContent = data.chord_source;
+  renderLines();
+}
+
+// ═══════════════════════════════════════════════════════
+//  NEW PROJECT
+// ═══════════════════════════════════════════════════════
+document.getElementById('btn-new-project').addEventListener('click', () => {
+  if (project.lines.length > 0 && !confirm('現在の編集内容を破棄して新規作成しますか？')) return;
+  project = { title: '', audio: '', capo: 0, lines: [], chord_source: '' };
+  chordPalette = [];
+  window._chordNames = [];
+  window._chordTimes = [];
+  document.getElementById('project-title-input').value = '';
+  document.getElementById('capo-input').value = 0;
+  document.getElementById('audio-file-btn').textContent = 'クリックして選択';
+  document.getElementById('audio-file-btn').classList.remove('loaded');
+  document.getElementById('chord-file-btn').textContent = 'JSON/CSV';
+  document.getElementById('chord-file-btn').classList.remove('loaded');
+  audio.src = '';
+  playBtn.textContent = '▶';
+  timeDisplay.textContent = '0:00.0 / 0:00';
+  seekFill.style.width = '0%';
+  currentChordName.textContent = '-';
+  tapBtn.disabled = true;
+  renderPalette();
+  renderLines();
+  renderDiagramPanel('');
+  localStorage.removeItem('chordscore_autosave');
+  document.getElementById('stat-autosave').textContent = '-';
+});
+
+// ═══════════════════════════════════════════════════════
+//  AUTO SAVE
+// ═══════════════════════════════════════════════════════
+let autoSaveTimer = null;
+function autoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    const data = getProjectData();
+    try {
+      localStorage.setItem('chordscore_autosave', JSON.stringify(data));
+      const now = new Date();
+      document.getElementById('stat-autosave').textContent =
+        `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    } catch(e) {
+      console.warn('AutoSave failed:', e);
+    }
+  }, 1000);
+}
+
+// Load autosave on startup
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const saved = localStorage.getItem('chordscore_autosave');
+    if (saved) {
+      const data = JSON.parse(saved);
+      if (data.lines && data.lines.length > 0) {
+        if (confirm(`前回の作業（${data.title || '無題'}、${data.lines.length}行）を復元しますか？`)) {
+          loadProject(data);
+          toast('自動保存データを復元しました');
+        }
+      }
+    }
+  } catch(e) {}
+  renderLines();
+  renderPalette();
+});
+
+// ═══════════════════════════════════════════════════════
+//  STATUS BAR
+// ═══════════════════════════════════════════════════════
+function updateStatus() {
+  document.getElementById('stat-lines').textContent = project.lines.length;
+  const totalChords = project.lines.reduce((s, l) => s + l.chords.length, 0);
+  document.getElementById('stat-chords').textContent = totalChords;
+  const timed = project.lines.filter(l => l.time != null).length;
+  document.getElementById('stat-timed').textContent = timed;
+}
+
+// ═══════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// Title sync
+document.getElementById('project-title-input').addEventListener('input', autoSave);
+document.getElementById('capo-input').addEventListener('input', autoSave);
 </script>
 </body>
 </html>
