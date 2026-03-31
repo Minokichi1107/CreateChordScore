@@ -1,0 +1,1065 @@
+{
+  "title": "",
+  "audio": "rororo.mp3",
+  "capo": 0,
+  "lines": [
+    {
+      "lyric": "（イントロ）",
+      "time": 0,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        }
+      ],
+      "repeat": {
+        "count": 2
+      }
+    },
+    {
+      "lyric": "",
+      "time": 9.428,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Bb/D",
+          "offset": 0
+        },
+        {
+          "chord": "C7",
+          "offset": 0
+        },
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "賭けのない恋などつまらない",
+      "time": 14.846,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "いつもハラハラドキドキさせてよ",
+      "time": 17.898,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "退屈な時には誘われちゃうのよ",
+      "time": 20.858,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "悪い心が止まらない",
+      "time": 24.634,
+      "chords": [
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "C7",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "今夜秘密のカジノにおいでよ",
+      "time": 30.12,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "たまにゃ無謀な遊びに酔いしれ",
+      "time": 32.918,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "落ちてゆくよな気分は慣れたらこわいよ",
+      "time": 36.013,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "クセになりそな エクスタシー",
+      "time": 39.678,
+      "chords": [
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ロシアン  ロシアンルーレット",
+      "time": 46.714,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": {
+        "count": 2
+      }
+    },
+    {
+      "lyric": "今すぐ心に白黒つけて",
+      "time": 53.134,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Cm7",
+          "offset": 0
+        },
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "鈍く光った マグナム 持つたび",
+      "time": 58.936,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "細いラインに電気が走るわ",
+      "time": 61.846,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "イチかバチかでアナタを虜にするまで",
+      "time": 64.838,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "Eb",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "私危険な ロシアンルーレット",
+      "time": 68.677,
+      "chords": [
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "C7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ハラハラドキドキ Dance Dance",
+      "time": 73.683,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ウキウキワクワク Chance Chance",
+      "time": 77.13,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ハラハラドキドキ Dance Dance",
+      "time": 80.298,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ウキウキワクワク Chance Chance",
+      "time": 84.185,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "覚悟をきめて",
+      "time": 86.678,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "Cm7",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "(間奏）",
+      "time": 90.366,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Bb",
+          "offset": 0
+        },
+        {
+          "chord": "C7",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        }
+      ],
+      "repeat": {
+        "count": 4
+      }
+    },
+    {
+      "lyric": "今夜秘密のカジノにおいでよ",
+      "time": 101.654,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "たまに無謀な遊びに酔いしれ",
+      "time": 104.382,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "落ちてゆくよな気分は慣れたらこわいよ",
+      "time": 107.418,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "クセになりそな エクスタシー",
+      "time": 111.128,
+      "chords": [
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ロシアン ロシアンルーレット",
+      "time": 118.351,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": {
+        "count": 2
+      }
+    },
+    {
+      "lyric": "ここまで来たらあとには引けない",
+      "time": 124.409,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Bb",
+          "offset": 0
+        },
+        {
+          "chord": "Cm7",
+          "offset": 0
+        },
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "鈍く光ったマグナム抱きしめ",
+      "time": 130.37,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "少しおびえる可愛いエルフィン",
+      "time": 133.295,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "命をかけてアナタを虜にするまで",
+      "time": 136.338,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "私危険な ロシアンルーレット",
+      "time": 140.124,
+      "chords": [
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "C7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ロシアン ロシアンルーレット",
+      "time": 145.854,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "（N.C.）",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "今すぐ心に白黒つけて",
+      "time": 151.947,
+      "chords": [
+        {
+          "chord": "（N.C.）",
+          "offset": 0
+        },
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "鈍く光ったマグナム抱きしめ",
+      "time": 157.554,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "少しおびえる可愛いエルフィン",
+      "time": 160.701,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "命をかけてアナタを虜にするまで",
+      "time": 163.704,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gmin/b3",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "私危険な ロシアンルーレット",
+      "time": 167.462,
+      "chords": [
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "C7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ハラハラドキドキ Dance Dance",
+      "time": 172.676,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ウキウキワクワク Chance Chance",
+      "time": 175.998,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ハラハラドキドキ Dance Dance",
+      "time": 178.994,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ウキウキワクワク Chance Chance",
+      "time": 182.061,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "覚悟をきめて",
+      "time": 185.054,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "Cm7",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ハラハラドキドキ Dance Dance",
+      "time": 188.946,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ウキウキワクワク Chance Chance",
+      "time": 191.22,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ハラハラドキドキ Dance Dance",
+      "time": 194.24,
+      "chords": [
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "ウキウキワクワク Chance Chance",
+      "time": 197.324,
+      "chords": [
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "(アウトロ）",
+      "time": 200.407,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": {
+        "count": 2
+      }
+    },
+    {
+      "lyric": "（アウトロ）",
+      "time": 208.666,
+      "chords": [
+        {
+          "chord": "Eb",
+          "offset": 0
+        },
+        {
+          "chord": "F",
+          "offset": 0
+        },
+        {
+          "chord": "Bb/D",
+          "offset": 0
+        },
+        {
+          "chord": "C7",
+          "offset": 0
+        },
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        },
+        {
+          "chord": "Gm",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    }
+  ],
+  "chord_source": "rororo_small_chords.json"
+}
