@@ -170,7 +170,6 @@ body.diag-off .chord-tag:hover{cursor:default}
 #add-line-btn:hover{border-color:var(--accent);color:var(--accent)}
 
 /* RIGHT */
-#panel-right{background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 #diag-search{padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:5px}
 #diag-in{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:14px;padding:6px 10px;text-align:center;letter-spacing:1px}
 #diag-in:focus{outline:none;border-color:var(--accent)}
@@ -1314,7 +1313,9 @@ function openAddDiagramModal(defaultChord=''){
 
 // Diagram button
 document.getElementById('diag-in').addEventListener('input',e=>showDiagramPanel(e.target.value.trim()));
-document.getElementById('btn-add-diag').addEventListener('click',()=>openAddDiagramModal(document.getElementById('diag-in').value.trim()));
+// btn-add-diag は下部ボタン(btn-add-diag-bottom)に統合済み。念のためnullチェック
+const _diagBtn=document.getElementById('btn-add-diag');
+if(_diagBtn)_diagBtn.addEventListener('click',()=>openAddDiagramModal(document.getElementById('diag-in').value.trim()));
 
 // ════════════════════════════════════════
 // HOVER POPUP
@@ -1861,10 +1862,6 @@ window.addEventListener('DOMContentLoaded',()=>{
     const chord=document.getElementById('diag-in').value.trim();
     openAddDiagramModal(chord);
   });
-
-  // ① btn-add-diag（右パネル上部）がある場合の接続
-  const btnAddDiag=document.getElementById('btn-add-diag');
-  if(btnAddDiag) btnAddDiag.addEventListener('click',()=>openAddDiagramModal(document.getElementById('diag-in').value.trim()));
 });
 </script>
 </body>
