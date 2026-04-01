@@ -70,9 +70,10 @@ input[type=file]{display:none}
 #custom-add:hover{background:var(--accent2);color:#fff}
 
 /* CENTER */
-#panel-center{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
-#replace-bar-wrap{flex-shrink:0;} /* 置換バーを固定 */
-#audio-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:9px 14px;display:flex;flex-direction:column;gap:7px;flex-shrink:0;position:sticky;top:0;z-index:20}
+#panel-center{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);height:100%}
+#replace-bar-wrap{flex-shrink:0;}
+#audio-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:9px 14px;display:flex;flex-direction:column;gap:7px;flex-shrink:0}
+#editor-area{flex:1;overflow-y:auto;padding:10px 12px 60px;min-height:0}
 #audio-row{display:flex;align-items:center;gap:8px}
 .play-btn{width:34px;height:34px;background:var(--accent2);border:none;border-radius:50%;color:#fff;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
 .play-btn:hover{background:var(--accent)}
@@ -90,7 +91,6 @@ input[type=file]{display:none}
 #tap-btn:disabled{opacity:.35;cursor:not-allowed}
 #cur-chord{font-family:var(--mono);font-size:12px;color:var(--chord-text);font-weight:600;min-width:40px}
 
-#editor-area{flex:1;overflow-y:auto;padding:10px 12px 60px}
 #lyric-import{background:var(--bg2);border:1px dashed var(--border2);border-radius:var(--radius2);padding:10px;margin-bottom:10px}
 #lyric-import h4{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
 #lyric-ta{width:100%;min-height:70px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.7;padding:7px 9px;resize:vertical}
@@ -270,7 +270,7 @@ body.diag-off .chord-tag{cursor:default}
   padding:6px 14px;flex-shrink:0;
   flex-direction:row;align-items:center;gap:8px;
   font-family:var(--mono);font-size:12px;
-  position:sticky;top:0;z-index:19;
+  position:sticky;top:0;z-index:30;
 }
 #replace-bar.open{display:flex}
 .rb-in{
@@ -984,23 +984,26 @@ function highlightLine(t){
     if(project.lines[i].time!=null&&project.lines[i].time<=t){ai=i;break;}
   }
   rows.forEach((r,i)=>r.classList.toggle('active-line',i===ai));
-  // ── ④ 自動スクロール（再確認・修正済み）──
   if(ai>=0&&rows[ai]){
-    const area=document.getElementById('editor-area');
-    if(!area)return;
-    const rowEl=rows[ai];
-    // offsetTopはlines-cont内の相対位置なので、editor-area基準に変換
-    const areaRect=area.getBoundingClientRect();
-    const rowRect=rowEl.getBoundingClientRect();
-    const relTop=rowRect.top - areaRect.top + area.scrollTop;
-    const areaH=area.clientHeight;
-    const scrollTop=area.scrollTop;
-    const rowH=rowEl.offsetHeight;
-    const target=relTop - areaH*0.35;
-    if(relTop < scrollTop+areaH*0.2 || relTop+rowH > scrollTop+areaH*0.8){
-      area.scrollTo({top:Math.max(0,target),behavior:'smooth'});
-    }
+    scrollEditorToRow(rows[ai]);
   }
+}
+
+// editor-area内で指定行が中央付近に来るようスクロール
+function scrollEditorToRow(rowEl){
+  const area=document.getElementById('editor-area');
+  if(!area)return;
+  const areaRect=area.getBoundingClientRect();
+  const rowRect=rowEl.getBoundingClientRect();
+  // rowの現在のeditor-area内相対位置
+  const relTop=rowRect.top - areaRect.top;
+  const areaH=areaRect.height;
+  const rowH=rowRect.height;
+  // 上20%〜下75%の範囲内ならスクロール不要
+  if(relTop>=areaH*0.2 && relTop+rowH<=areaH*0.75) return;
+  // 目標スクロール位置：行をエリアの35%の位置に
+  const target=area.scrollTop + relTop - areaH*0.35;
+  area.scrollTo({top:Math.max(0,target),behavior:'smooth'});
 }
 
 // ════════════════════════════════════════
@@ -1136,7 +1139,8 @@ function renderLines(){
       // コードタグ本体
       const tagWrap=document.createElement('span');tagWrap.className='chord-tag-wrap';
       const tag=document.createElement('span');tag.className='chord-tag';
-      const ns=document.createElement('span');ns.className='chord-name';ns.textContent=c.chord;tag.appendChild(ns);
+      const ns=document.createElement('span');ns.className='chord-name';ns.textContent=c.chord;
+      tag.appendChild(ns);
       tag.addEventListener('click',e=>{if(e.target.classList.contains('del-x'))return;openChordEdit(idx,ci);});
       tag.addEventListener('mouseenter',()=>{if(!diagOn)return;setDiagRight(c.chord);showPopup(c.chord,tag);});
       tag.addEventListener('mouseleave',hidePopup);
@@ -1507,6 +1511,7 @@ document.getElementById('file-project').addEventListener('change',e=>{
 });
 function loadProj(data){
   document.getElementById('project-title').value=data.title||'';document.getElementById('capo').value=data.capo||0;
+  _prevCapo=data.capo||0; // カポ初期値をセット（ロード後に移調が発動しないよう）
   project.audio=data.audio||'';project.chord_source=data.chord_source||'';
   project.lines=(data.lines||[]).map(l=>mkLine(l.lyric||'',l.time??null,l.chords||[],l.repeat||null));
   if(data.audio){const b=document.getElementById('audio-btn');b.textContent=data.audio;b.classList.add('loaded');}
@@ -1810,55 +1815,19 @@ function rbScrollToCurrent(){
     `${rbCurr+1} / ${rbHits.length}件`;
   const {li}=rbHits[rbCurr];
 
-  // editor-area内でスクロール（scrollIntoViewはフォーカスを奪うため使わない）
-  const area=document.getElementById('editor-area');
+  // editor-area内スクロール（scrollEditorToRowで統一）
   const rows=document.querySelectorAll('.line-row');
-  if(area&&rows[li]){
-    const areaRect=area.getBoundingClientRect();
-    const rowRect=rows[li].getBoundingClientRect();
-    const relTop=rowRect.top-areaRect.top+area.scrollTop;
-    const areaH=area.clientHeight;
-    const target=relTop-areaH*0.35;
-    area.scrollTo({top:Math.max(0,target),behavior:'smooth'});
-  }
+  if(rows[li]) scrollEditorToRow(rows[li]);
 
-  // 現在ハイライトを rb-curr に（フォーカス移動なし）
+  // 現在ハイライトをrb-currに
   document.querySelectorAll('.chord-tag.rb-curr').forEach(el=>el.classList.remove('rb-curr'));
-
-  // グローバルなヒットインデックスで正確に特定
-  let globalIdx=0;
-  document.querySelectorAll('.chord-tag').forEach(tag=>{
-    const nameEl=tag.querySelector('.chord-name');
-    if(!nameEl)return;
-    if(nameEl.textContent!==rbGetFind())return;
-    const row=tag.closest('.line-row');
+  rbHits.forEach((h,i)=>{
+    if(i!==rbCurr)return;
+    const row=rows[h.li];
     if(!row)return;
-    const rowIdx=parseInt(row.dataset.idx);
-    // このタグがrbHitsの何番目かを確認
-    const matchingHits=rbHits.filter(h=>h.li===rowIdx);
-    // 同じ行の何番目のヒットか
-    let localIdx=0;
-    // タグが同じ行の同じコードインデックスか確認するためdata-ciを使う
-    // chord-tag-wrapのインデックスから判断
-    const wrap=tag.closest('.chord-tag-wrap');
-    if(!wrap)return;
-    const allWraps=row.querySelectorAll('.chord-tag-wrap');
-    const wrapIdx=Array.from(allWraps).indexOf(wrap);
-    // このwrapIndexがrbHitsのciと対応（sepを含むのでchords配列のインデックスとは異なる場合あり）
-    // シンプルに：同じ行のhit全部にrb-hitsの通し番号で判断
-    rbHits.forEach((h,i)=>{
-      if(h.li===rowIdx){
-        if(i===rbCurr){
-          // このhitに対応するタグを探す
-          // chord配列のci番目の非sepコードを左から数える
-          const nonSepChords=project.lines[rowIdx].chords.filter(c=>c.type!=='sep');
-          const hChord=project.lines[rowIdx].chords[h.ci];
-          const hNonSepIdx=project.lines[rowIdx].chords.slice(0,h.ci+1).filter(c=>c.type!=='sep').length-1;
-          const allTags=row.querySelectorAll('.chord-tag');
-          if(allTags[hNonSepIdx]) allTags[hNonSepIdx].classList.add('rb-curr');
-        }
-      }
-    });
+    const nonSepIdx=project.lines[h.li].chords.slice(0,h.ci+1).filter(c=>c.type!=='sep').length-1;
+    const allTags=row.querySelectorAll('.chord-tag');
+    if(allTags[nonSepIdx]) allTags[nonSepIdx].classList.add('rb-curr');
   });
 }
 
@@ -1973,11 +1942,30 @@ function updateStatus(){
 let toastT=null;
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2500);}
 document.getElementById('project-title').addEventListener('input',autoSave);
-document.getElementById('capo').addEventListener('input',()=>{
+
+// カポ変更：前の値との差分で全コードを移調（確認なし・即時）
+let _prevCapo = 0;
+document.getElementById('capo').addEventListener('change',()=>{
+  const newCapo=parseInt(document.getElementById('capo').value)||0;
+  const diff=newCapo-_prevCapo;
+  if(diff===0)return;
+  // カポが増える(0→2)＝同じ音を出すためコードフォームは下げる(-2半音)
+  // カポが減る(2→0)＝コードフォームは上げる(+2半音)
+  const semitones=-diff;
+  project.lines.forEach(line=>{
+    line.chords.forEach(c=>{
+      if(c.type==='sep')return;
+      c.chord=transposeChord(c.chord,semitones);
+    });
+  });
+  palette=palette.map(ch=>transposeChord(ch,semitones));
+  renderPalette();
+  renderLines();
+  _prevCapo=newCapo;
   autoSave();
-  // カポ変更時に現在表示中のダイアグラムを更新
   const cur=document.getElementById('diag-in').value.trim();
   if(cur) showDiagramPanel(cur);
+  toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
 });
 
 window.addEventListener('DOMContentLoaded',()=>{
