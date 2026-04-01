@@ -1,26 +1,26 @@
 {
   "title": "",
   "audio": "rororo.mp3",
-  "capo": 0,
+  "capo": 2,
   "lines": [
     {
       "lyric": "（イントロ）",
       "time": 0,
       "chords": [
         {
-          "chord": "Eb",
-          "offset": 0
-        },
-        {
           "chord": "F",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "G",
           "offset": 0
         },
         {
-          "chord": "F",
+          "chord": "Am",
+          "offset": 0
+        },
+        {
+          "chord": "G",
           "offset": 0
         }
       ],
@@ -33,27 +33,27 @@
       "time": 9.428,
       "chords": [
         {
-          "chord": "Eb",
-          "offset": 0
-        },
-        {
           "chord": "F",
           "offset": 0
         },
         {
-          "chord": "Bb/D",
+          "chord": "G",
           "offset": 0
         },
         {
-          "chord": "C7",
-          "offset": 0
-        },
-        {
-          "chord": "D7sus4",
+          "chord": "C/E",
           "offset": 0
         },
         {
           "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "E7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "E7",
           "offset": 0
         }
       ],
@@ -64,19 +64,19 @@
       "time": 14.846,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
-          "chord": "C7",
+          "chord": "D7",
           "offset": 0
         },
         {
-          "chord": "D",
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -87,19 +87,19 @@
       "time": 17.898,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "C7",
+          "chord": "D7",
           "offset": 0
         },
         {
-          "chord": "D",
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -110,19 +110,19 @@
       "time": 20.858,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
-          "chord": "C7",
+          "chord": "D7",
           "offset": 0
         },
         {
-          "chord": "D",
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -133,7 +133,15 @@
       "time": 24.634,
       "chords": [
         {
-          "chord": "D7sus4",
+          "chord": "E7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "E7",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
           "offset": 0
         },
         {
@@ -141,19 +149,11 @@
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "E7",
           "offset": 0
         },
         {
-          "chord": "C7",
-          "offset": 0
-        },
-        {
-          "chord": "D7",
-          "offset": 0
-        },
-        {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -164,19 +164,19 @@
       "time": 30.12,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -187,19 +187,19 @@
       "time": 32.918,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -210,19 +210,19 @@
       "time": 36.013,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -233,27 +233,27 @@
       "time": 39.678,
       "chords": [
         {
-          "chord": "D7sus4",
+          "chord": "E7sus4",
           "offset": 0
         },
         {
-          "chord": "D7",
+          "chord": "E7",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "F",
+          "chord": "G",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -264,15 +264,15 @@
       "time": 46.714,
       "chords": [
         {
-          "chord": "Eb",
-          "offset": 0
-        },
-        {
           "chord": "F",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "G",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -285,27 +285,27 @@
       "time": 53.134,
       "chords": [
         {
-          "chord": "Eb",
-          "offset": 0
-        },
-        {
           "chord": "F",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "G",
           "offset": 0
         },
         {
-          "chord": "Cm7",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "D7sus4",
+          "chord": "Dm7",
           "offset": 0
         },
         {
-          "chord": "D7",
+          "chord": "E7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "E7",
           "offset": 0
         }
       ],
@@ -316,19 +316,19 @@
       "time": 58.936,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -339,19 +339,19 @@
       "time": 61.846,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -362,19 +362,19 @@
       "time": 64.838,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
-          "chord": "C",
+          "chord": "D",
           "offset": 0
         },
         {
-          "chord": "Eb",
+          "chord": "F",
           "offset": 0
         }
       ],
@@ -385,7 +385,15 @@
       "time": 68.677,
       "chords": [
         {
-          "chord": "D7sus4",
+          "chord": "E7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "E7",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
           "offset": 0
         },
         {
@@ -393,15 +401,7 @@
           "offset": 0
         },
         {
-          "chord": "Gm",
-          "offset": 0
-        },
-        {
-          "chord": "C7",
-          "offset": 0
-        },
-        {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -412,7 +412,7 @@
       "time": 73.683,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -423,7 +423,7 @@
       "time": 77.13,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -434,7 +434,7 @@
       "time": 80.298,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -445,7 +445,7 @@
       "time": 84.185,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -456,19 +456,19 @@
       "time": 86.678,
       "chords": [
         {
-          "chord": "Eb",
-          "offset": 0
-        },
-        {
-          "chord": "Cm7",
-          "offset": 0
-        },
-        {
           "chord": "F",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "Dm7",
+          "offset": 0
+        },
+        {
+          "chord": "G",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -479,19 +479,19 @@
       "time": 90.366,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Bb",
-          "offset": 0
-        },
-        {
-          "chord": "C7",
+          "chord": "C",
           "offset": 0
         },
         {
           "chord": "D7",
+          "offset": 0
+        },
+        {
+          "chord": "E7",
           "offset": 0
         }
       ],
@@ -504,19 +504,19 @@
       "time": 101.654,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -527,19 +527,19 @@
       "time": 104.382,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -550,19 +550,19 @@
       "time": 107.418,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -573,27 +573,27 @@
       "time": 111.128,
       "chords": [
         {
-          "chord": "D7sus4",
+          "chord": "E7sus4",
           "offset": 0
         },
         {
-          "chord": "D7",
+          "chord": "E7",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "F",
+          "chord": "G",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -604,15 +604,15 @@
       "time": 118.351,
       "chords": [
         {
-          "chord": "Eb",
-          "offset": 0
-        },
-        {
           "chord": "F",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "G",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -625,27 +625,27 @@
       "time": 124.409,
       "chords": [
         {
-          "chord": "Eb",
-          "offset": 0
-        },
-        {
           "chord": "F",
           "offset": 0
         },
         {
-          "chord": "Bb",
+          "chord": "G",
           "offset": 0
         },
         {
-          "chord": "Cm7",
+          "chord": "C",
           "offset": 0
         },
         {
-          "chord": "D7sus4",
+          "chord": "Dm7",
           "offset": 0
         },
         {
-          "chord": "D7",
+          "chord": "E7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "E7",
           "offset": 0
         }
       ],
@@ -656,19 +656,19 @@
       "time": 130.37,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -679,19 +679,19 @@
       "time": 133.295,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -702,19 +702,19 @@
       "time": 136.338,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -725,7 +725,15 @@
       "time": 140.124,
       "chords": [
         {
-          "chord": "D7sus4",
+          "chord": "E7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "E7",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
           "offset": 0
         },
         {
@@ -733,15 +741,7 @@
           "offset": 0
         },
         {
-          "chord": "Gm",
-          "offset": 0
-        },
-        {
-          "chord": "C7",
-          "offset": 0
-        },
-        {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -752,7 +752,7 @@
       "time": 145.854,
       "chords": [
         {
-          "chord": "Eb",
+          "chord": "F",
           "offset": 0
         },
         {
@@ -771,11 +771,11 @@
           "offset": 0
         },
         {
-          "chord": "D7sus4",
+          "chord": "E7sus4",
           "offset": 0
         },
         {
-          "chord": "D7",
+          "chord": "E7",
           "offset": 0
         }
       ],
@@ -786,19 +786,19 @@
       "time": 157.554,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -809,19 +809,19 @@
       "time": 160.701,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -832,19 +832,19 @@
       "time": 163.704,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         },
         {
-          "chord": "Gmin/b3",
-          "offset": 0
-        },
-        {
-          "chord": "C",
+          "chord": "Amin/b3",
           "offset": 0
         },
         {
           "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "E",
           "offset": 0
         }
       ],
@@ -855,7 +855,15 @@
       "time": 167.462,
       "chords": [
         {
-          "chord": "D7sus4",
+          "chord": "E7sus4",
+          "offset": 0
+        },
+        {
+          "chord": "E7",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
           "offset": 0
         },
         {
@@ -863,15 +871,7 @@
           "offset": 0
         },
         {
-          "chord": "Gm",
-          "offset": 0
-        },
-        {
-          "chord": "C7",
-          "offset": 0
-        },
-        {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -882,7 +882,7 @@
       "time": 172.676,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -893,7 +893,7 @@
       "time": 175.998,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -904,7 +904,7 @@
       "time": 178.994,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -915,7 +915,7 @@
       "time": 182.061,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -926,19 +926,19 @@
       "time": 185.054,
       "chords": [
         {
-          "chord": "Eb",
-          "offset": 0
-        },
-        {
-          "chord": "Cm7",
-          "offset": 0
-        },
-        {
           "chord": "F",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "Dm7",
+          "offset": 0
+        },
+        {
+          "chord": "G",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -949,7 +949,7 @@
       "time": 188.946,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -960,7 +960,7 @@
       "time": 191.22,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -971,7 +971,7 @@
       "time": 194.24,
       "chords": [
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -982,11 +982,11 @@
       "time": 197.324,
       "chords": [
         {
-          "chord": "F",
+          "chord": "G",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -997,15 +997,15 @@
       "time": 200.407,
       "chords": [
         {
-          "chord": "Eb",
-          "offset": 0
-        },
-        {
           "chord": "F",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "G",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
           "offset": 0
         }
       ],
@@ -1018,27 +1018,15 @@
       "time": 208.666,
       "chords": [
         {
-          "chord": "Eb",
-          "offset": 0
-        },
-        {
           "chord": "F",
           "offset": 0
         },
         {
-          "chord": "Bb/D",
+          "chord": "G",
           "offset": 0
         },
         {
-          "chord": "C7",
-          "offset": 0
-        },
-        {
-          "chord": "D7sus4",
-          "offset": 0
-        },
-        {
-          "chord": "D7sus4",
+          "chord": "C/E",
           "offset": 0
         },
         {
@@ -1046,15 +1034,27 @@
           "offset": 0
         },
         {
-          "chord": "D7",
+          "chord": "E7sus4",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "E7sus4",
           "offset": 0
         },
         {
-          "chord": "Gm",
+          "chord": "E7",
+          "offset": 0
+        },
+        {
+          "chord": "E7",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
+          "offset": 0
+        },
+        {
+          "chord": "Am",
           "offset": 0
         }
       ],
