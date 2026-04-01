@@ -71,7 +71,8 @@ input[type=file]{display:none}
 
 /* CENTER */
 #panel-center{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
-#audio-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:9px 14px;display:flex;flex-direction:column;gap:7px;flex-shrink:0}
+#replace-bar-wrap{flex-shrink:0;} /* 置換バーを固定 */
+#audio-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:9px 14px;display:flex;flex-direction:column;gap:7px;flex-shrink:0;position:sticky;top:0;z-index:20}
 #audio-row{display:flex;align-items:center;gap:8px}
 .play-btn{width:34px;height:34px;background:var(--accent2);border:none;border-radius:50%;color:#fff;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
 .play-btn:hover{background:var(--accent)}
@@ -236,6 +237,18 @@ body.diag-off .chord-tag{cursor:default}
 }
 .add-sep-btn:hover{border-color:var(--text2);color:var(--text2)}
 
+/* コードタグラッパー（/挿入ボタン付き） */
+.chord-tag-wrap{display:inline-flex;align-items:center;gap:0;position:relative;}
+.insert-sep-btn{
+  display:none;
+  background:var(--bg3);border:1px solid var(--border);border-radius:0 3px 3px 0;
+  color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:10px;
+  padding:2px 4px;line-height:1;transition:all .12s;
+  height:100%;align-items:center;
+}
+.chord-tag-wrap:hover .insert-sep-btn{display:inline-flex;}
+.insert-sep-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg2);}
+
 /* ③ コードセパレーター "/" */
 .chord-sep{
   display:inline-flex;align-items:center;
@@ -257,6 +270,7 @@ body.diag-off .chord-tag{cursor:default}
   padding:6px 14px;flex-shrink:0;
   flex-direction:row;align-items:center;gap:8px;
   font-family:var(--mono);font-size:12px;
+  position:sticky;top:0;z-index:19;
 }
 #replace-bar.open{display:flex}
 .rb-in{
@@ -763,8 +777,12 @@ function showDiagramPanel(chord){
   const c=document.getElementById('diag-container');
   if(!chord||chord==='N'){c.innerHTML='<div class="diag-empty">コードタグをホバー<br>または上で入力</div>';return;}
   const r=lookupChord(chord);
-  if(!r){c.innerHTML=`<div class="diag-empty">"${chord}"<br>のダイアグラムは未登録<br><br><small style="color:var(--amber)">↑「＋ダイアグラムを手動登録」<br>で追加できます</small></div>`;return;}
-  c.innerHTML='';
+  const capoInfo=showCapoInfo(chord);
+  if(!r){
+    c.innerHTML=`${capoInfo}<div class="diag-empty">"${chord}"<br>のダイアグラムは未登録<br><br><small style="color:var(--amber)">↑「＋ダイアグラムを手動登録」<br>で追加できます</small></div>`;
+    return;
+  }
+  c.innerHTML=capoInfo;
   r.data.v.forEach(vr=>{
     const d=document.createElement('div');d.className='dv';
     d.innerHTML=`<div class="dv-label">${vr.n}</div><div class="dv-svg">${drawDiagram(vr.f,vr.b||null)}</div>`;
@@ -883,6 +901,80 @@ function loadCustomDiagrams() {
       });
     }
   } catch(e) {}
+}
+
+// ════════════════════════════════════════
+// CAPO 移調ロジック
+// ════════════════════════════════════════
+const NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const NOTE_ALT={'Db':'C#','Eb':'D#','Fb':'E','Gb':'F#','Ab':'G#','Bb':'A#','Cb':'B'};
+
+function noteToIdx(n){
+  const norm=NOTE_ALT[n]||n;
+  return NOTES.indexOf(norm);
+}
+
+function transposeRoot(root, semitones){
+  // ♭/♯を正規化
+  const norm=NOTE_ALT[root]||root;
+  const idx=NOTES.indexOf(norm);
+  if(idx<0)return root; // 不明なルートはそのまま
+  const newIdx=(idx+semitones+12)%12;
+  // 元がフラット系ならフラット表記に
+  const flatRoots=['F','Bb','Eb','Ab','Db','Gb'];
+  const sharpRoots=['C','G','D','A','E','B','F#','C#'];
+  // 元のルートがフラット系だったらフラットで返す
+  const origFlat=Object.keys(NOTE_ALT).includes(root)||root==='Bb'||root==='Eb'||root==='Ab'||root==='Db'||root==='Gb';
+  const raw=NOTES[newIdx]; // C# 系
+  if(origFlat){
+    const flatMap={'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'};
+    return flatMap[raw]||raw;
+  }
+  return raw;
+}
+
+function transposeChord(chord, semitones){
+  if(!chord||chord==='N'||semitones===0)return chord;
+  // オンコード分離: Bb/D → root=Bb, bass=D
+  const slashIdx=chord.indexOf('/');
+  const main=slashIdx>=0?chord.slice(0,slashIdx):chord;
+  const bass=slashIdx>=0?chord.slice(slashIdx+1):null;
+  // ルートと質（suffix）を分離: C#m7 → root=C#, suffix=m7
+  const m=main.match(/^([A-G][b#♭♯]?)(.*)/);
+  if(!m)return chord;
+  const [,root,suffix]=m;
+  const newRoot=transposeRoot(root,semitones);
+  let result=newRoot+suffix;
+  if(bass){
+    const bassM=bass.match(/^([A-G][b#♭♯]?)(.*)/);
+    if(bassM){const [,br,bs]=bassM;result+=`/${transposeRoot(br,semitones)}${bs}`;}
+    else result+=`/${bass}`;
+  }
+  return result;
+}
+
+function getCapo(){return parseInt(document.getElementById('capo').value)||0;}
+
+// カポ適用済みコード名を返す（表示用）
+// カポ=2 → 楽器は2フレット上 → 実音は+2、譜面コードは-2（楽器から見て下げる）
+// ここでは「実際に押さえるコード形」→「出る音（実音コード）」を表示する
+// ユーザーがカポ=2で「C」を押さえると「D」の音が出る
+// コード譜は「押さえるフォーム」で書くので、カポ変更で変わるのは「鳴る音」の表記のみ
+// → 今回はカポ=2のとき「D」と入力していれば「C（カポ2）」と表示する逆変換
+// ユーザー要求：「カポを上下しても譜面のコードが変わらない」
+// つまり現在の表示は変わらず、ただしカポに合わせた実音を参照表示する
+// → 正しい実装：コード名はそのまま、右パネル「カポX = 実音Y」を表示する
+// カポ入力でコードフォームが変わる（同じ実音を別フォームで押さえる）のが正解
+// ここでは：コードタグのテキストはそのまま、右パネルダイアグラムにカポ考慮情報を付ける
+// ＋ カポ変更時にパレットのコードも移調して選べるようにする
+// → 要求の最もシンプルな解釈：左パレットとコードタグはそのまま、
+//   ダイアグラムパネルに「カポX → 実音: Y」を表示する
+
+function showCapoInfo(displayChord){
+  const capo=getCapo();
+  if(capo===0)return'';
+  const realChord=transposeChord(displayChord, capo);
+  return`<div style="font-size:10px;color:var(--amber);text-align:center;margin-top:4px;font-family:var(--mono)">カポ${capo} → 実音: ${realChord}</div>`;
 }
 
 function highlightLine(t){
@@ -1041,6 +1133,8 @@ function renderLines(){
         });
         tags.appendChild(sep);return;
       }
+      // コードタグ本体
+      const tagWrap=document.createElement('span');tagWrap.className='chord-tag-wrap';
       const tag=document.createElement('span');tag.className='chord-tag';
       const ns=document.createElement('span');ns.className='chord-name';ns.textContent=c.chord;tag.appendChild(ns);
       tag.addEventListener('click',e=>{if(e.target.classList.contains('del-x'))return;openChordEdit(idx,ci);});
@@ -1048,7 +1142,20 @@ function renderLines(){
       tag.addEventListener('mouseleave',hidePopup);
       const dx=document.createElement('span');dx.className='del-x';dx.textContent='✕';dx.title='削除';
       dx.addEventListener('click',e=>{e.stopPropagation();project.lines[idx].chords.splice(ci,1);renderLines();autoSave();});
-      tag.appendChild(dx);tags.appendChild(tag);
+      tag.appendChild(dx);
+      tagWrap.appendChild(tag);
+      // タグの右に「/挿入」ミニボタン（ホバーで表示）
+      const insertSep=document.createElement('button');
+      insertSep.className='insert-sep-btn';insertSep.textContent='/';
+      insertSep.title=`${c.chord}の後に小節線を挿入`;
+      insertSep.addEventListener('click',e=>{
+        e.stopPropagation();
+        // ci+1の位置にsepを挿入
+        project.lines[idx].chords.splice(ci+1,0,{type:'sep'});
+        renderLines();autoSave();
+      });
+      tagWrap.appendChild(insertSep);
+      tags.appendChild(tagWrap);
     });
 
     // +コード / +/ ボタン
@@ -1702,27 +1809,55 @@ function rbScrollToCurrent(){
   document.getElementById('rb-count').textContent=
     `${rbCurr+1} / ${rbHits.length}件`;
   const {li}=rbHits[rbCurr];
-  // 対象行にスクロール
+
+  // editor-area内でスクロール（scrollIntoViewはフォーカスを奪うため使わない）
+  const area=document.getElementById('editor-area');
   const rows=document.querySelectorAll('.line-row');
-  if(rows[li]){
-    rows[li].scrollIntoView({behavior:'smooth',block:'center'});
+  if(area&&rows[li]){
+    const areaRect=area.getBoundingClientRect();
+    const rowRect=rows[li].getBoundingClientRect();
+    const relTop=rowRect.top-areaRect.top+area.scrollTop;
+    const areaH=area.clientHeight;
+    const target=relTop-areaH*0.35;
+    area.scrollTo({top:Math.max(0,target),behavior:'smooth'});
   }
-  // 現在ハイライトを rb-curr に
+
+  // 現在ハイライトを rb-curr に（フォーカス移動なし）
   document.querySelectorAll('.chord-tag.rb-curr').forEach(el=>el.classList.remove('rb-curr'));
-  // タグを探して rb-curr を付ける
-  let hitCount=0;
+
+  // グローバルなヒットインデックスで正確に特定
+  let globalIdx=0;
   document.querySelectorAll('.chord-tag').forEach(tag=>{
     const nameEl=tag.querySelector('.chord-name');
     if(!nameEl)return;
     if(nameEl.textContent!==rbGetFind())return;
-    // この行のコードインデックスを確認
     const row=tag.closest('.line-row');
     if(!row)return;
     const rowIdx=parseInt(row.dataset.idx);
-    // 同じ行・同じ出現順かチェック
-    const lineHits=rbHits.filter(h=>h.li===rowIdx);
-    lineHits.forEach((h,i)=>{
-      if(rbHits.indexOf(h)===rbCurr) tag.classList.add('rb-curr');
+    // このタグがrbHitsの何番目かを確認
+    const matchingHits=rbHits.filter(h=>h.li===rowIdx);
+    // 同じ行の何番目のヒットか
+    let localIdx=0;
+    // タグが同じ行の同じコードインデックスか確認するためdata-ciを使う
+    // chord-tag-wrapのインデックスから判断
+    const wrap=tag.closest('.chord-tag-wrap');
+    if(!wrap)return;
+    const allWraps=row.querySelectorAll('.chord-tag-wrap');
+    const wrapIdx=Array.from(allWraps).indexOf(wrap);
+    // このwrapIndexがrbHitsのciと対応（sepを含むのでchords配列のインデックスとは異なる場合あり）
+    // シンプルに：同じ行のhit全部にrb-hitsの通し番号で判断
+    rbHits.forEach((h,i)=>{
+      if(h.li===rowIdx){
+        if(i===rbCurr){
+          // このhitに対応するタグを探す
+          // chord配列のci番目の非sepコードを左から数える
+          const nonSepChords=project.lines[rowIdx].chords.filter(c=>c.type!=='sep');
+          const hChord=project.lines[rowIdx].chords[h.ci];
+          const hNonSepIdx=project.lines[rowIdx].chords.slice(0,h.ci+1).filter(c=>c.type!=='sep').length-1;
+          const allTags=row.querySelectorAll('.chord-tag');
+          if(allTags[hNonSepIdx]) allTags[hNonSepIdx].classList.add('rb-curr');
+        }
+      }
     });
   });
 }
@@ -1736,18 +1871,20 @@ document.getElementById('rb-next').addEventListener('click',()=>{
   if(!rbHits.length){rbRefresh();return;}
   rbCurr=(rbCurr+1)%rbHits.length;
   rbHighlightAll();rbScrollToCurrent();
+  // フォーカスを検索欄に戻してバーを閉じないようにする
+  setTimeout(()=>document.getElementById('rb-find').focus(),10);
 });
 document.getElementById('rb-prev').addEventListener('click',()=>{
   if(!rbHits.length){rbRefresh();return;}
   rbCurr=(rbCurr-1+rbHits.length)%rbHits.length;
   rbHighlightAll();rbScrollToCurrent();
+  setTimeout(()=>document.getElementById('rb-find').focus(),10);
 });
 
 document.getElementById('rb-one').addEventListener('click',()=>{
   if(!rbHits.length||rbCurr<0||rbCurr>=rbHits.length)return;
   const repl=rbGetRepl();
   const {li,ci}=rbHits[rbCurr];
-  // Undo用スナップショット（初回のみ）
   if(!rbSnapshot) rbSnapshot=JSON.stringify(project.lines);
   document.getElementById('rb-undo').disabled=false;
   if(repl===''){
@@ -1759,6 +1896,7 @@ document.getElementById('rb-one').addEventListener('click',()=>{
   renderLines();autoSave();
   rbHits=[];rbCurr=0;rbRefresh();
   toast(`1つ置換しました`);
+  setTimeout(()=>document.getElementById('rb-find').focus(),10);
 });
 
 document.getElementById('rb-all-btn').addEventListener('click',()=>{
@@ -1835,7 +1973,12 @@ function updateStatus(){
 let toastT=null;
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2500);}
 document.getElementById('project-title').addEventListener('input',autoSave);
-document.getElementById('capo').addEventListener('input',autoSave);
+document.getElementById('capo').addEventListener('input',()=>{
+  autoSave();
+  // カポ変更時に現在表示中のダイアグラムを更新
+  const cur=document.getElementById('diag-in').value.trim();
+  if(cur) showDiagramPanel(cur);
+});
 
 window.addEventListener('DOMContentLoaded',()=>{
   // ① カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
