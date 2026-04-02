@@ -39,10 +39,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 input[type=file]{display:none}
 
 /* LAYOUT */
-#app{display:grid;grid-template-columns:260px 1fr 290px;grid-template-rows:1fr;min-height:0;height:calc(100vh - 47px)}
+#app{display:grid;grid-template-columns:260px 1fr 290px;grid-template-rows:1fr auto;min-height:0;height:calc(100vh - 47px)}
 
 /* LEFT */
-#panel-left{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#panel-left{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;grid-row:1}
 .phdr{padding:7px 12px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0}
 .pbody{padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
 .file-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
@@ -70,7 +70,7 @@ input[type=file]{display:none}
 #custom-add:hover{background:var(--accent2);color:#fff}
 
 /* CENTER */
-#panel-center{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-height:0}
+#panel-center{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-height:0;grid-row:1}
 #replace-bar-wrap{flex-shrink:0;}
 #audio-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:9px 14px;display:flex;flex-direction:column;gap:7px;flex-shrink:0}
 #editor-area{flex:1;overflow-y:scroll;padding:10px 12px 60px;min-height:0}
@@ -90,6 +90,14 @@ input[type=file]{display:none}
 #tap-btn:hover{border-color:var(--green);color:var(--green)}
 #tap-btn:disabled{opacity:.35;cursor:not-allowed}
 #cur-chord{font-family:var(--mono);font-size:12px;color:var(--chord-text);font-weight:600;min-width:40px}
+
+/* 音量バー */
+#vol-wrap{display:flex;align-items:center;gap:5px;flex-shrink:0}
+#vol-icon{cursor:pointer;font-size:14px;user-select:none;transition:opacity .15s;line-height:1}
+#vol-icon:hover{opacity:.7}
+#vol-slider{-webkit-appearance:none;appearance:none;width:72px;height:4px;border-radius:2px;background:var(--border2);outline:none;cursor:pointer}
+#vol-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:13px;height:13px;border-radius:50%;background:var(--accent);cursor:pointer}
+#vol-slider::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
 
 #lyric-import{background:var(--bg2);border:1px dashed var(--border2);border-radius:var(--radius2);padding:10px;margin-bottom:10px}
 #lyric-import h4{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
@@ -181,7 +189,7 @@ body.diag-off .chord-tag:hover{cursor:default}
 #diag-title{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--text);text-align:center;margin-bottom:10px;min-height:26px}
 #diag-container{display:flex;flex-direction:column;gap:14px}
 .dv{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:10px}
-.dv-label{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;text-align:center}
+.dv-label{font-family:var(--mono);font-size:10px;color:#ffffff;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;text-align:center}
 .dv-svg{display:flex;justify-content:center}
 .diag-empty{text-align:center;color:var(--text3);font-family:var(--mono);font-size:11px;padding:28px 0;line-height:2.2}
 
@@ -295,7 +303,7 @@ body.diag-off .chord-tag{cursor:default}
 #panel-right{
   background:var(--bg2);border-left:1px solid var(--border);
   display:flex;flex-direction:column;overflow:hidden;
-  position:sticky;top:0;height:calc(100vh - 47px);
+  position:sticky;top:0;height:calc(100vh - 47px);grid-row:1;
 }
 /* ダイアグラム登録ボタンを下部にも固定 */
 #diag-footer{
@@ -466,6 +474,14 @@ body.diag-off .chord-tag{cursor:default}
         <input type="number" id="capo" value="0" min="0" max="12">
         <span style="font-size:10px;color:var(--text3)">フレット</span>
       </div>
+      <div class="capo-row" style="margin-top:5px">
+        <label>Key</label>
+        <input type="text" id="proj-key" placeholder="例: Gm" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;">
+      </div>
+      <div class="capo-row" style="margin-top:3px">
+        <label>BPM</label>
+        <input type="number" id="proj-bpm" placeholder="120" min="1" max="300" style="width:60px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;text-align:center;">
+      </div>
     </div>
 
     <div class="phdr">
@@ -527,6 +543,14 @@ body.diag-off .chord-tag{cursor:default}
         <button id="tap-btn" disabled>TAP</button>
         <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">♩</span>
         <span id="cur-chord">-</span>
+        <!-- 音量バー -->
+        <button id="vol-btn" title="ミュート切替" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">🔊</button>
+        <input type="range" id="vol-slider" min="0" max="100" value="80" title="音量"
+          style="width:70px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <div id="vol-wrap">
+          <span id="vol-icon" title="ミュート切替">🔊</span>
+          <input type="range" id="vol-slider" min="0" max="100" value="100" title="音量">
+        </div>
       </div>
     </div>
 
@@ -702,10 +726,11 @@ const CHORD_DB = {
 // SVG DIAGRAM RENDERER
 // ════════════════════════════════════════
 function drawDiagram(frets, barre) {
-  const W=110,H=120,ST=6,FC=4;
-  const mL=22,mT=28,sS=14,fS=18;
+  const ST=6,FC=4;
+  const mL=40,mT=30,sS=14,fS=18;
   const gW=sS*(ST-1), gH=fS*FC;
-  // startFret: 表示開始フレット
+  const LM=6; // viewBox左マージン（frラベルがクリップされないよう）
+  const W=LM+mL+gW+14, H=mT+gH+12;
   const pressed=frets.filter(f=>f>0);
   let sf=1;
   if(barre&&barre>0){
@@ -715,42 +740,42 @@ function drawDiagram(frets, barre) {
     if(mx>4) sf=mn;
   }
   const C='#e2e6f0',MC='#ff5c5c',OC='#3ddc84',DC='#4f9eff',BC='rgba(79,158,255,.8)';
-  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  // viewBoxをLM分左にずらしてfrラベルのスペースを確保
+  let s=`<svg width="${W}" height="${H}" viewBox="${-LM} 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
   // ナット or フレット番号ラベル
   if(sf===1){
     s+=`<rect x="${mL}" y="${mT-5}" width="${gW}" height="6" rx="2" fill="${C}" opacity=".75"/>`;
   } else {
-    s+=`<text x="${mL-5}" y="${mT+fS*.75}" font-size="12" font-weight="bold" fill="#bbc4d8" text-anchor="end" font-family="IBM Plex Mono,monospace">${sf}fr</text>`;
+    // frラベルをグリッド左端から余裕を持たせて表示
+    s+=`<text x="${mL-6}" y="${mT+fS*.75}" font-size="13" font-weight="bold" fill="#dde2ee" text-anchor="end" font-family="IBM Plex Mono,monospace">${sf}fr</text>`;
   }
   // フレット線
   for(let i=1;i<=FC;i++){const y=mT+i*fS;s+=`<line x1="${mL}" y1="${y}" x2="${mL+gW}" y2="${y}" stroke="${C}" stroke-width=".6" opacity=".3"/>`;}
   // 弦
   for(let i=0;i<ST;i++){const x=mL+i*sS;s+=`<line x1="${x}" y1="${mT}" x2="${x}" y2="${mT+gH}" stroke="${C}" stroke-width=".8" opacity=".45"/>`;}
-  // ── セーハバー ──
+  // セーハバー
   if(barre&&barre>0){
-    const bf=barre-sf; // 0-indexed（sf=barreなので常に0）
+    const bf=barre-sf;
     if(bf>=0&&bf<FC){
       const by=mT+bf*fS+fS/2;
-      // ミュートでない最も外側の弦を探す
       let fi=0,li=ST-1;
       for(let i=0;i<ST;i++){if(frets[i]!==-1){fi=i;break;}}
       for(let i=ST-1;i>=0;i--){if(frets[i]!==-1){li=i;break;}}
       s+=`<rect x="${mL+fi*sS-4}" y="${by-7}" width="${(li-fi)*sS+8}" height="14" rx="7" fill="${BC}"/>`;
     }
   }
-  // ドット
+  // ドット・ミュート・開放
   for(let i=0;i<ST;i++){
     const f=frets[i],x=mL+i*sS;
     if(f===-1){
       s+=`<text x="${x}" y="${mT-13}" font-size="12" text-anchor="middle" fill="${MC}" font-family="sans-serif">✕</text>`;
     } else if(f===0){
-      s+=`<circle cx="${x}" cy="${mT-15}" r="5" fill="none" stroke="${OC}" stroke-width="1.5"/>`;
+      s+=`<circle cx="${x}" cy="${mT-16}" r="5" fill="none" stroke="${OC}" stroke-width="1.5"/>`;
     } else {
       const fp=f-sf;
       if(fp>=0&&fp<FC){
         const dy=mT+fp*fS+fS/2;
         const isBarreDot=(barre&&f===barre);
-        // セーハドットはバーの上に小さく（バーで表現されるので補助的に）
         s+=`<circle cx="${x}" cy="${dy}" r="${isBarreDot?5:6}" fill="${DC}" opacity="${isBarreDot?.6:.95}"/>`;
       }
     }
@@ -829,6 +854,34 @@ aEl.addEventListener('timeupdate',()=>{
 aEl.addEventListener('play',()=>pBtn.textContent='⏸');
 aEl.addEventListener('pause',()=>pBtn.textContent='▶');
 aEl.addEventListener('ended',()=>pBtn.textContent='▶');
+
+// ── 音量バー ──
+(()=>{
+  const volSlider=document.getElementById('vol-slider');
+  const volBtn=document.getElementById('vol-btn');
+  if(!volSlider||!volBtn)return;
+  // localStorage から音量を復元
+  const savedVol=parseFloat(localStorage.getItem('cs_volume'));
+  const initVol=isNaN(savedVol)?0.8:savedVol;
+  aEl.volume=initVol;
+  volSlider.value=Math.round(initVol*100);
+  updateVolIcon(initVol);
+
+  volSlider.addEventListener('input',()=>{
+    const v=parseFloat(volSlider.value)/100;
+    aEl.volume=v;
+    aEl.muted=false;
+    updateVolIcon(v);
+    localStorage.setItem('cs_volume',v);
+  });
+  volBtn.addEventListener('click',()=>{
+    aEl.muted=!aEl.muted;
+    updateVolIcon(aEl.muted?0:aEl.volume);
+  });
+  function updateVolIcon(v){
+    volBtn.textContent=v<=0||aEl.muted?'🔇':v<0.4?'🔉':'🔊';
+  }
+})();
 aEl.addEventListener('loadedmetadata',()=>{tDis.textContent=`0:00.0 / ${fmt(aEl.duration)}`;tapBtn.disabled=false;});
 pBtn.addEventListener('click',()=>{if(aEl.src)aEl.paused?aEl.play():aEl.pause();});
 document.addEventListener('keydown',e=>{
@@ -1016,7 +1069,12 @@ document.getElementById('file-audio').addEventListener('change',e=>{
   if(_aURL)URL.revokeObjectURL(_aURL);
   _aURL=URL.createObjectURL(f);aEl.src=_aURL;project.audio=f.name;
   const b=document.getElementById('audio-btn');b.textContent=f.name;b.classList.add('loaded');
-  tapBtn.disabled=false;toast(`音声: ${f.name}`);
+  tapBtn.disabled=false;
+  // 音量バーの初期値を反映
+  aEl.volume=parseFloat(document.getElementById('vol-slider')?.value||80)/100;
+  toast(`音声: ${f.name}`);
+  // バナーの音声選択済みチェック
+  checkReloadBannerDone();
 });
 document.getElementById('file-chord').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
@@ -1045,8 +1103,20 @@ function loadChordData(data,filename){
   const all=(data.chords||[]).filter(c=>c&&c!=='N');
   palette=[...new Set(all)];
   window._cn=data.chords||[];window._ct=data.times||[];
+  // tempo・keyがあれば自動入力（空欄の場合のみ上書き）
+  if(data.tempo){const bpmEl=document.getElementById('proj-bpm');if(!bpmEl.value)bpmEl.value=Math.round(data.tempo);}
+  if(data.key){const keyEl=document.getElementById('proj-key');if(!keyEl.value)keyEl.value=data.key;}
   renderPalette();document.getElementById('pal-count').textContent=palette.length;
-  toast(`コード読み込み: ${palette.length}種`);
+  toast(`コード読み込み: ${palette.length}種`+(data.tempo?` / ${Math.round(data.tempo)}BPM`:'')+(data.key?` / ${data.key}`:''));
+  checkReloadBannerDone();
+}
+
+function checkReloadBannerDone(){
+  const banner=document.getElementById('reload-banner');
+  if(!banner)return;
+  const audioOk=aEl.src&&aEl.src!==window.location.href;
+  const chordOk=palette.length>0||!project.chord_source;
+  if(audioOk&&chordOk)banner.remove();
 }
 
 // ════════════════════════════════════════
@@ -1461,7 +1531,17 @@ function hidePopup(){popT=setTimeout(()=>popEl.classList.remove('show'),150);}
 // ════════════════════════════════════════
 // SAVE / LOAD（File System Access API対応）
 // ════════════════════════════════════════
-function getProj(){return{title:document.getElementById('project-title').value,audio:project.audio,capo:parseInt(document.getElementById('capo').value)||0,lines:project.lines,chord_source:project.chord_source};}
+function getProj(){
+  return{
+    title:document.getElementById('project-title').value,
+    audio:project.audio,
+    capo:parseInt(document.getElementById('capo').value)||0,
+    key:document.getElementById('proj-key').value.trim(),
+    tempo:parseInt(document.getElementById('proj-bpm').value)||0,
+    lines:project.lines,
+    chord_source:project.chord_source,
+  };
+}
 
 let _fileHandle = null; // 保存先ファイルハンドル
 
@@ -1509,11 +1589,45 @@ document.getElementById('btn-saveas').addEventListener('click', () => saveProjec
 document.getElementById('btn-open').addEventListener('click',()=>document.getElementById('file-project').click());
 document.getElementById('file-project').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();r.onload=ev=>{try{loadProj(JSON.parse(ev.target.result));toast(`読み込み: ${f.name}`);}catch{toast('JSONエラー');}};r.readAsText(f);
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      loadProj(data);
+      toast(`読み込み: ${f.name}`);
+      // 音声・コードファイルが未選択なら再選択バナーを表示
+      if(data.audio||data.chord_source) showReloadBanner(data.audio, data.chord_source);
+    }catch{toast('JSONエラー');}
+  };
+  r.readAsText(f);
 });
+
+function showReloadBanner(audioName, chordName){
+  // 既存バナーを削除
+  const old=document.getElementById('reload-banner');if(old)old.remove();
+  const banner=document.createElement('div');
+  banner.id='reload-banner';
+  banner.style.cssText='background:rgba(255,184,64,.12);border:1px solid var(--amber);border-radius:var(--radius);padding:8px 10px;margin:0 0 8px;font-size:11px;font-family:var(--mono);color:var(--amber);';
+  banner.innerHTML=`
+    <div style="margin-bottom:5px;font-weight:600">📂 ファイルを再選択してください</div>
+    ${audioName?`<div style="margin-bottom:3px;color:var(--text2)">音声: ${audioName}
+      <button onclick="document.getElementById('file-audio').click()" style="margin-left:6px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:10px;padding:2px 6px;">選択</button>
+    </div>`:''}
+    ${chordName?`<div style="color:var(--text2)">コード: ${chordName}
+      <button onclick="document.getElementById('file-chord').click()" style="margin-left:6px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:10px;padding:2px 6px;">選択</button>
+    </div>`:''}
+    <button onclick="document.getElementById('reload-banner').remove()" style="margin-top:5px;background:none;border:none;color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:10px;padding:0">✕ 閉じる</button>
+  `;
+  // editor-areaの先頭に挿入
+  const ea=document.getElementById('editor-area');
+  ea.insertBefore(banner, ea.firstChild);
+}
 function loadProj(data){
-  document.getElementById('project-title').value=data.title||'';document.getElementById('capo').value=data.capo||0;
-  _prevCapo=data.capo||0; // カポ初期値をセット（ロード後に移調が発動しないよう）
+  document.getElementById('project-title').value=data.title||'';
+  document.getElementById('capo').value=data.capo||0;
+  document.getElementById('proj-key').value=data.key||'';
+  document.getElementById('proj-bpm').value=data.tempo||'';
+  _prevCapo=data.capo||0;
   project.audio=data.audio||'';project.chord_source=data.chord_source||'';
   project.lines=(data.lines||[]).map(l=>mkLine(l.lyric||'',l.time??null,l.chords||[],l.repeat||null));
   if(data.audio){const b=document.getElementById('audio-btn');b.textContent=data.audio;b.classList.add('loaded');}
@@ -1928,6 +2042,34 @@ document.addEventListener('keydown',e=>{
 });
 
 // ════════════════════════════════════════
+// ⑤ 音量バー
+// ════════════════════════════════════════
+const volSlider=document.getElementById('vol-slider');
+const volIcon=document.getElementById('vol-icon');
+
+volSlider.addEventListener('input',()=>{
+  const v=parseInt(volSlider.value)/100;
+  aEl.volume=v;aEl.muted=(v===0);
+  volIcon.textContent=v===0?'🔇':v<0.4?'🔉':'🔊';
+  localStorage.setItem('cs_vol',volSlider.value);
+});
+volIcon.addEventListener('click',()=>{
+  if(aEl.muted||aEl.volume===0){
+    const r=parseInt(localStorage.getItem('cs_vol_pre'))||80;
+    aEl.muted=false;volSlider.value=r;aEl.volume=r/100;
+    volIcon.textContent=r<40?'🔉':'🔊';
+  } else {
+    localStorage.setItem('cs_vol_pre',volSlider.value);
+    aEl.muted=true;volSlider.value=0;volIcon.textContent='🔇';
+  }
+  localStorage.setItem('cs_vol',volSlider.value);
+});
+(()=>{
+  const saved=localStorage.getItem('cs_vol');
+  if(saved!=null){const v=parseInt(saved);volSlider.value=v;aEl.volume=v/100;aEl.muted=(v===0);volIcon.textContent=v===0?'🔇':v<40?'🔉':'🔊';}
+})();
+
+// ════════════════════════════════════════
 // ⑧ 右パネル：ダイアグラム登録ボタン下部固定接続
 // ════════════════════════════════════════
 let asT=null;
@@ -1944,6 +2086,8 @@ function updateStatus(){
 let toastT=null;
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2500);}
 document.getElementById('project-title').addEventListener('input',autoSave);
+document.getElementById('proj-key').addEventListener('input',autoSave);
+document.getElementById('proj-bpm').addEventListener('input',autoSave);
 
 // カポ変更：前の値との差分で全コードを移調（確認なし・即時）
 let _prevCapo = 0;
