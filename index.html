@@ -110,16 +110,12 @@
           <option value="1.5">1.5×</option>
         </select>
         <button id="tap-btn" disabled>TAP</button>
-        <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">♩</span>
-        <span id="cur-chord">-</span>
+        <!-- 再生中コード表示は非表示（カポ・コード譜と連動していないため） -->
+        <span id="cur-chord" style="display:none">-</span>
         <!-- 音量バー -->
         <button id="vol-btn" title="ミュート切替" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">🔊</button>
         <input type="range" id="vol-slider" min="0" max="100" value="80" title="音量"
           style="width:70px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
-        <div id="vol-wrap">
-          <span id="vol-icon" title="ミュート切替">🔊</span>
-          <input type="range" id="vol-slider" min="0" max="100" value="100" title="音量">
-        </div>
       </div>
     </div>
 
@@ -166,7 +162,7 @@
 <div id="tap-overlay">
   <div id="tap-ov-header">
     <div id="tap-ov-title">🎵 TAPモード — 再生しながら歌詞行に時刻をセット</div>
-    <div id="tap-ov-chord">-</div>
+    <!-- 再生中コード表示は非表示 --><div id="tap-ov-chord" style="display:none">-</div>
     <div id="tap-ov-time">0:00.0</div>
     <button id="btn-tapmode-close" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:11px;padding:5px 12px">✕ 閉じる</button>
   </div>
@@ -208,6 +204,6 @@
   <div id="pop-vars"></div>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js" defer></script>
 </body>
 </html>
