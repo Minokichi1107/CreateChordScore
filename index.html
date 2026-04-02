@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChordScore Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header id="header">
+  <div class="logo">Chord<span>Score</span></div>
+  <input type="text" id="project-title" placeholder="曲名を入力...">
+  <button id="diag-toggle" title="コードダイアグラムのホバー表示 ON/OFF">🎸 ダイアグラム ON</button>
+  <button id="btn-tapmode" title="再生しながら歌詞を見てタップ">🎵 TAPモード</button>
+  <button class="hdr-btn" id="btn-replace-open" title="コード置換 (Ctrl+H)">🔁 置換</button>
+  <button class="hdr-btn" id="btn-open">📂 開く</button>
+  <button class="hdr-btn primary" id="btn-save">💾 上書保存</button>
+  <button class="hdr-btn" id="btn-saveas">📁 別名保存</button>
+  <button class="hdr-btn" id="btn-new" style="color:var(--red)">✕ 新規</button>
+  <input type="file" id="file-project" accept=".json">
+</header>
+
+<main id="app">
+  <!-- LEFT -->
+  <aside id="panel-left">
+    <div class="phdr">FILES</div>
+    <div class="pbody">
+      <div class="file-row">
+        <label>音声</label>
+        <button class="file-btn" id="audio-btn" onclick="document.getElementById('file-audio').click()">クリックして選択</button>
+        <input type="file" id="file-audio" accept="audio/*">
+      </div>
+      <div class="file-row">
+        <label>コード</label>
+        <button class="file-btn" id="chord-btn" onclick="document.getElementById('file-chord').click()">JSON / CSV</button>
+        <input type="file" id="file-chord" accept=".json,.csv">
+      </div>
+      <div class="capo-row">
+        <label>Capo</label>
+        <input type="number" id="capo" value="0" min="0" max="12">
+        <span style="font-size:10px;color:var(--text3)">フレット</span>
+      </div>
+      <div class="capo-row" style="margin-top:5px">
+        <label>Key</label>
+        <input type="text" id="proj-key" placeholder="例: Gm" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;">
+      </div>
+      <div class="capo-row" style="margin-top:3px">
+        <label>BPM</label>
+        <input type="number" id="proj-bpm" placeholder="120" min="1" max="300" style="width:60px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;text-align:center;">
+      </div>
+    </div>
+
+    <div class="phdr">
+      CHORD PALETTE
+      <span id="pal-count" style="color:var(--text3)">0</span>
+    </div>
+    <div class="pbody" style="padding-bottom:5px">
+      <input type="text" id="pal-filter" placeholder="絞り込み (例: m7)">
+    </div>
+    <div id="pal-wrap">
+      <div id="chord-pal"><div style="color:var(--text3);font-size:11px;font-family:var(--mono)">コードJSONを読み込むとここに表示されます</div></div>
+      <div id="custom-row">
+        <input type="text" id="custom-in" placeholder="手打ちで追加 (例: Gadd9)">
+        <button id="custom-add">＋追加</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- CENTER -->
+  <section id="panel-center">
+    <!-- ⑦ 置換バー -->
+    <div id="replace-bar">
+      <span style="color:var(--text3);white-space:nowrap">🔍 検索:</span>
+      <input type="text" id="rb-find" class="rb-in" placeholder="検索コード">
+      <span style="color:var(--text3)">→</span>
+      <input type="text" id="rb-replace" class="rb-in" placeholder="置換コード">
+      <div style="display:flex;gap:4px;align-items:center">
+        <label style="display:flex;align-items:center;gap:4px;color:var(--text3);font-size:10px;cursor:pointer;white-space:nowrap">
+          <input type="radio" name="rb-scope" id="rb-all" checked style="accent-color:var(--accent)"> 全行
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;color:var(--text3);font-size:10px;cursor:pointer;white-space:nowrap">
+          <input type="radio" name="rb-scope" id="rb-focus" style="accent-color:var(--accent)"> 現在行
+        </label>
+      </div>
+      <span id="rb-count">-</span>
+      <button class="rb-btn" id="rb-prev">◀</button>
+      <button class="rb-btn" id="rb-next">▶</button>
+      <button class="rb-btn" id="rb-one">1つ置換</button>
+      <button class="rb-btn ok" id="rb-all-btn">全て置換</button>
+      <button class="rb-btn" id="rb-undo" title="置換を元に戻す" disabled>↩ 戻す</button>
+      <button class="rb-btn" id="rb-close" style="margin-left:4px">✕</button>
+    </div>
+    <div id="audio-bar">
+      <div id="audio-row">
+        <button class="play-btn" id="play-btn">▶</button>
+        <div id="time-dis">0:00.0 / 0:00</div>
+        <div id="seek-wrap">
+          <div id="seek-track"><div id="seek-fill"></div></div>
+          <input type="range" id="seek-in" min="0" max="1000" value="0">
+        </div>
+        <button class="trans-btn" id="btn-m5">−5s</button>
+        <select id="speed-sel">
+          <option value="0.5">0.5×</option>
+          <option value="0.75">0.75×</option>
+          <option value="1" selected>1.0×</option>
+          <option value="1.25">1.25×</option>
+          <option value="1.5">1.5×</option>
+        </select>
+        <button id="tap-btn" disabled>TAP</button>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">♩</span>
+        <span id="cur-chord">-</span>
+        <!-- 音量バー -->
+        <button id="vol-btn" title="ミュート切替" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">🔊</button>
+        <input type="range" id="vol-slider" min="0" max="100" value="80" title="音量"
+          style="width:70px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <div id="vol-wrap">
+          <span id="vol-icon" title="ミュート切替">🔊</span>
+          <input type="range" id="vol-slider" min="0" max="100" value="100" title="音量">
+        </div>
+      </div>
+    </div>
+
+    <div id="editor-area">
+      <div id="lyric-import">
+        <h4>歌詞テキスト入力（改行で行分割）</h4>
+        <textarea id="lyric-ta" placeholder="歌詞をここに貼り付け...&#10;例:&#10;とっても とっても&#10;あなたのことが"></textarea>
+        <div class="import-btns">
+          <button class="sm-btn green" id="btn-import">行を取り込む</button>
+          <button class="sm-btn" id="btn-append">追記</button>
+          <button class="sm-btn" id="btn-clearall" style="color:var(--red)">全クリア</button>
+        </div>
+      </div>
+      <div id="lines-cont"></div>
+      <button id="add-line-btn">＋ 行を追加</button>
+    </div>
+  </section>
+
+  <!-- RIGHT -->
+  <aside id="panel-right">
+    <div class="phdr">CHORD DIAGRAM</div>
+    <div id="diag-search">
+      <input type="text" id="diag-in" placeholder="コード名を入力 (例: Am7)">
+    </div>
+    <div id="diag-panel">
+      <div id="diag-title"></div>
+      <div id="diag-container"><div class="diag-empty">コードタグをホバーまたは<br>上の入力欄にコード名を入力</div></div>
+    </div>
+    <!-- ⑧ 下部固定登録ボタン -->
+    <div id="diag-footer">
+      <button id="btn-add-diag-bottom">＋ ダイアグラムを手動登録</button>
+    </div>
+  </aside>
+</main>
+
+<div id="status">
+  行数:<span id="st-lines">0</span>
+  コード数:<span id="st-chords">0</span>
+  時刻付き:<span id="st-timed">0</span>
+  自動保存:<span id="st-save">-</span>
+</div>
+
+<!-- TAP MODE OVERLAY -->
+<div id="tap-overlay">
+  <div id="tap-ov-header">
+    <div id="tap-ov-title">🎵 TAPモード — 再生しながら歌詞行に時刻をセット</div>
+    <div id="tap-ov-chord">-</div>
+    <div id="tap-ov-time">0:00.0</div>
+    <button id="btn-tapmode-close" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:11px;padding:5px 12px">✕ 閉じる</button>
+  </div>
+  <div id="tap-ov-ctrl">
+    <button class="play-btn" id="tov-play-btn">▶</button>
+    <div id="tap-ov-seek-wrap">
+      <div id="tap-ov-seek-track"><div id="tap-ov-seek-fill"></div></div>
+      <input type="range" id="tap-ov-seek-in" min="0" max="1000" value="0">
+    </div>
+    <button class="trans-btn" id="tov-m5">−5s</button>
+    <select id="tov-speed" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);font-family:var(--mono);font-size:11px;padding:4px 5px">
+      <option value="0.5">0.5×</option>
+      <option value="0.75">0.75×</option>
+      <option value="1" selected>1.0×</option>
+      <option value="1.25">1.25×</option>
+    </select>
+    <div style="flex:1"></div>
+    <button id="tap-ov-tapbtn" disabled>TAP</button>
+  </div>
+  <div id="tap-ov-lines"></div>
+  <div id="tap-ov-footer">
+    <div>時刻済み: <span id="tov-timed">0</span> / <span id="tov-total">0</span> 行</div>
+    <div class="tov-hint">行をクリック → その行にフォーカス　TAP → 現在時刻をセット　時刻数字クリック → 削除</div>
+  </div>
+</div>
+
+<div id="modal-ov">
+  <div id="modal-box">
+    <h3 id="m-title"></h3>
+    <div id="m-body"></div>
+    <div class="m-btns" id="m-btns"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="popup">
+  <div id="pop-name"></div>
+  <div id="pop-vars"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
