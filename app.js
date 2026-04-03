@@ -3,28 +3,28 @@
 // frets[6]: 6弦→1弦  -1=ミュート 0=開放
 // ════════════════════════════════════════
 const CHORD_DB = {
-  'C':    {v:[{n:'ロー',f:[0,3,2,0,1,0]},{n:'バレー3F',f:[-1,3,3,5,5,3],b:3},{n:'ハイ8F',f:[-1,-1,10,9,8,8],b:8}]},
+  'C':    {v:[{n:'ロー',f:[0,3,2,0,1,0]},{n:'バレー3F',f:[-1,-1,3,5,5,3],b:3},{n:'ハイ8F',f:[-1,-1,10,9,8,8],b:8}]},
   'Cm':   {v:[{n:'バレー3F',f:[-1,3,5,5,4,3],b:3}]},
-  'Cmaj7':{v:[{n:'ロー',f:[0,3,2,0,0,0]},{n:'バレー3F',f:[-1,3,3,5,4,3],b:3}]},
+  'Cmaj7':{v:[{n:'ロー',f:[0,3,2,0,0,0]},{n:'バレー3F',f:[-1,-1,3,5,4,3],b:3}]},
   'Cm7':  {v:[{n:'バレー3F',f:[-1,3,5,3,4,3],b:3}]},
   'C7':   {v:[{n:'ロー',f:[0,3,2,3,1,0]},{n:'バレー3F',f:[-1,3,5,3,5,3],b:3}]},
   'Csus2':{v:[{n:'ロー',f:[0,3,0,0,1,0]}]},
   'Csus4':{v:[{n:'ロー',f:[0,3,3,0,1,3]}]},
   'Cadd9':{v:[{n:'ロー',f:[0,3,2,0,3,0]}]},
-  'D':    {v:[{n:'ロー',f:[-1,-1,0,2,3,2]},{n:'バレー5F',f:[-1,5,5,7,7,5],b:5}]},
-  'Dm':   {v:[{n:'ロー',f:[-1,-1,0,2,3,1]},{n:'バレー5F',f:[-1,5,5,7,6,5],b:5}]},
+  'D':    {v:[{n:'ロー',f:[-1,-1,0,2,3,2]},{n:'バレー5F',f:[-1,-1,5,7,7,5],b:5}]},
+  'Dm':   {v:[{n:'ロー',f:[-1,-1,0,2,3,1]},{n:'バレー5F',f:[-1,-1,5,7,6,5],b:5}]},
   'Dmaj7':{v:[{n:'ロー',f:[-1,-1,0,2,2,2]}]},
-  'Dm7':  {v:[{n:'ロー',f:[-1,-1,0,2,1,1]},{n:'バレー5F',f:[-1,5,5,7,5,5],b:5}]},
+  'Dm7':  {v:[{n:'ロー',f:[-1,-1,0,2,1,1]},{n:'バレー5F',f:[-1,-1,5,7,5,5],b:5}]},
   'D7':   {v:[{n:'ロー',f:[-1,-1,0,2,1,2]}]},
   'Dsus4':{v:[{n:'ロー',f:[-1,-1,0,2,3,3]}]},
   'Dadd9':{v:[{n:'ロー',f:[-1,-1,0,2,3,0]}]},
-  'E':    {v:[{n:'ロー',f:[0,2,2,1,0,0]},{n:'バレー7F',f:[-1,7,7,9,9,7],b:7}]},
-  'Em':   {v:[{n:'ロー',f:[0,2,2,0,0,0]},{n:'バレー7F',f:[-1,7,7,9,8,7],b:7}]},
+  'E':    {v:[{n:'ロー',f:[0,2,2,1,0,0]},{n:'バレー7F',f:[-1,-1,7,9,9,7],b:7}]},
+  'Em':   {v:[{n:'ロー',f:[0,2,2,0,0,0]},{n:'バレー7F',f:[-1,-1,7,9,8,7],b:7}]},
   'Emaj7':{v:[{n:'ロー',f:[0,2,1,1,0,0]}]},
-  'Em7':  {v:[{n:'ロー',f:[0,2,2,0,3,0]},{n:'バレー7F',f:[-1,7,7,9,7,7],b:7}]},
+  'Em7':  {v:[{n:'ロー',f:[0,2,2,0,3,0]},{n:'バレー7F',f:[-1,-1,7,9,7,7],b:7}]},
   'E7':   {v:[{n:'ロー',f:[0,2,0,1,0,0]}]},
   'Esus4':{v:[{n:'ロー',f:[0,2,2,2,0,0]}]},
-  'F':    {v:[{n:'バレー1F',f:[1,3,3,2,1,1],b:1},{n:'ハイ5F',f:[1,1,3,5,5,5]}]},
+  'F':    {v:[{n:'バレー1F',f:[1,3,3,2,1,1],b:1},{n:'ハイ5F',f:[-1,-1,3,5,5,5]}]},
   'Fm':   {v:[{n:'バレー1F',f:[1,3,3,1,1,1],b:1}]},
   'Fmaj7':{v:[{n:'ロー',f:[0,3,3,2,1,0]},{n:'バレー1F',f:[1,3,3,2,1,0]}]},
   'Fm7':  {v:[{n:'バレー1F',f:[1,3,3,1,4,1],b:1}]},
@@ -49,10 +49,10 @@ const CHORD_DB = {
   'Bmaj7':{v:[{n:'バレー2F',f:[-1,2,4,3,4,2],b:2}]},
   'Bm7':  {v:[{n:'バレー2F',f:[-1,2,4,2,3,2],b:2}]},
   'B7':   {v:[{n:'ロー',f:[-1,2,1,2,0,2]},{n:'バレー2F',f:[-1,2,4,2,4,2],b:2}]},
-  'C#':   {v:[{n:'バレー4F',f:[-1,4,4,6,6,4],b:4}]},
-  'C#m':  {v:[{n:'バレー4F',f:[-1,4,4,6,5,4],b:4}]},
-  'C#m7': {v:[{n:'バレー4F',f:[-1,4,4,6,4,4],b:4}]},
-  'C#maj7':{v:[{n:'バレー4F',f:[-1,4,4,6,5,4],b:4}]},
+  'C#':   {v:[{n:'バレー4F',f:[-1,-1,4,6,6,4],b:4}]},
+  'C#m':  {v:[{n:'バレー4F',f:[-1,-1,4,6,5,4],b:4}]},
+  'C#m7': {v:[{n:'バレー4F',f:[-1,-1,4,6,4,4],b:4}]},
+  'C#maj7':{v:[{n:'バレー4F',f:[-1,-1,4,6,5,4],b:4}]},
   'Db':   {v:[{n:'バレー4F',f:[-1,-1,4,6,6,4],b:4}]},
   'D#':   {v:[{n:'バレー6F',f:[-1,-1,6,8,8,6],b:6}]},
   'D#m':  {v:[{n:'バレー6F',f:[-1,-1,6,8,7,6],b:6}]},
@@ -684,21 +684,104 @@ function addToPaletteIfNew(chord){
 
 // コード追加モーダル
 function openAddChord(idx){
-  mTit.textContent=`行${idx+1}にコードを追加`;
-  const palHtml=palette.length?`<div style="margin-top:10px"><div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:5px">楽曲のコードから選択:</div><div style="display:flex;flex-wrap:wrap;gap:4px;max-height:130px;overflow-y:auto">${palette.map(c=>`<button class="pal-chord" style="font-size:11px" onclick="_qa(${idx},'${c.replace(/'/g,"\\'").replace(/\//g,'\\/')}')">${c}</button>`).join('')}</div></div>`:'';
+  mTit.textContent=`行${idx+1} コードをまとめて追加`;
+
+  function renderModalPreview(){
+    const line=project.lines[idx];
+    const previewEl=document.getElementById('mac-preview');
+    if(!previewEl)return;
+    previewEl.innerHTML='';
+    if(!line.chords.length){
+      previewEl.innerHTML='<span style="color:var(--text3);font-family:var(--mono);font-size:11px">(コードなし)</span>';
+      return;
+    }
+    line.chords.forEach((c,ci)=>{
+      if(c.type==='sep'){
+        const s=document.createElement('span');
+        s.style.cssText='color:var(--text3);font-family:var(--mono);font-size:16px;padding:0 3px;cursor:pointer;';
+        s.textContent='/';s.title='クリックで削除';
+        s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSave();renderModalPreview();});
+        previewEl.appendChild(s);
+      } else {
+        const tag=document.createElement('span');
+        tag.style.cssText='display:inline-flex;align-items:center;gap:3px;background:var(--chord-bg);border:1.5px solid var(--chord-border);border-radius:4px;color:#c8e4ff;font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 5px 3px 8px;cursor:default;';
+        const nm=document.createElement('span');nm.textContent=c.chord;
+        const dx=document.createElement('span');
+        dx.textContent='✕';
+        dx.style.cssText='font-size:13px;color:rgba(160,180,210,.5);cursor:pointer;padding:1px 3px;border-radius:2px;';
+        dx.addEventListener('mouseenter',()=>dx.style.background='var(--red)');
+        dx.addEventListener('mouseleave',()=>dx.style.background='');
+        dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSave();renderModalPreview();});
+        tag.appendChild(nm);tag.appendChild(dx);
+        previewEl.appendChild(tag);
+      }
+    });
+  }
+
+  function addChord(ch){
+    if(!ch)return;
+    addToPaletteIfNew(ch);
+    project.lines[idx].chords.push({chord:ch,offset:0});
+    renderLines();autoSave();
+    renderModalPreview();
+    // 入力欄をクリア＆フォーカス
+    const inp=document.getElementById('mac-input');
+    if(inp){inp.value='';inp.focus();}
+  }
+
+  function addSep(){
+    project.lines[idx].chords.push({type:'sep'});
+    renderLines();autoSave();
+    renderModalPreview();
+  }
+
+  const palHtml=palette.length
+    ?`<div style="margin-top:8px"><div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:5px">楽曲のコードから選択:</div>
+       <div style="display:flex;flex-wrap:wrap;gap:4px;max-height:110px;overflow-y:auto">
+         ${palette.map(c=>`<button class="pal-chord" style="font-size:11px" onclick="_mac_add('${c.replace(/'/g,"\\'").replace(/\//g,'\\/')}')">${c}</button>`).join('')}
+       </div></div>`
+    :'';
+
   mBody.innerHTML=`
-    <div style="font-size:11px;color:var(--text2);font-family:var(--mono);margin-bottom:6px">コード名を入力 (例: Am7, Bb/D, Cadd9)</div>
-    <input type="text" id="mi-c" class="mi" placeholder="コード名" autocomplete="off" style="font-size:16px;letter-spacing:2px">
-    ${palHtml}`;
-  window._qa=(li,ch)=>{addToPaletteIfNew(ch);project.lines[li].chords.push({chord:ch,offset:0});renderLines();autoSave();closeMod();};
-  mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  mBtns.appendChild(mkMBtn('追加','ok',()=>{
-    const v=document.getElementById('mi-c').value.trim();
-    if(v){addToPaletteIfNew(v);project.lines[idx].chords.push({chord:v,offset:0});renderLines();autoSave();}
-    closeMod();
-  }));
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:5px">現在のコード:</div>
+      <div id="mac-preview" style="display:flex;flex-wrap:wrap;gap:4px;min-height:28px;padding:6px;background:var(--bg3);border-radius:var(--radius);align-items:center"></div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <input type="text" id="mac-input" class="mi" placeholder="コード名 (例: Am7)" autocomplete="off"
+        style="font-size:15px;letter-spacing:1px;flex:1">
+      <button id="mac-add-btn" class="sm-btn green" style="white-space:nowrap;font-size:13px">追加</button>
+      <button id="mac-sep-btn" class="sm-btn" style="white-space:nowrap;font-size:13px" title="小節線を追加">／</button>
+    </div>
+    ${palHtml}
+  `;
+
+  window._mac_add=(ch)=>addChord(ch);
+
+  document.getElementById('mac-add-btn').addEventListener('click',()=>{
+    const v=document.getElementById('mac-input').value.trim();
+    addChord(v);
+  });
+  document.getElementById('mac-sep-btn').addEventListener('click',()=>addSep());
+
+  renderModalPreview();
+
+  mBtns.appendChild(mkMBtn('完了','ok',closeMod));
   mOv.classList.add('open');
-  setTimeout(()=>{const el=document.getElementById('mi-c');if(el){el.focus();el.addEventListener('keydown',e=>{if(e.key==='Enter')mBtns.querySelector('.ok').click();});}},80);
+  setTimeout(()=>{
+    const inp=document.getElementById('mac-input');
+    if(inp){
+      inp.focus();
+      inp.addEventListener('keydown',e=>{
+        if(e.key==='Enter'){e.preventDefault();addChord(inp.value.trim());}
+        if(e.key==='Escape'){closeMod();}
+      });
+      inp.addEventListener('input',()=>{
+        const v=inp.value.trim();
+        if(v) setDiagRight(v);
+      });
+    }
+  },80);
 }
 
 // コード編集モーダル
@@ -1402,29 +1485,33 @@ document.addEventListener('keydown',e=>{
 // ⑤ 音量バー
 // ════════════════════════════════════════
 const volSlider=document.getElementById('vol-slider');
-const volIcon=document.getElementById('vol-icon');
+const volBtn=document.getElementById('vol-btn');
 
-volSlider.addEventListener('input',()=>{
-  const v=parseInt(volSlider.value)/100;
-  aEl.volume=v;aEl.muted=(v===0);
-  volIcon.textContent=v===0?'🔇':v<0.4?'🔉':'🔊';
-  localStorage.setItem('cs_vol',volSlider.value);
-});
-volIcon.addEventListener('click',()=>{
-  if(aEl.muted||aEl.volume===0){
-    const r=parseInt(localStorage.getItem('cs_vol_pre'))||80;
-    aEl.muted=false;volSlider.value=r;aEl.volume=r/100;
-    volIcon.textContent=r<40?'🔉':'🔊';
-  } else {
-    localStorage.setItem('cs_vol_pre',volSlider.value);
-    aEl.muted=true;volSlider.value=0;volIcon.textContent='🔇';
-  }
-  localStorage.setItem('cs_vol',volSlider.value);
-});
-(()=>{
-  const saved=localStorage.getItem('cs_vol');
-  if(saved!=null){const v=parseInt(saved);volSlider.value=v;aEl.volume=v/100;aEl.muted=(v===0);volIcon.textContent=v===0?'🔇':v<40?'🔉':'🔊';}
-})();
+if(volSlider&&volBtn){
+  // localStorageから音量を復元
+  const savedVol=parseInt(localStorage.getItem('cs_vol'));
+  const initVol=isNaN(savedVol)?80:savedVol;
+  volSlider.value=initVol;
+  aEl.volume=initVol/100;
+  volBtn.textContent=initVol===0?'🔇':initVol<40?'🔉':'🔊';
+
+  volSlider.addEventListener('input',()=>{
+    const v=parseInt(volSlider.value)/100;
+    aEl.volume=v;aEl.muted=(v===0);
+    volBtn.textContent=v===0?'🔇':v<0.4?'🔉':'🔊';
+    localStorage.setItem('cs_vol',volSlider.value);
+  });
+  volBtn.addEventListener('click',()=>{
+    if(aEl.muted||aEl.volume===0){
+      const r=parseInt(localStorage.getItem('cs_vol_pre'))||80;
+      aEl.muted=false;volSlider.value=r;aEl.volume=r/100;
+      volBtn.textContent=r<40?'🔉':'🔊';
+    } else {
+      localStorage.setItem('cs_vol_pre',volSlider.value);
+      aEl.muted=true;volSlider.value=0;volBtn.textContent='🔇';
+    }
+  });
+}
 
 // ════════════════════════════════════════
 // ⑧ 右パネル：ダイアグラム登録ボタン下部固定接続

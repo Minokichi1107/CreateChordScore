@@ -30,7 +30,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 input[type=file]{display:none}
 
 /* LAYOUT */
-#app{display:grid;grid-template-columns:260px 1fr 290px;grid-template-rows:1fr auto;min-height:0;height:calc(100vh - 47px)}
+#app{display:grid;grid-template-columns:minmax(200px,260px) minmax(400px,1fr) minmax(200px,290px);grid-template-rows:1fr auto;min-height:0;height:calc(100vh - 47px)}
 
 /* LEFT */
 #panel-left{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;grid-row:1}
