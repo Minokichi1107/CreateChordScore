@@ -17,6 +17,15 @@ import {
   showCapoInfo
 } from './chords.js';
 
+import {
+  serializeProject,
+  deserializeProject,
+  saveProjectToFile,
+  saveToLocalStorage,
+  loadFromLocalStorage,
+  clearLocalStorage
+} from './project.js';
+
 // ════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════
@@ -118,7 +127,7 @@ tapBtn.addEventListener('click',()=>{
   let idx=tapIdx;
   if(idx<0||idx>=project.lines.length)idx=project.lines.findIndex(l=>l.time==null);
   if(idx<0)idx=0;
-  if(idx<project.lines.length){project.lines[idx].time=parseFloat(t.toFixed(3));tapIdx=idx+1;renderLines();flashLine(idx);autoSave();}
+  if(idx<project.lines.length){project.lines[idx].time=parseFloat(t.toFixed(3));tapIdx=idx+1;renderLines();flashLine(idx);autoSaveLocal();}
 });
 function flashLine(i){const r=document.querySelectorAll('.line-row');if(r[i]){r[i].classList.add('tap-flash');setTimeout(()=>r[i].classList.remove('tap-flash'),400);}}
 function updateCurChord(t){if(!window._ct||!window._cn)return;let c='N';for(let i=0;i<window._ct.length;i++){if(window._ct[i]<=t)c=window._cn[i];else break;}curC.textContent=c;}
@@ -266,7 +275,7 @@ function addChordToLine(chord){
     focLine=project.lines.length-1;
   }
   project.lines[focLine].chords.push({chord,offset:0});
-  renderLines();autoSave();
+  renderLines();autoSaveLocal();
   setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins[focLine])ins[focLine].focus();},0);
 }
 
@@ -311,7 +320,7 @@ function renderLines(){
     if(line.repeat){
       const badge=document.createElement('span');badge.className='repeat-badge';
       badge.innerHTML=`<span>× ${line.repeat.count}</span><span style="font-size:10px;opacity:.7">回</span><span class="rb-del" title="削除">✕</span>`;
-      badge.querySelector('.rb-del').addEventListener('click',e=>{e.stopPropagation();project.lines[idx].repeat=null;renderLines();autoSave();});
+      badge.querySelector('.rb-del').addEventListener('click',e=>{e.stopPropagation();project.lines[idx].repeat=null;renderLines();autoSaveLocal();});
       badge.addEventListener('click',e=>{if(e.target.classList.contains('rb-del'))return;openRepeatModal(idx);});
       tags.appendChild(badge);
     }
@@ -325,7 +334,7 @@ function renderLines(){
         sep.title='クリックで削除';
         sep.addEventListener('click',e=>{
           e.stopPropagation();
-          project.lines[idx].chords.splice(ci,1);renderLines();autoSave();
+          project.lines[idx].chords.splice(ci,1);renderLines();autoSaveLocal();
         });
         tags.appendChild(sep);return;
       }
@@ -338,7 +347,7 @@ function renderLines(){
       tag.addEventListener('mouseenter',()=>{if(!diagOn)return;setDiagRight(c.chord, getCapo());showPopup(c.chord,tag);});
       tag.addEventListener('mouseleave',hidePopup);
       const dx=document.createElement('span');dx.className='del-x';dx.textContent='✕';dx.title='削除';
-      dx.addEventListener('click',e=>{e.stopPropagation();project.lines[idx].chords.splice(ci,1);renderLines();autoSave();});
+      dx.addEventListener('click',e=>{e.stopPropagation();project.lines[idx].chords.splice(ci,1);renderLines();autoSaveLocal();});
       tag.appendChild(dx);
       tagWrap.appendChild(tag);
       // タグの右に「/挿入」ミニボタン（ホバーで表示）
@@ -349,7 +358,7 @@ function renderLines(){
         e.stopPropagation();
         // ci+1の位置にsepを挿入
         project.lines[idx].chords.splice(ci+1,0,{type:'sep'});
-        renderLines();autoSave();
+        renderLines();autoSaveLocal();
       });
       tagWrap.appendChild(insertSep);
       tags.appendChild(tagWrap);
@@ -361,7 +370,7 @@ function renderLines(){
     const asb=document.createElement('button');asb.className='add-sep-btn';asb.textContent='+/';
     asb.title='小節区切り「/」を追加';
     asb.addEventListener('click',()=>{
-      project.lines[idx].chords.push({type:'sep'});renderLines();autoSave();
+      project.lines[idx].chords.push({type:'sep'});renderLines();autoSaveLocal();
     });
     tags.appendChild(acb);tags.appendChild(asb);
     cont2.appendChild(tags);
@@ -370,10 +379,10 @@ function renderLines(){
     const li=document.createElement('input');li.type='text';li.className='lyric-input';
     li.value=line.lyric;li.placeholder='歌詞を入力...';
     li.addEventListener('focus',()=>{focLine=idx;tapIdx=idx;});
-    li.addEventListener('input',e=>{project.lines[idx].lyric=e.target.value;autoSave();});
+    li.addEventListener('input',e=>{project.lines[idx].lyric=e.target.value;autoSaveLocal();});
     li.addEventListener('keydown',e=>{
       if(e.key==='Enter'){e.preventDefault();project.lines.splice(idx+1,0,mkLine());renderLines();setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins[idx+1])ins[idx+1].focus();},0);}
-      if(e.key==='Backspace'&&!e.target.value&&project.lines.length>1){e.preventDefault();project.lines.splice(idx,1);renderLines();autoSave();setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins[Math.max(0,idx-1)])ins[Math.max(0,idx-1)].focus();},0);}
+      if(e.key==='Backspace'&&!e.target.value&&project.lines.length>1){e.preventDefault();project.lines.splice(idx,1);renderLines();autoSaveLocal();setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins[Math.max(0,idx-1)])ins[Math.max(0,idx-1)].focus();},0);}
     });
     cont2.appendChild(li);
     row.appendChild(num);row.appendChild(tb);row.appendChild(cont2);
@@ -384,8 +393,8 @@ function renderLines(){
     acts.appendChild(mk('⏱','','次TAPでこの行に時刻セット',()=>{tapIdx=idx;toast(`次のTAPで行${idx+1}に時刻セット`);}));
     acts.appendChild(mk('🔁 リピート','am','リピート記号を追加/編集',()=>openRepeatModal(idx)));
     acts.appendChild(mk('📋 コピー','gn','コードを別の行にコピー',()=>openCopyModal(idx)));
-    acts.appendChild(mk('↑挿入','','上に空行を挿入',()=>{project.lines.splice(idx,0,mkLine());renderLines();autoSave();}));
-    acts.appendChild(mk('削除','del','',()=>{project.lines.splice(idx,1);renderLines();autoSave();}));
+    acts.appendChild(mk('↑挿入','','上に空行を挿入',()=>{project.lines.splice(idx,0,mkLine());renderLines();autoSaveLocal();}));
+    acts.appendChild(mk('削除','del','',()=>{project.lines.splice(idx,1);renderLines();autoSaveLocal();}));
     row.appendChild(acts);
     cont.appendChild(row);
   });
@@ -398,16 +407,16 @@ function renderLines(){
 document.getElementById('btn-import').addEventListener('click',()=>{
   const t=document.getElementById('lyric-ta').value.trim();if(!t)return;
   const ls=t.split('\n').map(l=>l.trim()).filter(l=>l);
-  project.lines=ls.map(l=>mkLine(l));renderLines();autoSave();toast(`${ls.length}行を取り込みました`);
+  project.lines=ls.map(l=>mkLine(l));renderLines();autoSaveLocal();toast(`${ls.length}行を取り込みました`);
 });
 document.getElementById('btn-append').addEventListener('click',()=>{
   const t=document.getElementById('lyric-ta').value.trim();if(!t)return;
   const ls=t.split('\n').map(l=>l.trim()).filter(l=>l);
-  ls.forEach(l=>project.lines.push(mkLine(l)));renderLines();autoSave();toast(`${ls.length}行を追記`);
+  ls.forEach(l=>project.lines.push(mkLine(l)));renderLines();autoSaveLocal();toast(`${ls.length}行を追記`);
 });
-document.getElementById('btn-clearall').addEventListener('click',()=>{if(confirm('全行を削除しますか？')){project.lines=[];renderLines();autoSave();}});
+document.getElementById('btn-clearall').addEventListener('click',()=>{if(confirm('全行を削除しますか？')){project.lines=[];renderLines();autoSaveLocal();}});
 document.getElementById('add-line-btn').addEventListener('click',()=>{
-  project.lines.push(mkLine());renderLines();autoSave();
+  project.lines.push(mkLine());renderLines();autoSaveLocal();
   setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins.length)ins[ins.length-1].focus();},0);
 });
 
@@ -433,8 +442,8 @@ function openTimeModal(idx){
       <button onclick="document.getElementById('mi-t').value=aEl.currentTime.toFixed(3)" class="sm-btn" style="white-space:nowrap">▶ 現在位置</button>
     </div>`;
   mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  mBtns.appendChild(mkMBtn('時刻を削除','del',()=>{project.lines[idx].time=null;renderLines();autoSave();closeMod();}));
-  mBtns.appendChild(mkMBtn('セット','ok',()=>{const v=parseFloat(document.getElementById('mi-t').value);if(!isNaN(v)){project.lines[idx].time=v;renderLines();autoSave();}closeMod();}));
+  mBtns.appendChild(mkMBtn('時刻を削除','del',()=>{project.lines[idx].time=null;renderLines();autoSaveLocal();closeMod();}));
+  mBtns.appendChild(mkMBtn('セット','ok',()=>{const v=parseFloat(document.getElementById('mi-t').value);if(!isNaN(v)){project.lines[idx].time=v;renderLines();autoSaveLocal();}closeMod();}));
   mOv.classList.add('open');
   setTimeout(()=>{const el=document.getElementById('mi-t');if(el)el.focus();},80);
 }
@@ -465,7 +474,7 @@ function openAddChord(idx){
         const s=document.createElement('span');
         s.style.cssText='color:var(--text3);font-family:var(--mono);font-size:16px;padding:0 3px;cursor:pointer;';
         s.textContent='/';s.title='クリックで削除';
-        s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSave();renderModalPreview();});
+        s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSaveLocal();renderModalPreview();});
         previewEl.appendChild(s);
       } else {
         const tag=document.createElement('span');
@@ -476,7 +485,7 @@ function openAddChord(idx){
         dx.style.cssText='font-size:13px;color:rgba(160,180,210,.5);cursor:pointer;padding:1px 3px;border-radius:2px;';
         dx.addEventListener('mouseenter',()=>dx.style.background='var(--red)');
         dx.addEventListener('mouseleave',()=>dx.style.background='');
-        dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSave();renderModalPreview();});
+        dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSaveLocal();renderModalPreview();});
         tag.appendChild(nm);tag.appendChild(dx);
         previewEl.appendChild(tag);
       }
@@ -487,7 +496,7 @@ function openAddChord(idx){
     if(!ch)return;
     addToPaletteIfNew(ch);
     project.lines[idx].chords.push({chord:ch,offset:0});
-    renderLines();autoSave();
+    renderLines();autoSaveLocal();
     renderModalPreview();
     // 入力欄をクリア＆フォーカス
     const inp=document.getElementById('mac-input');
@@ -496,7 +505,7 @@ function openAddChord(idx){
 
   function addSep(){
     project.lines[idx].chords.push({type:'sep'});
-    renderLines();autoSave();
+    renderLines();autoSaveLocal();
     renderModalPreview();
   }
 
@@ -555,10 +564,10 @@ function openChordEdit(idx,ci){
   mTit.textContent='コードを編集';
   mBody.innerHTML=`<input type="text" id="mi-c" class="mi" value="${c.chord}" style="font-size:18px;letter-spacing:2px" autocomplete="off">`;
   mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  mBtns.appendChild(mkMBtn('削除','del',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSave();closeMod();}));
+  mBtns.appendChild(mkMBtn('削除','del',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSaveLocal();closeMod();}));
   mBtns.appendChild(mkMBtn('更新','ok',()=>{
     const v=document.getElementById('mi-c').value.trim();
-    if(v){addToPaletteIfNew(v);project.lines[idx].chords[ci].chord=v;renderLines();autoSave();}
+    if(v){addToPaletteIfNew(v);project.lines[idx].chords[ci].chord=v;renderLines();autoSaveLocal();}
     closeMod();
   }));
   mOv.classList.add('open');
@@ -587,8 +596,8 @@ function openRepeatModal(idx){
   document.getElementById('r-minus').addEventListener('click',()=>{cnt=Math.max(2,cnt-1);document.getElementById('r-cnt').textContent=cnt;});
   document.getElementById('r-plus').addEventListener('click',()=>{cnt++;document.getElementById('r-cnt').textContent=cnt;});
   mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  if(line.repeat)mBtns.appendChild(mkMBtn('リピート削除','del',()=>{project.lines[idx].repeat=null;renderLines();autoSave();closeMod();}));
-  mBtns.appendChild(mkMBtn('セット','ok',()=>{project.lines[idx].repeat={count:cnt};renderLines();autoSave();closeMod();}));
+  if(line.repeat)mBtns.appendChild(mkMBtn('リピート削除','del',()=>{project.lines[idx].repeat=null;renderLines();autoSaveLocal();closeMod();}));
+  mBtns.appendChild(mkMBtn('セット','ok',()=>{project.lines[idx].repeat={count:cnt};renderLines();autoSaveLocal();closeMod();}));
   mOv.classList.add('open');
 }
 
@@ -628,7 +637,7 @@ function openCopyModal(fromIdx){
       if(copyRepeat&&line.repeat){project.lines[ti].repeat={...line.repeat};}
       else if(replace&&!copyRepeat){/* 上書き時はリピートを変えない */}
     });
-    renderLines();autoSave();closeMod();toast(`${cbs.length}行に${replace?'上書き':'追記'}${copyRepeat&&line.repeat?' (リピート込み)':''}しました`);
+    renderLines();autoSaveLocal();closeMod();toast(`${cbs.length}行に${replace?'上書き':'追記'}${copyRepeat&&line.repeat?' (リピート込み)':''}しました`);
   };
   mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
   mBtns.appendChild(mkMBtn('上書き','am',()=>doCopy(true)));
@@ -735,56 +744,30 @@ function hidePopup(){popT=setTimeout(()=>popEl.classList.remove('show'),150);}
 // ════════════════════════════════════════
 // SAVE / LOAD（File System Access API対応）
 // ════════════════════════════════════════
-function getProj(){
-  return{
-    title:document.getElementById('project-title').value,
-    audio:project.audio,
-    capo:parseInt(document.getElementById('capo').value)||0,
-    key:document.getElementById('proj-key').value.trim(),
-    tempo:parseInt(document.getElementById('proj-bpm').value)||0,
-    lines:project.lines,
-    chord_source:project.chord_source,
+let _fileHandle = null; // 保存先ファイルハンドル
+
+function getUIState() {
+  return {
+    title: document.getElementById('project-title').value,
+    capo: parseInt(document.getElementById('capo').value) || 0,
+    key: document.getElementById('proj-key').value.trim(),
+    tempo: parseInt(document.getElementById('proj-bpm').value) || 0,
   };
 }
 
-let _fileHandle = null; // 保存先ファイルハンドル
-
-async function saveToHandle(handle, data) {
-  const writable = await handle.createWritable();
-  await writable.write(JSON.stringify(data, null, 2));
-  await writable.close();
-}
-
 async function saveProject(forceNew = false) {
-  const data = getProj();
-  const title = data.title || 'chordscore';
-  const suggestedName = title.replace(/[^\w\-ぁ-ん一-龯ァ-ヶ]/g,'_') + '_project.json';
+  const uiState = getUIState();
+  const projectData = serializeProject(project, uiState);
+  const result = await saveProjectToFile(projectData, _fileHandle, forceNew);
 
-  // File System Access API対応ブラウザ
-  if (window.showSaveFilePicker) {
-    try {
-      if (!_fileHandle || forceNew) {
-        _fileHandle = await window.showSaveFilePicker({
-          suggestedName,
-          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
-        });
-      }
-      await saveToHandle(_fileHandle, data);
-      const fn = _fileHandle.name;
-      document.getElementById('st-save').textContent = fn + ' ' + new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-      toast(`💾 保存: ${fn}`);
-      autoSave();
-    } catch(e) {
-      if (e.name !== 'AbortError') { toast('保存エラー: ' + e.message); }
-    }
-  } else {
-    // フォールバック：従来のダウンロード
-    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download=suggestedName; a.click();
-    URL.revokeObjectURL(url);
-    toast(`💾 保存: ${suggestedName}`);
-    autoSave();
+  if (result.success) {
+    _fileHandle = result.fileHandle;
+    const timestamp = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('st-save').textContent = result.fileName + ' ' + timestamp;
+    toast(`💾 保存: ${result.fileName}`);
+    autoSaveLocal();
+  } else if (result.error && result.error.name !== 'AbortError') {
+    toast('保存エラー: ' + result.error.message);
   }
 }
 
@@ -826,26 +809,46 @@ function showReloadBanner(audioName, chordName){
   const ea=document.getElementById('editor-area');
   ea.insertBefore(banner, ea.firstChild);
 }
+
 function loadProj(data){
   _fileHandle=null; // 別プロジェクトを開いたとき上書き保存先をリセット
-  document.getElementById('project-title').value=data.title||'';
-  document.getElementById('capo').value=data.capo||0;
-  document.getElementById('proj-key').value=data.key||'';
-  document.getElementById('proj-bpm').value=data.tempo||'';
-  _prevCapo=data.capo||0;
-  project.audio=data.audio||'';project.chord_source=data.chord_source||'';
-  project.lines=(data.lines||[]).map(l=>mkLine(l.lyric||'',l.time??null,l.chords||[],l.repeat||null));
-  if(data.audio){const b=document.getElementById('audio-btn');b.textContent=data.audio;b.classList.add('loaded');}
-  if(data.chord_source){const b=document.getElementById('chord-btn');b.textContent=data.chord_source;b.classList.add('loaded');}
+  
+  const { project: newProject, uiState } = deserializeProject(data);
+  
+  // UI状態を適用
+  document.getElementById('project-title').value = uiState.title;
+  document.getElementById('capo').value = uiState.capo;
+  document.getElementById('proj-key').value = uiState.key;
+  document.getElementById('proj-bpm').value = uiState.tempo;
+  _prevCapo = uiState.capo;
+  
+  // プロジェクトデータを適用
+  project.audio = newProject.audio;
+  project.chord_source = newProject.chord_source;
+  project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
+  
+  // UI更新
+  if (newProject.audio) {
+    const b = document.getElementById('audio-btn');
+    b.textContent = newProject.audio;
+    b.classList.add('loaded');
+  }
+  if (newProject.chord_source) {
+    const b = document.getElementById('chord-btn');
+    b.textContent = newProject.chord_source;
+    b.classList.add('loaded');
+  }
+  
   renderLines();
 }
+
 document.getElementById('btn-new').addEventListener('click',()=>{
   if(project.lines.length>0&&!confirm('編集内容を破棄して新規作成しますか？'))return;
   project={title:'',audio:'',capo:0,lines:[],chord_source:''};palette=[];window._cn=[];window._ct=[];
   document.getElementById('project-title').value='';document.getElementById('capo').value=0;
   ['audio-btn','chord-btn'].forEach(id=>{const b=document.getElementById(id);b.textContent=id==='audio-btn'?'クリックして選択':'JSON / CSV';b.classList.remove('loaded');});
   aEl.src='';pBtn.textContent='▶';tDis.textContent='0:00.0 / 0:00';sFill.style.width='0%';curC.textContent='-';tapBtn.disabled=true;
-  renderPalette();renderLines();showDiagramPanel('', getCapo());localStorage.removeItem('cs_auto');document.getElementById('st-save').textContent='-';
+  renderPalette();renderLines();showDiagramPanel('', getCapo());clearLocalStorage();document.getElementById('st-save').textContent='-';
 });
 
 // ════════════════════════════════════════
@@ -967,7 +970,7 @@ tovTapBtn.addEventListener('click', () => {
     // 次の行に自動フォーカス
     tovFocusIdx = idx + 1;
     renderTovLines();
-    autoSave();
+    autoSaveLocal();
     // TAP視覚フィードバック
     const rows = document.querySelectorAll('.tap-ov-line');
     if (rows[idx]) {
@@ -1014,7 +1017,7 @@ function renderTovLines() {
     timeEl.title = line.time != null ? 'クリックで時刻を削除' : '未設定';
     timeEl.addEventListener('click', e => {
       e.stopPropagation();
-      if (line.time != null) { project.lines[idx].time = null; renderTovLines(); autoSave(); }
+      if (line.time != null) { project.lines[idx].time = null; renderTovLines(); autoSaveLocal(); }
     });
 
     // リピートバッジ
@@ -1183,7 +1186,7 @@ document.getElementById('rb-one').addEventListener('click',()=>{
     project.lines[li].chords[ci].chord=repl;
     addToPaletteIfNew(repl);
   }
-  renderLines();autoSave();
+  renderLines();autoSaveLocal();
   rbHits=[];rbCurr=0;rbRefresh();
   toast(`1つ置換しました`);
   setTimeout(()=>document.getElementById('rb-find').focus(),10);
@@ -1207,7 +1210,7 @@ document.getElementById('rb-all-btn').addEventListener('click',()=>{
       count++;
     }
   });
-  renderLines();autoSave();
+  renderLines();autoSaveLocal();
   rbHits=[];rbCurr=0;rbRefresh();
   toast(`${count}件置換しました`);
 });
@@ -1217,7 +1220,7 @@ document.getElementById('rb-undo').addEventListener('click',()=>{
   project.lines=JSON.parse(rbSnapshot);
   rbSnapshot=null;
   document.getElementById('rb-undo').disabled=true;
-  renderLines();autoSave();
+  renderLines();autoSaveLocal();
   rbHits=[];rbCurr=0;rbRefresh();
   toast('置換を元に戻しました');
 });
@@ -1279,13 +1282,19 @@ if(volSlider&&volBtn){
 }
 
 // ════════════════════════════════════════
-// ⑧ 右パネル：ダイアグラム登録ボタン下部固定接続
+// 自動保存
 // ════════════════════════════════════════
 let asT=null;
-function autoSave(){
-  clearTimeout(asT);asT=setTimeout(()=>{
-    try{localStorage.setItem('cs_auto',JSON.stringify(getProj()));const n=new Date();document.getElementById('st-save').textContent=`${n.getHours()}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;}catch(e){}
-  },1000);
+function autoSaveLocal(){
+  clearTimeout(asT);
+  asT = setTimeout(() => {
+    const uiState = getUIState();
+    const projectData = serializeProject(project, uiState);
+    const result = saveToLocalStorage(projectData);
+    if (result.success) {
+      document.getElementById('st-save').textContent = result.timestamp;
+    }
+  }, 1000);
 }
 function updateStatus(){
   document.getElementById('st-lines').textContent=project.lines.length;
@@ -1317,7 +1326,7 @@ document.getElementById('capo').addEventListener('change',()=>{
   renderPalette();
   renderLines();
   _prevCapo=newCapo;
-  autoSave();
+  autoSaveLocal();
   const cur=document.getElementById('diag-in').value.trim();
   if(cur) showDiagramPanel(cur, getCapo());
   toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
@@ -1336,10 +1345,15 @@ window.addEventListener('DOMContentLoaded',()=>{
     diagToggleBtn.textContent = '🎸 ダイアグラム OFF';
     diagToggleBtn.classList.add('off');
   }
-  try{
-    const saved=localStorage.getItem('cs_auto');
-    if(saved){const data=JSON.parse(saved);if(data.lines&&data.lines.length>0&&confirm(`前回の作業「${data.title||'無題'}」(${data.lines.length}行) を復元しますか？`)){loadProj(data);toast('自動保存データを復元しました');}}
-  }catch(e){}
+  
+  // 自動保存データの復元
+  const saved = loadFromLocalStorage();
+  if (saved && saved.lines && saved.lines.length > 0) {
+    if (confirm(`前回の作業「${saved.title || '無題'}」(${saved.lines.length}行) を復元しますか？`)) {
+      loadProj(saved);
+      toast('自動保存データを復元しました');
+    }
+  }
   renderLines();renderPalette();
 
   // ⑧ 右パネル下部登録ボタン接続
