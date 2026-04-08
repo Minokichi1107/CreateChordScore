@@ -244,6 +244,9 @@
           "offset": 0
         },
         {
+          "type": "sep"
+        },
+        {
           "chord": "Em",
           "offset": 0
         },
@@ -292,6 +295,9 @@
         {
           "chord": "Bm7",
           "offset": 0
+        },
+        {
+          "type": "sep"
         },
         {
           "chord": "CM7",
@@ -369,6 +375,9 @@
           "offset": 0
         },
         {
+          "type": "sep"
+        },
+        {
           "chord": "CM7",
           "offset": 0
         },
@@ -411,13 +420,12 @@
     {
       "lyric": "（間奏）",
       "time": 106.608,
-      "chords": [],
-      "repeat": null
-    },
-    {
-      "lyric": "",
-      "time": 118.672,
-      "chords": [],
+      "chords": [
+        {
+          "chord": "（N.C.)",
+          "offset": 0
+        }
+      ],
       "repeat": null
     },
     {
@@ -519,6 +527,9 @@
         {
           "chord": "B",
           "offset": 0
+        },
+        {
+          "type": "sep"
         },
         {
           "chord": "Em",
@@ -646,6 +657,9 @@
           "offset": 0
         },
         {
+          "type": "sep"
+        },
+        {
           "chord": "CM7",
           "offset": 0
         },
@@ -690,15 +704,7 @@
       "time": 191.596,
       "chords": [
         {
-          "chord": "G",
-          "offset": 0
-        },
-        {
-          "chord": "G/F#",
-          "offset": 0
-        },
-        {
-          "chord": "G/E",
+          "chord": "（N.C.)",
           "offset": 0
         }
       ],
@@ -719,6 +725,9 @@
         {
           "chord": "Bm7",
           "offset": 0
+        },
+        {
+          "type": "sep"
         },
         {
           "chord": "CM7",
@@ -796,6 +805,9 @@
           "offset": 0
         },
         {
+          "type": "sep"
+        },
+        {
           "chord": "CM7",
           "offset": 0
         },
@@ -838,15 +850,14 @@
     {
       "lyric": "（アウトロ）",
       "time": 221.949,
-      "chords": [],
-      "repeat": null
-    },
-    {
-      "lyric": "",
-      "time": 231.911,
-      "chords": [],
+      "chords": [
+        {
+          "chord": "Am7/D",
+          "offset": 0
+        }
+      ],
       "repeat": null
     }
   ],
-  "chord_source": "曲_chords.json"
+  "chord_source": "idontknow_chords.json"
 }
