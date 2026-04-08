@@ -102,13 +102,14 @@
           <input type="range" id="seek-in" min="0" max="1000" value="0">
         </div>
         <button class="trans-btn" id="btn-m5">−5s</button>
-        <select id="speed-sel">
-          <option value="0.5">0.5×</option>
-          <option value="0.75">0.75×</option>
-          <option value="1" selected>1.0×</option>
-          <option value="1.25">1.25×</option>
-          <option value="1.5">1.5×</option>
-        </select>
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+          <input type="range" id="speed-sel" min="1" max="300" step="1" value="100"
+            style="width:70px;accent-color:var(--accent);cursor:pointer;"
+            title="再生速度 (1〜300%)">
+          <button id="speed-reset" title="100%にリセット"
+            style="background:none;border:none;color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:11px;padding:2px 4px;white-space:nowrap;min-width:38px;text-align:left"
+            >100%</button>
+        </div>
         <button id="tap-btn" disabled>TAP</button>
         <!-- 再生中コード表示は非表示（カポ・コード譜と連動していないため） -->
         <span id="cur-chord" style="display:none">-</span>
@@ -173,12 +174,12 @@
       <input type="range" id="tap-ov-seek-in" min="0" max="1000" value="0">
     </div>
     <button class="trans-btn" id="tov-m5">−5s</button>
-    <select id="tov-speed" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);font-family:var(--mono);font-size:11px;padding:4px 5px">
-      <option value="0.5">0.5×</option>
-      <option value="0.75">0.75×</option>
-      <option value="1" selected>1.0×</option>
-      <option value="1.25">1.25×</option>
-    </select>
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+      <input type="range" id="tov-speed" min="1" max="300" step="1" value="100"
+        style="width:60px;accent-color:var(--accent);cursor:pointer;"
+        title="再生速度 (1〜300%)">
+      <span id="tov-speed-label" style="font-family:var(--mono);font-size:11px;color:var(--text2);min-width:36px">100%</span>
+    </div>
     <div style="flex:1"></div>
     <button id="tap-ov-tapbtn" disabled>TAP</button>
   </div>
@@ -206,6 +207,6 @@
 
 <audio id="audio-el" preload="auto"></audio>
 
-<script src="app.js" defer></script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

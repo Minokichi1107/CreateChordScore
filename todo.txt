@@ -1,12 +1,85 @@
 修正
-・再生横のスピードボタンをバーにして1％単位で変えられるようにする。
-・行のコード挿入で”/”が見当たらない、出来ればUIを変更したい（参照画像）
+・再生横のスピードボタンをバーにして1％単位で1-300%まで変えられるようにする。
 
 
 実装予定
+・カスタムコードダイアグラムのjsonファイルエクスポート・インポート機能
+・登録コードの編集機能
+・解析済みのjsonファイルを読み込み時にタイムスタンプを追加した行に自動登録出来るボタン機能
 ・完成した時にスクロールするのではなく一画面でまとめてみられるようなモードもつくる
 ・完成したコード譜をA4サイズに印刷できるようにする。
 ・各プロジェクトをDBもしくはライブラリ化して簡単に呼び出せるようにする
 ・UI全面改修
+
+指示書
+# Task: Add Export / Import for Custom Chord Diagrams
+
+## Context
+
+This is a chord chart editor web app.
+
+Project structure:
+
+* index.html
+* style.css
+* app.js
+
+The application already has:
+
+1. Song project export/import (JSON)
+2. Custom chord diagrams stored in localStorage
+
+The chord diagrams stored in localStorage act as the user's personal chord library.
+
+---
+
+# Problem
+
+Custom chord diagrams are stored only in localStorage.
+If the browser storage is cleared or the user changes devices, these diagrams are lost.
+
+---
+
+# Goal
+
+Add the ability to:
+
+• Export custom chord diagrams to a JSON file
+• Import that JSON file to restore the diagrams
+
+---
+
+# Requirements
+
+1. Read the existing custom chord diagram data from localStorage.
+
+2. Create an export function that downloads the data as a JSON file.
+
+3. Create an import function that reads a JSON file and restores the data back into localStorage.
+
+4. The JSON structure should match the **existing internal data structure** to avoid compatibility issues.
+
+---
+
+# Constraints
+
+Important:
+
+• Do NOT change the existing localStorage structure
+• Do NOT redesign existing data models
+• Do NOT refactor unrelated code
+• Only add backup/restore functionality
+
+---
+
+# Expected Result
+
+User can:
+
+Export custom chord diagrams → JSON file
+Import JSON file → restore diagrams into localStorage
+
+This should work independently from the existing song project JSON system.
+
 
 バグ
