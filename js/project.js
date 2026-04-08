@@ -49,6 +49,13 @@ async function writeToHandle(handle, data) {
 }
 
 // ────────────────────────────────────────
+// Blob生成
+// ────────────────────────────────────────
+export function createProjectBlob(projectData) {
+  return new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+}
+
+// ────────────────────────────────────────
 // プロジェクト保存
 // ────────────────────────────────────────
 export async function saveProjectToFile(projectData, fileHandle, forceNew = false) {
@@ -73,6 +80,7 @@ export async function saveProjectToFile(projectData, fileHandle, forceNew = fals
         success: true,
         fileHandle: handle,
         fileName: handle.name,
+        blob: null,
         error: null,
       };
     } catch (e) {
@@ -80,23 +88,19 @@ export async function saveProjectToFile(projectData, fileHandle, forceNew = fals
         success: false,
         fileHandle: fileHandle,
         fileName: null,
+        blob: null,
         error: e,
       };
     }
   } else {
-    // フォールバック：従来のダウンロード
-    const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = suggestedName;
-    a.click();
-    URL.revokeObjectURL(url);
+    // フォールバック：Blobを返すのみ（DOM操作はapp.js側で実行）
+    const blob = createProjectBlob(projectData);
     
     return {
       success: true,
       fileHandle: null,
       fileName: suggestedName,
+      blob: blob,
       error: null,
     };
   }

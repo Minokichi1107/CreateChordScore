@@ -766,6 +766,16 @@ async function saveProject(forceNew = false) {
     document.getElementById('st-save').textContent = result.fileName + ' ' + timestamp;
     toast(`💾 保存: ${result.fileName}`);
     autoSaveLocal();
+    
+    // フォールバック時のダウンロード処理（result.blobが存在する場合）
+    if (result.blob) {
+      const url = URL.createObjectURL(result.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   } else if (result.error && result.error.name !== 'AbortError') {
     toast('保存エラー: ' + result.error.message);
   }
