@@ -1,0 +1,79 @@
+フォルダー パスの一覧
+ボリューム シリアル番号は 40ED-6084 です
+C:.
+│  chordmini_fetch.py
+│  chordmini_fetch_py利用方法.txt
+│  ChordScoreを起動.bat
+│  convert_csv_v3.py
+│  FORMAT.md
+│  index.html
+│  server.py
+│  style.css
+│  todo.txt
+│  tree.txt
+│  起動方法.txt
+│  追加機能仕様.txt
+│  
+├─js
+│      app.js
+│      chords.js
+│      project.js
+│      
+├─resorce
+│  │  11 Ｉ　Ｄｏｎ’ｔ　Ｋｎｏｗ！.mp3
+│  │  chordscore_project.json
+│  │  convert_csv_v3.py
+│  │  FORMAT.md
+│  │  idontknow_chords.json
+│  │  I_Don_t_Know__project.json
+│  │  rororo.csv
+│  │  rororo.json
+│  │  rororo.mp3
+│  │  rororo_small_chords.json
+│  │  test_project.json
+│  │  ロ_ロ_ロ_ロシアン_ル_レット_project.json
+│  │  ロロロロシアン.txt
+│  │  曲_chords.json
+│  │  
+│  └─backup
+│          I_Don_t_Know__project.json
+│          ロ_ロ_ロ_ロシアン_ル_レット_project.json
+│          
+├─使用済みファイル
+│  │  daiagram no needM.png
+│  │  
+│  └─スクリーンショット
+│          スクリーンショット 2026-03-26 16.07.50.png
+│          スクリーンショット 2026-03-26 16.11.05.png
+│          スクリーンショット 2026-03-26 23.26.54.png
+│          スクリーンショット 2026-03-27 00.50.31.png
+│          スクリーンショット 2026-03-27 00.50.50.png
+│          スクリーンショット 2026-03-27 12.28.29.png
+│          スクリーンショット 2026-03-27 12.31.00.png
+│          スクリーンショット 2026-03-30 11.55.50.png
+│          スクリーンショット 2026-03-30 11.59.09.png
+│          スクリーンショット 2026-03-30 12.00.57.png
+│          スクリーンショット 2026-03-30 12.01.07.png
+│          スクリーンショット 2026-04-01 11.07.30.png
+│          スクリーンショット 2026-04-01 11.13.20.png
+│          スクリーンショット 2026-04-01 15.39.22.png
+│          スクリーンショット 2026-04-01 15.39.33.png
+│          スクリーンショット 2026-04-02 11.13.04.png
+│          スクリーンショット 2026-04-02 11.40.55.png
+│          スクリーンショット 2026-04-02 12.33.38.png
+│          スクリーンショット 2026-04-02 19.42.13.png
+│          スクリーンショット 2026-04-03 00.06.05.png
+│          
+└─過去バージョン
+        analyze.py
+        chordmini_fetch.py
+        ChordPlayerを起動.bat
+        chord_data - コピー.json
+        chord_data.json
+        chord_player.html
+        chord_score.html
+        convert_csv.py
+        convert_csv_v3.py
+        README.md
+        server.py
+        
