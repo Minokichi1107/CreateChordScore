@@ -14,7 +14,6 @@ import {
   loadCustomDiagrams,
   transposeRoot,
   transposeChord,
-  getCapo,
   showCapoInfo
 } from './chords.js';
 
@@ -24,6 +23,11 @@ import {
 let project={title:'',audio:'',capo:0,lines:[],chord_source:''};
 let palette=[];
 let _aURL=null;
+
+// ════════════════════════════════════════
+// HELPER FUNCTIONS
+// ════════════════════════════════════════
+function getCapo(){return parseInt(document.getElementById('capo').value)||0;}
 
 // ════════════════════════════════════════
 // AUDIO ENGINE
@@ -232,7 +236,7 @@ function renderPalette(){
   filtered.forEach(chord=>{
     const btn=document.createElement('button');btn.className='pal-chord';btn.textContent=chord;
     btn.addEventListener('click',()=>addChordToLine(chord));
-    btn.addEventListener('mouseenter',()=>setDiagRight(chord));
+    btn.addEventListener('mouseenter',()=>setDiagRight(chord, getCapo()));
     c.appendChild(btn);
   });
 }
@@ -331,7 +335,7 @@ function renderLines(){
       const ns=document.createElement('span');ns.className='chord-name';ns.textContent=c.chord;
       tag.appendChild(ns);
       tag.addEventListener('click',e=>{if(e.target.classList.contains('del-x'))return;openChordEdit(idx,ci);});
-      tag.addEventListener('mouseenter',()=>{if(!diagOn)return;setDiagRight(c.chord);showPopup(c.chord,tag);});
+      tag.addEventListener('mouseenter',()=>{if(!diagOn)return;setDiagRight(c.chord, getCapo());showPopup(c.chord,tag);});
       tag.addEventListener('mouseleave',hidePopup);
       const dx=document.createElement('span');dx.className='del-x';dx.textContent='✕';dx.title='削除';
       dx.addEventListener('click',e=>{e.stopPropagation();project.lines[idx].chords.splice(ci,1);renderLines();autoSave();});
@@ -539,7 +543,7 @@ function openAddChord(idx){
       });
       inp.addEventListener('input',()=>{
         const v=inp.value.trim();
-        if(v) setDiagRight(v);
+        if(v) setDiagRight(v, getCapo());
       });
     }
   },80);
@@ -558,7 +562,7 @@ function openChordEdit(idx,ci){
     closeMod();
   }));
   mOv.classList.add('open');
-  setTimeout(()=>{const el=document.getElementById('mi-c');if(el){el.focus();el.select();el.addEventListener('keydown',e=>{if(e.key==='Enter')mBtns.querySelector('.ok').click();});el.addEventListener('input',()=>setDiagRight(el.value));}},80);
+  setTimeout(()=>{const el=document.getElementById('mi-c');if(el){el.focus();el.select();el.addEventListener('keydown',e=>{if(e.key==='Enter')mBtns.querySelector('.ok').click();});el.addEventListener('input',()=>setDiagRight(el.value, getCapo()));}},80);
 }
 
 // リピートモーダル
@@ -687,7 +691,7 @@ function openAddDiagramModal(defaultChord=''){
     const ei=CHORD_DB[name].v.findIndex(vr=>vr.n===vname);
     if(ei>=0)CHORD_DB[name].v[ei]=variant;else CHORD_DB[name].v.push(variant);
     saveCustomDiagrams();
-    showDiagramPanel(name);document.getElementById('diag-in').value=name;
+    showDiagramPanel(name, getCapo());document.getElementById('diag-in').value=name;
     closeMod();toast(`✅ "${name}" (${vname}) を登録・保存しました`);
   }));
   mOv.classList.add('open');
@@ -695,7 +699,7 @@ function openAddDiagramModal(defaultChord=''){
 }
 
 // Diagram button
-document.getElementById('diag-in').addEventListener('input',e=>showDiagramPanel(e.target.value.trim()));
+document.getElementById('diag-in').addEventListener('input',e=>showDiagramPanel(e.target.value.trim(), getCapo()));
 // btn-add-diag は下部ボタン(btn-add-diag-bottom)に統合済み。念のためnullチェック
 const _diagBtn=document.getElementById('btn-add-diag');
 if(_diagBtn)_diagBtn.addEventListener('click',()=>openAddDiagramModal(document.getElementById('diag-in').value.trim()));
@@ -841,7 +845,7 @@ document.getElementById('btn-new').addEventListener('click',()=>{
   document.getElementById('project-title').value='';document.getElementById('capo').value=0;
   ['audio-btn','chord-btn'].forEach(id=>{const b=document.getElementById(id);b.textContent=id==='audio-btn'?'クリックして選択':'JSON / CSV';b.classList.remove('loaded');});
   aEl.src='';pBtn.textContent='▶';tDis.textContent='0:00.0 / 0:00';sFill.style.width='0%';curC.textContent='-';tapBtn.disabled=true;
-  renderPalette();renderLines();showDiagramPanel('');localStorage.removeItem('cs_auto');document.getElementById('st-save').textContent='-';
+  renderPalette();renderLines();showDiagramPanel('', getCapo());localStorage.removeItem('cs_auto');document.getElementById('st-save').textContent='-';
 });
 
 // ════════════════════════════════════════
@@ -1315,7 +1319,7 @@ document.getElementById('capo').addEventListener('change',()=>{
   _prevCapo=newCapo;
   autoSave();
   const cur=document.getElementById('diag-in').value.trim();
-  if(cur) showDiagramPanel(cur);
+  if(cur) showDiagramPanel(cur, getCapo());
   toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
 });
 
@@ -1323,7 +1327,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   // ① カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
   loadCustomDiagrams();
   const curDiagChord = document.getElementById('diag-in').value.trim();
-  if(curDiagChord) showDiagramPanel(curDiagChord);
+  if(curDiagChord) showDiagramPanel(curDiagChord, getCapo());
 
   // ダイアグラムON/OFF状態復元
   const savedDiagOn = localStorage.getItem('cs_diagOn');

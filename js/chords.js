@@ -154,12 +154,12 @@ export function lookupChord(name){
 }
 
 // TODO: move to editor.js in phase4
-export function showDiagramPanel(chord){
+export function showDiagramPanel(chord, capo){
   document.getElementById('diag-title').textContent=chord||'';
   const c=document.getElementById('diag-container');
   if(!chord||chord==='N'){c.innerHTML='<div class="diag-empty">コードタグをホバー<br>または上で入力</div>';return;}
   const r=lookupChord(chord);
-  const capoInfo=showCapoInfo(chord);
+  const capoInfo=showCapoInfo(chord, capo);
   if(!r){
     c.innerHTML=`${capoInfo}<div class="diag-empty">"${chord}"<br>のダイアグラムは未登録<br><br><small style="color:var(--amber)">↑「＋ダイアグラムを手動登録」<br>で追加できます</small></div>`;
     return;
@@ -173,9 +173,9 @@ export function showDiagramPanel(chord){
 }
 
 // TODO: move to editor.js in phase4
-export function setDiagRight(chord){
+export function setDiagRight(chord, capo){
   document.getElementById('diag-in').value=chord||'';
-  showDiagramPanel(chord);
+  showDiagramPanel(chord, capo);
 }
 
 // ════════════════════════════════════════
@@ -266,25 +266,7 @@ export function transposeChord(chord, semitones){
   return result;
 }
 
-export function getCapo(){return parseInt(document.getElementById('capo').value)||0;}
-
-// カポ適用済みコード名を返す（表示用）
-// カポ=2 → 楽器は2フレット上 → 実音は+2、譜面コードは-2（楽器から見て下げる）
-// ここでは「実際に押さえるコード形」→「出る音（実音コード）」を表示する
-// ユーザーがカポ=2で「C」を押さえると「D」の音が出る
-// コード譜は「押さえるフォーム」で書くので、カポ変更で変わるのは「鳴る音」の表記のみ
-// → 今回はカポ=2のとき「D」と入力していれば「C（カポ2）」と表示する逆変換
-// ユーザー要求：「カポを上下しても譜面のコードが変わらない」
-// つまり現在の表示は変わらず、ただしカポに合わせた実音を参照表示する
-// → 正しい実装：コード名はそのまま、右パネル「カポX = 実音Y」を表示する
-// カポ入力でコードフォームが変わる（同じ実音を別フォームで押さえる）のが正解
-// ここでは：コードタグのテキストはそのまま、右パネルダイアグラムにカポ考慮情報を付ける
-// ＋ カポ変更時にパレットのコードも移調して選べるようにする
-// → 要求の最もシンプルな解釈：左パレットとコードタグはそのまま、
-//   ダイアグラムパネルに「カポX → 実音: Y」を表示する
-
-export function showCapoInfo(displayChord){
-  const capo=getCapo();
+export function showCapoInfo(displayChord, capo){
   if(capo===0)return'';
   const realChord=transposeChord(displayChord, capo);
   return`<div style="font-size:10px;color:var(--amber);text-align:center;margin-top:4px;font-family:var(--mono)">カポ${capo} → 実音: ${realChord}</div>`;
