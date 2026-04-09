@@ -26,6 +26,15 @@ import {
   clearLocalStorage
 } from './project.js';
 
+import {
+  initAudioEngine,
+  fmt,
+  setSpeed,
+  flashLine,
+  getAudioElement,
+  setAudioSource
+} from './audio.js';
+
 // ════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════
@@ -39,98 +48,11 @@ let _aURL=null;
 function getCapo(){return parseInt(document.getElementById('capo').value)||0;}
 
 // ════════════════════════════════════════
-// AUDIO ENGINE
+// AUDIO ENGINE（初期化はDOMContentLoadedで実行）
 // ════════════════════════════════════════
 const aEl=document.getElementById('audio-el');
-const pBtn=document.getElementById('play-btn');
-const tDis=document.getElementById('time-dis');
-const sIn=document.getElementById('seek-in');
-const sFill=document.getElementById('seek-fill');
-const tapBtn=document.getElementById('tap-btn');
-const curC=document.getElementById('cur-chord');
-let seeking=false, tapIdx=-1;
+let tapIdx=-1;
 
-function fmt(s,tenth=false){
-  const m=Math.floor(s/60),sc=Math.floor(s%60);
-  return tenth?`${m}:${String(sc).padStart(2,'0')}.${Math.floor((s%1)*10)}`:`${m}:${String(sc).padStart(2,'0')}`;
-}
-
-aEl.addEventListener('timeupdate',()=>{
-  if(seeking)return;
-  const t=aEl.currentTime,d=aEl.duration||0;
-  tDis.textContent=`${fmt(t,true)} / ${fmt(d)}`;
-  if(d>0){sFill.style.width=(t/d*100)+'%';sIn.value=Math.round(t/d*1000);}
-  updateCurChord(t);highlightLine(t);
-});
-aEl.addEventListener('play',()=>pBtn.textContent='⏸');
-aEl.addEventListener('pause',()=>pBtn.textContent='▶');
-aEl.addEventListener('ended',()=>pBtn.textContent='▶');
-
-// ── 音量バー ──
-(()=>{
-  const volSlider=document.getElementById('vol-slider');
-  const volBtn=document.getElementById('vol-btn');
-  if(!volSlider||!volBtn)return;
-  // localStorage から音量を復元
-  const savedVol=parseFloat(localStorage.getItem('cs_volume'));
-  const initVol=isNaN(savedVol)?0.8:savedVol;
-  aEl.volume=initVol;
-  volSlider.value=Math.round(initVol*100);
-  updateVolIcon(initVol);
-
-  volSlider.addEventListener('input',()=>{
-    const v=parseFloat(volSlider.value)/100;
-    aEl.volume=v;
-    aEl.muted=false;
-    updateVolIcon(v);
-    localStorage.setItem('cs_volume',v);
-  });
-  volBtn.addEventListener('click',()=>{
-    aEl.muted=!aEl.muted;
-    updateVolIcon(aEl.muted?0:aEl.volume);
-  });
-  function updateVolIcon(v){
-    volBtn.textContent=v<=0||aEl.muted?'🔇':v<0.4?'🔉':'🔊';
-  }
-})();
-aEl.addEventListener('loadedmetadata',()=>{tDis.textContent=`0:00.0 / ${fmt(aEl.duration)}`;tapBtn.disabled=false;});
-pBtn.addEventListener('click',()=>{if(aEl.src)aEl.paused?aEl.play():aEl.pause();});
-document.addEventListener('keydown',e=>{
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
-  if(e.code==='Space'){e.preventDefault();if(aEl.src)aEl.paused?aEl.play():aEl.pause();}
-  if(e.code==='ArrowLeft')aEl.currentTime=Math.max(0,aEl.currentTime-5);
-  if(e.code==='ArrowRight')aEl.currentTime=Math.min(aEl.duration||0,aEl.currentTime+5);
-});
-document.getElementById('btn-m5').addEventListener('click',()=>{aEl.currentTime=Math.max(0,aEl.currentTime-5);});
-// 再生速度スライダー
-const speedSel=document.getElementById('speed-sel');
-const speedReset=document.getElementById('speed-reset');
-function setSpeed(pct){
-  const rate=Math.max(0.01,pct/100);
-  aEl.playbackRate=rate;
-  speedSel.value=pct;
-  if(speedReset) speedReset.textContent=pct+'%';
-  // TAPモード側も同期
-  const tovSpd=document.getElementById('tov-speed');
-  const tovLbl=document.getElementById('tov-speed-label');
-  if(tovSpd) tovSpd.value=pct;
-  if(tovLbl) tovLbl.textContent=pct+'%';
-}
-speedSel.addEventListener('input',e=>setSpeed(parseInt(e.target.value)));
-if(speedReset) speedReset.addEventListener('click',()=>setSpeed(100));
-sIn.addEventListener('mousedown',()=>seeking=true);
-sIn.addEventListener('mouseup',()=>{seeking=false;aEl.currentTime=(sIn.value/1000)*(aEl.duration||0);});
-sIn.addEventListener('input',()=>{if(!seeking)return;sFill.style.width=(sIn.value/10)+'%';const t=(sIn.value/1000)*(aEl.duration||0);tDis.textContent=`${fmt(t,true)} / ${fmt(aEl.duration||0)}`;});
-tapBtn.addEventListener('click',()=>{
-  if(!aEl.src||aEl.paused)return;
-  const t=aEl.currentTime;
-  let idx=tapIdx;
-  if(idx<0||idx>=project.lines.length)idx=project.lines.findIndex(l=>l.time==null);
-  if(idx<0)idx=0;
-  if(idx<project.lines.length){project.lines[idx].time=parseFloat(t.toFixed(3));tapIdx=idx+1;renderLines();flashLine(idx);autoSaveLocal();}
-});
-function flashLine(i){const r=document.querySelectorAll('.line-row');if(r[i]){r[i].classList.add('tap-flash');setTimeout(()=>r[i].classList.remove('tap-flash'),400);}}
-function updateCurChord(t){if(!window._ct||!window._cn)return;let c='N';for(let i=0;i<window._ct.length;i++){if(window._ct[i]<=t)c=window._cn[i];else break;}curC.textContent=c;}
 // ════════════════════════════════════════
 // DIAGRAM ON/OFF TOGGLE
 // ════════════════════════════════════════
@@ -1343,12 +1265,54 @@ document.getElementById('capo').addEventListener('change',()=>{
 });
 
 window.addEventListener('DOMContentLoaded',()=>{
-  // ① カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
+  // ① Audio Engine初期化
+  const audioElements = {
+    playBtn: document.getElementById('play-btn'),
+    timeDisplay: document.getElementById('time-dis'),
+    seekInput: document.getElementById('seek-in'),
+    seekFill: document.getElementById('seek-fill'),
+    tapBtn: document.getElementById('tap-btn'),
+    curChord: document.getElementById('cur-chord'),
+    btnM5: document.getElementById('btn-m5'),
+    speedSel: document.getElementById('speed-sel'),
+    speedReset: document.getElementById('speed-reset'),
+    volSlider: document.getElementById('vol-slider'),
+    volBtn: document.getElementById('vol-btn'),
+    tovSpeed: document.getElementById('tov-speed'),
+    tovSpeedLabel: document.getElementById('tov-speed-label'),
+  };
+
+  const audioCallbacks = {
+    onTimeUpdate: (time) => {
+      highlightLine(time);
+    },
+    onTap: (time) => {
+      let idx = tapIdx;
+      if (idx < 0 || idx >= project.lines.length) {
+        idx = project.lines.findIndex(l => l.time == null);
+      }
+      if (idx < 0) idx = 0;
+      if (idx < project.lines.length) {
+        project.lines[idx].time = parseFloat(time.toFixed(3));
+        tapIdx = idx + 1;
+        renderLines();
+        flashLine(idx);
+        autoSaveLocal();
+      }
+    },
+    onMetadataLoad: () => {
+      // 必要に応じて追加処理
+    }
+  };
+
+  initAudioEngine(aEl, audioElements, audioCallbacks);
+
+  // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
   loadCustomDiagrams();
   const curDiagChord = document.getElementById('diag-in').value.trim();
   if(curDiagChord) showDiagramPanel(curDiagChord, getCapo());
 
-  // ダイアグラムON/OFF状態復元
+  // ③ ダイアグラムON/OFF状態復元
   const savedDiagOn = localStorage.getItem('cs_diagOn');
   if (savedDiagOn === '0') {
     diagOn = false;
