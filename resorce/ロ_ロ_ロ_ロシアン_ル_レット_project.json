@@ -1,5 +1,5 @@
 {
-  "title": "",
+  "title": "ロ・ロ・ロ・ロシアン・ルーレット",
   "audio": "rororo.mp3",
   "capo": 3,
   "key": "D major",
@@ -516,6 +516,50 @@
         },
         {
           "chord": "Em",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "（間奏）",
+      "time": 90.581,
+      "chords": [
+        {
+          "chord": "Em",
+          "offset": 0
+        },
+        {
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        },
+        {
+          "type": "sep"
+        },
+        {
+          "chord": "G/B",
+          "offset": 0
+        },
+        {
+          "chord": "A7",
+          "offset": 0
+        },
+        {
+          "type": "sep"
+        },
+        {
+          "chord": "B７sus4",
+          "offset": 0
+        },
+        {
+          "type": "sep"
+        },
+        {
+          "chord": "B7",
           "offset": 0
         }
       ],
