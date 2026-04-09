@@ -430,14 +430,8 @@
           "offset": 0
         },
         {
-          "type": "sep"
-        },
-        {
           "chord": "B7",
           "offset": 0
-        },
-        {
-          "type": "sep"
         },
         {
           "chord": "Em",
@@ -529,14 +523,25 @@
     },
     {
       "lyric": "（間奏）",
-      "time": 90.02,
+      "time": 90.581,
       "chords": [
         {
           "chord": "Em",
           "offset": 0
         },
         {
-          "chord": "G",
+          "chord": "C",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        },
+        {
+          "type": "sep"
+        },
+        {
+          "chord": "G/B",
           "offset": 0
         },
         {
@@ -544,13 +549,21 @@
           "offset": 0
         },
         {
+          "type": "sep"
+        },
+        {
+          "chord": "B７sus4",
+          "offset": 0
+        },
+        {
+          "type": "sep"
+        },
+        {
           "chord": "B7",
           "offset": 0
         }
       ],
-      "repeat": {
-        "count": 4
-      }
+      "repeat": null
     },
     {
       "lyric": "今夜秘密のカジノにおいでよ",
@@ -797,14 +810,8 @@
           "offset": 0
         },
         {
-          "type": "sep"
-        },
-        {
           "chord": "B7",
           "offset": 0
-        },
-        {
-          "type": "sep"
         },
         {
           "chord": "Em",

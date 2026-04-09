@@ -1313,9 +1313,9 @@ function updateStatus(){
 }
 let toastT=null;
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2500);}
-document.getElementById('project-title').addEventListener('input',autoSave);
-document.getElementById('proj-key').addEventListener('input',autoSave);
-document.getElementById('proj-bpm').addEventListener('input',autoSave);
+document.getElementById('project-title').addEventListener('input',autoSaveLocal);
+document.getElementById('proj-key').addEventListener('input',autoSaveLocal);
+document.getElementById('proj-bpm').addEventListener('input',autoSaveLocal);
 
 // カポ変更：前の値との差分で全コードを移調（確認なし・即時）
 let _prevCapo = 0;
