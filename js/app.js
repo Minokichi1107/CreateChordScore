@@ -746,7 +746,7 @@ function loadProj(data){
     b.classList.add('loaded');
   }
   
-  renderLines();
+  refreshEditor();
 }
 
 document.getElementById('btn-new').addEventListener('click',()=>{
@@ -754,8 +754,8 @@ document.getElementById('btn-new').addEventListener('click',()=>{
   project={title:'',audio:'',capo:0,lines:[],chord_source:''};palette=[];window._cn=[];window._ct=[];
   document.getElementById('project-title').value='';document.getElementById('capo').value=0;
   ['audio-btn','chord-btn'].forEach(id=>{const b=document.getElementById(id);b.textContent=id==='audio-btn'?'クリックして選択':'JSON / CSV';b.classList.remove('loaded');});
-  aEl.src='';pBtn.textContent='▶';tDis.textContent='0:00.0 / 0:00';sFill.style.width='0%';curC.textContent='-';tapBtn.disabled=true;
-  renderPalette();renderLines();showDiagramPanel('', getCapo());clearLocalStorage();document.getElementById('st-save').textContent='-';
+  aEl.src='';
+  renderPalette();refreshEditor();showDiagramPanel('', getCapo());clearLocalStorage();document.getElementById('st-save').textContent='-';
 });
 
 // ════════════════════════════════════════
@@ -774,7 +774,7 @@ function openTapMode() {
 
 function closeTapMode() {
   document.getElementById('tap-overlay').classList.remove('open');
-  renderLines(); // 編集エリアを最新に更新
+  refreshEditor(); // 編集エリアを最新に更新
 }
 
 document.getElementById('btn-tapmode').addEventListener('click', openTapMode);
@@ -1231,7 +1231,7 @@ document.getElementById('capo').addEventListener('change',()=>{
   });
   palette=palette.map(ch=>transposeChord(ch,semitones));
   renderPalette();
-  renderLines();
+  refreshEditor();
   _prevCapo=newCapo;
   autoSaveLocal();
   const cur=document.getElementById('diag-in').value.trim();
@@ -1303,7 +1303,7 @@ window.addEventListener('DOMContentLoaded',()=>{
       toast('自動保存データを復元しました');
     }
   }
-  renderLines();renderPalette();
+  refreshEditor();renderPalette();
 
   // ⑧ 右パネル下部登録ボタン接続
   const btnAddDiagBottom=document.getElementById('btn-add-diag-bottom');
