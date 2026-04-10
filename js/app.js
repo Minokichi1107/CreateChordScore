@@ -35,6 +35,14 @@ import {
   setAudioSource
 } from './audio.js';
 
+import {
+  mkLine,
+  addChordToLine,
+  highlightLine,
+  scrollEditorToRow,
+  renderLines
+} from './editor.js';
+
 // ════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════
@@ -65,37 +73,6 @@ diagToggleBtn.addEventListener('click', () => {
   if (!diagOn) { const p=document.getElementById('popup');if(p)p.classList.remove('show'); }
   localStorage.setItem('cs_diagOn', diagOn ? '1' : '0');
 });
-
-let _lastActiveIdx = -1;
-function highlightLine(t){
-  const rows=document.querySelectorAll('.line-row');
-  let ai=-1;
-  for(let i=project.lines.length-1;i>=0;i--){
-    if(project.lines[i].time!=null&&project.lines[i].time<=t){ai=i;break;}
-  }
-  rows.forEach((r,i)=>r.classList.toggle('active-line',i===ai));
-  // 行が変わったときだけスクロール
-  if(ai>=0 && ai!==_lastActiveIdx && rows[ai]){
-    scrollEditorToRow(rows[ai]);
-  }
-  _lastActiveIdx=ai;
-}
-
-// editor-area内で指定行が中央付近に来るようスクロール
-let _lastScrolledRow = -1;
-function scrollEditorToRow(rowEl, force=false){
-  const area=document.getElementById('editor-area');
-  if(!area)return;
-  const areaRect=area.getBoundingClientRect();
-  const rowRect=rowEl.getBoundingClientRect();
-  const relTop=rowRect.top - areaRect.top;
-  const areaH=areaRect.height;
-  const rowH=rowRect.height;
-  // 表示範囲内（上15%〜下80%）かつforceでなければスキップ
-  if(!force && relTop>=areaH*0.15 && relTop+rowH<=areaH*0.8) return;
-  const target=area.scrollTop + relTop - areaH*0.35;
-  area.scrollTop = Math.max(0, target); // instantスクロール（smoothは毎フレーム干渉する）
-}
 
 // ════════════════════════════════════════
 // FILE LOADING
@@ -166,7 +143,7 @@ function renderPalette(){
   if(!filtered.length){c.innerHTML='<div style="color:var(--text3);font-size:11px;font-family:var(--mono)">なし</div>';return;}
   filtered.forEach(chord=>{
     const btn=document.createElement('button');btn.className='pal-chord';btn.textContent=chord;
-    btn.addEventListener('click',()=>addChordToLine(chord));
+    btn.addEventListener('click',()=>handleAddChordToLine(chord));
     btn.addEventListener('mouseenter',()=>setDiagRight(chord, getCapo()));
     c.appendChild(btn);
   });
@@ -183,144 +160,142 @@ document.getElementById('custom-add').addEventListener('click',()=>{
 document.getElementById('custom-in').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('custom-add').click();});
 
 // ════════════════════════════════════════
-// LINE MANAGEMENT
+// LINE MANAGEMENT（editor.js wrapper）
 // ════════════════════════════════════════
 let focLine=-1;
 
-function mkLine(lyric='',time=null,chords=[],repeat=null){
-  return{lyric,time,chords:chords.map(c=>typeof c==='string'?{chord:c,offset:0}:{...c}),repeat:repeat||null};
-}
-
-function addChordToLine(chord){
-  if(focLine<0||focLine>=project.lines.length){
-    if(!project.lines.length){project.lines.push(mkLine());renderLines();}
-    focLine=project.lines.length-1;
-  }
-  project.lines[focLine].chords.push({chord,offset:0});
-  renderLines();autoSaveLocal();
-  setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins[focLine])ins[focLine].focus();},0);
-}
-
-function renderLines(){
-  const cont=document.getElementById('lines-cont');
-  cont.innerHTML='';
-  project.lines.forEach((line,idx)=>{
-    const row=document.createElement('div');row.className='line-row';row.dataset.idx=idx;
-
-    // 行番号
-    const num=document.createElement('div');num.className='line-num';num.textContent=idx+1;
-
-    // 時刻ボタン
-    const tb=document.createElement('button');
-    tb.className='line-time'+(line.time!=null?' has-t':'');
-    tb.textContent=line.time!=null?fmt(line.time,true):'--:--.--';
-    tb.title=line.time!=null?'クリック: その時間に移動  右クリック: 時刻を編集':'クリック: 時刻を設定';
-    tb.addEventListener('click',()=>{
-      if(line.time!=null){
-        // 時刻が設定済み → 再生バーをシーク
-        aEl.currentTime=line.time;
-        if(aEl.paused) aEl.play();
-        toast(`▶ ${fmt(line.time,true)} にシーク`);
+// renderLines用のコールバック設定を生成
+function createEditorCallbacks() {
+  return {
+    onTimeClick: (idx, time) => {
+      if (time != null) {
+        aEl.currentTime = time;
+        if (aEl.paused) aEl.play();
+        toast(`▶ ${fmt(time, true)} にシーク`);
       } else {
-        // 時刻未設定 → 時刻編集モーダル
         openTimeModal(idx);
       }
-    });
-    tb.addEventListener('contextmenu',e=>{
-      // 右クリックで時刻編集モーダル
-      e.preventDefault();
+    },
+    onTimeContextMenu: (idx) => {
       openTimeModal(idx);
-    });
-
-    // コンテンツエリア
-    const cont2=document.createElement('div');cont2.className='line-content';
-
-    // ── コードタグ行（折り返し対応）──
-    const tags=document.createElement('div');tags.className='chord-tags';
-
-    // リピートバッジ
-    if(line.repeat){
-      const badge=document.createElement('span');badge.className='repeat-badge';
-      badge.innerHTML=`<span>× ${line.repeat.count}</span><span style="font-size:10px;opacity:.7">回</span><span class="rb-del" title="削除">✕</span>`;
-      badge.querySelector('.rb-del').addEventListener('click',e=>{e.stopPropagation();project.lines[idx].repeat=null;renderLines();autoSaveLocal();});
-      badge.addEventListener('click',e=>{if(e.target.classList.contains('rb-del'))return;openRepeatModal(idx);});
-      tags.appendChild(badge);
+    },
+    onChordEdit: (idx, ci) => {
+      openChordEdit(idx, ci);
+    },
+    onAddChord: (idx) => {
+      openAddChord(idx);
+    },
+    onRepeatClick: (idx) => {
+      openRepeatModal(idx);
+    },
+    onRepeatDelete: (idx) => {
+      project.lines[idx].repeat = null;
+      refreshEditor();
+    },
+    onChordDelete: (idx, ci) => {
+      project.lines[idx].chords.splice(ci, 1);
+      refreshEditor();
+    },
+    onSepClick: (idx, ci) => {
+      project.lines[idx].chords.splice(ci, 1);
+      refreshEditor();
+    },
+    onSepInsert: (idx, ci) => {
+      project.lines[idx].chords.splice(ci + 1, 0, { type: 'sep' });
+      refreshEditor();
+    },
+    onLineInsert: (idx) => {
+      project.lines.splice(idx, 0, mkLine());
+      refreshEditor();
+    },
+    onLineDelete: (idx) => {
+      project.lines.splice(idx, 1);
+      refreshEditor();
+    },
+    onLyricFocus: (idx) => {
+      focLine = idx;
+      tapIdx = idx;
+    },
+    onLyricInput: (idx, value) => {
+      project.lines[idx].lyric = value;
+      autoSaveLocal();
+    },
+    onLyricEnter: (idx) => {
+      project.lines.splice(idx + 1, 0, mkLine());
+      renderLines(project.lines, getEditorUIState(), createEditorCallbacks());
+      setTimeout(() => {
+        const ins = document.querySelectorAll('.lyric-input');
+        if (ins[idx + 1]) ins[idx + 1].focus();
+      }, 0);
+    },
+    onLyricBackspace: (idx) => {
+      project.lines.splice(idx, 1);
+      refreshEditor();
+      setTimeout(() => {
+        const ins = document.querySelectorAll('.lyric-input');
+        if (ins[Math.max(0, idx - 1)]) ins[Math.max(0, idx - 1)].focus();
+      }, 0);
+    },
+    onTapSet: (idx) => {
+      tapIdx = idx;
+      toast(`次のTAPで行${idx + 1}に時刻セット`);
+    },
+    onCopyClick: (idx) => {
+      openCopyModal(idx);
+    },
+    setDiagRight: (chord, capo) => {
+      setDiagRight(chord, capo);
+    },
+    showPopup: (chord, element) => {
+      showPopup(chord, element);
+    },
+    hidePopup: () => {
+      hidePopup();
+    },
+    updateStatus: () => {
+      updateStatus();
+    },
+    toast: (msg) => {
+      toast(msg);
     }
+  };
+}
 
-    // コードタグ（削除ボタン大きく）＋セパレーター「/」対応
-    line.chords.forEach((c,ci)=>{
-      // セパレーターアイテム
-      if(c.type==='sep'){
-        const sep=document.createElement('span');
-        sep.className='chord-sep';sep.textContent='/';
-        sep.title='クリックで削除';
-        sep.addEventListener('click',e=>{
-          e.stopPropagation();
-          project.lines[idx].chords.splice(ci,1);renderLines();autoSaveLocal();
-        });
-        tags.appendChild(sep);return;
-      }
-      // コードタグ本体
-      const tagWrap=document.createElement('span');tagWrap.className='chord-tag-wrap';
-      const tag=document.createElement('span');tag.className='chord-tag';
-      const ns=document.createElement('span');ns.className='chord-name';ns.textContent=c.chord;
-      tag.appendChild(ns);
-      tag.addEventListener('click',e=>{if(e.target.classList.contains('del-x'))return;openChordEdit(idx,ci);});
-      tag.addEventListener('mouseenter',()=>{if(!diagOn)return;setDiagRight(c.chord, getCapo());showPopup(c.chord,tag);});
-      tag.addEventListener('mouseleave',hidePopup);
-      const dx=document.createElement('span');dx.className='del-x';dx.textContent='✕';dx.title='削除';
-      dx.addEventListener('click',e=>{e.stopPropagation();project.lines[idx].chords.splice(ci,1);renderLines();autoSaveLocal();});
-      tag.appendChild(dx);
-      tagWrap.appendChild(tag);
-      // タグの右に「/挿入」ミニボタン（ホバーで表示）
-      const insertSep=document.createElement('button');
-      insertSep.className='insert-sep-btn';insertSep.textContent='/';
-      insertSep.title=`${c.chord}の後に小節線を挿入`;
-      insertSep.addEventListener('click',e=>{
-        e.stopPropagation();
-        // ci+1の位置にsepを挿入
-        project.lines[idx].chords.splice(ci+1,0,{type:'sep'});
-        renderLines();autoSaveLocal();
-      });
-      tagWrap.appendChild(insertSep);
-      tags.appendChild(tagWrap);
-    });
+// renderLinesのUI状態を生成
+function getEditorUIState() {
+  return {
+    focLine,
+    tapIdx,
+    diagOn,
+    capo: getCapo(),
+    fmt
+  };
+}
 
-    // +コード / +/ ボタン
-    const acb=document.createElement('button');acb.className='add-chord-btn';acb.textContent='+コード';
-    acb.addEventListener('click',()=>openAddChord(idx));
-    const asb=document.createElement('button');asb.className='add-sep-btn';asb.textContent='+/';
-    asb.title='小節区切り「/」を追加';
-    asb.addEventListener('click',()=>{
-      project.lines[idx].chords.push({type:'sep'});renderLines();autoSaveLocal();
-    });
-    tags.appendChild(acb);tags.appendChild(asb);
-    cont2.appendChild(tags);
+// エディタを再描画
+function refreshEditor() {
+  renderLines(project.lines, getEditorUIState(), createEditorCallbacks());
+  autoSaveLocal();
+}
 
-    // 歌詞入力
-    const li=document.createElement('input');li.type='text';li.className='lyric-input';
-    li.value=line.lyric;li.placeholder='歌詞を入力...';
-    li.addEventListener('focus',()=>{focLine=idx;tapIdx=idx;});
-    li.addEventListener('input',e=>{project.lines[idx].lyric=e.target.value;autoSaveLocal();});
-    li.addEventListener('keydown',e=>{
-      if(e.key==='Enter'){e.preventDefault();project.lines.splice(idx+1,0,mkLine());renderLines();setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins[idx+1])ins[idx+1].focus();},0);}
-      if(e.key==='Backspace'&&!e.target.value&&project.lines.length>1){e.preventDefault();project.lines.splice(idx,1);renderLines();autoSaveLocal();setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins[Math.max(0,idx-1)])ins[Math.max(0,idx-1)].focus();},0);}
-    });
-    cont2.appendChild(li);
-    row.appendChild(num);row.appendChild(tb);row.appendChild(cont2);
-
-    // ── ホバーアクション ──
-    const acts=document.createElement('div');acts.className='line-acts';
-    const mk=(t,cl,title,fn)=>{const b=document.createElement('button');b.className=`la ${cl}`;b.textContent=t;if(title)b.title=title;b.addEventListener('click',fn);return b;};
-    acts.appendChild(mk('⏱','','次TAPでこの行に時刻セット',()=>{tapIdx=idx;toast(`次のTAPで行${idx+1}に時刻セット`);}));
-    acts.appendChild(mk('🔁 リピート','am','リピート記号を追加/編集',()=>openRepeatModal(idx)));
-    acts.appendChild(mk('📋 コピー','gn','コードを別の行にコピー',()=>openCopyModal(idx)));
-    acts.appendChild(mk('↑挿入','','上に空行を挿入',()=>{project.lines.splice(idx,0,mkLine());renderLines();autoSaveLocal();}));
-    acts.appendChild(mk('削除','del','',()=>{project.lines.splice(idx,1);renderLines();autoSaveLocal();}));
-    row.appendChild(acts);
-    cont.appendChild(row);
+// コード追加（パレットから）
+function handleAddChordToLine(chord) {
+  const result = addChordToLine(chord, project.lines, focLine, {
+    onLinesChange: () => {
+      renderLines(project.lines, getEditorUIState(), createEditorCallbacks());
+    }
   });
-  updateStatus();
+  
+  focLine = result.focLine;
+  
+  if (result.needsRender) {
+    refreshEditor();
+  }
+  
+  setTimeout(() => {
+    const ins = document.querySelectorAll('.lyric-input');
+    if (ins[focLine]) ins[focLine].focus();
+  }, 0);
 }
 
 // ════════════════════════════════════════
@@ -329,16 +304,16 @@ function renderLines(){
 document.getElementById('btn-import').addEventListener('click',()=>{
   const t=document.getElementById('lyric-ta').value.trim();if(!t)return;
   const ls=t.split('\n').map(l=>l.trim()).filter(l=>l);
-  project.lines=ls.map(l=>mkLine(l));renderLines();autoSaveLocal();toast(`${ls.length}行を取り込みました`);
+  project.lines=ls.map(l=>mkLine(l));refreshEditor();toast(`${ls.length}行を取り込みました`);
 });
 document.getElementById('btn-append').addEventListener('click',()=>{
   const t=document.getElementById('lyric-ta').value.trim();if(!t)return;
   const ls=t.split('\n').map(l=>l.trim()).filter(l=>l);
-  ls.forEach(l=>project.lines.push(mkLine(l)));renderLines();autoSaveLocal();toast(`${ls.length}行を追記`);
+  ls.forEach(l=>project.lines.push(mkLine(l)));refreshEditor();toast(`${ls.length}行を追記`);
 });
-document.getElementById('btn-clearall').addEventListener('click',()=>{if(confirm('全行を削除しますか？')){project.lines=[];renderLines();autoSaveLocal();}});
+document.getElementById('btn-clearall').addEventListener('click',()=>{if(confirm('全行を削除しますか？')){project.lines=[];refreshEditor();}});
 document.getElementById('add-line-btn').addEventListener('click',()=>{
-  project.lines.push(mkLine());renderLines();autoSaveLocal();
+  project.lines.push(mkLine());refreshEditor();
   setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins.length)ins[ins.length-1].focus();},0);
 });
 
@@ -364,8 +339,8 @@ function openTimeModal(idx){
       <button onclick="document.getElementById('mi-t').value=aEl.currentTime.toFixed(3)" class="sm-btn" style="white-space:nowrap">▶ 現在位置</button>
     </div>`;
   mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  mBtns.appendChild(mkMBtn('時刻を削除','del',()=>{project.lines[idx].time=null;renderLines();autoSaveLocal();closeMod();}));
-  mBtns.appendChild(mkMBtn('セット','ok',()=>{const v=parseFloat(document.getElementById('mi-t').value);if(!isNaN(v)){project.lines[idx].time=v;renderLines();autoSaveLocal();}closeMod();}));
+  mBtns.appendChild(mkMBtn('時刻を削除','del',()=>{project.lines[idx].time=null;refreshEditor();closeMod();}));
+  mBtns.appendChild(mkMBtn('セット','ok',()=>{const v=parseFloat(document.getElementById('mi-t').value);if(!isNaN(v)){project.lines[idx].time=v;refreshEditor();}closeMod();}));
   mOv.classList.add('open');
   setTimeout(()=>{const el=document.getElementById('mi-t');if(el)el.focus();},80);
 }
@@ -396,7 +371,7 @@ function openAddChord(idx){
         const s=document.createElement('span');
         s.style.cssText='color:var(--text3);font-family:var(--mono);font-size:16px;padding:0 3px;cursor:pointer;';
         s.textContent='/';s.title='クリックで削除';
-        s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSaveLocal();renderModalPreview();});
+        s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
         previewEl.appendChild(s);
       } else {
         const tag=document.createElement('span');
@@ -407,7 +382,7 @@ function openAddChord(idx){
         dx.style.cssText='font-size:13px;color:rgba(160,180,210,.5);cursor:pointer;padding:1px 3px;border-radius:2px;';
         dx.addEventListener('mouseenter',()=>dx.style.background='var(--red)');
         dx.addEventListener('mouseleave',()=>dx.style.background='');
-        dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSaveLocal();renderModalPreview();});
+        dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
         tag.appendChild(nm);tag.appendChild(dx);
         previewEl.appendChild(tag);
       }
@@ -418,7 +393,7 @@ function openAddChord(idx){
     if(!ch)return;
     addToPaletteIfNew(ch);
     project.lines[idx].chords.push({chord:ch,offset:0});
-    renderLines();autoSaveLocal();
+    refreshEditor();
     renderModalPreview();
     // 入力欄をクリア＆フォーカス
     const inp=document.getElementById('mac-input');
@@ -427,7 +402,7 @@ function openAddChord(idx){
 
   function addSep(){
     project.lines[idx].chords.push({type:'sep'});
-    renderLines();autoSaveLocal();
+    refreshEditor();
     renderModalPreview();
   }
 
@@ -486,10 +461,10 @@ function openChordEdit(idx,ci){
   mTit.textContent='コードを編集';
   mBody.innerHTML=`<input type="text" id="mi-c" class="mi" value="${c.chord}" style="font-size:18px;letter-spacing:2px" autocomplete="off">`;
   mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  mBtns.appendChild(mkMBtn('削除','del',()=>{project.lines[idx].chords.splice(ci,1);renderLines();autoSaveLocal();closeMod();}));
+  mBtns.appendChild(mkMBtn('削除','del',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();closeMod();}));
   mBtns.appendChild(mkMBtn('更新','ok',()=>{
     const v=document.getElementById('mi-c').value.trim();
-    if(v){addToPaletteIfNew(v);project.lines[idx].chords[ci].chord=v;renderLines();autoSaveLocal();}
+    if(v){addToPaletteIfNew(v);project.lines[idx].chords[ci].chord=v;refreshEditor();}
     closeMod();
   }));
   mOv.classList.add('open');
@@ -518,8 +493,8 @@ function openRepeatModal(idx){
   document.getElementById('r-minus').addEventListener('click',()=>{cnt=Math.max(2,cnt-1);document.getElementById('r-cnt').textContent=cnt;});
   document.getElementById('r-plus').addEventListener('click',()=>{cnt++;document.getElementById('r-cnt').textContent=cnt;});
   mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  if(line.repeat)mBtns.appendChild(mkMBtn('リピート削除','del',()=>{project.lines[idx].repeat=null;renderLines();autoSaveLocal();closeMod();}));
-  mBtns.appendChild(mkMBtn('セット','ok',()=>{project.lines[idx].repeat={count:cnt};renderLines();autoSaveLocal();closeMod();}));
+  if(line.repeat)mBtns.appendChild(mkMBtn('リピート削除','del',()=>{project.lines[idx].repeat=null;refreshEditor();closeMod();}));
+  mBtns.appendChild(mkMBtn('セット','ok',()=>{project.lines[idx].repeat={count:cnt};refreshEditor();closeMod();}));
   mOv.classList.add('open');
 }
 
@@ -559,7 +534,7 @@ function openCopyModal(fromIdx){
       if(copyRepeat&&line.repeat){project.lines[ti].repeat={...line.repeat};}
       else if(replace&&!copyRepeat){/* 上書き時はリピートを変えない */}
     });
-    renderLines();autoSaveLocal();closeMod();toast(`${cbs.length}行に${replace?'上書き':'追記'}${copyRepeat&&line.repeat?' (リピート込み)':''}しました`);
+    refreshEditor();closeMod();toast(`${cbs.length}行に${replace?'上書き':'追記'}${copyRepeat&&line.repeat?' (リピート込み)':''}しました`);
   };
   mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
   mBtns.appendChild(mkMBtn('上書き','am',()=>doCopy(true)));
@@ -1118,7 +1093,7 @@ document.getElementById('rb-one').addEventListener('click',()=>{
     project.lines[li].chords[ci].chord=repl;
     addToPaletteIfNew(repl);
   }
-  renderLines();autoSaveLocal();
+  refreshEditor();
   rbHits=[];rbCurr=0;rbRefresh();
   toast(`1つ置換しました`);
   setTimeout(()=>document.getElementById('rb-find').focus(),10);
@@ -1142,7 +1117,7 @@ document.getElementById('rb-all-btn').addEventListener('click',()=>{
       count++;
     }
   });
-  renderLines();autoSaveLocal();
+  refreshEditor();
   rbHits=[];rbCurr=0;rbRefresh();
   toast(`${count}件置換しました`);
 });
@@ -1152,7 +1127,7 @@ document.getElementById('rb-undo').addEventListener('click',()=>{
   project.lines=JSON.parse(rbSnapshot);
   rbSnapshot=null;
   document.getElementById('rb-undo').disabled=true;
-  renderLines();autoSaveLocal();
+  refreshEditor();
   rbHits=[];rbCurr=0;rbRefresh();
   toast('置換を元に戻しました');
 });
@@ -1284,7 +1259,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   const audioCallbacks = {
     onTimeUpdate: (time) => {
-      highlightLine(time);
+      highlightLine(time, project.lines);
     },
     onTap: (time) => {
       let idx = tapIdx;
@@ -1295,7 +1270,7 @@ window.addEventListener('DOMContentLoaded',()=>{
       if (idx < project.lines.length) {
         project.lines[idx].time = parseFloat(time.toFixed(3));
         tapIdx = idx + 1;
-        renderLines();
+        callRenderLines();
         flashLine(idx);
         autoSaveLocal();
       }
