@@ -158,14 +158,6 @@ function renderPalette(){
   });
 }
 
-// 手打ちでパレットに追加
-document.getElementById('custom-add').addEventListener('click',()=>{
-  const inp=document.getElementById('custom-in');
-  const val=inp.value.trim();if(!val)return;
-  if(!palette.includes(val)){palette.push(val);renderPalette();document.getElementById('pal-count').textContent=palette.length;}
-  addChordToLine(val);inp.value='';toast(`"${val}" を追加してフォーカス行に挿入`);
-});
-document.getElementById('custom-in').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('custom-add').click();});
 
 // ════════════════════════════════════════
 // LINE MANAGEMENT（editor.js wrapper）
@@ -308,17 +300,6 @@ function handleAddChordToLine(chord) {
 // ════════════════════════════════════════
 // LYRIC IMPORT
 // ════════════════════════════════════════
-document.getElementById('btn-import').addEventListener('click',()=>{
-  const t=document.getElementById('lyric-ta').value.trim();if(!t)return;
-  const ls=t.split('\n').map(l=>l.trim()).filter(l=>l);
-  project.lines=ls.map(l=>mkLine(l));refreshEditor();toast(`${ls.length}行を取り込みました`);
-});
-document.getElementById('btn-append').addEventListener('click',()=>{
-  const t=document.getElementById('lyric-ta').value.trim();if(!t)return;
-  const ls=t.split('\n').map(l=>l.trim()).filter(l=>l);
-  ls.forEach(l=>project.lines.push(mkLine(l)));refreshEditor();toast(`${ls.length}行を追記`);
-});
-document.getElementById('btn-clearall').addEventListener('click',()=>{if(confirm('全行を削除しますか？')){project.lines=[];refreshEditor();}});
 document.getElementById('add-line-btn').addEventListener('click',()=>{
   project.lines.push(mkLine());refreshEditor();
   setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins.length)ins[ins.length-1].focus();},0);
@@ -1272,6 +1253,32 @@ function setupEventHandlers() {
 
   // パレット: フィルター
   document.getElementById('pal-filter').addEventListener('input',renderPalette);
+
+  // パレット: カスタムコード追加
+  document.getElementById('custom-add').addEventListener('click',()=>{
+    const inp=document.getElementById('custom-in');
+    const val=inp.value.trim();if(!val)return;
+    if(!palette.includes(val)){palette.push(val);renderPalette();document.getElementById('pal-count').textContent=palette.length;}
+    addChordToLine(val);inp.value='';toast(`"${val}" を追加してフォーカス行に挿入`);
+  });
+  document.getElementById('custom-in').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('custom-add').click();});
+
+  // 歌詞インポート: 取り込み
+  document.getElementById('btn-import').addEventListener('click',()=>{
+    const t=document.getElementById('lyric-ta').value.trim();if(!t)return;
+    const ls=t.split('\n').map(l=>l.trim()).filter(l=>l);
+    project.lines=ls.map(l=>mkLine(l));refreshEditor();toast(`${ls.length}行を取り込みました`);
+  });
+
+  // 歌詞インポート: 追記
+  document.getElementById('btn-append').addEventListener('click',()=>{
+    const t=document.getElementById('lyric-ta').value.trim();if(!t)return;
+    const ls=t.split('\n').map(l=>l.trim()).filter(l=>l);
+    ls.forEach(l=>project.lines.push(mkLine(l)));refreshEditor();toast(`${ls.length}行を追記`);
+  });
+
+  // 歌詞インポート: 全削除
+  document.getElementById('btn-clearall').addEventListener('click',()=>{if(confirm('全行を削除しますか？')){project.lines=[];refreshEditor();}});
 }
 
 // ----------------------------
