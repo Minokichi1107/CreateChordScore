@@ -299,10 +299,6 @@ function handleAddChordToLine(chord) {
 // ════════════════════════════════════════
 // LYRIC IMPORT
 // ════════════════════════════════════════
-document.getElementById('add-line-btn').addEventListener('click',()=>{
-  project.lines.push(mkLine());refreshEditor();
-  setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins.length)ins[ins.length-1].focus();},0);
-});
 
 // ════════════════════════════════════════
 // MODAL SYSTEM
@@ -658,23 +654,6 @@ async function saveProject(forceNew = false) {
   }
 }
 
-document.getElementById('btn-save').addEventListener('click', () => saveProject(false));
-document.getElementById('btn-saveas').addEventListener('click', () => saveProject(true));
-document.getElementById('btn-open').addEventListener('click',()=>document.getElementById('file-project').click());
-document.getElementById('file-project').addEventListener('change',e=>{
-  const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=ev=>{
-    try{
-      const data=JSON.parse(ev.target.result);
-      loadProj(data);
-      toast(`読み込み: ${f.name}`);
-      // 音声・コードファイルが未選択なら再選択バナーを表示
-      if(data.audio||data.chord_source) showReloadBanner(data.audio, data.chord_source);
-    }catch{toast('JSONエラー');}
-  };
-  r.readAsText(f);
-});
 
 function showReloadBanner(audioName, chordName){
   // 既存バナーを削除
@@ -1278,6 +1257,37 @@ function setupEventHandlers() {
 
   // 歌詞インポート: 全削除
   document.getElementById('btn-clearall').addEventListener('click',()=>{if(confirm('全行を削除しますか？')){project.lines=[];refreshEditor();}});
+
+  // 行操作: 空行追加
+  document.getElementById('add-line-btn').addEventListener('click',()=>{
+    project.lines.push(mkLine());refreshEditor();
+    setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins.length)ins[ins.length-1].focus();},0);
+  });
+
+  // プロジェクト: 保存
+  document.getElementById('btn-save').addEventListener('click', () => saveProject(false));
+
+  // プロジェクト: 別名保存
+  document.getElementById('btn-saveas').addEventListener('click', () => saveProject(true));
+
+  // プロジェクト: 開く
+  document.getElementById('btn-open').addEventListener('click',()=>document.getElementById('file-project').click());
+
+  // プロジェクト: ファイル読み込み
+  document.getElementById('file-project').addEventListener('change',e=>{
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=ev=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        loadProj(data);
+        toast(`読み込み: ${f.name}`);
+        // 音声・コードファイルが未選択なら再選択バナーを表示
+        if(data.audio||data.chord_source) showReloadBanner(data.audio, data.chord_source);
+      }catch{toast('JSONエラー');}
+    };
+    r.readAsText(f);
+  });
 }
 
 // ----------------------------
