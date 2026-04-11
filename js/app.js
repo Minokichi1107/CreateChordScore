@@ -14,7 +14,8 @@ import {
   loadCustomDiagrams,
   transposeRoot,
   transposeChord,
-  showCapoInfo
+  showCapoInfo,
+  normChord
 } from './chords.js';
 
 import {
@@ -42,6 +43,11 @@ import {
   scrollEditorToRow,
   renderLines
 } from './editor.js';
+
+import {
+  parseCSV,
+  parseJSON
+} from './csvImporter.js';
 
 // ════════════════════════════════════════
 // STATE
@@ -94,22 +100,20 @@ document.getElementById('file-chord').addEventListener('change',e=>{
   const r=new FileReader();
   r.onload=ev=>{
     let data;
-    if(f.name.endsWith('.csv'))data=parseCSV(ev.target.result);
-    else{try{data=JSON.parse(ev.target.result);}catch{toast('JSONエラー');return;}}
+    if(f.name.endsWith('.csv')) {
+      data = parseCSV(ev.target.result, normChord);
+    } else {
+      data = parseJSON(ev.target.result);
+      if (!data) {
+        toast('JSONエラー');
+        return;
+      }
+    }
     loadChordData(data,f.name);
   };
   r.readAsText(f,'utf-8');
 });
-function parseCSV(text){
-  const ls=text.split('\n');const ch=[],ti=[];let prev=null;
-  for(const l of ls){const p=l.trim().split(',');if(p.length<2)continue;const t=parseFloat(p[0]);if(isNaN(t))continue;const c=normChord(p[1].trim());if(c!==prev){ch.push(c);ti.push(t);prev=c;}}
-  return{chords:ch,times:ti,duration:ti[ti.length-1]+2||0};
-}
-function normChord(raw){
-  if(!raw||['N','X','n'].includes(raw))return'N';
-  const Q={maj:'',min:'m',maj7:'maj7',min7:'m7',dom7:'7','7':'7',dim:'dim',aug:'aug',sus2:'sus2',sus4:'sus4',hdim7:'m7b5',maj9:'maj9',min9:'m9',add9:'add9'};
-  if(raw.includes(':')){const[root,q]=raw.split(':',2);return root+(Q[q]??q);}return raw;
-}
+
 function loadChordData(data,filename){
   project.chord_source=filename;
   const b=document.getElementById('chord-btn');b.textContent=filename;b.classList.add('loaded');
