@@ -158,7 +158,6 @@ function renderPalette(){
   });
 }
 
-
 // ════════════════════════════════════════
 // LINE MANAGEMENT（editor.js wrapper）
 // ════════════════════════════════════════
