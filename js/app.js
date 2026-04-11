@@ -157,7 +157,6 @@ function renderPalette(){
     c.appendChild(btn);
   });
 }
-document.getElementById('pal-filter').addEventListener('input',renderPalette);
 
 // 手打ちでパレットに追加
 document.getElementById('custom-add').addEventListener('click',()=>{
@@ -1270,6 +1269,9 @@ function setupEventHandlers() {
     // バナーの音声選択済みチェック
     checkReloadBannerDone();
   });
+
+  // パレット: フィルター
+  document.getElementById('pal-filter').addEventListener('input',renderPalette);
 }
 
 // ----------------------------
