@@ -118,19 +118,6 @@ diagToggleBtn.addEventListener('click', () => {
 // ════════════════════════════════════════
 // FILE LOADING
 // ════════════════════════════════════════
-document.getElementById('file-audio').addEventListener('change',e=>{
-  const f=e.target.files[0];if(!f)return;
-  if(_aURL)URL.revokeObjectURL(_aURL);
-  _aURL=URL.createObjectURL(f);aEl.src=_aURL;project.audio=f.name;
-  const b=document.getElementById('audio-btn');b.textContent=f.name;b.classList.add('loaded');
-  const tapBtn = document.getElementById('tap-btn');
-  if(tapBtn) tapBtn.disabled=false;
-  // 音量バーの初期値を反映
-  aEl.volume=parseFloat(document.getElementById('vol-slider')?.value||80)/100;
-  toast(`音声: ${f.name}`);
-  // バナーの音声選択済みチェック
-  checkReloadBannerDone();
-});
 
 function loadChordData(data,filename){
   project.chord_source=filename;
@@ -1267,6 +1254,21 @@ function setupEventHandlers() {
       loadChordData(data,f.name);
     };
     r.readAsText(f,'utf-8');
+  });
+
+  // ファイル読み込み: 音声ファイル
+  document.getElementById('file-audio').addEventListener('change',e=>{
+    const f=e.target.files[0];if(!f)return;
+    if(_aURL)URL.revokeObjectURL(_aURL);
+    _aURL=URL.createObjectURL(f);aEl.src=_aURL;project.audio=f.name;
+    const b=document.getElementById('audio-btn');b.textContent=f.name;b.classList.add('loaded');
+    const tapBtn = document.getElementById('tap-btn');
+    if(tapBtn) tapBtn.disabled=false;
+    // 音量バーの初期値を反映
+    aEl.volume=parseFloat(document.getElementById('vol-slider')?.value||80)/100;
+    toast(`音声: ${f.name}`);
+    // バナーの音声選択済みチェック
+    checkReloadBannerDone();
   });
 }
 
