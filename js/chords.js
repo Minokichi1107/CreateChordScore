@@ -271,3 +271,35 @@ export function showCapoInfo(displayChord, capo){
   const realChord=transposeChord(displayChord, capo);
   return`<div style="font-size:10px;color:var(--amber);text-align:center;margin-top:4px;font-family:var(--mono)">カポ${capo} → 実音: ${realChord}</div>`;
 }
+
+// ────────────────────────────────────────
+// コード名正規化
+// ────────────────────────────────────────
+export function normChord(raw) {
+  if (!raw || ['N', 'X', 'n'].includes(raw)) return 'N';
+  
+  const qualityMap = {
+    maj: '',
+    min: 'm',
+    maj7: 'maj7',
+    min7: 'm7',
+    dom7: '7',
+    '7': '7',
+    dim: 'dim',
+    aug: 'aug',
+    sus2: 'sus2',
+    sus4: 'sus4',
+    hdim7: 'm7b5',
+    maj9: 'maj9',
+    min9: 'm9',
+    add9: 'add9'
+  };
+  
+  if (raw.includes(':')) {
+    const [root, quality] = raw.split(':', 2);
+    return root + (qualityMap[quality] ?? quality);
+  }
+  
+  return raw;
+}
+
