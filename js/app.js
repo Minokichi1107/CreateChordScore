@@ -50,27 +50,62 @@ import {
 } from './csvImporter.js';
 
 // ════════════════════════════════════════
-// STATE
+// GLOBAL STATE
 // ════════════════════════════════════════
-let project={title:'',audio:'',capo:0,lines:[],chord_source:''};
-let palette=[];
-let _aURL=null;
+// プロジェクトデータ
+let project = {title:'',audio:'',capo:0,lines:[],chord_source:''};
+let palette = [];
+let focLine = -1;
 
-// ════════════════════════════════════════
+// Audio関連
+const aEl = document.getElementById('audio-el');
+let _aURL = null;
+let tapIdx = -1;
+
+// UI状態
+let diagOn = true;
+let _prevCapo = 0;
+
+// ファイル保存
+let _fileHandle = null;
+
+// モーダル要素
+const mOv = document.getElementById('modal-ov');
+const mTit = document.getElementById('m-title');
+const mBody = document.getElementById('m-body');
+const mBtns = document.getElementById('m-btns');
+
+// ポップアップ
+const popEl = document.getElementById('popup');
+let popT = null;
+
+// TAPモードオーバーレイ
+let tovFocusIdx = -1;
+let tovSeeking = false;
+
+// コード置換バー
+let rbSnapshot = null;
+let rbHits = [];
+let rbCurr = -1;
+
+// 自動保存タイマー
+let asT = null;
+
+// トーストタイマー
+let toastT = null;
+
+// ----------------------------
 // HELPER FUNCTIONS
-// ════════════════════════════════════════
+// ----------------------------
 function getCapo(){return parseInt(document.getElementById('capo').value)||0;}
 
 // ════════════════════════════════════════
 // AUDIO ENGINE（初期化はDOMContentLoadedで実行）
 // ════════════════════════════════════════
-const aEl=document.getElementById('audio-el');
-let tapIdx=-1;
 
 // ════════════════════════════════════════
 // DIAGRAM ON/OFF TOGGLE
 // ════════════════════════════════════════
-let diagOn = true;
 const diagToggleBtn = document.getElementById('diag-toggle');
 diagToggleBtn.addEventListener('click', () => {
   diagOn = !diagOn;
@@ -88,7 +123,8 @@ document.getElementById('file-audio').addEventListener('change',e=>{
   if(_aURL)URL.revokeObjectURL(_aURL);
   _aURL=URL.createObjectURL(f);aEl.src=_aURL;project.audio=f.name;
   const b=document.getElementById('audio-btn');b.textContent=f.name;b.classList.add('loaded');
-  tapBtn.disabled=false;
+  const tapBtn = document.getElementById('tap-btn');
+  if(tapBtn) tapBtn.disabled=false;
   // 音量バーの初期値を反映
   aEl.volume=parseFloat(document.getElementById('vol-slider')?.value||80)/100;
   toast(`音声: ${f.name}`);
@@ -166,7 +202,6 @@ document.getElementById('custom-in').addEventListener('keydown',e=>{if(e.key==='
 // ════════════════════════════════════════
 // LINE MANAGEMENT（editor.js wrapper）
 // ════════════════════════════════════════
-let focLine=-1;
 
 // renderLines用のコールバック設定を生成
 function createEditorCallbacks() {
@@ -324,10 +359,6 @@ document.getElementById('add-line-btn').addEventListener('click',()=>{
 // ════════════════════════════════════════
 // MODAL SYSTEM
 // ════════════════════════════════════════
-const mOv=document.getElementById('modal-ov');
-const mTit=document.getElementById('m-title');
-const mBody=document.getElementById('m-body');
-const mBtns=document.getElementById('m-btns');
 function closeMod(){mOv.classList.remove('open');mBody.innerHTML='';mBtns.innerHTML='';}
 mOv.addEventListener('click',e=>{if(e.target===mOv)closeMod();});
 function mkMBtn(txt,cls,fn){const b=document.createElement('button');b.className=`mbtn ${cls||''}`;b.textContent=txt;b.addEventListener('click',fn);return b;}
@@ -617,8 +648,6 @@ if(_diagBtn)_diagBtn.addEventListener('click',()=>openAddDiagramModal(document.g
 // ════════════════════════════════════════
 // HOVER POPUP
 // ════════════════════════════════════════
-const popEl=document.getElementById('popup');
-let popT=null;
 function showPopup(chord,anchor){
   if(!diagOn)return;
   clearTimeout(popT);
@@ -645,7 +674,6 @@ function hidePopup(){popT=setTimeout(()=>popEl.classList.remove('show'),150);}
 // ════════════════════════════════════════
 // SAVE / LOAD（File System Access API対応）
 // ════════════════════════════════════════
-let _fileHandle = null; // 保存先ファイルハンドル
 
 function getUIState() {
   return {
@@ -765,8 +793,6 @@ document.getElementById('btn-new').addEventListener('click',()=>{
 // ════════════════════════════════════════
 // TAP MODE OVERLAY
 // ════════════════════════════════════════
-let tovFocusIdx = -1;
-let tovSeeking = false;
 
 function openTapMode() {
   document.getElementById('tap-overlay').classList.add('open');
@@ -984,9 +1010,6 @@ function updateTovStatus() {
 // ════════════════════════════════════════
 // ⑦ コード置換バー
 // ════════════════════════════════════════
-let rbSnapshot = null;   // Undo用スナップショット
-let rbHits = [];         // [{lineIdx, chordIdx}]
-let rbCurr = -1;         // 現在ハイライト位置
 
 function rbGetFind(){ return document.getElementById('rb-find').value.trim(); }
 function rbGetRepl(){ return document.getElementById('rb-replace').value.trim(); }
@@ -1195,7 +1218,6 @@ if(volSlider&&volBtn){
 // ════════════════════════════════════════
 // 自動保存
 // ════════════════════════════════════════
-let asT=null;
 function autoSaveLocal(){
   clearTimeout(asT);
   asT = setTimeout(() => {
@@ -1212,14 +1234,12 @@ function updateStatus(){
   document.getElementById('st-chords').textContent=project.lines.reduce((s,l)=>s+l.chords.length,0);
   document.getElementById('st-timed').textContent=project.lines.filter(l=>l.time!=null).length;
 }
-let toastT=null;
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2500);}
 document.getElementById('project-title').addEventListener('input',autoSaveLocal);
 document.getElementById('proj-key').addEventListener('input',autoSaveLocal);
 document.getElementById('proj-bpm').addEventListener('input',autoSaveLocal);
 
 // カポ変更：前の値との差分で全コードを移調（確認なし・即時）
-let _prevCapo = 0;
 document.getElementById('capo').addEventListener('change',()=>{
   const newCapo=parseInt(document.getElementById('capo').value)||0;
   const diff=newCapo-_prevCapo;
