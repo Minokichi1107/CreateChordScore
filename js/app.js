@@ -131,24 +131,6 @@ document.getElementById('file-audio').addEventListener('change',e=>{
   // バナーの音声選択済みチェック
   checkReloadBannerDone();
 });
-document.getElementById('file-chord').addEventListener('change',e=>{
-  const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=ev=>{
-    let data;
-    if(f.name.endsWith('.csv')) {
-      data = parseCSV(ev.target.result, normChord);
-    } else {
-      data = parseJSON(ev.target.result);
-      if (!data) {
-        toast('JSONエラー');
-        return;
-      }
-    }
-    loadChordData(data,f.name);
-  };
-  r.readAsText(f,'utf-8');
-});
 
 function loadChordData(data,filename){
   project.chord_source=filename;
@@ -1267,13 +1249,34 @@ document.getElementById('capo').addEventListener('change',()=>{
 // EVENT HANDLERS SETUP
 // ----------------------------
 function setupEventHandlers() {
-  // TODO: イベントリスナーを段階的にここに移動
+  // ファイル読み込み: コードファイル
+  document.getElementById('file-chord').addEventListener('change',e=>{
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=ev=>{
+      let data;
+      if(f.name.endsWith('.csv')) {
+        data = parseCSV(ev.target.result, normChord);
+      } else {
+        data = parseJSON(ev.target.result);
+        if (!data) {
+          toast('JSONエラー');
+          return;
+        }
+      }
+      loadChordData(data,f.name);
+    };
+    r.readAsText(f,'utf-8');
+  });
 }
 
 // ----------------------------
 // APP INITIALIZATION
 // ----------------------------
 window.addEventListener('DOMContentLoaded',()=>{
+  // イベントハンドラー登録
+  setupEventHandlers();
+  
   // ① Audio Engine初期化
   const audioElements = {
     playBtn: document.getElementById('play-btn'),
