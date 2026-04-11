@@ -1263,6 +1263,16 @@ document.getElementById('capo').addEventListener('change',()=>{
   toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
 });
 
+// ----------------------------
+// EVENT HANDLERS SETUP
+// ----------------------------
+function setupEventHandlers() {
+  // TODO: イベントリスナーを段階的にここに移動
+}
+
+// ----------------------------
+// APP INITIALIZATION
+// ----------------------------
 window.addEventListener('DOMContentLoaded',()=>{
   // ① Audio Engine初期化
   const audioElements = {
