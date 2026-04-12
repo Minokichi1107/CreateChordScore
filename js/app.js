@@ -104,18 +104,6 @@ function getCapo(){return parseInt(document.getElementById('capo').value)||0;}
 // ════════════════════════════════════════
 
 // ════════════════════════════════════════
-// DIAGRAM ON/OFF TOGGLE
-// ════════════════════════════════════════
-const diagToggleBtn = document.getElementById('diag-toggle');
-diagToggleBtn.addEventListener('click', () => {
-  diagOn = !diagOn;
-  diagToggleBtn.textContent = diagOn ? '🎸 ダイアグラム ON' : '🎸 ダイアグラム OFF';
-  diagToggleBtn.classList.toggle('off', !diagOn);
-  if (!diagOn) { const p=document.getElementById('popup');if(p)p.classList.remove('show'); }
-  localStorage.setItem('cs_diagOn', diagOn ? '1' : '0');
-});
-
-// ════════════════════════════════════════
 // FILE LOADING
 // ════════════════════════════════════════
 
@@ -583,12 +571,6 @@ function openAddDiagramModal(defaultChord=''){
   setTimeout(()=>{const el=document.getElementById('dd-n');if(el){el.focus();el.select();}},80);
 }
 
-// Diagram button
-document.getElementById('diag-in').addEventListener('input',e=>showDiagramPanel(e.target.value.trim(), getCapo()));
-// btn-add-diag は下部ボタン(btn-add-diag-bottom)に統合済み。念のためnullチェック
-const _diagBtn=document.getElementById('btn-add-diag');
-if(_diagBtn)_diagBtn.addEventListener('click',()=>openAddDiagramModal(document.getElementById('diag-in').value.trim()));
-
 // ════════════════════════════════════════
 // HOVER POPUP
 // ════════════════════════════════════════
@@ -707,15 +689,6 @@ function loadProj(data){
   
   refreshEditor();
 }
-
-document.getElementById('btn-new').addEventListener('click',()=>{
-  if(project.lines.length>0&&!confirm('編集内容を破棄して新規作成しますか？'))return;
-  project={title:'',audio:'',capo:0,lines:[],chord_source:''};palette=[];window._cn=[];window._ct=[];
-  document.getElementById('project-title').value='';document.getElementById('capo').value=0;
-  ['audio-btn','chord-btn'].forEach(id=>{const b=document.getElementById(id);b.textContent=id==='audio-btn'?'クリックして選択':'JSON / CSV';b.classList.remove('loaded');});
-  aEl.src='';
-  renderPalette();refreshEditor();showDiagramPanel('', getCapo());clearLocalStorage();document.getElementById('st-save').textContent='-';
-});
 
 // ════════════════════════════════════════
 // TAP MODE OVERLAY
@@ -1288,6 +1261,33 @@ function setupEventHandlers() {
     };
     r.readAsText(f);
   });
+
+  // プロジェクト: 新規作成
+  document.getElementById('btn-new').addEventListener('click',()=>{
+    if(project.lines.length>0&&!confirm('編集内容を破棄して新規作成しますか？'))return;
+    project={title:'',audio:'',capo:0,lines:[],chord_source:''};palette=[];window._cn=[];window._ct=[];
+    document.getElementById('project-title').value='';document.getElementById('capo').value=0;
+    ['audio-btn','chord-btn'].forEach(id=>{const b=document.getElementById(id);b.textContent=id==='audio-btn'?'クリックして選択':'JSON / CSV';b.classList.remove('loaded');});
+    aEl.src='';
+    renderPalette();refreshEditor();showDiagramPanel('', getCapo());clearLocalStorage();document.getElementById('st-save').textContent='-';
+  });
+
+  // UI: ダイアグラムON/OFF
+  const diagToggleBtn = document.getElementById('diag-toggle');
+  diagToggleBtn.addEventListener('click', () => {
+    diagOn = !diagOn;
+    diagToggleBtn.textContent = diagOn ? '🎸 ダイアグラム ON' : '🎸 ダイアグラム OFF';
+    diagToggleBtn.classList.toggle('off', !diagOn);
+    if (!diagOn) { const p=document.getElementById('popup');if(p)p.classList.remove('show'); }
+    localStorage.setItem('cs_diagOn', diagOn ? '1' : '0');
+  });
+
+  // UI: ダイアグラム入力
+  document.getElementById('diag-in').addEventListener('input',e=>showDiagramPanel(e.target.value.trim(), getCapo()));
+
+  // UI: ダイアグラム追加ボタン
+  const _diagBtn=document.getElementById('btn-add-diag');
+  if(_diagBtn)_diagBtn.addEventListener('click',()=>openAddDiagramModal(document.getElementById('diag-in').value.trim()));
 }
 
 // ----------------------------
