@@ -688,6 +688,12 @@ function loadProj(data){
   }
   
   refreshEditor();
+  
+  // ダイアグラムパネル再描画（diagOn状態に関わらず生成）
+  const curDiagChord = document.getElementById('diag-in').value.trim();
+  if (curDiagChord) {
+    showDiagramPanel(curDiagChord, getCapo());
+  }
 }
 
 // ════════════════════════════════════════
