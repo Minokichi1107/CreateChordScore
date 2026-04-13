@@ -1267,6 +1267,8 @@ function setupEventHandlers() {
     if(project.lines.length>0&&!confirm('編集内容を破棄して新規作成しますか？'))return;
     project={title:'',audio:'',capo:0,lines:[],chord_source:''};palette=[];window._cn=[];window._ct=[];
     document.getElementById('project-title').value='';document.getElementById('capo').value=0;
+    document.getElementById('proj-key').value='';document.getElementById('proj-bpm').value='';
+    document.getElementById('diag-in').value='';
     ['audio-btn','chord-btn'].forEach(id=>{const b=document.getElementById(id);b.textContent=id==='audio-btn'?'クリックして選択':'JSON / CSV';b.classList.remove('loaded');});
     aEl.src='';
     renderPalette();refreshEditor();showDiagramPanel('', getCapo());clearLocalStorage();document.getElementById('st-save').textContent='-';
