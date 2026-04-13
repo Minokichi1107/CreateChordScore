@@ -1277,6 +1277,9 @@ function setupEventHandlers() {
     document.getElementById('diag-in').value='';
     ['audio-btn','chord-btn'].forEach(id=>{const b=document.getElementById(id);b.textContent=id==='audio-btn'?'クリックして選択':'JSON / CSV';b.classList.remove('loaded');});
     aEl.src='';
+    // ファイル再選択バナーを削除
+    const reloadBanner=document.getElementById('reload-banner');
+    if(reloadBanner)reloadBanner.remove();
     renderPalette();refreshEditor();showDiagramPanel('', getCapo());clearLocalStorage();document.getElementById('st-save').textContent='-';
   });
 
