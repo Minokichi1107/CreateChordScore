@@ -28,5 +28,4 @@ archive/
 .DS_Store
 Thumbs.db
 
-# エディタ
-.vscode/
+# ドキュメント
