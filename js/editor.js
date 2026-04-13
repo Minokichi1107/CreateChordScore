@@ -195,7 +195,6 @@ export function renderLines(lines, uiState, callbacks) {
         onChordEdit(idx, ci);
       });
       tag.addEventListener('mouseenter', () => {
-        if (!diagOn) return;
         setDiagRight(c.chord, capo);
         showPopup(c.chord, tag);
       });
