@@ -1,6 +1,7 @@
 フォルダー パスの一覧
 ボリューム シリアル番号は 40ED-6084 です
 C:.
+│  .gitignore
 │  chordmini_fetch.py
 │  chordmini_fetch_py利用方法.txt
 │  ChordScoreを起動.bat
@@ -9,21 +10,32 @@ C:.
 │  index.html
 │  server.py
 │  style.css
-│  todo.txt
 │  tree.txt
 │  起動方法.txt
-│  追加機能仕様.txt
 │  
+├─docs
+│      ChatGPTバグ修正ルール.txt
+│      ChatGPT用テンプレ.txt
+│      devlog.md
+│      FORMAT.md
+│      ideas.md
+│      notes.md
+│      README.md
+│      todo.txt
+│      tree.txt
+│      
 ├─js
 │      app.js
+│      audio.js
 │      chords.js
+│      csvImporter.js
+│      editor.js
 │      project.js
 │      
-├─resorce
+├─resource
+│  │  08 明日のstory.mp3
 │  │  11 Ｉ　Ｄｏｎ’ｔ　Ｋｎｏｗ！.mp3
 │  │  chordscore_project.json
-│  │  convert_csv_v3.py
-│  │  FORMAT.md
 │  │  idontknow_chords.json
 │  │  I_Don_t_Know__project.json
 │  │  rororo.csv
@@ -32,13 +44,21 @@ C:.
 │  │  rororo_small_chords.json
 │  │  test_project.json
 │  │  ロ_ロ_ロ_ロシアン_ル_レット_project.json
-│  │  ロロロロシアン.txt
-│  │  曲_chords.json
+│  │  明日のstory_chords.json
+│  │  明日のstory_project.json
 │  │  
-│  └─backup
-│          I_Don_t_Know__project.json
-│          ロ_ロ_ロ_ロシアン_ル_レット_project.json
-│          
+│  ├─backup
+│  │      I_Don_t_Know__project.json
+│  │      ロ_ロ_ロ_ロシアン_ル_レット_project.json
+│  │      明日のstory_project.json
+│  │      
+│  ├─lyric
+│  │      MANISH-明日のStory-歌詞-歌ネット-04-12-2026_12_23_AM.png
+│  │      ロロロロシアン.txt
+│  │      明日のstory.txt
+│  │      
+│  └─sample
+├─tmp
 ├─使用済みファイル
 │  │  daiagram no needM.png
 │  │  

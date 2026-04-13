@@ -1,0 +1,32 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# エディタ
+.vscode/
+
+# 一時ファイル
+*.log
+*.tmp
+tmp/
+
+
+# スクリーンショット・素材
+screenshots/
+images/
+/resource/*.mp3
+
+# バックアップ
+backup/
+old/
+archive/
+
+# テストプロジェクト
+/resource/*_project*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# エディタ
+.vscode/

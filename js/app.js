@@ -1345,6 +1345,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   if(curDiagChord) showDiagramPanel(curDiagChord, getCapo());
 
   // ③ ダイアグラムON/OFF状態復元
+  const diagToggleBtn = document.getElementById('diag-toggle');
   const savedDiagOn = localStorage.getItem('cs_diagOn');
   if (savedDiagOn === '0') {
     diagOn = false;
