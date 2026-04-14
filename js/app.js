@@ -917,100 +917,6 @@ function rbScrollToCurrent(){
   });
 }
 
-document.getElementById('rb-find').addEventListener('input',()=>{rbCurr=0;rbRefresh();});
-document.getElementById('rb-replace').addEventListener('input',()=>{});
-document.getElementById('rb-all').addEventListener('change',()=>{rbCurr=0;rbRefresh();});
-document.getElementById('rb-focus').addEventListener('change',()=>{rbCurr=0;rbRefresh();});
-
-document.getElementById('rb-next').addEventListener('click',()=>{
-  if(!rbHits.length){rbRefresh();return;}
-  rbCurr=(rbCurr+1)%rbHits.length;
-  rbHighlightAll();rbScrollToCurrent();
-  // フォーカスを検索欄に戻してバーを閉じないようにする
-  setTimeout(()=>document.getElementById('rb-find').focus(),10);
-});
-document.getElementById('rb-prev').addEventListener('click',()=>{
-  if(!rbHits.length){rbRefresh();return;}
-  rbCurr=(rbCurr-1+rbHits.length)%rbHits.length;
-  rbHighlightAll();rbScrollToCurrent();
-  setTimeout(()=>document.getElementById('rb-find').focus(),10);
-});
-
-document.getElementById('rb-one').addEventListener('click',()=>{
-  if(!rbHits.length||rbCurr<0||rbCurr>=rbHits.length)return;
-  const repl=rbGetRepl();
-  const {li,ci}=rbHits[rbCurr];
-  if(!rbSnapshot) rbSnapshot=JSON.stringify(project.lines);
-  document.getElementById('rb-undo').disabled=false;
-  if(repl===''){
-    project.lines[li].chords.splice(ci,1);
-  } else {
-    project.lines[li].chords[ci].chord=repl;
-    addToPaletteIfNew(repl);
-  }
-  refreshEditor();
-  rbHits=[];rbCurr=0;rbRefresh();
-  toast(`1つ置換しました`);
-  setTimeout(()=>document.getElementById('rb-find').focus(),10);
-});
-
-document.getElementById('rb-all-btn').addEventListener('click',()=>{
-  const find=rbGetFind();
-  const repl=rbGetRepl();
-  if(!find)return;
-  rbSnapshot=JSON.stringify(project.lines);
-  document.getElementById('rb-undo').disabled=false;
-  const scopeAll=rbScopeAll();
-  let count=0;
-  project.lines.forEach((line,li)=>{
-    if(!scopeAll&&li!==focLine)return;
-    for(let ci=line.chords.length-1;ci>=0;ci--){
-      const c=line.chords[ci];
-      if(c.type==='sep'||c.chord!==find)continue;
-      if(repl==='') line.chords.splice(ci,1);
-      else { line.chords[ci].chord=repl; addToPaletteIfNew(repl); }
-      count++;
-    }
-  });
-  refreshEditor();
-  rbHits=[];rbCurr=0;rbRefresh();
-  toast(`${count}件置換しました`);
-});
-
-document.getElementById('rb-undo').addEventListener('click',()=>{
-  if(!rbSnapshot)return;
-  project.lines=JSON.parse(rbSnapshot);
-  rbSnapshot=null;
-  document.getElementById('rb-undo').disabled=true;
-  refreshEditor();
-  rbHits=[];rbCurr=0;rbRefresh();
-  toast('置換を元に戻しました');
-});
-
-document.getElementById('rb-close').addEventListener('click',()=>{
-  document.getElementById('replace-bar').classList.remove('open');
-  document.querySelectorAll('.chord-tag.rb-hit,.chord-tag.rb-curr').forEach(el=>{
-    el.classList.remove('rb-hit','rb-curr');
-  });
-  rbHits=[];rbCurr=-1;
-});
-
-document.getElementById('btn-replace-open').addEventListener('click',()=>{
-  const bar=document.getElementById('replace-bar');
-  bar.classList.toggle('open');
-  if(bar.classList.contains('open')){
-    setTimeout(()=>document.getElementById('rb-find').focus(),80);
-  }
-});
-
-// Ctrl+H で置換バー開閉
-document.addEventListener('keydown',e=>{
-  if(e.ctrlKey&&e.key==='h'){
-    e.preventDefault();
-    document.getElementById('btn-replace-open').click();
-  }
-});
-
 // ════════════════════════════════════════
 // ⑤ 音量バー
 // ════════════════════════════════════════
@@ -1063,10 +969,6 @@ function updateStatus(){
   document.getElementById('st-timed').textContent=project.lines.filter(l=>l.time!=null).length;
 }
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2500);}
-document.getElementById('project-title').addEventListener('input',autoSaveLocal);
-document.getElementById('proj-key').addEventListener('input',autoSaveLocal);
-document.getElementById('proj-bpm').addEventListener('input',autoSaveLocal);
-
 
 // ----------------------------
 // EVENT HANDLERS SETUP
@@ -1321,6 +1223,119 @@ function setupEventHandlers() {
     if (e.code === 'ArrowRight') aEl.currentTime = Math.min(aEl.duration || 0, aEl.currentTime + 5);
     if (e.code === 'Escape') closeTapMode();
   });
+
+  // Ctrl+H で置換バー開閉
+  document.addEventListener('keydown',e=>{
+    if(e.ctrlKey&&e.key==='h'){
+      e.preventDefault();
+      document.getElementById('btn-replace-open').click();
+    }
+  });
+
+  // ============================================
+  // Replace Bar Events
+  // ============================================
+  document.getElementById('rb-find').addEventListener('input',()=>{rbCurr=0;rbRefresh();});
+  document.getElementById('rb-replace').addEventListener('input',()=>{});
+  document.getElementById('rb-all').addEventListener('change',()=>{rbCurr=0;rbRefresh();});
+  document.getElementById('rb-focus').addEventListener('change',()=>{rbCurr=0;rbRefresh();});
+
+  document.getElementById('rb-next').addEventListener('click',()=>{
+    if(!rbHits.length){rbRefresh();return;}
+    rbCurr=(rbCurr+1)%rbHits.length;
+    rbHighlightAll();rbScrollToCurrent();
+    setTimeout(()=>document.getElementById('rb-find').focus(),10);
+  });
+
+  document.getElementById('rb-prev').addEventListener('click',()=>{
+    if(!rbHits.length){rbRefresh();return;}
+    rbCurr=(rbCurr-1+rbHits.length)%rbHits.length;
+    rbHighlightAll();rbScrollToCurrent();
+    setTimeout(()=>document.getElementById('rb-find').focus(),10);
+  });
+
+  document.getElementById('rb-one').addEventListener('click',()=>{
+    if(!rbHits.length||rbCurr<0||rbCurr>=rbHits.length)return;
+    const repl=rbGetRepl();
+    const {li,ci}=rbHits[rbCurr];
+    if(!rbSnapshot) rbSnapshot=JSON.stringify(project.lines);
+    document.getElementById('rb-undo').disabled=false;
+    if(repl===''){
+      project.lines[li].chords.splice(ci,1);
+    } else {
+      project.lines[li].chords[ci].chord=repl;
+      addToPaletteIfNew(repl);
+    }
+    refreshEditor();
+    rbHits=[];rbCurr=0;rbRefresh();
+    toast(`1つ置換しました`);
+    setTimeout(()=>document.getElementById('rb-find').focus(),10);
+  });
+
+  document.getElementById('rb-all-btn').addEventListener('click',()=>{
+    const find=rbGetFind();
+    const repl=rbGetRepl();
+    if(!find)return;
+    rbSnapshot=JSON.stringify(project.lines);
+    document.getElementById('rb-undo').disabled=false;
+    const scopeAll=rbScopeAll();
+    let count=0;
+    project.lines.forEach((line,li)=>{
+      if(!scopeAll&&li!==focLine)return;
+      for(let ci=line.chords.length-1;ci>=0;ci--){
+        const c=line.chords[ci];
+        if(c.type==='sep'||c.chord!==find)continue;
+        if(repl==='') line.chords.splice(ci,1);
+        else { line.chords[ci].chord=repl; addToPaletteIfNew(repl); }
+        count++;
+      }
+    });
+    refreshEditor();
+    rbHits=[];rbCurr=0;rbRefresh();
+    toast(`${count}件置換しました`);
+  });
+
+  document.getElementById('rb-undo').addEventListener('click',()=>{
+    if(!rbSnapshot)return;
+    project.lines=JSON.parse(rbSnapshot);
+    rbSnapshot=null;
+    document.getElementById('rb-undo').disabled=true;
+    refreshEditor();
+    rbHits=[];rbCurr=0;rbRefresh();
+    toast('置換を元に戻しました');
+  });
+
+  document.getElementById('rb-close').addEventListener('click',()=>{
+    document.getElementById('replace-bar').classList.remove('open');
+    document.querySelectorAll('.chord-tag.rb-hit,.chord-tag.rb-curr').forEach(el=>{
+      el.classList.remove('rb-hit','rb-curr');
+    });
+    rbHits=[];rbCurr=-1;
+  });
+
+  document.getElementById('btn-replace-open').addEventListener('click',()=>{
+    const bar=document.getElementById('replace-bar');
+    bar.classList.toggle('open');
+    if(bar.classList.contains('open')){
+      setTimeout(()=>document.getElementById('rb-find').focus(),80);
+    }
+  });
+
+  // ============================================
+  // Project Meta Events
+  // ============================================
+  document.getElementById('project-title').addEventListener('input',autoSaveLocal);
+  document.getElementById('proj-key').addEventListener('input',autoSaveLocal);
+  document.getElementById('proj-bpm').addEventListener('input',autoSaveLocal);
+
+  // ============================================
+  // Bottom Diagram Button
+  // ============================================
+  const btnAddDiagBottom=document.getElementById('btn-add-diag-bottom');
+  if(btnAddDiagBottom) btnAddDiagBottom.addEventListener('click',()=>{
+    const chord=document.getElementById('diag-in').value.trim();
+    openAddDiagramModal(chord);
+  });
 }
 
 // ----------------------------
@@ -1395,11 +1410,4 @@ window.addEventListener('DOMContentLoaded',()=>{
     }
   }
   refreshEditor();renderPalette();
-
-  // ⑧ 右パネル下部登録ボタン接続
-  const btnAddDiagBottom=document.getElementById('btn-add-diag-bottom');
-  if(btnAddDiagBottom) btnAddDiagBottom.addEventListener('click',()=>{
-    const chord=document.getElementById('diag-in').value.trim();
-    openAddDiagramModal(chord);
-  });
 });
