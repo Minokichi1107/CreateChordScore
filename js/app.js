@@ -726,9 +726,7 @@ function syncTovPlayer() {
   document.getElementById('tap-ov-tapbtn').disabled = !aEl.src;
 }
 
-document.getElementById('tov-m5').addEventListener('click', () => {
-  aEl.currentTime = Math.max(0, aEl.currentTime - 5);
-});
+
 document.getElementById('tov-speed').addEventListener('input', e => {
   const pct=parseInt(e.target.value);
   setSpeed(pct);
@@ -1308,9 +1306,15 @@ function setupEventHandlers() {
   
   // TAP オーバーレイ内 再生コントロール
   document.getElementById('tov-play-btn').addEventListener('click', () => {
-  if (!aEl.src) return;
-  aEl.paused ? aEl.play() : aEl.pause();
-});
+    if (!aEl.src) return;
+    aEl.paused ? aEl.play() : aEl.pause();
+  });
+
+  document.getElementById('tov-m5').addEventListener('click', () => {
+    aEl.currentTime = Math.max(0, aEl.currentTime - 5);
+  });
+
+
   // TAP オーバーレイ内 シークバー
  
   // メインaElのイベント（TAPオーバーレイ同期用）
