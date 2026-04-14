@@ -726,20 +726,6 @@ function syncTovPlayer() {
   document.getElementById('tap-ov-tapbtn').disabled = !aEl.src;
 }
 
-
-// オーバーレイ内シークバー
-const tovSeekIn = document.getElementById('tap-ov-seek-in');
-tovSeekIn.addEventListener('mousedown', () => tovSeeking = true);
-tovSeekIn.addEventListener('mouseup', () => {
-  tovSeeking = false;
-  aEl.currentTime = (tovSeekIn.value / 1000) * (aEl.duration || 0);
-});
-tovSeekIn.addEventListener('input', () => {
-  if (!tovSeeking) return;
-  const pct = tovSeekIn.value / 10;
-  document.getElementById('tap-ov-seek-fill').style.width = pct + '%';
-});
-
 // メインaElのtimeupdateをオーバーレイにも反映
 aEl.addEventListener('timeupdate', updateTovTime);
 aEl.addEventListener('play', () => {
@@ -1316,7 +1302,18 @@ function setupEventHandlers() {
 
 
   // TAP オーバーレイ内 シークバー
- 
+  const tovSeekIn = document.getElementById('tap-ov-seek-in');
+  tovSeekIn.addEventListener('mousedown', () => tovSeeking = true);
+  tovSeekIn.addEventListener('mouseup', () => {
+    tovSeeking = false;
+    aEl.currentTime = (tovSeekIn.value / 1000) * (aEl.duration || 0);
+  });
+  tovSeekIn.addEventListener('input', () => {
+    if (!tovSeeking) return;
+    const pct = tovSeekIn.value / 10;
+    document.getElementById('tap-ov-seek-fill').style.width = pct + '%';
+  });
+
   // メインaElのイベント（TAPオーバーレイ同期用）
 
   // TAPボタン
