@@ -1145,29 +1145,6 @@ document.getElementById('project-title').addEventListener('input',autoSaveLocal)
 document.getElementById('proj-key').addEventListener('input',autoSaveLocal);
 document.getElementById('proj-bpm').addEventListener('input',autoSaveLocal);
 
-// カポ変更：前の値との差分で全コードを移調（確認なし・即時）
-document.getElementById('capo').addEventListener('change',()=>{
-  const newCapo=parseInt(document.getElementById('capo').value)||0;
-  const diff=newCapo-_prevCapo;
-  if(diff===0)return;
-  // カポが増える(0→2)＝同じ音を出すためコードフォームは下げる(-2半音)
-  // カポが減る(2→0)＝コードフォームは上げる(+2半音)
-  const semitones=-diff;
-  project.lines.forEach(line=>{
-    line.chords.forEach(c=>{
-      if(c.type==='sep')return;
-      c.chord=transposeChord(c.chord,semitones);
-    });
-  });
-  palette=palette.map(ch=>transposeChord(ch,semitones));
-  renderPalette();
-  refreshEditor();
-  _prevCapo=newCapo;
-  autoSaveLocal();
-  const cur=document.getElementById('diag-in').value.trim();
-  if(cur) showDiagramPanel(cur, getCapo());
-  toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
-});
 
 // ----------------------------
 // EVENT HANDLERS SETUP
@@ -1291,6 +1268,30 @@ function setupEventHandlers() {
     diagToggleBtn.classList.toggle('off', !diagOn);
     if (!diagOn) { const p=document.getElementById('popup');if(p)p.classList.remove('show'); }
     localStorage.setItem('cs_diagOn', diagOn ? '1' : '0');
+  });
+
+  // カポ変更：前の値との差分で全コードを移調（確認なし・即時）
+  document.getElementById('capo').addEventListener('change',()=>{
+    const newCapo=parseInt(document.getElementById('capo').value)||0;
+    const diff=newCapo-_prevCapo;
+    if(diff===0)return;
+    // カポが増える(0→2)＝同じ音を出すためコードフォームは下げる(-2半音)
+    // カポが減る(2→0)＝コードフォームは上げる(+2半音)
+    const semitones=-diff;
+    project.lines.forEach(line=>{
+      line.chords.forEach(c=>{
+        if(c.type==='sep')return;
+        c.chord=transposeChord(c.chord,semitones);
+      });
+    });
+    palette=palette.map(ch=>transposeChord(ch,semitones));
+    renderPalette();
+    refreshEditor();
+    _prevCapo=newCapo;
+    autoSaveLocal();
+    const cur=document.getElementById('diag-in').value.trim();
+    if(cur) showDiagramPanel(cur, getCapo());
+    toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
   });
 
   // UI: ダイアグラム入力
