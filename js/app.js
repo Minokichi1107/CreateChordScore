@@ -713,7 +713,6 @@ function closeTapMode() {
   refreshEditor(); // 編集エリアを最新に更新
 }
 
-document.getElementById('btn-tapmode').addEventListener('click', openTapMode);
 document.getElementById('btn-tapmode-close').addEventListener('click', closeTapMode);
 
 // TAPオーバーレイ内の再生コントロールをメインaElに同期
@@ -1270,6 +1269,17 @@ function setupEventHandlers() {
     localStorage.setItem('cs_diagOn', diagOn ? '1' : '0');
   });
 
+  // UI: ダイアグラム入力
+  document.getElementById('diag-in').addEventListener('input',e=>showDiagramPanel(e.target.value.trim(), getCapo()));
+
+  // UI: ダイアグラム追加ボタン
+  const _diagBtn=document.getElementById('btn-add-diag');
+  if(_diagBtn)_diagBtn.addEventListener('click',()=>openAddDiagramModal(document.getElementById('diag-in').value.trim()));
+
+  // ============================================
+  // Capo Events
+  // ============================================
+
   // カポ変更：前の値との差分で全コードを移調（確認なし・即時）
   document.getElementById('capo').addEventListener('change',()=>{
     const newCapo=parseInt(document.getElementById('capo').value)||0;
@@ -1294,12 +1304,19 @@ function setupEventHandlers() {
     toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
   });
 
-  // UI: ダイアグラム入力
-  document.getElementById('diag-in').addEventListener('input',e=>showDiagramPanel(e.target.value.trim(), getCapo()));
+  // ============================================
+  // TAP Mode Events
+  // ============================================
+  
+  // TAP オーバーレイ ON/OFF
+  
+  // TAP オーバーレイ内 再生コントロール
+  
+  // TAP オーバーレイ内 シークバー
+ 
+  // メインaElのイベント（TAPオーバーレイ同期用）
 
-  // UI: ダイアグラム追加ボタン
-  const _diagBtn=document.getElementById('btn-add-diag');
-  if(_diagBtn)_diagBtn.addEventListener('click',()=>openAddDiagramModal(document.getElementById('diag-in').value.trim()));
+  // TAPボタン
 }
 
 // ----------------------------
