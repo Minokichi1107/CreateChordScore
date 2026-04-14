@@ -727,11 +727,6 @@ function syncTovPlayer() {
 }
 
 
-document.getElementById('tov-speed').addEventListener('input', e => {
-  const pct=parseInt(e.target.value);
-  setSpeed(pct);
-});
-
 // オーバーレイ内シークバー
 const tovSeekIn = document.getElementById('tap-ov-seek-in');
 tovSeekIn.addEventListener('mousedown', () => tovSeeking = true);
@@ -1312,6 +1307,11 @@ function setupEventHandlers() {
 
   document.getElementById('tov-m5').addEventListener('click', () => {
     aEl.currentTime = Math.max(0, aEl.currentTime - 5);
+  });
+
+  document.getElementById('tov-speed').addEventListener('input', e => {
+    const pct=parseInt(e.target.value);
+    setSpeed(pct);
   });
 
 
