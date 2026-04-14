@@ -1309,6 +1309,7 @@ function setupEventHandlers() {
   // ============================================
   
   // TAP オーバーレイ ON/OFF
+  document.getElementById('btn-tapmode').addEventListener('click', openTapMode);
   
   // TAP オーバーレイ内 再生コントロール
   
