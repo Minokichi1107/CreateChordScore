@@ -713,8 +713,6 @@ function closeTapMode() {
   refreshEditor(); // 編集エリアを最新に更新
 }
 
-document.getElementById('btn-tapmode-close').addEventListener('click', closeTapMode);
-
 // TAPオーバーレイ内の再生コントロールをメインaElに同期
 function syncTovPlayer() {
   const tovPlay = document.getElementById('tov-play-btn');
@@ -1310,6 +1308,7 @@ function setupEventHandlers() {
   
   // TAP オーバーレイ ON/OFF
   document.getElementById('btn-tapmode').addEventListener('click', openTapMode);
+  document.getElementById('btn-tapmode-close').addEventListener('click', closeTapMode);
   
   // TAP オーバーレイ内 再生コントロール
   
