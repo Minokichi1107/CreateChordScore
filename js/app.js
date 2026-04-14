@@ -726,15 +726,6 @@ function syncTovPlayer() {
   document.getElementById('tap-ov-tapbtn').disabled = !aEl.src;
 }
 
-// メインaElのtimeupdateをオーバーレイにも反映
-aEl.addEventListener('timeupdate', updateTovTime);
-aEl.addEventListener('play', () => {
-  document.getElementById('tov-play-btn').textContent = '⏸';
-});
-aEl.addEventListener('pause', () => {
-  document.getElementById('tov-play-btn').textContent = '▶';
-});
-
 function updateTovTime() {
   if (!document.getElementById('tap-overlay').classList.contains('open')) return;
   const t = aEl.currentTime;
@@ -1315,6 +1306,13 @@ function setupEventHandlers() {
   });
 
   // メインaElのイベント（TAPオーバーレイ同期用）
+  aEl.addEventListener('timeupdate', updateTovTime);
+  aEl.addEventListener('play', () => {
+    document.getElementById('tov-play-btn').textContent = '⏸';
+  });
+  aEl.addEventListener('pause', () => {
+    document.getElementById('tov-play-btn').textContent = '▶';
+  });
 
   // TAPボタン
 }
