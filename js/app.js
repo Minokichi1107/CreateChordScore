@@ -82,6 +82,7 @@ let popT = null;
 // TAPモードオーバーレイ
 let tovFocusIdx = -1;
 let tovSeeking = false;
+let tovTapBtn = null;
 
 // コード置換バー
 let rbSnapshot = null;
@@ -262,6 +263,11 @@ function getEditorUIState() {
 function refreshEditor() {
   renderLines(project.lines, getEditorUIState(), createEditorCallbacks());
   autoSaveLocal();
+}
+
+// エディタを再描画（自動保存なし）
+function callRenderLines() {
+  renderLines(project.lines, getEditorUIState(), createEditorCallbacks());
 }
 
 // コード追加（パレットから）
@@ -760,53 +766,6 @@ function updateTovTime() {
   }
   updateTovStatus();
 }
-
-// TAPボタン（オーバーレイ）
-const tovTapBtn = document.getElementById('tap-ov-tapbtn');
-tovTapBtn.addEventListener('click', () => {
-  if (!aEl.src) return;
-  const t = aEl.currentTime;
-  let idx = tovFocusIdx;
-  if (idx < 0 || idx >= project.lines.length) {
-    idx = project.lines.findIndex(l => l.time == null);
-  }
-  if (idx < 0) idx = 0;
-  if (idx < project.lines.length) {
-    project.lines[idx].time = parseFloat(t.toFixed(3));
-    // 次の行に自動フォーカス
-    tovFocusIdx = idx + 1;
-    renderTovLines();
-    autoSaveLocal();
-    // TAP視覚フィードバック
-    const rows = document.querySelectorAll('.tap-ov-line');
-    if (rows[idx]) {
-      rows[idx].classList.add('tov-tapped');
-      setTimeout(() => rows[idx].classList.remove('tov-tapped'), 350);
-    }
-    // フォーカス行が画面外なら次の行へスクロール
-    if (tovFocusIdx < project.lines.length && rows[tovFocusIdx]) {
-      const area = document.getElementById('tap-ov-lines');
-      const nextEl = rows[tovFocusIdx];
-      const top = nextEl.offsetTop;
-      const h = area.clientHeight;
-      if (top > area.scrollTop + h * 0.6) {
-        area.scrollTo({ top: top - h * 0.35, behavior: 'smooth' });
-      }
-    }
-  }
-  // ボタンアニメ
-  tovTapBtn.classList.add('tapping');
-  setTimeout(() => tovTapBtn.classList.remove('tapping'), 150);
-});
-
-// Spaceキーでも TAP（オーバーレイが開いているとき）
-document.addEventListener('keydown', e => {
-  if (!document.getElementById('tap-overlay').classList.contains('open')) return;
-  if (e.code === 'Space') { e.preventDefault(); tovTapBtn.click(); }
-  if (e.code === 'ArrowLeft') aEl.currentTime = Math.max(0, aEl.currentTime - 5);
-  if (e.code === 'ArrowRight') aEl.currentTime = Math.min(aEl.duration || 0, aEl.currentTime + 5);
-  if (e.code === 'Escape') closeTapMode();
-});
 
 function renderTovLines() {
   const area = document.getElementById('tap-ov-lines');
@@ -1314,7 +1273,54 @@ function setupEventHandlers() {
     document.getElementById('tov-play-btn').textContent = '▶';
   });
 
-  // TAPボタン
+  // TAPボタン（オーバーレイ）
+  tovTapBtn = document.getElementById('tap-ov-tapbtn');
+  tovTapBtn.addEventListener('click', () => {
+    if (!aEl.src) return;
+    const t = aEl.currentTime;
+    let idx = tovFocusIdx;
+    if (idx < 0 || idx >= project.lines.length) {
+      idx = project.lines.findIndex(l => l.time == null);
+    }
+    if (idx < 0) idx = 0;
+    if (idx < project.lines.length) {
+      project.lines[idx].time = parseFloat(t.toFixed(3));
+      // 次の行に自動フォーカス
+      tovFocusIdx = idx + 1;
+      renderTovLines();
+      autoSaveLocal();
+      // TAP視覚フィードバック
+      const rows = document.querySelectorAll('.tap-ov-line');
+      if (rows[idx]) {
+        rows[idx].classList.add('tov-tapped');
+        setTimeout(() => rows[idx].classList.remove('tov-tapped'), 350);
+      }
+      // フォーカス行が画面外なら次の行へスクロール
+      if (tovFocusIdx < project.lines.length && rows[tovFocusIdx]) {
+        const area = document.getElementById('tap-ov-lines');
+        const nextEl = rows[tovFocusIdx];
+        const top = nextEl.offsetTop;
+        const h = area.clientHeight;
+        if (top > area.scrollTop + h * 0.6) {
+          area.scrollTo({ top: top - h * 0.35, behavior: 'smooth' });
+        }
+      }
+    }
+    // ボタンアニメ
+    tovTapBtn.classList.add('tapping');
+    setTimeout(() => tovTapBtn.classList.remove('tapping'), 150);
+  });
+
+  // ============================================
+  // Global Keyboard Events
+  // ============================================
+  document.addEventListener('keydown', e => {
+    if (!document.getElementById('tap-overlay').classList.contains('open')) return;
+    if (e.code === 'Space') { e.preventDefault(); tovTapBtn.click(); }
+    if (e.code === 'ArrowLeft') aEl.currentTime = Math.max(0, aEl.currentTime - 5);
+    if (e.code === 'ArrowRight') aEl.currentTime = Math.min(aEl.duration || 0, aEl.currentTime + 5);
+    if (e.code === 'Escape') closeTapMode();
+  });
 }
 
 // ----------------------------
