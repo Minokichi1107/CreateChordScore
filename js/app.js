@@ -974,6 +974,18 @@ function toast(msg){const el=document.getElementById('toast');el.textContent=msg
 // EVENT HANDLERS SETUP
 // ----------------------------
 function setupEventHandlers() {
+  // ============================================
+  // File Events
+  // ============================================
+  // ファイル選択ボタン（HTML onclickから移行）
+  document.getElementById('audio-btn').addEventListener('click', () => {
+    document.getElementById('file-audio').click();
+  });
+
+  document.getElementById('chord-btn').addEventListener('click', () => {
+    document.getElementById('file-chord').click();
+  });
+
   // ファイル読み込み: コードファイル
   document.getElementById('file-chord').addEventListener('change',e=>{
     const f=e.target.files[0];if(!f)return;
@@ -1009,6 +1021,10 @@ function setupEventHandlers() {
     checkReloadBannerDone();
   });
 
+
+  // ============================================
+  // Palette Events
+  // ============================================
   // パレット: フィルター
   document.getElementById('pal-filter').addEventListener('input',renderPalette);
 
