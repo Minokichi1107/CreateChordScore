@@ -135,7 +135,10 @@ export function renderLines(lines, uiState, callbacks) {
     tb.className = 'line-time' + (line.time != null ? ' has-t' : '');
     tb.textContent = line.time != null ? fmt(line.time, true) : '--:--.--';
     tb.title = line.time != null ? 'クリック: その時間に移動  右クリック: 時刻を編集' : 'クリック: 時刻を設定';
-    tb.addEventListener('click', () => onTimeClick(idx, line.time));
+    tb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onTimeClick(idx, line.time);
+    });
     tb.addEventListener('contextmenu', e => {
       e.preventDefault();
       onTimeContextMenu(idx);
