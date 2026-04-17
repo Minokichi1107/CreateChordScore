@@ -203,6 +203,18 @@ function createEditorCallbacks() {
       focLine = idx;
       tapIdx = idx;
     },
+    onLineClick: (idx) => {
+      // 通常モード: focLineを更新
+      focLine = idx;
+      tapIdx = idx;
+      // 歌詞inputにフォーカス
+      setTimeout(() => {
+        const inputs = document.querySelectorAll('.lyric-input');
+        if (inputs[idx]) {
+          inputs[idx].focus();
+        }
+      }, 0);
+    },
     onLyricInput: (idx, value) => {
       project.lines[idx].lyric = value;
       autoSaveLocal();

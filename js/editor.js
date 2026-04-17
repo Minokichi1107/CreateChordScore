@@ -280,6 +280,23 @@ export function renderLines(lines, uiState, callbacks) {
     acts.appendChild(mk('↑挿入', '', '上に空行を挿入', () => onLineInsert(idx)));
     acts.appendChild(mk('削除', 'del', '', () => onLineDelete(idx)));
     row.appendChild(acts);
+    
+    // 行クリックでフォーカス
+    if (callbacks.onLineClick) {
+      row.addEventListener('click', (e) => {
+        // ボタンやinputのクリックは除外
+        if (e.target.tagName === 'BUTTON' || 
+            e.target.tagName === 'INPUT' || 
+            e.target.closest('button') ||
+            e.target.classList.contains('chord-tag') ||
+            e.target.classList.contains('del-x') ||
+            e.target.classList.contains('chord-sep')) {
+          return;
+        }
+        callbacks.onLineClick(idx);
+      });
+    }
+    
     cont.appendChild(row);
   });
 
