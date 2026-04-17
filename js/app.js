@@ -309,8 +309,19 @@ function openTimeModal(idx){
     <div style="margin-bottom:8px;color:var(--text2);font-size:12px;font-family:var(--mono)">「${line.lyric||'(空)'}」</div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="number" id="mi-t" class="mi" value="${line.time!=null?line.time.toFixed(3):''}" step="0.1" min="0" placeholder="秒 (例: 12.500)" style="font-size:13px">
-      <button onclick="document.getElementById('mi-t').value=aEl.currentTime.toFixed(3)" class="sm-btn" style="white-space:nowrap">▶ 現在位置</button>
+      <button id="mi-t-current" class="sm-btn" style="white-space:nowrap">▶ 現在位置</button>
     </div>`;
+  
+  // 現在位置ボタンのイベント登録
+  setTimeout(() => {
+    const currentBtn = document.getElementById('mi-t-current');
+    if (currentBtn) {
+      currentBtn.addEventListener('click', () => {
+        document.getElementById('mi-t').value = aEl.currentTime.toFixed(3);
+      });
+    }
+  }, 0);
+  
   mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
   mBtns.appendChild(mkMBtn('時刻を削除','del',()=>{project.lines[idx].time=null;refreshEditor();closeMod();}));
   mBtns.appendChild(mkMBtn('セット','ok',()=>{const v=parseFloat(document.getElementById('mi-t').value);if(!isNaN(v)){project.lines[idx].time=v;refreshEditor();}closeMod();}));
@@ -1020,7 +1031,6 @@ function setupEventHandlers() {
     // バナーの音声選択済みチェック
     checkReloadBannerDone();
   });
-
 
   // ============================================
   // Palette Events
