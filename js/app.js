@@ -1144,6 +1144,10 @@ function setupEventHandlers() {
     document.getElementById('proj-bpm').value='';
     document.getElementById('diag-in').value='';
     
+    // 歌詞テキスト入力エリアをクリア
+    const lyricTa = document.getElementById('lyric-ta');
+    if (lyricTa) lyricTa.value = '';
+    
     // ファイルボタンリセット
     ['audio-btn','chord-btn'].forEach(id=>{
       const b=document.getElementById(id);
