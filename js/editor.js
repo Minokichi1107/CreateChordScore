@@ -124,6 +124,11 @@ export function renderLines(lines, uiState, callbacks) {
     const row = document.createElement('div');
     row.className = 'line-row';
     row.dataset.idx = idx;
+    
+    // focLineと一致する行をハイライト
+    if (idx === focLine) {
+      row.classList.add('focused-line');
+    }
 
     // 行番号
     const num = document.createElement('div');
