@@ -209,6 +209,10 @@ function createEditorCallbacks() {
       focLine = idx;
       tapIdx = idx;
       console.log('[onLineClick] After:', { focLine, tapIdx });
+      
+      // UI更新（autoSaveなし）
+      renderLines(project.lines, getEditorUIState(), createEditorCallbacks());
+      
       // 歌詞inputにフォーカス
       setTimeout(() => {
         const inputs = document.querySelectorAll('.lyric-input');

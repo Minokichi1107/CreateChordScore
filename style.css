@@ -111,7 +111,11 @@ input[type=file]{display:none}
 .line-time:hover{color:var(--accent)}
 .line-time.has-t{color:var(--amber)}
 .line-content{padding:5px 5px 3px;display:flex;flex-direction:column;gap:3px;min-width:0}
-
+/* フォーカス行のスタイル */
+.focused-line {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid #3b82f6;
+}
 /* CHORD TAGS - 折り返し対応 */
 .chord-tags{display:flex;flex-wrap:wrap;gap:5px;min-height:4px;align-items:center;padding:2px 0}
 /* コードタグ：見やすいサイズ・色・フォント */
