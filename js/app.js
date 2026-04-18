@@ -205,8 +205,10 @@ function createEditorCallbacks() {
     },
     onLineClick: (idx) => {
       // 通常モード: focLineを更新
+      console.log('[onLineClick] Before:', { focLine, tapIdx, idx });
       focLine = idx;
       tapIdx = idx;
+      console.log('[onLineClick] After:', { focLine, tapIdx });
       // 歌詞inputにフォーカス
       setTimeout(() => {
         const inputs = document.querySelectorAll('.lyric-input');
