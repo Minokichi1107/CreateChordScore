@@ -709,11 +709,26 @@ function loadProj(data){
   project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
   
   // UI更新
-  if (newProject.audio) {
-    const b = document.getElementById('audio-btn');
-    b.textContent = newProject.audio;
-    b.classList.add('loaded');
+  // Audio要素をリセット
+  if (_aURL) {
+    URL.revokeObjectURL(_aURL);
+    _aURL = null;
   }
+  aEl.src = '';
+  const audioBtn = document.getElementById('audio-btn');
+  const tapBtn = document.getElementById('tap-btn');
+  
+  if (newProject.audio) {
+    audioBtn.textContent = newProject.audio;
+    audioBtn.classList.add('loaded');
+    // 注: 実際の音声ファイルはロードされないため、TAPボタンは無効のまま
+    if (tapBtn) tapBtn.disabled = true;
+  } else {
+    audioBtn.textContent = 'クリックして選択';
+    audioBtn.classList.remove('loaded');
+    if (tapBtn) tapBtn.disabled = true;
+  }
+  
   if (newProject.chord_source) {
     const b = document.getElementById('chord-btn');
     b.textContent = newProject.chord_source;
@@ -1114,16 +1129,51 @@ function setupEventHandlers() {
   // プロジェクト: 新規作成
   document.getElementById('btn-new').addEventListener('click',()=>{
     if(project.lines.length>0&&!confirm('編集内容を破棄して新規作成しますか？'))return;
-    project={title:'',audio:'',capo:0,lines:[],chord_source:''};palette=[];window._cn=[];window._ct=[];
-    document.getElementById('project-title').value='';document.getElementById('capo').value=0;
-    document.getElementById('proj-key').value='';document.getElementById('proj-bpm').value='';
+    
+    // プロジェクトデータリセット
+    project={title:'',audio:'',capo:0,lines:[],chord_source:''};
+    palette=[];
+    window._cn=[];
+    window._ct=[];
+    _fileHandle = null; // ファイルハンドルもリセット
+    
+    // UI入力フィールドリセット
+    document.getElementById('project-title').value='';
+    document.getElementById('capo').value=0;
+    document.getElementById('proj-key').value='';
+    document.getElementById('proj-bpm').value='';
     document.getElementById('diag-in').value='';
-    ['audio-btn','chord-btn'].forEach(id=>{const b=document.getElementById(id);b.textContent=id==='audio-btn'?'クリックして選択':'JSON / CSV';b.classList.remove('loaded');});
+    
+    // ファイルボタンリセット
+    ['audio-btn','chord-btn'].forEach(id=>{
+      const b=document.getElementById(id);
+      b.textContent=id==='audio-btn'?'クリックして選択':'JSON / CSV';
+      b.classList.remove('loaded');
+    });
+    
+    // Audio要素リセット
+    if (_aURL) {
+      URL.revokeObjectURL(_aURL);
+      _aURL = null;
+    }
     aEl.src='';
+    const tapBtn = document.getElementById('tap-btn');
+    if (tapBtn) tapBtn.disabled = true;
+    
+    // エディタエリアを明示的にクリア
+    const linesCont = document.getElementById('lines-cont');
+    if (linesCont) linesCont.innerHTML = '';
+    
     // ファイル再選択バナーを削除
     const reloadBanner=document.getElementById('reload-banner');
     if(reloadBanner)reloadBanner.remove();
-    renderPalette();refreshEditor();showDiagramPanel('', getCapo());clearLocalStorage();document.getElementById('st-save').textContent='-';
+    
+    // UI更新
+    renderPalette();
+    refreshEditor();
+    showDiagramPanel('', getCapo());
+    clearLocalStorage();
+    document.getElementById('st-save').textContent='-';
   });
 
   // UI: ダイアグラムON/OFF
@@ -1260,11 +1310,16 @@ function setupEventHandlers() {
   // ============================================
   document.addEventListener('keydown', e => {
     if (!document.getElementById('tap-overlay').classList.contains('open')) return;
-    if (e.code === 'Space') { e.preventDefault(); tovTapBtn.click(); }
+    if (e.code === 'Space') { 
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      tovTapBtn.click(); 
+    }
     if (e.code === 'ArrowLeft') aEl.currentTime = Math.max(0, aEl.currentTime - 5);
     if (e.code === 'ArrowRight') aEl.currentTime = Math.min(aEl.duration || 0, aEl.currentTime + 5);
     if (e.code === 'Escape') closeTapMode();
-  });
+  }, { capture: true }); // capture phase で先に処理
 
   // Ctrl+H で置換バー開閉
   document.addEventListener('keydown',e=>{
