@@ -1385,8 +1385,8 @@ function setupEventHandlers() {
       document.getElementById('btn-save').click();
     }
     
-    // Ctrl+Alt+N: 新規作成（Ctrl+Nはブラウザが優先するため変更）
-    if (e.ctrlKey && e.altKey && e.key === 'n') {
+    // Alt+N: 新規作成
+    if (e.altKey && e.key === 'n') {
       e.preventDefault();
       document.getElementById('btn-new').click();
     }
