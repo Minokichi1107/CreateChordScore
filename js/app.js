@@ -691,8 +691,99 @@ function showReloadBanner(audioName, chordName){
   ea.insertBefore(banner, ea.firstChild);
 }
 
+// ════════════════════════════════════════
+// STATE MANAGEMENT
+// ════════════════════════════════════════
+
+/**
+ * プロジェクト状態を完全にリセット
+ * New Project / Load Project の共通処理
+ */
+function resetProject() {
+  // ────────────────────────────────────────
+  // Project Data
+  // ────────────────────────────────────────
+  project = {
+    title: '',
+    audio: '',
+    capo: 0,
+    lines: [],
+    chord_source: ''
+  };
+  
+  palette = [];
+  window._cn = [];
+  window._ct = [];
+  _fileHandle = null;
+  
+  // ────────────────────────────────────────
+  // Audio State
+  // ────────────────────────────────────────
+  if (_aURL) {
+    URL.revokeObjectURL(_aURL);
+    _aURL = null;
+  }
+  aEl.src = '';
+  aEl.pause();
+  aEl.currentTime = 0;
+  
+  // ────────────────────────────────────────
+  // Focus State
+  // ────────────────────────────────────────
+  focLine = -1;
+  tapIdx = -1;
+  tovFocusIdx = -1;
+  
+  // ────────────────────────────────────────
+  // UI Input Fields
+  // ────────────────────────────────────────
+  document.getElementById('project-title').value = '';
+  document.getElementById('capo').value = 0;
+  document.getElementById('proj-key').value = '';
+  document.getElementById('proj-bpm').value = '';
+  document.getElementById('diag-in').value = '';
+  
+  const lyricTa = document.getElementById('lyric-ta');
+  if (lyricTa) lyricTa.value = '';
+  
+  // ────────────────────────────────────────
+  // File Buttons
+  // ────────────────────────────────────────
+  const audioBtn = document.getElementById('audio-btn');
+  const chordBtn = document.getElementById('chord-btn');
+  
+  audioBtn.textContent = 'クリックして選択';
+  audioBtn.classList.remove('loaded');
+  
+  chordBtn.textContent = 'JSON / CSV';
+  chordBtn.classList.remove('loaded');
+  
+  // ────────────────────────────────────────
+  // TAP Button
+  // ────────────────────────────────────────
+  const tapBtn = document.getElementById('tap-btn');
+  if (tapBtn) tapBtn.disabled = true;
+  
+  // ────────────────────────────────────────
+  // Editor Area
+  // ────────────────────────────────────────
+  const linesCont = document.getElementById('lines-cont');
+  if (linesCont) linesCont.innerHTML = '';
+  
+  // ────────────────────────────────────────
+  // Banners
+  // ────────────────────────────────────────
+  const reloadBanner = document.getElementById('reload-banner');
+  if (reloadBanner) reloadBanner.remove();
+}
+
+// ════════════════════════════════════════
+// PROJECT OPERATIONS
+// ════════════════════════════════════════
+
 function loadProj(data){
-  _fileHandle=null; // 別プロジェクトを開いたとき上書き保存先をリセット
+  // 既存状態を完全にリセット
+  resetProject();
   
   const { project: newProject, uiState } = deserializeProject(data);
   
@@ -708,36 +799,24 @@ function loadProj(data){
   project.chord_source = newProject.chord_source;
   project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
   
-  // UI更新
-  // Audio要素をリセット
-  if (_aURL) {
-    URL.revokeObjectURL(_aURL);
-    _aURL = null;
-  }
-  aEl.src = '';
+  // ファイルボタン更新
   const audioBtn = document.getElementById('audio-btn');
-  const tapBtn = document.getElementById('tap-btn');
+  const chordBtn = document.getElementById('chord-btn');
   
   if (newProject.audio) {
     audioBtn.textContent = newProject.audio;
     audioBtn.classList.add('loaded');
-    // 注: 実際の音声ファイルはロードされないため、TAPボタンは無効のまま
-    if (tapBtn) tapBtn.disabled = true;
-  } else {
-    audioBtn.textContent = 'クリックして選択';
-    audioBtn.classList.remove('loaded');
-    if (tapBtn) tapBtn.disabled = true;
   }
   
   if (newProject.chord_source) {
-    const b = document.getElementById('chord-btn');
-    b.textContent = newProject.chord_source;
-    b.classList.add('loaded');
+    chordBtn.textContent = newProject.chord_source;
+    chordBtn.classList.add('loaded');
   }
   
+  // UI更新
   refreshEditor();
   
-  // ダイアグラムパネル再描画（diagOn状態に関わらず生成）
+  // ダイアグラムパネル再描画
   const curDiagChord = document.getElementById('diag-in').value.trim();
   if (curDiagChord) {
     showDiagramPanel(curDiagChord, getCapo());
@@ -1130,47 +1209,8 @@ function setupEventHandlers() {
   document.getElementById('btn-new').addEventListener('click',()=>{
     if(project.lines.length>0&&!confirm('編集内容を破棄して新規作成しますか？'))return;
     
-    // プロジェクトデータリセット
-    project={title:'',audio:'',capo:0,lines:[],chord_source:''};
-    palette=[];
-    window._cn=[];
-    window._ct=[];
-    _fileHandle = null; // ファイルハンドルもリセット
-    
-    // UI入力フィールドリセット
-    document.getElementById('project-title').value='';
-    document.getElementById('capo').value=0;
-    document.getElementById('proj-key').value='';
-    document.getElementById('proj-bpm').value='';
-    document.getElementById('diag-in').value='';
-    
-    // 歌詞テキスト入力エリアをクリア
-    const lyricTa = document.getElementById('lyric-ta');
-    if (lyricTa) lyricTa.value = '';
-    
-    // ファイルボタンリセット
-    ['audio-btn','chord-btn'].forEach(id=>{
-      const b=document.getElementById(id);
-      b.textContent=id==='audio-btn'?'クリックして選択':'JSON / CSV';
-      b.classList.remove('loaded');
-    });
-    
-    // Audio要素リセット
-    if (_aURL) {
-      URL.revokeObjectURL(_aURL);
-      _aURL = null;
-    }
-    aEl.src='';
-    const tapBtn = document.getElementById('tap-btn');
-    if (tapBtn) tapBtn.disabled = true;
-    
-    // エディタエリアを明示的にクリア
-    const linesCont = document.getElementById('lines-cont');
-    if (linesCont) linesCont.innerHTML = '';
-    
-    // ファイル再選択バナーを削除
-    const reloadBanner=document.getElementById('reload-banner');
-    if(reloadBanner)reloadBanner.remove();
+    // 状態を完全にリセット
+    resetProject();
     
     // UI更新
     renderPalette();
@@ -1330,6 +1370,23 @@ function setupEventHandlers() {
     if(e.ctrlKey&&e.key==='h'){
       e.preventDefault();
       document.getElementById('btn-replace-open').click();
+    }
+  });
+
+  // ============================================
+  // Global Keyboard Shortcuts
+  // ============================================
+  document.addEventListener('keydown', e => {
+    // Ctrl+S: 保存
+    if (e.ctrlKey && e.key === 's') {
+      e.preventDefault();
+      document.getElementById('btn-save').click();
+    }
+    
+    // Ctrl+N: 新規作成
+    if (e.ctrlKey && e.key === 'n') {
+      e.preventDefault();
+      document.getElementById('btn-new').click();
     }
   });
 
