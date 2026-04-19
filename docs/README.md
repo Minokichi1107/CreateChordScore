@@ -9,6 +9,7 @@ A web tool for creating chord sheets.
 - Import lyrics
 - Add chords
 - Save project
+- Edit　Chord Diagram
 
 ## Demo
 ![Main UI](screenshots/main-ui.png)
