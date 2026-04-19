@@ -1201,6 +1201,8 @@ function setupEventHandlers() {
         // 音声・コードファイルが未選択なら再選択バナーを表示
         if(data.audio||data.chord_source) showReloadBanner(data.audio, data.chord_source);
       }catch{toast('JSONエラー');}
+      // inputをクリアして同じファイルも再選択可能に
+      e.target.value = '';
     };
     r.readAsText(f);
   });
@@ -1383,8 +1385,8 @@ function setupEventHandlers() {
       document.getElementById('btn-save').click();
     }
     
-    // Ctrl+N: 新規作成
-    if (e.ctrlKey && e.key === 'n') {
+    // Ctrl+Alt+N: 新規作成（Ctrl+Nはブラウザが優先するため変更）
+    if (e.ctrlKey && e.altKey && e.key === 'n') {
       e.preventDefault();
       document.getElementById('btn-new').click();
     }
