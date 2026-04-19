@@ -1094,20 +1094,48 @@ function toast(msg){const el=document.getElementById('toast');el.textContent=msg
 // ----------------------------
 // EVENT HANDLERS SETUP
 // ----------------------------
+
+/**
+ * setupEventHandlers()
+ * 
+ * UIイベント登録の集中管理
+ * 
+ * 【配置ルール】
+ * - ユーザー操作イベントのみ登録する
+ * - モーダル内部の動的イベントはここに置かない
+ * - セクションは機能単位で分類する
+ * - 各セクション内はUI配置順に並べる
+ * 
+ * 【セクション構成】
+ * 1. File Events: ファイル選択・読み込み
+ * 2. Palette Events: コードパレット操作
+ * 3. Import Events: 歌詞テキスト取り込み
+ * 4. Editor Events: 行追加
+ * 5. Project Events: 保存・読み込み・新規
+ * 6. Diagram Events: ダイアグラム表示制御
+ * 7. Capo Events: カポ変更
+ * 8. TAP Mode Events: TAPオーバーレイ
+ * 9. Replace Events: 置換機能
+ * 10. Project Meta Events: タイトル・Key・BPM
+ * 11. Keyboard Events: ショートカットキー
+ */
 function setupEventHandlers() {
   // ============================================
   // File Events
   // ============================================
-  // ファイル選択ボタン（HTML onclickから移行）
+  // File Events
+  // ============================================
+  // Audio file select button
   document.getElementById('audio-btn').addEventListener('click', () => {
     document.getElementById('file-audio').click();
   });
 
+  // Chord file select button
   document.getElementById('chord-btn').addEventListener('click', () => {
     document.getElementById('file-chord').click();
   });
 
-  // ファイル読み込み: コードファイル
+  // Chord file load (JSON/CSV)
   document.getElementById('file-chord').addEventListener('change',e=>{
     const f=e.target.files[0];if(!f)return;
     const r=new FileReader();
@@ -1127,7 +1155,7 @@ function setupEventHandlers() {
     r.readAsText(f,'utf-8');
   });
 
-  // ファイル読み込み: 音声ファイル
+  // Audio file load
   document.getElementById('file-audio').addEventListener('change',e=>{
     const f=e.target.files[0];if(!f)return;
     if(_aURL)URL.revokeObjectURL(_aURL);
@@ -1135,20 +1163,18 @@ function setupEventHandlers() {
     const b=document.getElementById('audio-btn');b.textContent=f.name;b.classList.add('loaded');
     const tapBtn = document.getElementById('tap-btn');
     if(tapBtn) tapBtn.disabled=false;
-    // 音量バーの初期値を反映
     aEl.volume=parseFloat(document.getElementById('vol-slider')?.value||80)/100;
     toast(`音声: ${f.name}`);
-    // バナーの音声選択済みチェック
     checkReloadBannerDone();
   });
 
   // ============================================
   // Palette Events
   // ============================================
-  // パレット: フィルター
+  // Palette filter
   document.getElementById('pal-filter').addEventListener('input',renderPalette);
 
-  // パレット: カスタムコード追加
+  // Custom chord add
   document.getElementById('custom-add').addEventListener('click',()=>{
     const inp=document.getElementById('custom-in');
     const val=inp.value.trim();if(!val)return;
@@ -1157,39 +1183,48 @@ function setupEventHandlers() {
   });
   document.getElementById('custom-in').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('custom-add').click();});
 
-  // 歌詞インポート: 取り込み
+  // ============================================
+  // Import Events
+  // ============================================
+  // Import lyrics (replace all)
   document.getElementById('btn-import').addEventListener('click',()=>{
     const t=document.getElementById('lyric-ta').value.trim();if(!t)return;
     const ls=t.split('\n').map(l=>l.trim()).filter(l=>l);
     project.lines=ls.map(l=>mkLine(l));refreshEditor();toast(`${ls.length}行を取り込みました`);
   });
 
-  // 歌詞インポート: 追記
+  // Append lyrics
   document.getElementById('btn-append').addEventListener('click',()=>{
     const t=document.getElementById('lyric-ta').value.trim();if(!t)return;
     const ls=t.split('\n').map(l=>l.trim()).filter(l=>l);
     ls.forEach(l=>project.lines.push(mkLine(l)));refreshEditor();toast(`${ls.length}行を追記`);
   });
 
-  // 歌詞インポート: 全削除
+  // Clear all lines
   document.getElementById('btn-clearall').addEventListener('click',()=>{if(confirm('全行を削除しますか？')){project.lines=[];refreshEditor();}});
 
-  // 行操作: 空行追加
+  // ============================================
+  // Editor Events
+  // ============================================
+  // Add empty line
   document.getElementById('add-line-btn').addEventListener('click',()=>{
     project.lines.push(mkLine());refreshEditor();
     setTimeout(()=>{const ins=document.querySelectorAll('.lyric-input');if(ins.length)ins[ins.length-1].focus();},0);
   });
 
-  // プロジェクト: 保存
+  // ============================================
+  // Project Events
+  // ============================================
+  // Save project
   document.getElementById('btn-save').addEventListener('click', () => saveProject(false));
 
-  // プロジェクト: 別名保存
+  // Save as
   document.getElementById('btn-saveas').addEventListener('click', () => saveProject(true));
 
-  // プロジェクト: 開く
+  // Open project (trigger file input)
   document.getElementById('btn-open').addEventListener('click',()=>document.getElementById('file-project').click());
 
-  // プロジェクト: ファイル読み込み
+  // Project file load
   document.getElementById('file-project').addEventListener('change',e=>{
     const f=e.target.files[0];if(!f)return;
     const r=new FileReader();
@@ -1198,23 +1233,17 @@ function setupEventHandlers() {
         const data=JSON.parse(ev.target.result);
         loadProj(data);
         toast(`読み込み: ${f.name}`);
-        // 音声・コードファイルが未選択なら再選択バナーを表示
         if(data.audio||data.chord_source) showReloadBanner(data.audio, data.chord_source);
       }catch{toast('JSONエラー');}
-      // inputをクリアして同じファイルも再選択可能に
       e.target.value = '';
     };
     r.readAsText(f);
   });
 
-  // プロジェクト: 新規作成
+  // New project
   document.getElementById('btn-new').addEventListener('click',()=>{
     if(project.lines.length>0&&!confirm('編集内容を破棄して新規作成しますか？'))return;
-    
-    // 状態を完全にリセット
     resetProject();
-    
-    // UI更新
     renderPalette();
     refreshEditor();
     showDiagramPanel('', getCapo());
