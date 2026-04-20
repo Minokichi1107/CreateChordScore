@@ -812,9 +812,7 @@ function showReloadBanner(audioName, chordName){
  * New Project / Load Project の共通処理
  */
 function resetProject() {
-  // ────────────────────────────────────────
   // Project Data
-  // ────────────────────────────────────────
   project = {
     title: '',
     audio: '',
@@ -828,9 +826,7 @@ function resetProject() {
   window._ct = [];
   _fileHandle = null;
   
-  // ────────────────────────────────────────
   // Audio State
-  // ────────────────────────────────────────
   if (_aURL) {
     URL.revokeObjectURL(_aURL);
     _aURL = null;
@@ -839,16 +835,12 @@ function resetProject() {
   aEl.pause();
   aEl.currentTime = 0;
   
-  // ────────────────────────────────────────
   // Focus State
-  // ────────────────────────────────────────
   focLine = -1;
   tapIdx = -1;
   tovFocusIdx = -1;
   
-  // ────────────────────────────────────────
-  // UI Input Fields
-  // ────────────────────────────────────────
+  // UI Reset
   document.getElementById('project-title').value = '';
   document.getElementById('capo').value = 0;
   document.getElementById('proj-key').value = '';
@@ -858,9 +850,6 @@ function resetProject() {
   const lyricTa = document.getElementById('lyric-ta');
   if (lyricTa) lyricTa.value = '';
   
-  // ────────────────────────────────────────
-  // File Buttons
-  // ────────────────────────────────────────
   const audioBtn = document.getElementById('audio-btn');
   const chordBtn = document.getElementById('chord-btn');
   
@@ -870,21 +859,12 @@ function resetProject() {
   chordBtn.textContent = 'JSON / CSV';
   chordBtn.classList.remove('loaded');
   
-  // ────────────────────────────────────────
-  // TAP Button
-  // ────────────────────────────────────────
   const tapBtn = document.getElementById('tap-btn');
   if (tapBtn) tapBtn.disabled = true;
   
-  // ────────────────────────────────────────
-  // Editor Area
-  // ────────────────────────────────────────
   const linesCont = document.getElementById('lines-cont');
   if (linesCont) linesCont.innerHTML = '';
   
-  // ────────────────────────────────────────
-  // Banners
-  // ────────────────────────────────────────
   const reloadBanner = document.getElementById('reload-banner');
   if (reloadBanner) reloadBanner.remove();
 }
@@ -894,24 +874,24 @@ function resetProject() {
 // ════════════════════════════════════════
 
 function loadProj(data){
-  // 既存状態を完全にリセット
+  // Reset existing state
   resetProject();
   
   const { project: newProject, uiState } = deserializeProject(data);
   
-  // UI状態を適用
+  // Apply UI state
   document.getElementById('project-title').value = uiState.title;
   document.getElementById('capo').value = uiState.capo;
   document.getElementById('proj-key').value = uiState.key;
   document.getElementById('proj-bpm').value = uiState.tempo;
   _prevCapo = uiState.capo;
   
-  // プロジェクトデータを適用
+  // Apply project data
   project.audio = newProject.audio;
   project.chord_source = newProject.chord_source;
   project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
   
-  // ファイルボタン更新
+  // Update file buttons
   const audioBtn = document.getElementById('audio-btn');
   const chordBtn = document.getElementById('chord-btn');
   
@@ -925,10 +905,8 @@ function loadProj(data){
     chordBtn.classList.add('loaded');
   }
   
-  // UI更新
   refreshEditor();
   
-  // ダイアグラムパネル再描画
   const curDiagChord = document.getElementById('diag-in').value.trim();
   if (curDiagChord) {
     showDiagramPanel(curDiagChord, getCapo());
