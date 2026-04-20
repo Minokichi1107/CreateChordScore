@@ -1,3 +1,67 @@
+/**
+ * ════════════════════════════════════════
+ * ChordScore Editor - Main Application
+ * ════════════════════════════════════════
+ * 
+ * 【アプリケーション構造】
+ * 
+ * app.js (このファイル)
+ *  - アプリ全体の統合・調整
+ *  - Global State管理
+ *  - イベントハンドラー集約
+ *  - モーダル制御
+ *  - TAPモード制御
+ * 
+ * chords.js
+ *  - コードデータベース
+ *  - ダイアグラム描画
+ *  - カポ転調
+ * 
+ * editor.js
+ *  - 譜面UI描画（renderLines）
+ *  - 行ハイライト
+ *  - スクロール制御
+ * 
+ * audio.js
+ *  - 音声再生制御
+ *  - TAP入力
+ *  - 再生位置同期
+ * 
+ * project.js
+ *  - プロジェクト保存/読み込み
+ *  - シリアライズ/デシリアライズ
+ * 
+ * csvImporter.js
+ *  - CSV/JSONパース
+ * 
+ * 【データフロー】
+ * 
+ * 1. ユーザー操作
+ *     ↓
+ * 2. Event Handler (setupEventHandlers)
+ *     ↓
+ * 3. State更新 (project, focLine, etc.)
+ *     ↓
+ * 4. 再描画トリガー (refreshEditor / renderTovLines)
+ *     ↓
+ * 5. UI反映 (renderLines / DOM更新)
+ * 
+ * 【責務配置ルール】
+ * 
+ * app.jsに置くもの:
+ *  - Global State
+ *  - setupEventHandlers
+ *  - モーダル制御
+ *  - TAPモード制御
+ *  - State初期化（resetProject）
+ * 
+ * app.jsに置かないもの:
+ *  - DOM描画ロジック → editor.js
+ *  - コード変換 → chords.js
+ *  - 音声制御 → audio.js
+ *  - ファイルI/O → project.js
+ */
+
 // ════════════════════════════════════════
 // IMPORTS
 // ════════════════════════════════════════
@@ -52,6 +116,23 @@ import {
 // ════════════════════════════════════════
 // GLOBAL STATE
 // ════════════════════════════════════════
+/**
+ * アプリケーション全体の状態管理
+ * 
+ * 【責務】
+ * - プロジェクトデータ（lines, title, audio, etc.）
+ * - UIフォーカス状態（focLine, tapIdx, tovFocusIdx）
+ * - Audio要素とURL管理
+ * - モーダル/ポップアップDOM参照
+ * - 置換バー状態
+ * 
+ * 【データフロー】
+ * State更新 → refreshEditor/renderTovLines → UI反映
+ * 
+ * 【ルール】
+ * - 直接変更可能だが、resetProject()で初期化推奨
+ */
+
 // プロジェクトデータ
 let project = {title:'',audio:'',capo:0,lines:[],chord_source:''};
 let palette = [];
@@ -152,6 +233,21 @@ function renderPalette(){
 // ════════════════════════════════════════
 
 // renderLines用のコールバック設定を生成
+// ════════════════════════════════════════
+// EDITOR
+// ════════════════════════════════════════
+/**
+ * エディタUI制御とコールバック
+ * 
+ * 【責務】
+ * - editor.jsへのコールバック提供
+ * - State → UI State変換（getEditorUIState）
+ * - 再描画トリガー（refreshEditor, callRenderLines）
+ * 
+ * 【データフロー】
+ * ユーザー操作 → Callback → State更新 → refreshEditor → renderLines → UI
+ */
+
 function createEditorCallbacks() {
   return {
     onTimeClick: (idx, time) => {
@@ -694,6 +790,22 @@ function showReloadBanner(audioName, chordName){
 // ════════════════════════════════════════
 // STATE MANAGEMENT
 // ════════════════════════════════════════
+/**
+ * プロジェクト状態の初期化と管理
+ * 
+ * 【責務】
+ * - State完全リセット（resetProject）
+ * - プロジェクト読み込み（loadProj）
+ * - UI状態の保存/復元
+ * 
+ * 【データフロー】
+ * resetProject/loadProj → State更新 → refreshEditor → UI反映
+ * 
+ * 【使用箇所】
+ * - New Project
+ * - Load Project
+ * - Project読み込み時
+ */
 
 /**
  * プロジェクト状態を完全にリセット
@@ -826,6 +938,22 @@ function loadProj(data){
 // ════════════════════════════════════════
 // TAP MODE OVERLAY
 // ════════════════════════════════════════
+/**
+ * TAPモードオーバーレイ制御
+ * 
+ * 【責務】
+ * - TAPモードの開閉
+ * - TAPオーバーレイ内の行描画（renderTovLines）
+ * - 再生位置同期（syncTovPlayer, updateTovTime）
+ * 
+ * 【State】
+ * - tovFocusIdx: TAPモード内のフォーカス行
+ * - tovSeeking: シーク中フラグ
+ * - tovTapBtn: TAPボタンDOM参照
+ * 
+ * 【データフロー】
+ * TAP操作 → project.lines更新 → renderTovLines → UI反映
+ */
 
 function openTapMode() {
   document.getElementById('tap-overlay').classList.add('open');
