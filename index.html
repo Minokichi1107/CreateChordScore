@@ -42,6 +42,10 @@
         <button class="file-btn" id="chord-btn">JSON / CSV</button>
         <input type="file" id="file-chord" accept=".json,.csv">
       </div>
+      <div class="capo-row" style="margin-top:8px">
+        <label>Artist</label>
+        <input type="text" id="project-artist" placeholder="アーティスト名" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;">
+      </div>
       <div class="capo-row">
         <label>Capo</label>
         <input type="number" id="capo" value="0" min="0" max="12">
@@ -54,6 +58,10 @@
       <div class="capo-row" style="margin-top:3px">
         <label>BPM</label>
         <input type="number" id="proj-bpm" placeholder="120" min="1" max="300" style="width:60px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;text-align:center;">
+      </div>
+      <div class="capo-row" style="margin-top:3px">
+        <label>Meter</label>
+        <input type="text" id="proj-meter" value="4/4" placeholder="4/4" style="width:60px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;text-align:center;">
       </div>
     </div>
 

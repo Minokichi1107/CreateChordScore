@@ -134,7 +134,7 @@ import {
  */
 
 // プロジェクトデータ
-let project = {title:'',audio:'',capo:0,lines:[],chord_source:''};
+let project = {title:'',artist:'',audio:'',capo:0,lines:[],chord_source:'',meter:'4/4'};
 let palette = [];
 let focLine = -1;
 
@@ -733,9 +733,11 @@ function hidePopup(){popT=setTimeout(()=>popEl.classList.remove('show'),150);}
 function getUIState() {
   return {
     title: document.getElementById('project-title').value,
+    artist: document.getElementById('project-artist').value.trim(),
     capo: parseInt(document.getElementById('capo').value) || 0,
     key: document.getElementById('proj-key').value.trim(),
     tempo: parseInt(document.getElementById('proj-bpm').value) || 0,
+    meter: document.getElementById('proj-meter').value.trim() || '4/4',
   };
 }
 
@@ -815,10 +817,12 @@ function resetProject() {
   // Project Data
   project = {
     title: '',
+    artist: '',
     audio: '',
     capo: 0,
     lines: [],
-    chord_source: ''
+    chord_source: '',
+    meter: '4/4'
   };
   
   palette = [];
@@ -842,9 +846,11 @@ function resetProject() {
   
   // UI Reset
   document.getElementById('project-title').value = '';
+  document.getElementById('project-artist').value = '';
   document.getElementById('capo').value = 0;
   document.getElementById('proj-key').value = '';
   document.getElementById('proj-bpm').value = '';
+  document.getElementById('proj-meter').value = '4/4';
   document.getElementById('diag-in').value = '';
   
   const lyricTa = document.getElementById('lyric-ta');
@@ -881,9 +887,11 @@ function loadProj(data){
   
   // Apply UI state
   document.getElementById('project-title').value = uiState.title;
+  document.getElementById('project-artist').value = uiState.artist || '';
   document.getElementById('capo').value = uiState.capo;
   document.getElementById('proj-key').value = uiState.key;
   document.getElementById('proj-bpm').value = uiState.tempo;
+  document.getElementById('proj-meter').value = uiState.meter || '4/4';
   _prevCapo = uiState.capo;
   
   // Apply project data
