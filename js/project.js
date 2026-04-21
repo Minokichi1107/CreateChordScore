@@ -9,12 +9,10 @@
 export function serializeProject(project, uiState) {
   return {
     title: uiState.title,
-    artist: uiState.artist,
     audio: project.audio,
     capo: uiState.capo,
     key: uiState.key,
     tempo: uiState.tempo,
-    meter: uiState.meter,
     lines: project.lines,
     chord_source: project.chord_source,
   };
@@ -29,17 +27,14 @@ export function deserializeProject(jsonData) {
   return {
     project: {
       audio: data.audio || '',
-      capo: data.capo || 0,
       chord_source: data.chord_source || '',
       lines: data.lines || [],
     },
     uiState: {
       title: data.title || '',
-      artist: data.artist || '',
       capo: data.capo || 0,
       key: data.key || '',
       tempo: data.tempo || 0,
-      meter: data.meter || '4/4',
     }
   };
 }
