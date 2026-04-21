@@ -134,7 +134,7 @@ import {
  */
 
 // プロジェクトデータ
-let project = {title:'',artist:'',audio:'',capo:0,lines:[],chord_source:'',meter:'4/4'};
+let project = {title:'',audio:'',capo:0,lines:[],chord_source:''};
 let palette = [];
 let focLine = -1;
 
@@ -817,12 +817,10 @@ function resetProject() {
   // Project Data
   project = {
     title: '',
-    artist: '',
     audio: '',
     capo: 0,
     lines: [],
-    chord_source: '',
-    meter: '4/4'
+    chord_source: ''
   };
   
   palette = [];
@@ -1392,6 +1390,10 @@ function setupEventHandlers() {
     const newCapo=parseInt(document.getElementById('capo').value)||0;
     const diff=newCapo-_prevCapo;
     if(diff===0)return;
+    
+    // Update project.capo
+    project.capo = newCapo;
+    
     // カポが増える(0→2)＝同じ音を出すためコードフォームは下げる(-2半音)
     // カポが減る(2→0)＝コードフォームは上げる(+2半音)
     const semitones=-diff;
