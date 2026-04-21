@@ -29,6 +29,7 @@ export function deserializeProject(jsonData) {
   return {
     project: {
       audio: data.audio || '',
+      capo: data.capo || 0,
       chord_source: data.chord_source || '',
       lines: data.lines || [],
     },

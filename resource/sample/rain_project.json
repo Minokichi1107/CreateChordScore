@@ -1,22 +1,22 @@
 {
   "title": "rain",
-  "artist": "大江千里",
+  "artist": "",
   "audio": "Rain.mp3",
-  "capo": 0,
+  "capo": 2,
   "key": "F# major",
   "tempo": 95,
-  "meter": "4/8",
+  "meter": "4/4",
   "lines": [
     {
       "lyric": "intro",
       "time": 0.114,
       "chords": [
         {
-          "chord": "Emaj/3",
+          "chord": "Dmaj/3",
           "offset": 0
         },
         {
-          "chord": "Bmaj7",
+          "chord": "Amaj7",
           "offset": 0
         }
       ],
@@ -27,15 +27,15 @@
       "time": 3.67,
       "chords": [
         {
-          "chord": "E",
+          "chord": "D",
           "offset": 0
         },
         {
-          "chord": "Emaj/3",
+          "chord": "Dmaj/3",
           "offset": 0
         },
         {
-          "chord": "Bmaj7",
+          "chord": "Amaj7",
           "offset": 0
         }
       ],
@@ -48,19 +48,19 @@
       "time": 4.813,
       "chords": [
         {
-          "chord": "F#",
-          "offset": 0
-        },
-        {
-          "chord": "C#m7",
-          "offset": 0
-        },
-        {
           "chord": "E",
           "offset": 0
         },
         {
-          "chord": "Dmaj7",
+          "chord": "Bm7",
+          "offset": 0
+        },
+        {
+          "chord": "D",
+          "offset": 0
+        },
+        {
+          "chord": "Cmaj7",
           "offset": 0
         }
       ],
@@ -71,21 +71,21 @@
       "time": 8.056,
       "chords": [
         {
-          "chord": "F#m7",
+          "chord": "Em7",
           "offset": 0
         },
         {
           "type": "sep"
         },
         {
-          "chord": "E7",
+          "chord": "D7",
           "offset": 0
         },
         {
           "type": "sep"
         },
         {
-          "chord": "A",
+          "chord": "G",
           "offset": 0
         },
         {
