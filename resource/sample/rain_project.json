@@ -1,0 +1,399 @@
+{
+  "title": "rain",
+  "artist": "大江千里",
+  "audio": "Rain.mp3",
+  "capo": 0,
+  "key": "F# major",
+  "tempo": 95,
+  "meter": "4/8",
+  "lines": [
+    {
+      "lyric": "intro",
+      "time": 0.114,
+      "chords": [
+        {
+          "chord": "Emaj/3",
+          "offset": 0
+        },
+        {
+          "chord": "Bmaj7",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "言葉にできず凍えたままで",
+      "time": 3.67,
+      "chords": [
+        {
+          "chord": "E",
+          "offset": 0
+        },
+        {
+          "chord": "Emaj/3",
+          "offset": 0
+        },
+        {
+          "chord": "Bmaj7",
+          "offset": 0
+        }
+      ],
+      "repeat": {
+        "count": 2
+      }
+    },
+    {
+      "lyric": "人前ではやさしく生きていた",
+      "time": 4.813,
+      "chords": [
+        {
+          "chord": "F#",
+          "offset": 0
+        },
+        {
+          "chord": "C#m7",
+          "offset": 0
+        },
+        {
+          "chord": "E",
+          "offset": 0
+        },
+        {
+          "chord": "Dmaj7",
+          "offset": 0
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "しわよせでこんなふうに雑に",
+      "time": 8.056,
+      "chords": [
+        {
+          "chord": "F#m7",
+          "offset": 0
+        },
+        {
+          "type": "sep"
+        },
+        {
+          "chord": "E7",
+          "offset": 0
+        },
+        {
+          "type": "sep"
+        },
+        {
+          "chord": "A",
+          "offset": 0
+        },
+        {
+          "type": "sep"
+        }
+      ],
+      "repeat": null
+    },
+    {
+      "lyric": "雨の夜にきみを抱きしめてた",
+      "time": 9.903,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "道路わきのビラと壊れた常夜燈",
+      "time": 25.163,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "街角ではそう だれもが急いでた",
+      "time": 28.217,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "きみじゃない悪いのは自分の激しさを",
+      "time": 27.117,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "かくせないぼくのほうさ",
+      "time": 27.117,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "Lady きみは雨にけむる",
+      "time": 28.207,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "すいた駅を少し走った",
+      "time": 30.019,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "どしゃぶりでもかまわないと",
+      "time": 30.034,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "ずぶぬれでもかまわないと",
+      "time": 32.444,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "しぶきあげるきみが消えてく",
+      "time": 32.448,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "路地裏では朝が早いから",
+      "time": 33.651,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "今のうちにきみをつかまえ",
+      "time": 33.655,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "行かないで 行かないで",
+      "time": 35.103,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "そう言うよ",
+      "time": 70.341,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "",
+      "time": 73.066,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "別々に暮らす 泣きだしそうな空を",
+      "time": 83.803,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "にぎりしめる強さは今はもうない",
+      "time": 87.682,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "変わらずいる心のすみだけで傷つくような",
+      "time": 92.009,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "きみならもういらない",
+      "time": 98.074,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "Lady きみは雨にぬれて",
+      "time": 102.818,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "ぼくの眼を少し見ていた",
+      "time": 107.241,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "どしゃぶりでもかまわないと",
+      "time": 112.722,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "ずぶぬれでもかまわないと",
+      "time": 115.279,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "口笛ふくぼくがついてく",
+      "time": 117.826,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "ずいぶんきみを知りすぎたのに",
+      "time": 122.845,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "初めて争った夜のように",
+      "time": 125.392,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "行かないで 行かないで",
+      "time": 127.768,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "そう言うよ",
+      "time": 130.547,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "",
+      "time": 133.262,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "肩が乾いたシャツ改札を出る頃",
+      "time": 153.588,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "きみの町じゃもう雨は小降りになる",
+      "time": 157.782,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "今日だけが明日に続いてる",
+      "time": 162.434,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "こんなふうに きみとは終われない",
+      "time": 166.835,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "Lady きみは今もこうして",
+      "time": 172.694,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "小さめの傘もささずに",
+      "time": 176.885,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "どしゃぶりでもかまわないと",
+      "time": 182.5,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "ずぶぬれでもかまわないと",
+      "time": 185.209,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "しぶきあげるきみが消えてく",
+      "time": 187.655,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "路地裏では朝が早いから",
+      "time": 192.821,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "今のうちにきみをつかまえ",
+      "time": 195.204,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "行かないで 行かないで",
+      "time": 197.628,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "そう言うよ",
+      "time": 200.069,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "どしゃぶりでもかまわないと",
+      "time": 202.751,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "ずぶぬれでもかまわないと",
+      "time": 205.332,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "口笛ふくぼくがついてく",
+      "time": 207.925,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "ずいぶんきみを知りすぎたのに",
+      "time": 212.818,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "初めて争った夜のように",
+      "time": 215.375,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "行かないで 行かないで",
+      "time": 217.839,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "そう言うよ",
+      "time": 220.154,
+      "chords": [],
+      "repeat": null
+    },
+    {
+      "lyric": "",
+      "time": 222.536,
+      "chords": [],
+      "repeat": null
+    }
+  ],
+  "chord_source": "rain_chords.json"
+}
