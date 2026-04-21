@@ -733,11 +733,9 @@ function hidePopup(){popT=setTimeout(()=>popEl.classList.remove('show'),150);}
 function getUIState() {
   return {
     title: document.getElementById('project-title').value,
-    artist: document.getElementById('project-artist').value.trim(),
     capo: parseInt(document.getElementById('capo').value) || 0,
     key: document.getElementById('proj-key').value.trim(),
     tempo: parseInt(document.getElementById('proj-bpm').value) || 0,
-    meter: document.getElementById('proj-meter').value.trim() || '4/4',
   };
 }
 
@@ -844,11 +842,9 @@ function resetProject() {
   
   // UI Reset
   document.getElementById('project-title').value = '';
-  document.getElementById('project-artist').value = '';
   document.getElementById('capo').value = 0;
   document.getElementById('proj-key').value = '';
   document.getElementById('proj-bpm').value = '';
-  document.getElementById('proj-meter').value = '4/4';
   document.getElementById('diag-in').value = '';
   
   const lyricTa = document.getElementById('lyric-ta');
@@ -885,16 +881,13 @@ function loadProj(data){
   
   // Apply UI state
   document.getElementById('project-title').value = uiState.title;
-  document.getElementById('project-artist').value = uiState.artist || '';
   document.getElementById('capo').value = uiState.capo;
   document.getElementById('proj-key').value = uiState.key;
   document.getElementById('proj-bpm').value = uiState.tempo;
-  document.getElementById('proj-meter').value = uiState.meter || '4/4';
   _prevCapo = uiState.capo;
   
   // Apply project data
   project.audio = newProject.audio;
-  project.capo = newProject.capo;
   project.chord_source = newProject.chord_source;
   project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
   
@@ -1390,10 +1383,6 @@ function setupEventHandlers() {
     const newCapo=parseInt(document.getElementById('capo').value)||0;
     const diff=newCapo-_prevCapo;
     if(diff===0)return;
-    
-    // Update project.capo
-    project.capo = newCapo;
-    
     // カポが増える(0→2)＝同じ音を出すためコードフォームは下げる(-2半音)
     // カポが減る(2→0)＝コードフォームは上げる(+2半音)
     const semitones=-diff;
