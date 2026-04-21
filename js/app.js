@@ -896,6 +896,7 @@ function loadProj(data){
   
   // Apply project data
   project.audio = newProject.audio;
+  project.capo = newProject.capo;
   project.chord_source = newProject.chord_source;
   project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
   
