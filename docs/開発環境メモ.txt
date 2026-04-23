@@ -1,0 +1,51 @@
+開発環境メモ
+
+=== Tool Versions ===
+
+Git:
+git version 2.52.0.windows.1
+
+Node:
+v24.14.1
+
+Java:
+openjdk version "1.8.0_482"
+OpenJDK Runtime Environment (Temurin)(build 1.8.0_482-b08)
+OpenJDK 64-Bit Server VM (Temurin)(build 25.482-b08, mixed mode)
+
+sbt:
+sbt runner version: 1.12.9
+
+[info] sbt runner (sbt-the-batch-script) is a runner to run any declared version of sbt.
+[info] Actual version of the sbt is declared using project\build.properties for each build.
+
+VSCode:
+1.116.0
+560a9dba96f961efea7b1612916f89e5d5d4d679
+x64
+
+VSCode Extensions:
+christian-kohler.path-intellisense
+danielsanmedium.dscodegpt
+dbaeumer.vscode-eslint
+esbenp.prettier-vscode
+formulahendry.auto-close-tag
+formulahendry.auto-rename-tag
+github.copilot-chat
+mechatroner.rainbow-csv
+mhutchie.git-graph
+mosapride.zenkaku
+ms-ceintl.vscode-language-pack-ja
+ms-python.debugpy
+ms-python.python
+ms-python.vscode-pylance
+ms-python.vscode-python-envs
+openai.chatgpt
+phind.phind
+ritwickdey.liveserver
+shardulm94.trailing-spaces
+streetsidesoftware.code-spell-checker
+usernamehw.errorlens
+vscode-icons-team.vscode-icons
+xabikos.javascriptsnippets
+PS C:\Users\yasut>
