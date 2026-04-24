@@ -888,6 +888,7 @@ function loadProj(data){
   
   // Apply project data
   project.audio = newProject.audio;
+  project.capo = uiState.capo;  // ← 追加
   project.chord_source = newProject.chord_source;
   project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
   
@@ -1441,11 +1442,17 @@ function setupEventHandlers() {
 
   // メインaElのイベント（TAPオーバーレイ同期用）
   aEl.addEventListener('timeupdate', updateTovTime);
+  aEl.addEventListener('timeupdate', updatePerformFocus);
+  aEl.addEventListener('timeupdate', updatePerformPlayer);
   aEl.addEventListener('play', () => {
     document.getElementById('tov-play-btn').textContent = '⏸';
+    const performBtn = document.getElementById('perform-play-btn');
+    if (performBtn) performBtn.textContent = '⏸';
   });
   aEl.addEventListener('pause', () => {
     document.getElementById('tov-play-btn').textContent = '▶';
+    const performBtn = document.getElementById('perform-play-btn');
+    if (performBtn) performBtn.textContent = '▶';
   });
 
   // TAPボタン（オーバーレイ）
@@ -1525,6 +1532,40 @@ function setupEventHandlers() {
       e.preventDefault();
       document.getElementById('btn-new').click();
     }
+  });
+
+  // ============================================
+  // Perform Mode Events
+  // ============================================
+  document.getElementById('btn-perform-mode').addEventListener('click', openPerformMode);
+  document.getElementById('btn-perform-close').addEventListener('click', closePerformMode);
+  
+  // 演奏モード: 再生/一時停止
+  document.getElementById('perform-play-btn').addEventListener('click', () => {
+    if (aEl.paused) aEl.play(); else aEl.pause();
+  });
+  
+  // 演奏モード: シーク
+  document.getElementById('perform-seek-in').addEventListener('input', e => {
+    aEl.currentTime = (e.target.value / 1000) * aEl.duration;
+  });
+  
+  // 演奏モード: 速度調整
+  document.getElementById('perform-speed').addEventListener('input', e => {
+    const speed = parseInt(e.target.value) / 100;
+    aEl.playbackRate = speed;
+    document.getElementById('perform-speed-label').textContent = `${e.target.value}%`;
+  });
+  
+  // 演奏モード: ダイアグラム表示ON/OFF
+  document.getElementById('perform-diag-toggle').addEventListener('change', e => {
+    performState.diagOn = e.target.checked;
+  });
+  
+  // 演奏モード: ホバー表示ON/OFF
+  document.getElementById('perform-diag-hover').addEventListener('change', e => {
+    performState.diagHover = e.target.checked;
+    if (!e.target.checked) hidePopup();
   });
 
   // ============================================
@@ -1706,3 +1747,134 @@ window.addEventListener('DOMContentLoaded',()=>{
   }
   refreshEditor();renderPalette();
 });
+
+// ════════════════════════════════════════
+// PERFORM MODE
+// ════════════════════════════════════════
+
+const performState = {
+  active: false,
+  focusIdx: -1,
+  diagOn: true,
+  diagHover: true
+};
+
+function openPerformMode() {
+  const overlay = document.getElementById('perform-overlay');
+  overlay.hidden = false;
+  
+  performState.active = true;
+  performState.focusIdx = -1;
+  
+  // Title設定
+  const title = document.getElementById('project-title').value || '無題';
+  document.getElementById('perform-title').textContent = `🎸 演奏モード — ${title}`;
+  
+  // 行描画
+  renderPerformLines();
+  
+  // 再生状態同期
+  updatePerformPlayer();
+}
+
+function closePerformMode() {
+  document.getElementById('perform-overlay').hidden = true;
+  performState.active = false;
+}
+
+function renderPerformLines() {
+  const container = document.getElementById('perform-lines');
+  container.innerHTML = '';
+  
+  project.lines.forEach((line, i) => {
+    const el = document.createElement('div');
+    el.className = 'perform-line';
+    el.dataset.idx = i;
+    
+    // コード取得
+    const chordObjs = line.chords.filter(c => c.type === 'chord');
+    const chordStr = chordObjs.map(c => c.chord).join('  ');
+    
+    // コードHTML生成
+    let chordsHTML = '';
+    if (chordStr) {
+      chordsHTML = chordObjs.map(c => 
+        `<span class="perform-chord" data-chord="${c.chord}">${c.chord}</span>`
+      ).join('  ');
+    } else {
+      chordsHTML = '&nbsp;';
+    }
+    
+    el.innerHTML = `
+      <div class="chords">${chordsHTML}</div>
+      <div class="lyric">${line.lyric || '&nbsp;'}</div>
+    `;
+    
+    container.appendChild(el);
+  });
+  
+  // ダイアグラムホバーイベント設定
+  setupPerformDiagramHover();
+}
+
+function setupPerformDiagramHover() {
+  document.querySelectorAll('.perform-chord').forEach(el => {
+    el.addEventListener('mouseenter', e => {
+      if (!performState.diagOn || !performState.diagHover) return;
+      const chord = e.target.dataset.chord;
+      showPopup(chord, e.target);
+    });
+    
+    el.addEventListener('mouseleave', () => {
+      if (!performState.diagHover) return;
+      hidePopup();
+    });
+  });
+}
+
+function updatePerformFocus() {
+  if (!performState.active) return;
+  
+  const t = aEl.currentTime;
+  let idx = -1;
+  
+  for (let i = project.lines.length - 1; i >= 0; i--) {
+    const line = project.lines[i];
+    if (line.time !== null && line.time <= t) {
+      idx = i;
+      break;
+    }
+  }
+  
+  if (idx === performState.focusIdx) return;
+  
+  performState.focusIdx = idx;
+  
+  document.querySelectorAll('.perform-line').forEach(el => {
+    el.classList.remove('focused');
+  });
+  
+  const target = document.querySelector(`.perform-line[data-idx="${idx}"]`);
+  if (target) {
+    target.classList.add('focused');
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+}
+
+function updatePerformPlayer() {
+  if (!performState.active) return;
+  
+  const seekIn = document.getElementById('perform-seek-in');
+  const seekFill = document.getElementById('perform-seek-fill');
+  const timeDisplay = document.getElementById('perform-time');
+  
+  if (aEl.duration) {
+    const pct = (aEl.currentTime / aEl.duration) * 100;
+    seekIn.value = pct * 10;
+    seekFill.style.width = `${pct}%`;
+    
+    const min = Math.floor(aEl.currentTime / 60);
+    const sec = Math.floor(aEl.currentTime % 60);
+    timeDisplay.textContent = `${min}:${String(sec).padStart(2, '0')}`;
+  }
+}
