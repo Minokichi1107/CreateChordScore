@@ -18,6 +18,7 @@
   <div class="logo">Chord<span>Score</span></div>
   <input type="text" id="project-title" placeholder="曲名を入力...">
   <button id="diag-toggle" title="コードダイアグラムのホバー表示 ON/OFF">🎸 ダイアグラム ON</button>
+  <button id="btn-perform-mode" title="演奏モード">🎸 演奏</button>
   <button id="btn-tapmode" title="再生しながら歌詞を見てタップ">🎵 TAPモード</button>
   <button class="hdr-btn" id="btn-replace-open" title="コード置換 (Ctrl+H)">🔁 置換</button>
   <button class="hdr-btn" id="btn-open">📂 開く</button>
@@ -192,6 +193,39 @@
     <div>時刻済み: <span id="tov-timed">0</span> / <span id="tov-total">0</span> 行</div>
     <div class="tov-hint">行をクリック → その行にフォーカス　TAP → 現在時刻をセット　時刻数字クリック → 削除</div>
   </div>
+</div>
+
+<!-- PERFORM MODE OVERLAY -->
+<div id="perform-overlay" hidden>
+  <div id="perform-header">
+    <div id="perform-title">🎸 演奏モード</div>
+    <div id="perform-options">
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="perform-diag-toggle" checked style="accent-color:var(--accent)">
+        ダイアグラム表示
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="perform-diag-hover" checked style="accent-color:var(--accent)">
+        ホバーで表示
+      </label>
+    </div>
+    <button id="btn-perform-close">✕ 閉じる</button>
+  </div>
+  <div id="perform-controls">
+    <button class="play-btn" id="perform-play-btn">▶</button>
+    <div id="perform-seek-wrap">
+      <div id="perform-seek-track"><div id="perform-seek-fill"></div></div>
+      <input type="range" id="perform-seek-in" min="0" max="1000" value="0">
+    </div>
+    <span id="perform-time">0:00</span>
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+      <input type="range" id="perform-speed" min="1" max="300" step="1" value="100"
+        style="width:60px;accent-color:var(--accent);cursor:pointer;"
+        title="再生速度">
+      <span id="perform-speed-label" style="font-family:var(--mono);font-size:11px;color:var(--text2);min-width:36px">100%</span>
+    </div>
+  </div>
+  <div id="perform-lines"></div>
 </div>
 
 <div id="modal-ov">
