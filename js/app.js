@@ -1678,6 +1678,13 @@ function setupEventHandlers() {
 // APP INITIALIZATION
 // ----------------------------
 window.addEventListener('DOMContentLoaded',()=>{
+  // 演奏モードを確実に非表示
+  const performOverlay = document.getElementById('perform-overlay');
+  if (performOverlay) {
+    performOverlay.hidden = true;
+    performOverlay.style.display = 'none';
+  }
+  
   // イベントハンドラー登録
   setupEventHandlers();
   
@@ -1762,6 +1769,7 @@ const performState = {
 function openPerformMode() {
   const overlay = document.getElementById('perform-overlay');
   overlay.hidden = false;
+  overlay.style.display = 'flex';
   
   performState.active = true;
   performState.focusIdx = -1;
@@ -1778,7 +1786,9 @@ function openPerformMode() {
 }
 
 function closePerformMode() {
-  document.getElementById('perform-overlay').hidden = true;
+  const overlay = document.getElementById('perform-overlay');
+  overlay.hidden = true;
+  overlay.style.display = 'none';
   performState.active = false;
 }
 

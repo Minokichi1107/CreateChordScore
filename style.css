@@ -437,12 +437,17 @@ body.diag-off .chord-tag{cursor:default}
    PERFORM MODE OVERLAY
    ════════════════════════════════════════ */
 
-#perform-overlay {
+  /* 初期状態を確実に非表示 */
+  #perform-overlay[hidden] {
+    display: none !important;
+  }
+
+  #perform-overlay {
   position: fixed;
   inset: 0;
   background: var(--bg);
   z-index: 9999;
-  display: flex;
+  /* display: flex; ← これを削除！演奏モードが最初に表示される */
   flex-direction: column;
 }
 
