@@ -1805,38 +1805,36 @@ function renderPerformLines() {
     // コード取得: chordプロパティを持つものを全て取得
     const chordObjs = line.chords.filter(c => c.chord && c.chord !== '');
     
-    // コード名とダイアグラムHTML生成
-    let chordsHTML = '';
-    let diagramsHTML = '';
+    // コード列生成
+    let chordColumns = '';
     
     if (chordObjs.length > 0) {
-      // コード名は常に表示
-      const chordNames = chordObjs.map(c => 
-        `<span class="perform-chord-name" data-chord="${c.chord}">${c.chord}</span>`
-      );
-      chordsHTML = chordNames.join('');
-      
-      // ダイアグラムはON時のみ
-      if (performState.diagOn) {
-        chordObjs.forEach(c => {
-          const chordName = c.chord;
+      chordColumns = chordObjs.map(c => {
+        const chordName = c.chord;
+        let diagramHTML = '';
+        
+        // ダイアグラムON時
+        if (performState.diagOn) {
           const result = lookupChord(chordName);
           if (result && result.data.v.length > 0) {
-            // 最初のバリエーションのみ表示
             const vr = result.data.v[0];
-            diagramsHTML += `<div class="perform-chord-diagram">${drawDiagram(vr.f, vr.b || null)}</div>`;
+            diagramHTML = drawDiagram(vr.f, vr.b || null);
           } else {
-            diagramsHTML += `<div class="perform-chord-diagram perform-chord-empty">-</div>`;
+            diagramHTML = '<div class="perform-chord-empty">-</div>';
           }
-        });
-      }
-    } else {
-      chordsHTML = '&nbsp;';
+        }
+        
+        return `
+          <div class="perform-chord-col">
+            <div class="perform-chord-name" data-chord="${chordName}">${chordName}</div>
+            ${performState.diagOn ? `<div class="perform-chord-diagram">${diagramHTML}</div>` : ''}
+          </div>
+        `;
+      }).join('');
     }
     
     el.innerHTML = `
-      <div class="chords">${chordsHTML}</div>
-      ${diagramsHTML ? `<div class="diagrams">${diagramsHTML}</div>` : ''}
+      ${chordColumns ? `<div class="chords">${chordColumns}</div>` : '<div class="chords">&nbsp;</div>'}
       <div class="lyric">${line.lyric || '&nbsp;'}</div>
     `;
     
