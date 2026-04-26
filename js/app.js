@@ -1797,50 +1797,69 @@ function renderPerformLines() {
   const container = document.getElementById('perform-lines');
   container.innerHTML = '';
   
+  console.log('[Performance Mode] Rendering lines:', project.lines.length);
+  console.log('[Performance Mode] First line sample:', project.lines[0]);
+  
   project.lines.forEach((line, i) => {
     const el = document.createElement('div');
     el.className = 'perform-line';
     el.dataset.idx = i;
     
+    // デバッグ: line.chordsの生データを確認
+    if (i === 0) {
+      console.log('[Line 0] Raw chords data:', line.chords);
+      console.log('[Line 0] First chord:', line.chords[0]);
+    }
+    
     // コード取得
     const chordObjs = line.chords.filter(c => c.type === 'chord');
+    
+    // デバッグ: filterの前後を比較
+    if (i === 0) {
+      console.log('[Line 0] Before filter:', line.chords.length);
+      console.log('[Line 0] After filter:', chordObjs.length);
+      console.log('[Line 0] Chord types:', line.chords.map(c => c.type));
+    }
     
     // コード名とダイアグラムHTML生成
     let chordsHTML = '';
     let diagramsHTML = '';
     
-    if (chordObjs.length > 0 && performState.diagOn) {
-      chordObjs.forEach(c => {
-        const chordName = c.chord;
-        chordsHTML += `<span class="perform-chord-name" data-chord="${chordName}">${chordName}</span>`;
-        
-        // ダイアグラム生成
-        const result = lookupChord(chordName);
-        if (result && result.data.v.length > 0) {
-          // 最初のバリエーションのみ表示
-          const vr = result.data.v[0];
-          diagramsHTML += `<div class="perform-chord-diagram">${drawDiagram(vr.f, vr.b || null)}</div>`;
-        } else {
-          diagramsHTML += `<div class="perform-chord-diagram perform-chord-empty">-</div>`;
-        }
-      });
-    } else if (chordObjs.length > 0) {
-      // ダイアグラムOFF時はコード名のみ
-      chordsHTML = chordObjs.map(c => 
+    if (chordObjs.length > 0) {
+      // コード名は常に表示
+      const chordNames = chordObjs.map(c => 
         `<span class="perform-chord-name" data-chord="${c.chord}">${c.chord}</span>`
-      ).join('  ');
+      );
+      chordsHTML = chordNames.join('');
+      
+      // ダイアグラムはON時のみ
+      if (performState.diagOn) {
+        chordObjs.forEach(c => {
+          const chordName = c.chord;
+          const result = lookupChord(chordName);
+          if (result && result.data.v.length > 0) {
+            // 最初のバリエーションのみ表示
+            const vr = result.data.v[0];
+            diagramsHTML += `<div class="perform-chord-diagram">${drawDiagram(vr.f, vr.b || null)}</div>`;
+          } else {
+            diagramsHTML += `<div class="perform-chord-diagram perform-chord-empty">-</div>`;
+          }
+        });
+      }
     } else {
-      chordsHTML = '&nbsp;';
+      chordsHTML = '<span style="color:red;font-size:14px">[コードなし]</span>';
     }
     
     el.innerHTML = `
-      <div class="chords">${chordsHTML}</div>
-      ${performState.diagOn && diagramsHTML ? `<div class="diagrams">${diagramsHTML}</div>` : ''}
+      <div class="chords" style="border:1px solid yellow;padding:4px;">${chordsHTML}</div>
+      ${diagramsHTML ? `<div class="diagrams">${diagramsHTML}</div>` : ''}
       <div class="lyric">${line.lyric || '&nbsp;'}</div>
     `;
     
     container.appendChild(el);
   });
+  
+  console.log('[Performance Mode] Render complete');
   
   // ダイアグラムホバーイベント設定
   setupPerformDiagramHover();
