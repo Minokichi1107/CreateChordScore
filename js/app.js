@@ -1560,6 +1560,7 @@ function setupEventHandlers() {
   // 演奏モード: ダイアグラム表示ON/OFF
   document.getElementById('perform-diag-toggle').addEventListener('change', e => {
     performState.diagOn = e.target.checked;
+    renderPerformLines();
   });
   
   // 演奏モード: ホバー表示ON/OFF
@@ -1803,13 +1804,30 @@ function renderPerformLines() {
     
     // コード取得
     const chordObjs = line.chords.filter(c => c.type === 'chord');
-    const chordStr = chordObjs.map(c => c.chord).join('  ');
     
-    // コードHTML生成
+    // コード名とダイアグラムHTML生成
     let chordsHTML = '';
-    if (chordStr) {
+    let diagramsHTML = '';
+    
+    if (chordObjs.length > 0 && performState.diagOn) {
+      chordObjs.forEach(c => {
+        const chordName = c.chord;
+        chordsHTML += `<span class="perform-chord-name" data-chord="${chordName}">${chordName}</span>`;
+        
+        // ダイアグラム生成
+        const result = lookupChord(chordName);
+        if (result && result.data.v.length > 0) {
+          // 最初のバリエーションのみ表示
+          const vr = result.data.v[0];
+          diagramsHTML += `<div class="perform-chord-diagram">${drawDiagram(vr.f, vr.b || null)}</div>`;
+        } else {
+          diagramsHTML += `<div class="perform-chord-diagram perform-chord-empty">-</div>`;
+        }
+      });
+    } else if (chordObjs.length > 0) {
+      // ダイアグラムOFF時はコード名のみ
       chordsHTML = chordObjs.map(c => 
-        `<span class="perform-chord" data-chord="${c.chord}">${c.chord}</span>`
+        `<span class="perform-chord-name" data-chord="${c.chord}">${c.chord}</span>`
       ).join('  ');
     } else {
       chordsHTML = '&nbsp;';
@@ -1817,6 +1835,7 @@ function renderPerformLines() {
     
     el.innerHTML = `
       <div class="chords">${chordsHTML}</div>
+      ${performState.diagOn && diagramsHTML ? `<div class="diagrams">${diagramsHTML}</div>` : ''}
       <div class="lyric">${line.lyric || '&nbsp;'}</div>
     `;
     
@@ -1828,9 +1847,9 @@ function renderPerformLines() {
 }
 
 function setupPerformDiagramHover() {
-  document.querySelectorAll('.perform-chord').forEach(el => {
+  document.querySelectorAll('.perform-chord-name').forEach(el => {
     el.addEventListener('mouseenter', e => {
-      if (!performState.diagOn || !performState.diagHover) return;
+      if (!performState.diagHover) return;
       const chord = e.target.dataset.chord;
       showPopup(chord, e.target);
     });
