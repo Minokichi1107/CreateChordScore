@@ -12,7 +12,25 @@ chordmini_fetch.py - chordmini.me に音声ファイルを送信してJSONを自
 """
 
 import sys, os, json, argparse, subprocess, tempfile, time
+from tkinter import Tk, filedialog
 
+# GUIでファイル選択
+def choose_file():
+    root = Tk()
+    root.withdraw()  # メインウィンドウを表示しない
+    file_path = filedialog.askopenfilename(
+        title="MP3ファイルを選択",
+        filetypes=[("MP3 files", "*.mp3"), ("Audio files", "*.wav *.m4a *.flac *.mp3"), ("All files", "*.*")]
+    )
+    return file_path
+
+# 引数が無い場合はGUIで選択
+if len(sys.argv) < 2:
+    file = choose_file()
+    if not file:
+        print("ファイルが選択されませんでした")
+        sys.exit(1)
+    sys.argv.append(file)
 try:
     import requests
 except ImportError:
