@@ -234,7 +234,7 @@ def main():
   python chordmini_fetch.py 曲.mp3 --ffmpeg C:\\tools\\yt-dlp\\ffmpeg.exe
         """
     )
-    parser.add_argument("audio",     help="音声ファイル (mp3/wav/flac等)")
+    parser.add_argument("audio", nargs="?",help="音声ファイル (mp3/wav/flac等)")
     parser.add_argument("--output",  "-o", default="",
                         help="出力JSONファイル名（省略時: 曲名_chords.json）")
     parser.add_argument("--compress","-c", action="store_true",
@@ -244,6 +244,28 @@ def main():
     parser.add_argument("--beats",   "-b", action="store_true",
                         help="ビート検出も実行する（追加で時間がかかります）")
     args = parser.parse_args()
+
+    # ドラッグ＆ドロップ時は自動オプション
+    if args.audio and not args.compress and not args.beats:
+        args.compress = True
+    args.beats = True
+
+    # ファイル上部
+    from tkinter import Tk, filedialog
+
+    root = Tk()
+    root.withdraw()
+
+    file = filedialog.askopenfilename(
+        title="音声ファイルを選択",
+        filetypes=[("Audio files","*.mp3 *.wav *.flac *.m4a"), ("All files","*.*")]
+    )
+
+    if not file:
+        print("ファイルが選択されませんでした")
+        sys.exit(1)
+
+    args.audio = file
 
     if not os.path.exists(args.audio):
         print(f"エラー: ファイルが見つかりません: {args.audio}")
