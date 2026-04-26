@@ -14,7 +14,7 @@ tmp/
 # スクリーンショット・素材
 screenshots/
 images/
-/resource/*.mp3
+/resource/lyric/*
 
 # バックアップ
 backup/
