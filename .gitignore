@@ -32,3 +32,9 @@ Thumbs.db
 /docs/test/
 /docs/draft/
 /docs/finished/
+
+#　オーディオファイル
+*.mp3
+*.flac
+*.wav
+*.m4a
