@@ -1557,6 +1557,28 @@ function setupEventHandlers() {
     document.getElementById('perform-speed-label').textContent = `${e.target.value}%`;
   });
   
+  // 演奏モード: 音量調整
+  const volSliderPerform = document.getElementById('vol-slider-perform');
+  const volBtnPerform = document.getElementById('vol-btn-perform');
+  if (volSliderPerform && volBtnPerform) {
+    volSliderPerform.addEventListener('input', e => {
+      aEl.volume = e.target.value / 100;
+      volBtnPerform.textContent = e.target.value > 0 ? '🔊' : '🔇';
+    });
+    
+    volBtnPerform.addEventListener('click', () => {
+      if (aEl.volume > 0) {
+        aEl.volume = 0;
+        volSliderPerform.value = 0;
+        volBtnPerform.textContent = '🔇';
+      } else {
+        aEl.volume = 0.8;
+        volSliderPerform.value = 80;
+        volBtnPerform.textContent = '🔊';
+      }
+    });
+  }
+  
   // 演奏モード: ダイアグラム表示ON/OFF
   document.getElementById('perform-diag-toggle').addEventListener('change', e => {
     performState.diagOn = e.target.checked;

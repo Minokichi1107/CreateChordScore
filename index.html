@@ -197,16 +197,20 @@
 
 <!-- PERFORM MODE OVERLAY -->
 <div id="perform-overlay" hidden>
-  <div id="perform-options">
-  <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-    <input type="checkbox" id="perform-diag-toggle" checked style="accent-color:var(--accent)">
-    ダイアグラム表示
-  </label>
-  <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-    <input type="checkbox" id="perform-diag-hover" checked style="accent-color:var(--accent)">
-    ホバーで表示
-  </label>
-</div>
+  <div id="perform-header">
+    <div id="perform-title">🎸 演奏モード</div>
+    <div id="perform-options">
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="perform-diag-toggle" checked style="accent-color:var(--accent)">
+        ダイアグラム表示
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="perform-diag-hover" checked style="accent-color:var(--accent)">
+        ホバーで表示
+      </label>
+    </div>
+    <button id="btn-perform-close" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:11px;padding:6px 12px">✕ 閉じる</button>
+  </div>
   <div id="perform-controls">
     <button class="play-btn" id="perform-play-btn">▶</button>
     <div id="perform-seek-wrap">
@@ -214,15 +218,14 @@
       <input type="range" id="perform-seek-in" min="0" max="1000" value="0">
     </div>
     <span id="perform-time">0:00</span>
+    <button id="vol-btn-perform" title="ミュート切替" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">🔊</button>
+    <input type="range" id="vol-slider-perform" min="0" max="100" value="80" title="音量" style="width:70px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
       <input type="range" id="perform-speed" min="1" max="300" step="1" value="100"
         style="width:60px;accent-color:var(--accent);cursor:pointer;"
         title="再生速度">
       <span id="perform-speed-label" style="font-family:var(--mono);font-size:11px;color:var(--text2);min-width:36px">100%</span>
     </div>
-  </div>
-  <div id="perform-page-nav" style="display:none;padding:8px 24px;background:var(--bg2);border-bottom:1px solid var(--border);text-align:center;font-size:12px;color:var(--text3)">
-    <span id="perform-page-info">Page <span id="perform-current-page">1</span> / <span id="perform-total-pages">1</span></span>
   </div>
   <div id="perform-lines"></div>
 </div>
