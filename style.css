@@ -677,3 +677,30 @@ body.diag-off .chord-tag{cursor:default}
   font-size: 22px;
   min-height: 26px;
 }
+
+/* 演奏モード: ページナビゲーション */
+#perform-page-nav {
+  font-family: var(--mono);
+}
+
+/* 演奏モード: 静止モード */
+.perform-line.static-mode {
+  opacity: 1 !important;
+  margin: 20px 0;
+}
+
+.perform-line.static-mode .chords {
+  font-size: 18px !important;
+}
+
+.perform-line.static-mode .perform-chord-name {
+  font-size: 18px !important;
+}
+
+.perform-line.static-mode .perform-chord-diagram svg {
+  width: 60px !important;
+}
+
+.perform-line.static-mode .lyric {
+  font-size: 18px !important;
+}
