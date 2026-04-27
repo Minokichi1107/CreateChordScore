@@ -1883,6 +1883,9 @@ function renderPerformLines() {
   const container = document.getElementById('perform-lines');
   container.innerHTML = '';
   
+  console.log('[Render] Mode:', performState.mode);
+  console.log('[Render] Total lines:', project.lines.length);
+  
   // 静止モード: ページ範囲を計算
   let linesToRender = project.lines;
   if (performState.mode === 'static') {
@@ -1890,12 +1893,25 @@ function renderPerformLines() {
     const end = start + performState.linesPerPage;
     linesToRender = project.lines.slice(start, end);
     
+    console.log('[Render] Page:', performState.page, 'Range:', start, '-', end);
+    console.log('[Render] Lines to render:', linesToRender.length);
+    
     // ページ情報更新
     const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
-    document.getElementById('perform-page-info').textContent = 
-      `${performState.page + 1} / ${totalPages}`;
+    const pageInfo = document.getElementById('perform-page-info');
+    if (pageInfo) {
+      pageInfo.textContent = `${performState.page + 1} / ${totalPages}`;
+    }
+    const pageNav = document.getElementById('perform-page-nav');
+    if (pageNav) {
+      pageNav.style.display = 'block';
+    }
   } else {
-    document.getElementById('perform-page-info').textContent = '';
+    console.log('[Render] Follow mode - all lines');
+    const pageNav = document.getElementById('perform-page-nav');
+    if (pageNav) {
+      pageNav.style.display = 'none';
+    }
   }
   
   linesToRender.forEach((line, i) => {
@@ -1949,6 +1965,8 @@ function renderPerformLines() {
     
     container.appendChild(el);
   });
+  
+  console.log('[Render] Complete. DOM children:', container.children.length);
   
   setupPerformDiagramHover();
 }
