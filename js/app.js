@@ -1570,13 +1570,16 @@ function setupEventHandlers() {
   });
   
   // 演奏モード: モード切替
-  document.querySelectorAll('input[name="perform-mode"]').forEach(radio => {
-    radio.addEventListener('change', e => {
-      performState.mode = e.target.value;
-      performState.page = 0;
-      renderPerformLines();
+  const performModeRadios = document.querySelectorAll('input[name="perform-mode"]');
+  if (performModeRadios.length > 0) {
+    performModeRadios.forEach(radio => {
+      radio.addEventListener('change', e => {
+        performState.mode = e.target.value;
+        performState.page = 0;
+        renderPerformLines();
+      });
     });
-  });
+  }
   
   // 演奏モード: キーボードショートカット
   document.addEventListener('keydown', e => {
@@ -1860,7 +1863,10 @@ function openPerformMode() {
   
   // Title設定
   const title = document.getElementById('project-title').value || '無題';
-  document.getElementById('perform-title').textContent = `🎸 演奏モード — ${title}`;
+  const titleEl = document.getElementById('perform-title');
+  if (titleEl) {
+    titleEl.textContent = `🎸 演奏モード — ${title}`;
+  }
   
   // 行描画
   renderPerformLines();
