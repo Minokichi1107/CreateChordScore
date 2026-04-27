@@ -1568,6 +1568,84 @@ function setupEventHandlers() {
     performState.diagHover = e.target.checked;
     if (!e.target.checked) hidePopup();
   });
+  
+  // 演奏モード: モード切替
+  document.querySelectorAll('input[name="perform-mode"]').forEach(radio => {
+    radio.addEventListener('change', e => {
+      performState.mode = e.target.value;
+      performState.page = 0;
+      renderPerformLines();
+    });
+  });
+  
+  // 演奏モード: キーボードショートカット
+  document.addEventListener('keydown', e => {
+    if (!performState.active) return;
+    
+    // Space: 再生/一時停止
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (aEl.paused) aEl.play(); else aEl.pause();
+    }
+    
+    // 静止モード時のページ送り
+    if (performState.mode === 'static') {
+      const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
+      
+      if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        if (performState.page > 0) {
+          performState.page--;
+          renderPerformLines();
+        }
+      }
+      
+      if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        if (performState.page < totalPages - 1) {
+          performState.page++;
+          renderPerformLines();
+        }
+      }
+    }
+  });
+  
+  // 演奏モード: スワイプ/ドラッグ操作
+  let pointerStartX = 0;
+  let pointerStartY = 0;
+  
+  const performLines = document.getElementById('perform-lines');
+  
+  performLines.addEventListener('pointerdown', e => {
+    if (!performState.active || performState.mode !== 'static') return;
+    pointerStartX = e.clientX;
+    pointerStartY = e.clientY;
+  });
+  
+  performLines.addEventListener('pointerup', e => {
+    if (!performState.active || performState.mode !== 'static') return;
+    
+    const deltaX = e.clientX - pointerStartX;
+    const deltaY = e.clientY - pointerStartY;
+    
+    // 縦方向の移動が大きい場合はスワイプ判定しない
+    if (Math.abs(deltaY) > Math.abs(deltaX)) return;
+    
+    const threshold = 50;
+    const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
+    
+    // 右スワイプ: 前ページ
+    if (deltaX > threshold && performState.page > 0) {
+      performState.page--;
+      renderPerformLines();
+    }
+    
+    // 左スワイプ: 次ページ
+    if (deltaX < -threshold && performState.page < totalPages - 1) {
+      performState.page++;
+      renderPerformLines();
+    }
+  });
 
   // ============================================
   // Replace Bar Events
@@ -1764,7 +1842,10 @@ const performState = {
   active: false,
   focusIdx: -1,
   diagOn: true,
-  diagHover: true
+  diagHover: true,
+  mode: 'follow',
+  page: 0,
+  linesPerPage: 10
 };
 
 function openPerformMode() {
@@ -1774,6 +1855,8 @@ function openPerformMode() {
   
   performState.active = true;
   performState.focusIdx = -1;
+  performState.mode = 'follow';
+  performState.page = 0;
   
   // Title設定
   const title = document.getElementById('project-title').value || '無題';
@@ -1784,6 +1867,9 @@ function openPerformMode() {
   
   // 再生状態同期
   updatePerformPlayer();
+  
+  // スワイプイベント
+  setupPerformSwipe();
 }
 
 function closePerformMode() {
@@ -1797,12 +1883,36 @@ function renderPerformLines() {
   const container = document.getElementById('perform-lines');
   container.innerHTML = '';
   
-  project.lines.forEach((line, i) => {
+  // 静止モード: ページ範囲を計算
+  let linesToRender = project.lines;
+  if (performState.mode === 'static') {
+    const start = performState.page * performState.linesPerPage;
+    const end = start + performState.linesPerPage;
+    linesToRender = project.lines.slice(start, end);
+    
+    // ページ情報更新
+    const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
+    document.getElementById('perform-page-info').textContent = 
+      `${performState.page + 1} / ${totalPages}`;
+  } else {
+    document.getElementById('perform-page-info').textContent = '';
+  }
+  
+  linesToRender.forEach((line, i) => {
     const el = document.createElement('div');
     el.className = 'perform-line';
-    el.dataset.idx = i;
     
-    // コード取得: chordプロパティを持つものを全て取得
+    // 静止モード: 等サイズ表示
+    if (performState.mode === 'static') {
+      el.classList.add('static-mode');
+    }
+    
+    const actualIdx = performState.mode === 'static' 
+      ? performState.page * performState.linesPerPage + i 
+      : i;
+    el.dataset.idx = actualIdx;
+    
+    // コード取得
     const chordObjs = line.chords.filter(c => c.chord && c.chord !== '');
     
     // コード列生成
@@ -1813,7 +1923,6 @@ function renderPerformLines() {
         const chordName = c.chord;
         let diagramHTML = '';
         
-        // ダイアグラムON時
         if (performState.diagOn) {
           const result = lookupChord(chordName);
           if (result && result.data.v.length > 0) {
@@ -1841,7 +1950,6 @@ function renderPerformLines() {
     container.appendChild(el);
   });
   
-  // ダイアグラムホバーイベント設定
   setupPerformDiagramHover();
 }
 
@@ -1861,7 +1969,7 @@ function setupPerformDiagramHover() {
 }
 
 function updatePerformFocus() {
-  if (!performState.active) return;
+  if (!performState.active || performState.mode === 'static') return;
   
   const t = aEl.currentTime;
   let idx = -1;
@@ -1905,4 +2013,42 @@ function updatePerformPlayer() {
     const sec = Math.floor(aEl.currentTime % 60);
     timeDisplay.textContent = `${min}:${String(sec).padStart(2, '0')}`;
   }
+}
+
+function performNextPage() {
+  if (performState.mode !== 'static') return;
+  const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
+  if (performState.page < totalPages - 1) {
+    performState.page++;
+    renderPerformLines();
+  }
+}
+
+function performPrevPage() {
+  if (performState.mode !== 'static') return;
+  if (performState.page > 0) {
+    performState.page--;
+    renderPerformLines();
+  }
+}
+
+let performSwipe = { startX: 0, startY: 0 };
+
+function setupPerformSwipe() {
+  const container = document.getElementById('perform-lines');
+  
+  container.addEventListener('pointerdown', e => {
+    performSwipe.startX = e.clientX;
+    performSwipe.startY = e.clientY;
+  });
+  
+  container.addEventListener('pointerup', e => {
+    const dx = e.clientX - performSwipe.startX;
+    const dy = e.clientY - performSwipe.startY;
+    
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      if (dx < 0) performNextPage();
+      else performPrevPage();
+    }
+  });
 }

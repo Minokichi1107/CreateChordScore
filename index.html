@@ -197,19 +197,23 @@
 
 <!-- PERFORM MODE OVERLAY -->
 <div id="perform-overlay" hidden>
-  <div id="perform-header">
-    <div id="perform-title">🎸 演奏モード</div>
-    <div id="perform-options">
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-        <input type="checkbox" id="perform-diag-toggle" checked style="accent-color:var(--accent)">
-        ダイアグラム表示
-      </label>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-        <input type="checkbox" id="perform-diag-hover" checked style="accent-color:var(--accent)">
-        ホバーで表示
-      </label>
-    </div>
-    <button id="btn-perform-close">✕ 閉じる</button>
+  <div id="perform-options">
+    <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+      <input type="radio" name="perform-mode" value="follow" checked style="accent-color:var(--accent)">
+      追従モード
+    </label>
+    <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+      <input type="radio" name="perform-mode" value="static" style="accent-color:var(--accent)">
+      静止モード
+    </label>
+    <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+      <input type="checkbox" id="perform-diag-toggle" checked style="accent-color:var(--accent)">
+      ダイアグラム表示
+    </label>
+    <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+      <input type="checkbox" id="perform-diag-hover" checked style="accent-color:var(--accent)">
+      ホバーで表示
+    </label>
   </div>
   <div id="perform-controls">
     <button class="play-btn" id="perform-play-btn">▶</button>
@@ -224,6 +228,9 @@
         title="再生速度">
       <span id="perform-speed-label" style="font-family:var(--mono);font-size:11px;color:var(--text2);min-width:36px">100%</span>
     </div>
+  </div>
+  <div id="perform-page-nav" style="display:none;padding:8px 24px;background:var(--bg2);border-bottom:1px solid var(--border);text-align:center;font-size:12px;color:var(--text3)">
+    <span id="perform-page-info">Page <span id="perform-current-page">1</span> / <span id="perform-total-pages">1</span></span>
   </div>
   <div id="perform-lines"></div>
 </div>
