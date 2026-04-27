@@ -198,23 +198,15 @@
 <!-- PERFORM MODE OVERLAY -->
 <div id="perform-overlay" hidden>
   <div id="perform-options">
-    <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-      <input type="radio" name="perform-mode" value="follow" checked style="accent-color:var(--accent)">
-      追従モード
-    </label>
-    <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-      <input type="radio" name="perform-mode" value="static" style="accent-color:var(--accent)">
-      静止モード
-    </label>
-    <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-      <input type="checkbox" id="perform-diag-toggle" checked style="accent-color:var(--accent)">
-      ダイアグラム表示
-    </label>
-    <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-      <input type="checkbox" id="perform-diag-hover" checked style="accent-color:var(--accent)">
-      ホバーで表示
-    </label>
-  </div>
+  <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+    <input type="checkbox" id="perform-diag-toggle" checked style="accent-color:var(--accent)">
+    ダイアグラム表示
+  </label>
+  <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+    <input type="checkbox" id="perform-diag-hover" checked style="accent-color:var(--accent)">
+    ホバーで表示
+  </label>
+</div>
   <div id="perform-controls">
     <button class="play-btn" id="perform-play-btn">▶</button>
     <div id="perform-seek-wrap">
