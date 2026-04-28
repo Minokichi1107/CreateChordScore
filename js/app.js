@@ -1655,7 +1655,6 @@ function setupEventHandlers() {
   // 演奏モード: スワイプ/ドラッグ操作
   let pointerStartX = 0;
   let pointerStartY = 0;
-  let pointerMoved = false;
   
   const performLines = document.getElementById('perform-lines');
   
@@ -1663,24 +1662,16 @@ function setupEventHandlers() {
     if (!performState.active || performState.mode !== 'static') return;
     pointerStartX = e.clientX;
     pointerStartY = e.clientY;
-    pointerMoved = false;
-  });
-  
-  performLines.addEventListener('pointermove', e => {
-    if (!performState.active || performState.mode !== 'static') return;
-    const deltaX = Math.abs(e.clientX - pointerStartX);
-    const deltaY = Math.abs(e.clientY - pointerStartY);
-    if (deltaX > 5 || deltaY > 5) {
-      pointerMoved = true;
-    }
   });
   
   performLines.addEventListener('pointerup', e => {
     if (!performState.active || performState.mode !== 'static') return;
-    if (!pointerMoved) return; // クリックはスキップ
     
     const deltaX = e.clientX - pointerStartX;
     const deltaY = e.clientY - pointerStartY;
+    
+    // 移動が小さい場合はクリック判定
+    if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
     
     // 縦方向の移動が大きい場合はスワイプ判定しない
     if (Math.abs(deltaY) > Math.abs(deltaX)) return;
@@ -1693,9 +1684,8 @@ function setupEventHandlers() {
       performState.page--;
       renderPerformLines();
     }
-    
     // 左スワイプ: 次ページ
-    if (deltaX < -threshold && performState.page < totalPages - 1) {
+    else if (deltaX < -threshold && performState.page < totalPages - 1) {
       performState.page++;
       renderPerformLines();
     }
@@ -2016,8 +2006,9 @@ function renderPerformLines() {
     
     // 繰り返し記号
     let repeatHTML = '';
-    if (line.repeat !== null) {
-      repeatHTML = `<div class="perform-repeat">×${line.repeat}</div>`;
+    if (line.repeat !== null && line.repeat !== undefined) {
+      const repeatCount = typeof line.repeat === 'object' ? line.repeat.count || 2 : line.repeat;
+      repeatHTML = `<div class="perform-repeat">×${repeatCount}</div>`;
     }
     
     el.innerHTML = `
