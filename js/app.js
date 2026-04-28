@@ -1585,12 +1585,6 @@ function setupEventHandlers() {
     renderPerformLines();
   });
   
-  // 演奏モード: ホバー表示ON/OFF
-  document.getElementById('perform-diag-hover').addEventListener('change', e => {
-    performState.diagHover = e.target.checked;
-    if (!e.target.checked) hidePopup();
-  });
-  
   // 演奏モード: モード切替
   const performModeRadios = document.querySelectorAll('input[name="perform-mode"]');
   if (performModeRadios.length > 0) {
@@ -1600,6 +1594,29 @@ function setupEventHandlers() {
         performState.page = 0;
         renderPerformLines();
       });
+    });
+  }
+  
+  // 演奏モード: ページ送りボタン
+  const prevPageBtn = document.getElementById('perform-prev-page');
+  const nextPageBtn = document.getElementById('perform-next-page');
+  
+  if (prevPageBtn) {
+    prevPageBtn.addEventListener('click', () => {
+      if (performState.page > 0) {
+        performState.page--;
+        renderPerformLines();
+      }
+    });
+  }
+  
+  if (nextPageBtn) {
+    nextPageBtn.addEventListener('click', () => {
+      const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
+      if (performState.page < totalPages - 1) {
+        performState.page++;
+        renderPerformLines();
+      }
     });
   }
   
@@ -1867,7 +1884,6 @@ const performState = {
   active: false,
   focusIdx: -1,
   diagOn: true,
-  diagHover: true,
   mode: 'follow',
   page: 0,
   linesPerPage: 10
@@ -1911,18 +1927,12 @@ function renderPerformLines() {
   const container = document.getElementById('perform-lines');
   container.innerHTML = '';
   
-  console.log('[Render] Mode:', performState.mode);
-  console.log('[Render] Total lines:', project.lines.length);
-  
   // 静止モード: ページ範囲を計算
   let linesToRender = project.lines;
   if (performState.mode === 'static') {
     const start = performState.page * performState.linesPerPage;
     const end = start + performState.linesPerPage;
     linesToRender = project.lines.slice(start, end);
-    
-    console.log('[Render] Page:', performState.page, 'Range:', start, '-', end);
-    console.log('[Render] Lines to render:', linesToRender.length);
     
     // ページ情報更新
     const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
@@ -1935,7 +1945,6 @@ function renderPerformLines() {
       pageNav.style.display = 'block';
     }
   } else {
-    console.log('[Render] Follow mode - all lines');
     const pageNav = document.getElementById('perform-page-nav');
     if (pageNav) {
       pageNav.style.display = 'none';
@@ -1956,63 +1965,59 @@ function renderPerformLines() {
       : i;
     el.dataset.idx = actualIdx;
     
-    // コード取得
-    const chordObjs = line.chords.filter(c => c.chord && c.chord !== '');
-    
-    // コード列生成
+    // コード列生成（小節線と繰り返しを含む）
     let chordColumns = '';
     
-    if (chordObjs.length > 0) {
-      chordColumns = chordObjs.map(c => {
-        const chordName = c.chord;
-        let diagramHTML = '';
-        
-        if (performState.diagOn) {
-          const result = lookupChord(chordName);
-          if (result && result.data.v.length > 0) {
-            const vr = result.data.v[0];
-            diagramHTML = drawDiagram(vr.f, vr.b || null);
-          } else {
-            diagramHTML = '<div class="perform-chord-empty">-</div>';
-          }
+    if (line.chords.length > 0) {
+      chordColumns = line.chords.map(c => {
+        // 小節線
+        if (c.chord === '/') {
+          return `<div class="perform-chord-col"><div class="perform-sep">/</div></div>`;
         }
         
-        return `
-          <div class="perform-chord-col">
-            <div class="perform-chord-name" data-chord="${chordName}">${chordName}</div>
-            ${performState.diagOn ? `<div class="perform-chord-diagram">${diagramHTML}</div>` : ''}
-          </div>
-        `;
+        // コード
+        if (c.chord && c.chord !== '') {
+          const chordName = c.chord;
+          let diagramHTML = '';
+          
+          if (performState.diagOn) {
+            const result = lookupChord(chordName);
+            if (result && result.data.v.length > 0) {
+              const vr = result.data.v[0];
+              diagramHTML = drawDiagram(vr.f, vr.b || null);
+            } else {
+              diagramHTML = '<div class="perform-chord-empty">-</div>';
+            }
+          }
+          
+          return `
+            <div class="perform-chord-col">
+              <div class="perform-chord-name">${chordName}</div>
+              ${performState.diagOn ? `<div class="perform-chord-diagram">${diagramHTML}</div>` : ''}
+            </div>
+          `;
+        }
+        
+        return '';
       }).join('');
+    }
+    
+    // 繰り返し記号
+    let repeatHTML = '';
+    if (line.repeat !== null) {
+      repeatHTML = `<div class="perform-repeat">×${line.repeat}</div>`;
     }
     
     el.innerHTML = `
       ${chordColumns ? `<div class="chords">${chordColumns}</div>` : '<div class="chords">&nbsp;</div>'}
-      <div class="lyric">${line.lyric || '&nbsp;'}</div>
+      <div class="lyric">${line.lyric || '&nbsp;'}${repeatHTML}</div>
     `;
     
     container.appendChild(el);
   });
-  
-  console.log('[Render] Complete. DOM children:', container.children.length);
-  
-  setupPerformDiagramHover();
 }
 
-function setupPerformDiagramHover() {
-  document.querySelectorAll('.perform-chord-name').forEach(el => {
-    el.addEventListener('mouseenter', e => {
-      if (!performState.diagHover) return;
-      const chord = e.target.dataset.chord;
-      showPopup(chord, e.target);
-    });
-    
-    el.addEventListener('mouseleave', () => {
-      if (!performState.diagHover) return;
-      hidePopup();
-    });
-  });
-}
+
 
 function updatePerformFocus() {
   if (!performState.active || performState.mode === 'static') return;
