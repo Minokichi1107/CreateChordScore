@@ -1655,6 +1655,7 @@ function setupEventHandlers() {
   // 演奏モード: スワイプ/ドラッグ操作
   let pointerStartX = 0;
   let pointerStartY = 0;
+  let pointerMoved = false;
   
   const performLines = document.getElementById('perform-lines');
   
@@ -1662,10 +1663,21 @@ function setupEventHandlers() {
     if (!performState.active || performState.mode !== 'static') return;
     pointerStartX = e.clientX;
     pointerStartY = e.clientY;
+    pointerMoved = false;
+  });
+  
+  performLines.addEventListener('pointermove', e => {
+    if (!performState.active || performState.mode !== 'static') return;
+    const deltaX = Math.abs(e.clientX - pointerStartX);
+    const deltaY = Math.abs(e.clientY - pointerStartY);
+    if (deltaX > 5 || deltaY > 5) {
+      pointerMoved = true;
+    }
   });
   
   performLines.addEventListener('pointerup', e => {
     if (!performState.active || performState.mode !== 'static') return;
+    if (!pointerMoved) return; // クリックはスキップ
     
     const deltaX = e.clientX - pointerStartX;
     const deltaY = e.clientY - pointerStartY;

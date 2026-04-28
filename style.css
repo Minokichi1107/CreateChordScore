@@ -722,3 +722,28 @@ body.diag-off .chord-tag{cursor:default}
 .perform-line.static-mode {
   opacity: 1 !important;
 }
+
+/* 演奏モード: 小節線 */
+.perform-sep {
+  font-family: var(--mono);
+  font-size: 20px;
+  color: var(--text);  /* text3 → text に変更 */
+  font-weight: bold;   /* 追加 */
+}
+
+.perform-line.focused .perform-sep {
+  font-size: 28px;
+}
+
+/* 演奏モード: 繰り返し記号 */
+.perform-repeat {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 16px;      /* 14px → 16px */
+  color: var(--amber);
+  font-weight: bold;
+}
+
+.perform-line.focused .perform-repeat {
+  font-size: 20px;      /* 18px → 20px */
+}
