@@ -704,3 +704,21 @@ body.diag-off .chord-tag{cursor:default}
 .perform-line.static-mode .lyric {
   font-size: 18px !important;
 }
+
+/* 演奏モード: フェード表示 */
+.perform-line {
+  opacity: 0.3;
+}
+
+.perform-line.near {
+  opacity: 0.6;
+}
+
+.perform-line.focused {
+  opacity: 1;
+}
+
+/* 演奏モード: 静止モード（フェードなし） */
+.perform-line.static-mode {
+  opacity: 1 !important;
+}
