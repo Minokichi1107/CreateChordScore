@@ -1582,7 +1582,16 @@ function setupEventHandlers() {
   // 演奏モード: ダイアグラム表示ON/OFF
   document.getElementById('perform-diag-toggle').addEventListener('change', e => {
     performState.diagOn = e.target.checked;
-    renderPerformLines();
+    const overlay = document.getElementById('perform-overlay');
+    
+    // ダイアグラムOFF時はコンパクトモード
+    if (!e.target.checked) {
+      overlay.classList.add('compact-mode');
+    } else {
+      overlay.classList.remove('compact-mode');
+    }
+    
+    // 再レンダリング不要（CSSで制御）
   });
   
   // 演奏モード: モード切替

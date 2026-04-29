@@ -662,3 +662,90 @@ body.diag-off .chord-tag{cursor:default}
 .perform-line.focused .perform-repeat {
   font-size: 20px;
 }
+/* ════════════════════════════════════════
+   PERFORMANCE MODE - HORIZONTAL LAYOUT
+   ════════════════════════════════════════ */
+
+/* 横並びレイアウト */
+.perform-chord-col {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+/* コードエリア: 左寄せ + 折り返し */
+.perform-line .chords {
+  font-family: var(--mono);
+  color: var(--accent);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 16px;
+  margin-bottom: 2px;
+  min-height: 20px;
+}
+
+/* コード名 */
+.perform-chord-name {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 28px;
+  text-align: center;
+}
+
+.perform-line.focused .perform-chord-name {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+/* ダイアグラム */
+.perform-chord-diagram svg {
+  width: 40px;
+  height: auto;
+}
+
+.perform-line.focused .perform-chord-diagram svg {
+  width: 50px;
+}
+
+/* 行間隔 */
+.perform-line {
+  margin: 6px 0;
+  text-align: left;
+}
+
+/* 歌詞 */
+.perform-line .lyric {
+  font-size: 15px;
+  color: var(--text);
+  min-height: 14px;
+  text-align: left;
+  padding-left: 4px;
+}
+
+.perform-line.focused .lyric {
+  font-size: 18px;
+  min-height: 22px;
+}
+
+/* コンパクトモード（ダイアグラムOFF） */
+#perform-overlay.compact-mode .perform-chord-diagram {
+  display: none;
+}
+
+#perform-overlay.compact-mode .perform-line {
+  margin: 6px 0;
+}
+
+#perform-overlay.compact-mode .perform-line .chords {
+  margin-bottom: 4px;
+}
+
+#perform-overlay.compact-mode .perform-chord-name {
+  font-size: 15px;
+}
+
+#perform-overlay.compact-mode .perform-line.focused .perform-chord-name {
+  font-size: 20px;
+}
