@@ -1591,7 +1591,6 @@ function setupEventHandlers() {
     performModeRadios.forEach(radio => {
       radio.addEventListener('change', e => {
         performState.mode = e.target.value;
-        performState.page = 0;
         renderPerformLines();
       });
     });
@@ -1603,20 +1602,13 @@ function setupEventHandlers() {
   
   if (prevPageBtn) {
     prevPageBtn.addEventListener('click', () => {
-      if (performState.page > 0) {
-        performState.page--;
-        renderPerformLines();
-      }
+      prevPerformPage();
     });
   }
   
   if (nextPageBtn) {
     nextPageBtn.addEventListener('click', () => {
-      const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
-      if (performState.page < totalPages - 1) {
-        performState.page++;
-        renderPerformLines();
-      }
+      nextPerformPage();
     });
   }
   
@@ -1632,22 +1624,14 @@ function setupEventHandlers() {
     
     // 静止モード時のページ送り
     if (performState.mode === 'static') {
-      const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
-      
       if (e.code === 'ArrowLeft') {
         e.preventDefault();
-        if (performState.page > 0) {
-          performState.page--;
-          renderPerformLines();
-        }
+        prevPerformPage();
       }
       
       if (e.code === 'ArrowRight') {
         e.preventDefault();
-        if (performState.page < totalPages - 1) {
-          performState.page++;
-          renderPerformLines();
-        }
+        nextPerformPage();
       }
     }
   });
@@ -1677,17 +1661,14 @@ function setupEventHandlers() {
     if (Math.abs(deltaY) > Math.abs(deltaX)) return;
     
     const threshold = 50;
-    const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
     
     // 右スワイプ: 前ページ
-    if (deltaX > threshold && performState.page > 0) {
-      performState.page--;
-      renderPerformLines();
+    if (deltaX > threshold) {
+      prevPerformPage();
     }
     // 左スワイプ: 次ページ
-    else if (deltaX < -threshold && performState.page < totalPages - 1) {
-      performState.page++;
-      renderPerformLines();
+    else if (deltaX < -threshold) {
+      nextPerformPage();
     }
   });
 
@@ -1891,6 +1872,17 @@ const performState = {
   linesPerPage: 10
 };
 
+// 演奏モード: ビューポートベースのページング
+function nextPerformPage() {
+  const container = document.getElementById('perform-lines');
+  container.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
+}
+
+function prevPerformPage() {
+  const container = document.getElementById('perform-lines');
+  container.scrollBy({ top: -window.innerHeight, behavior: 'smooth' });
+}
+
 function openPerformMode() {
   const overlay = document.getElementById('perform-overlay');
   overlay.hidden = false;
@@ -1899,7 +1891,6 @@ function openPerformMode() {
   performState.active = true;
   performState.focusIdx = -1;
   performState.mode = 'follow';
-  performState.page = 0;
   
   // Title設定
   const title = document.getElementById('project-title').value || '無題';
@@ -1927,33 +1918,17 @@ function closePerformMode() {
 
 function renderPerformLines() {
   const container = document.getElementById('perform-lines');
+  const overlay = document.getElementById('perform-overlay');
   container.innerHTML = '';
   
-  // 静止モード: ページ範囲を計算
-  let linesToRender = project.lines;
+  // 静止モード時はdata属性追加（CSS用）
   if (performState.mode === 'static') {
-    const start = performState.page * performState.linesPerPage;
-    const end = start + performState.linesPerPage;
-    linesToRender = project.lines.slice(start, end);
-    
-    // ページ情報更新
-    const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
-    const pageInfo = document.getElementById('perform-page-info');
-    if (pageInfo) {
-      pageInfo.textContent = `${performState.page + 1} / ${totalPages}`;
-    }
-    const pageNav = document.getElementById('perform-page-nav');
-    if (pageNav) {
-      pageNav.style.display = 'block';
-    }
+    overlay.setAttribute('data-static-mode', 'true');
   } else {
-    const pageNav = document.getElementById('perform-page-nav');
-    if (pageNav) {
-      pageNav.style.display = 'none';
-    }
+    overlay.removeAttribute('data-static-mode');
   }
   
-  linesToRender.forEach((line, i) => {
+  project.lines.forEach((line, i) => {
     const el = document.createElement('div');
     el.className = 'perform-line';
     
@@ -1962,18 +1937,15 @@ function renderPerformLines() {
       el.classList.add('static-mode');
     }
     
-    const actualIdx = performState.mode === 'static' 
-      ? performState.page * performState.linesPerPage + i 
-      : i;
-    el.dataset.idx = actualIdx;
+    el.dataset.idx = i;
     
     // コード列生成（小節線と繰り返しを含む）
     let chordColumns = '';
     
     if (line.chords.length > 0) {
       chordColumns = line.chords.map(c => {
-        // 小節線
-        if (c.chord === '/') {
+        // 小節線（両形式に対応）
+        if (c.type === 'sep' || c.chord === '/') {
           return `<div class="perform-chord-col"><div class="perform-sep">/</div></div>`;
         }
         
