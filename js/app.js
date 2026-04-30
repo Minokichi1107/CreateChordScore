@@ -113,6 +113,18 @@ import {
   parseJSON
 } from './csvImporter.js';
 
+import {
+  initPerformMode,
+  openPerformMode,
+  closePerformMode,
+  renderPerformLines,
+  updatePerformFocus,
+  updatePerformPlayer,
+  nextPerformPage,
+  prevPerformPage,
+  performState
+} from './perform.js';
+
 // ════════════════════════════════════════
 // GLOBAL STATE
 // ════════════════════════════════════════
@@ -1645,42 +1657,6 @@ function setupEventHandlers() {
     }
   });
   
-  // 演奏モード: スワイプ/ドラッグ操作
-  let pointerStartX = 0;
-  let pointerStartY = 0;
-  
-  const performLines = document.getElementById('perform-lines');
-  
-  performLines.addEventListener('pointerdown', e => {
-    if (!performState.active || performState.mode !== 'static') return;
-    pointerStartX = e.clientX;
-    pointerStartY = e.clientY;
-  });
-  
-  performLines.addEventListener('pointerup', e => {
-    if (!performState.active || performState.mode !== 'static') return;
-    
-    const deltaX = e.clientX - pointerStartX;
-    const deltaY = e.clientY - pointerStartY;
-    
-    // 移動が小さい場合はクリック判定
-    if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
-    
-    // 縦方向の移動が大きい場合はスワイプ判定しない
-    if (Math.abs(deltaY) > Math.abs(deltaX)) return;
-    
-    const threshold = 50;
-    
-    // 右スワイプ: 前ページ
-    if (deltaX > threshold) {
-      prevPerformPage();
-    }
-    // 左スワイプ: 次ページ
-    else if (deltaX < -threshold) {
-      nextPerformPage();
-    }
-  });
-
   // ============================================
   // Replace Bar Events
   // ============================================
@@ -1843,6 +1819,9 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   initAudioEngine(aEl, audioElements, audioCallbacks);
 
+  // ④ Performance Mode 初期化
+  initPerformMode(aEl, () => project.lines);
+
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
   loadCustomDiagrams();
   const curDiagChord = document.getElementById('diag-in').value.trim();
@@ -1867,223 +1846,3 @@ window.addEventListener('DOMContentLoaded',()=>{
   }
   refreshEditor();renderPalette();
 });
-
-// ════════════════════════════════════════
-// PERFORM MODE
-// ════════════════════════════════════════
-
-const performState = {
-  active: false,
-  focusIdx: -1,
-  diagOn: true,
-  mode: 'follow',
-  page: 0,
-  linesPerPage: 10
-};
-
-// 演奏モード: ビューポートベースのページング
-function nextPerformPage() {
-  const container = document.getElementById('perform-lines');
-  container.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
-}
-
-function prevPerformPage() {
-  const container = document.getElementById('perform-lines');
-  container.scrollBy({ top: -window.innerHeight, behavior: 'smooth' });
-}
-
-function openPerformMode() {
-  const overlay = document.getElementById('perform-overlay');
-  overlay.hidden = false;
-  overlay.style.display = 'flex';
-  
-  performState.active = true;
-  performState.focusIdx = -1;
-  performState.mode = 'follow';
-  
-  // Title設定
-  const title = document.getElementById('project-title').value || '無題';
-  const titleEl = document.getElementById('perform-title');
-  if (titleEl) {
-    titleEl.textContent = `🎸 演奏モード — ${title}`;
-  }
-  
-  // 行描画
-  renderPerformLines();
-  
-  // 再生状態同期
-  updatePerformPlayer();
-  
-  // スワイプイベント
-  setupPerformSwipe();
-}
-
-function closePerformMode() {
-  const overlay = document.getElementById('perform-overlay');
-  overlay.hidden = true;
-  overlay.style.display = 'none';
-  performState.active = false;
-}
-
-function renderPerformLines() {
-  const container = document.getElementById('perform-lines');
-  const overlay = document.getElementById('perform-overlay');
-  container.innerHTML = '';
-  
-  // 静止モード時はdata属性追加（CSS用）
-  if (performState.mode === 'static') {
-    overlay.setAttribute('data-static-mode', 'true');
-  } else {
-    overlay.removeAttribute('data-static-mode');
-  }
-  
-  project.lines.forEach((line, i) => {
-    const el = document.createElement('div');
-    el.className = 'perform-line';
-    
-    // 静止モード: 等サイズ表示
-    if (performState.mode === 'static') {
-      el.classList.add('static-mode');
-    }
-    
-    el.dataset.idx = i;
-    
-    // コード列生成（小節線と繰り返しを含む）
-    let chordColumns = '';
-    
-    if (line.chords.length > 0) {
-      chordColumns = line.chords.map(c => {
-        // 小節線（両形式に対応）
-        if (c.type === 'sep' || c.chord === '/') {
-          return `<div class="perform-chord-col"><div class="perform-sep">/</div></div>`;
-        }
-        
-        // コード
-        if (c.chord && c.chord !== '') {
-          const chordName = c.chord;
-          let diagramHTML = '';
-          
-          if (performState.diagOn) {
-            const result = lookupChord(chordName);
-            if (result && result.data.v.length > 0) {
-              const vr = result.data.v[0];
-              diagramHTML = drawDiagram(vr.f, vr.b || null);
-            } else {
-              diagramHTML = '<div class="perform-chord-empty">-</div>';
-            }
-          }
-          
-          return `
-            <div class="perform-chord-col">
-              <div class="perform-chord-name">${chordName}</div>
-              ${performState.diagOn ? `<div class="perform-chord-diagram">${diagramHTML}</div>` : ''}
-            </div>
-          `;
-        }
-        
-        return '';
-      }).join('');
-    }
-    
-    // 繰り返し記号
-    let repeatHTML = '';
-    if (line.repeat !== null && line.repeat !== undefined) {
-      const repeatCount = typeof line.repeat === 'object' ? line.repeat.count || 2 : line.repeat;
-      repeatHTML = `<div class="perform-repeat">×${repeatCount}</div>`;
-    }
-    
-    el.innerHTML = `
-      ${chordColumns ? `<div class="chords">${chordColumns}</div>` : '<div class="chords">&nbsp;</div>'}
-      <div class="lyric">${line.lyric || '&nbsp;'}${repeatHTML}</div>
-    `;
-    
-    container.appendChild(el);
-  });
-}
-
-
-
-function updatePerformFocus() {
-  if (!performState.active || performState.mode === 'static') return;
-  
-  const t = aEl.currentTime;
-  let idx = -1;
-  
-  for (let i = project.lines.length - 1; i >= 0; i--) {
-    const line = project.lines[i];
-    if (line.time !== null && line.time <= t) {
-      idx = i;
-      break;
-    }
-  }
-  
-  if (idx === performState.focusIdx) return;
-  
-  performState.focusIdx = idx;
-  
-  document.querySelectorAll('.perform-line').forEach(el => {
-    el.classList.remove('focused');
-  });
-  
-  const target = document.querySelector(`.perform-line[data-idx="${idx}"]`);
-  if (target) {
-    target.classList.add('focused');
-    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }
-}
-
-function updatePerformPlayer() {
-  if (!performState.active) return;
-  
-  const seekIn = document.getElementById('perform-seek-in');
-  const seekFill = document.getElementById('perform-seek-fill');
-  const timeDisplay = document.getElementById('perform-time');
-  
-  if (aEl.duration) {
-    const pct = (aEl.currentTime / aEl.duration) * 100;
-    seekIn.value = pct * 10;
-    seekFill.style.width = `${pct}%`;
-    
-    const min = Math.floor(aEl.currentTime / 60);
-    const sec = Math.floor(aEl.currentTime % 60);
-    timeDisplay.textContent = `${min}:${String(sec).padStart(2, '0')}`;
-  }
-}
-
-function performNextPage() {
-  if (performState.mode !== 'static') return;
-  const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
-  if (performState.page < totalPages - 1) {
-    performState.page++;
-    renderPerformLines();
-  }
-}
-
-function performPrevPage() {
-  if (performState.mode !== 'static') return;
-  if (performState.page > 0) {
-    performState.page--;
-    renderPerformLines();
-  }
-}
-
-let performSwipe = { startX: 0, startY: 0 };
-
-function setupPerformSwipe() {
-  const container = document.getElementById('perform-lines');
-  
-  container.addEventListener('pointerdown', e => {
-    performSwipe.startX = e.clientX;
-    performSwipe.startY = e.clientY;
-  });
-  
-  container.addEventListener('pointerup', e => {
-    const dx = e.clientX - performSwipe.startX;
-    const dy = e.clientY - performSwipe.startY;
-    
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-      if (dx < 0) performNextPage();
-      else performPrevPage();
-    }
-  });
-}

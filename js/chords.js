@@ -88,11 +88,22 @@ export const CHORD_DB = {
 // SVG DIAGRAM RENDERER
 // ════════════════════════════════════════
 export function drawDiagram(frets, barre) {
-  const ST=6,FC=4;
-  const mL=40,mT=30,sS=14,fS=18;
-  const gW=sS*(ST-1), gH=fS*FC;
-  const LM=6; // viewBox左マージン（frラベルがクリップされないよう）
-  const W=LM+mL+gW+14, H=mT+gH+12;
+  // ════════════════════════════════════════
+  // 横向きダイアグラム（ナット左・90°回転）
+  // X軸 = フレット方向（左がナット）
+  // Y軸 = 弦方向（上が6弦・下が1弦）
+  // ════════════════════════════════════════
+  const ST=6, FC=4;
+  // sS: 弦間隔(Y), fS: フレット間隔(X)
+  const sS=13, fS=16;
+  // マージン
+  const mL=28, mT=8, mR=12, mB=14;
+  // ミュート/開放記号のための左側スペース
+  const symW=14;
+  // グリッドサイズ
+  const gW=fS*FC, gH=sS*(ST-1);
+  const W=symW+mL+gW+mR, H=mT+gH+mB;
+
   const pressed=frets.filter(f=>f>0);
   let sf=1;
   if(barre&&barre>0){
@@ -101,47 +112,66 @@ export function drawDiagram(frets, barre) {
     const mn=Math.min(...pressed),mx=Math.max(...pressed);
     if(mx>4) sf=mn;
   }
+
   const C='#e2e6f0',MC='#ff5c5c',OC='#3ddc84',DC='#4f9eff',BC='rgba(79,158,255,.8)';
-  // viewBoxをLM分左にずらしてfrラベルのスペースを確保
-  let s=`<svg width="${W}" height="${H}" viewBox="${-LM} 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // グリッド原点
+  const ox=symW+mL, oy=mT;
+
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+
   // ナット or フレット番号ラベル
   if(sf===1){
-    s+=`<rect x="${mL}" y="${mT-5}" width="${gW}" height="6" rx="2" fill="${C}" opacity=".75"/>`;
+    s+=`<rect x="${ox-5}" y="${oy}" width="5" height="${gH}" rx="2" fill="${C}" opacity=".8"/>`;
   } else {
-    // frラベルをグリッド左端から余裕を持たせて表示
-    s+=`<text x="${mL-6}" y="${mT+fS*.75}" font-size="13" font-weight="bold" fill="#dde2ee" text-anchor="end" font-family="IBM Plex Mono,monospace">${sf}fr</text>`;
+    s+=`<text x="${ox-7}" y="${oy+gH/2+5}" font-size="11" font-weight="bold" fill="#dde2ee" text-anchor="end" font-family="IBM Plex Mono,monospace">${sf}fr</text>`;
   }
-  // フレット線
-  for(let i=1;i<=FC;i++){const y=mT+i*fS;s+=`<line x1="${mL}" y1="${y}" x2="${mL+gW}" y2="${y}" stroke="${C}" stroke-width=".6" opacity=".3"/>`;}
-  // 弦
-  for(let i=0;i<ST;i++){const x=mL+i*sS;s+=`<line x1="${x}" y1="${mT}" x2="${x}" y2="${mT+gH}" stroke="${C}" stroke-width=".8" opacity=".45"/>`;}
-  // セーハバー
+
+  // 弦線（横線 × 6本）
+  for(let i=0;i<ST;i++){
+    const y=oy+i*sS;
+    s+=`<line x1="${ox}" y1="${y}" x2="${ox+gW}" y2="${y}" stroke="${C}" stroke-width=".8" opacity=".5"/>`;
+  }
+
+  // フレット線（縦線 × FC本）
+  for(let i=1;i<=FC;i++){
+    const x=ox+i*fS;
+    s+=`<line x1="${x}" y1="${oy}" x2="${x}" y2="${oy+gH}" stroke="${C}" stroke-width=".5" opacity=".3"/>`;
+  }
+
+  // セーハバー（縦長の丸角rect）
   if(barre&&barre>0){
     const bf=barre-sf;
     if(bf>=0&&bf<FC){
-      const by=mT+bf*fS+fS/2;
-      let fi=0,li=ST-1;
-      for(let i=0;i<ST;i++){if(frets[i]!==-1){fi=i;break;}}
-      for(let i=ST-1;i>=0;i--){if(frets[i]!==-1){li=i;break;}}
-      s+=`<rect x="${mL+fi*sS-4}" y="${by-7}" width="${(li-fi)*sS+8}" height="14" rx="7" fill="${BC}"/>`;
+      const bx=ox+bf*fS+fS/2;
+      // frets順はi=0が6弦(下)なので反転してY計算
+      let ti=ST-1, bi=0;
+      for(let i=0;i<ST;i++){if(frets[i]!==-1){bi=ST-1-i;break;}}
+      for(let i=ST-1;i>=0;i--){if(frets[i]!==-1){ti=ST-1-i;break;}}
+      if(ti>bi){const tmp=ti;ti=bi;bi=tmp;}
+      s+=`<rect x="${bx-7}" y="${oy+ti*sS-4}" width="14" height="${(bi-ti)*sS+8}" rx="7" fill="${BC}"/>`;
     }
   }
+
   // ドット・ミュート・開放
+  // frets[0]=6弦(下), frets[5]=1弦(上) → y を反転
   for(let i=0;i<ST;i++){
-    const f=frets[i],x=mL+i*sS;
+    const f=frets[i];
+    const y=oy+(ST-1-i)*sS;
     if(f===-1){
-      s+=`<text x="${x}" y="${mT-13}" font-size="12" text-anchor="middle" fill="${MC}" font-family="sans-serif">✕</text>`;
+      s+=`<text x="${ox-mL/2-2}" y="${y+4}" font-size="11" text-anchor="middle" fill="${MC}" font-family="sans-serif">✕</text>`;
     } else if(f===0){
-      s+=`<circle cx="${x}" cy="${mT-16}" r="5" fill="none" stroke="${OC}" stroke-width="1.5"/>`;
+      s+=`<circle cx="${ox-mL/2-2}" cy="${y}" r="4" fill="none" stroke="${OC}" stroke-width="1.5"/>`;
     } else {
       const fp=f-sf;
       if(fp>=0&&fp<FC){
-        const dy=mT+fp*fS+fS/2;
+        const dx=ox+fp*fS+fS/2;
         const isBarreDot=(barre&&f===barre);
-        s+=`<circle cx="${x}" cy="${dy}" r="${isBarreDot?5:6}" fill="${DC}" opacity="${isBarreDot?.6:.95}"/>`;
+        s+=`<circle cx="${dx}" cy="${y}" r="${isBarreDot?4:5}" fill="${DC}" opacity="${isBarreDot?.6:.95}"/>`;
       }
     }
   }
+
   return s+`</svg>`;
 }
 
