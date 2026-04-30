@@ -1623,6 +1623,11 @@ function setupEventHandlers() {
     performModeRadios.forEach(radio => {
       radio.addEventListener('change', e => {
         performState.mode = e.target.value;
+        // staticモードに切り替えた時はfocusIdxをリセット
+        if (performState.mode === 'static') {
+          performState.focusIdx = -1;
+          document.querySelectorAll('.perform-line').forEach(el => el.classList.remove('focused'));
+        }
         renderPerformLines();
       });
     });

@@ -270,12 +270,12 @@ export function updatePerformPlayer() {
 
 export function nextPerformPage() {
   const container = document.getElementById('perform-lines');
-  container.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
+  container.scrollBy({ top: container.clientHeight, behavior: 'smooth' });
 }
 
 export function prevPerformPage() {
   const container = document.getElementById('perform-lines');
-  container.scrollBy({ top: -window.innerHeight, behavior: 'smooth' });
+  container.scrollBy({ top: -container.clientHeight, behavior: 'smooth' });
 }
 
 // ════════════════════════════════════════
@@ -300,7 +300,9 @@ export function setupPerformSwipe() {
     const dx = e.clientX - _performSwipe.startX;
     const dy = e.clientY - _performSwipe.startY;
 
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+    // 縦移動が横移動より大きい場合はスクロール操作とみなしてスキップ
+    if (Math.abs(dy) > Math.abs(dx)) return;
+    if (Math.abs(dx) > 50) {
       if (dx < 0) nextPerformPage();
       else prevPerformPage();
     }
