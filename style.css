@@ -612,12 +612,12 @@ body.diag-off .chord-tag{cursor:default}
 }
 
 .perform-chord-diagram svg {
-  width: 50px;
+  width: auto;
   height: auto;
 }
 
 .perform-line.focused .perform-chord-diagram svg {
-  width: 70px;
+  width: auto;
 }
 
 .perform-chord-empty {
@@ -701,12 +701,12 @@ body.diag-off .chord-tag{cursor:default}
 
 /* ダイアグラム */
 .perform-chord-diagram svg {
-  width: 40px;
+  width: auto;
   height: auto;
 }
 
 .perform-line.focused .perform-chord-diagram svg {
-  width: 50px;
+  width: auto;
 }
 
 /* 行間隔 */
