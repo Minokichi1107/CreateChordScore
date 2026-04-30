@@ -564,16 +564,6 @@ body.diag-off .chord-tag{cursor:default}
 }
 
 /* 演奏モード: コードエリア */
-.perform-line .chords {
-  font-family: var(--mono);
-  color: var(--accent);
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  margin-bottom: 8px;
-  min-height: 20px;
-}
-
 .perform-line.focused .chords {
   margin-bottom: 12px;
 }
@@ -681,9 +671,9 @@ body.diag-off .chord-tag{cursor:default}
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start;
+  align-items: center;
   gap: 16px;
   margin-bottom: 2px;
-  min-height: 20px;
 }
 
 /* コード名 */

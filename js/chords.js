@@ -95,11 +95,11 @@ export function drawDiagram(frets, barre) {
   // ════════════════════════════════════════
   const ST=6, FC=4;
   // sS: 弦間隔(Y), fS: フレット間隔(X)
-  const sS=13, fS=16;
+  const sS=11, fS=14;
   // マージン
-  const mL=28, mT=8, mR=12, mB=14;
+  const mL=24, mT=7, mR=10, mB=12;
   // ミュート/開放記号のための左側スペース
-  const symW=14;
+  const symW=12;
   // グリッドサイズ
   const gW=fS*FC, gH=sS*(ST-1);
   const W=symW+mL+gW+mR, H=mT+gH+mB;
