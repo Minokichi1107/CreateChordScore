@@ -114,6 +114,11 @@ import {
 } from './csvImporter.js';
 
 import {
+  initReplace,
+  rbRefresh
+} from './replace.js';
+
+import {
   initPerformMode,
   openPerformMode,
   closePerformMode,
@@ -176,11 +181,6 @@ let popT = null;
 let tovFocusIdx = -1;
 let tovSeeking = false;
 let tovTapBtn = null;
-
-// コード置換バー
-let rbSnapshot = null;
-let rbHits = [];
-let rbCurr = -1;
 
 // 自動保存タイマー
 let asT = null;
@@ -1075,87 +1075,7 @@ function updateTovStatus() {
   if (el2) el2.textContent = total;
 }
 
-// ════════════════════════════════════════
-// ⑦ コード置換バー
-// ════════════════════════════════════════
-
-function rbGetFind(){ return document.getElementById('rb-find').value.trim(); }
-function rbGetRepl(){ return document.getElementById('rb-replace').value.trim(); }
-function rbScopeAll(){ return document.getElementById('rb-all').checked; }
-
-// ヒットリストを更新してタグをハイライト
-function rbRefresh(){
-  // 既存ハイライトをクリア
-  document.querySelectorAll('.chord-tag.rb-hit,.chord-tag.rb-curr').forEach(el=>{
-    el.classList.remove('rb-hit','rb-curr');
-  });
-  rbHits=[];
-  const find=rbGetFind();
-  if(!find){document.getElementById('rb-count').textContent='-';rbCurr=-1;return;}
-
-  const scopeAll=rbScopeAll();
-  const targetLines=scopeAll
-    ? project.lines.map((_,i)=>i)
-    : (focLine>=0?[focLine]:[]);
-
-  targetLines.forEach(li=>{
-    project.lines[li].chords.forEach((c,ci)=>{
-      if(c.type==='sep')return;
-      if(c.chord===find) rbHits.push({li,ci});
-    });
-  });
-
-  document.getElementById('rb-count').textContent=
-    rbHits.length ? `${rbHits.length}件` : '0件';
-
-  // ヒットタグを黄色に
-  rbHits.forEach(({li,ci})=>{
-    const tag=document.querySelector(`.line-row[data-idx="${li}"] .chord-tag:nth-child(${ci+2})`);
-    // nth-child はリピートバッジの分ズレるので data属性で探す
-  });
-  // data属性ベースで確実にハイライト
-  rbHighlightAll();
-  if(rbCurr>=rbHits.length) rbCurr=0;
-  rbScrollToCurrent();
-}
-
-function rbHighlightAll(){
-  // まずレンダリング済みタグを全走査
-  document.querySelectorAll('.chord-tag').forEach(tag=>{
-    const nameEl=tag.querySelector('.chord-name');
-    if(!nameEl)return;
-    const chord=nameEl.textContent;
-    const find=rbGetFind();
-    if(chord===find) tag.classList.add('rb-hit');
-    else tag.classList.remove('rb-hit','rb-curr');
-  });
-}
-
-function rbScrollToCurrent(){
-  if(rbCurr<0||rbCurr>=rbHits.length){
-    document.getElementById('rb-count').textContent=
-      rbHits.length?`${rbHits.length}件`:'0件';
-    return;
-  }
-  document.getElementById('rb-count').textContent=
-    `${rbCurr+1} / ${rbHits.length}件`;
-  const {li}=rbHits[rbCurr];
-
-  // editor-area内スクロール（scrollEditorToRowで統一、force=trueで必ず動かす）
-  const rows=document.querySelectorAll('.line-row');
-  if(rows[li]) scrollEditorToRow(rows[li], true);
-
-  // 現在ハイライトをrb-currに
-  document.querySelectorAll('.chord-tag.rb-curr').forEach(el=>el.classList.remove('rb-curr'));
-  rbHits.forEach((h,i)=>{
-    if(i!==rbCurr)return;
-    const row=rows[h.li];
-    if(!row)return;
-    const nonSepIdx=project.lines[h.li].chords.slice(0,h.ci+1).filter(c=>c.type!=='sep').length-1;
-    const allTags=row.querySelectorAll('.chord-tag');
-    if(allTags[nonSepIdx]) allTags[nonSepIdx].classList.add('rb-curr');
-  });
-}
+// ⑦ コード置換バー → replace.js に移動
 
 // ════════════════════════════════════════
 // ⑤ 音量バー
@@ -1674,93 +1594,6 @@ function setupEventHandlers() {
   });
   
   // ============================================
-  // Replace Bar Events
-  // ============================================
-  document.getElementById('rb-find').addEventListener('input',()=>{rbCurr=0;rbRefresh();});
-  document.getElementById('rb-replace').addEventListener('input',()=>{});
-  document.getElementById('rb-all').addEventListener('change',()=>{rbCurr=0;rbRefresh();});
-  document.getElementById('rb-focus').addEventListener('change',()=>{rbCurr=0;rbRefresh();});
-
-  document.getElementById('rb-next').addEventListener('click',()=>{
-    if(!rbHits.length){rbRefresh();return;}
-    rbCurr=(rbCurr+1)%rbHits.length;
-    rbHighlightAll();rbScrollToCurrent();
-    setTimeout(()=>document.getElementById('rb-find').focus(),10);
-  });
-
-  document.getElementById('rb-prev').addEventListener('click',()=>{
-    if(!rbHits.length){rbRefresh();return;}
-    rbCurr=(rbCurr-1+rbHits.length)%rbHits.length;
-    rbHighlightAll();rbScrollToCurrent();
-    setTimeout(()=>document.getElementById('rb-find').focus(),10);
-  });
-
-  document.getElementById('rb-one').addEventListener('click',()=>{
-    if(!rbHits.length||rbCurr<0||rbCurr>=rbHits.length)return;
-    const repl=rbGetRepl();
-    const {li,ci}=rbHits[rbCurr];
-    if(!rbSnapshot) rbSnapshot=JSON.stringify(project.lines);
-    document.getElementById('rb-undo').disabled=false;
-    if(repl===''){
-      project.lines[li].chords.splice(ci,1);
-    } else {
-      project.lines[li].chords[ci].chord=repl;
-      addToPaletteIfNew(repl);
-    }
-    refreshEditor();
-    rbHits=[];rbCurr=0;rbRefresh();
-    toast(`1つ置換しました`);
-    setTimeout(()=>document.getElementById('rb-find').focus(),10);
-  });
-
-  document.getElementById('rb-all-btn').addEventListener('click',()=>{
-    const find=rbGetFind();
-    const repl=rbGetRepl();
-    if(!find)return;
-    rbSnapshot=JSON.stringify(project.lines);
-    document.getElementById('rb-undo').disabled=false;
-    const scopeAll=rbScopeAll();
-    let count=0;
-    project.lines.forEach((line,li)=>{
-      if(!scopeAll&&li!==focLine)return;
-      for(let ci=line.chords.length-1;ci>=0;ci--){
-        const c=line.chords[ci];
-        if(c.type==='sep'||c.chord!==find)continue;
-        if(repl==='') line.chords.splice(ci,1);
-        else { line.chords[ci].chord=repl; addToPaletteIfNew(repl); }
-        count++;
-      }
-    });
-    refreshEditor();
-    rbHits=[];rbCurr=0;rbRefresh();
-    toast(`${count}件置換しました`);
-  });
-
-  document.getElementById('rb-undo').addEventListener('click',()=>{
-    if(!rbSnapshot)return;
-    project.lines=JSON.parse(rbSnapshot);
-    rbSnapshot=null;
-    document.getElementById('rb-undo').disabled=true;
-    refreshEditor();
-    rbHits=[];rbCurr=0;rbRefresh();
-    toast('置換を元に戻しました');
-  });
-
-  document.getElementById('rb-close').addEventListener('click',()=>{
-    document.getElementById('replace-bar').classList.remove('open');
-    document.querySelectorAll('.chord-tag.rb-hit,.chord-tag.rb-curr').forEach(el=>{
-      el.classList.remove('rb-hit','rb-curr');
-    });
-    rbHits=[];rbCurr=-1;
-  });
-
-  document.getElementById('btn-replace-open').addEventListener('click',()=>{
-    const bar=document.getElementById('replace-bar');
-    bar.classList.toggle('open');
-    if(bar.classList.contains('open')){
-      setTimeout(()=>document.getElementById('rb-find').focus(),80);
-    }
-  });
 
   // ============================================
   // Project Meta Events
@@ -1837,6 +1670,19 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   // ④ Performance Mode 初期化
   initPerformMode(aEl, () => project.lines);
+
+  // ⑤ Replace 初期化
+  initReplace(
+    () => project.lines,
+    (lines) => { project.lines = lines; },
+    {
+      getFocLine:        () => focLine,
+      scrollEditorToRow: scrollEditorToRow,
+      addToPaletteIfNew: addToPaletteIfNew,
+      refreshEditor:     refreshEditor,
+      toast:             toast
+    }
+  );
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
   loadCustomDiagrams();
