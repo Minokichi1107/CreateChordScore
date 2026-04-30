@@ -45,6 +45,9 @@ export const performState = {
 let _aEl = null;
 let _getLines = null;
 
+// スクロール競合防止フラグ
+let _isScrolling = false;
+
 // ════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════
@@ -202,8 +205,26 @@ export function updatePerformFocus() {
   const target = document.querySelector(`.perform-line[data-idx="${idx}"]`);
   if (target) {
     target.classList.add('focused');
-    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    scrollToLine(target);
   }
+}
+
+function scrollToLine(target) {
+  if (_isScrolling) return;
+
+  const container = document.getElementById('perform-lines');
+  const containerRect = container.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+
+  // コンテナ内での現在のスクロール位置 + ターゲットの相対位置
+  const scrollTop = container.scrollTop + (targetRect.top - containerRect.top);
+
+  // 現在行を画面上部25%付近に配置（下の行を先読みしやすくする）
+  const targetScrollTop = scrollTop - container.clientHeight * 0.25;
+
+  _isScrolling = true;
+  container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+  setTimeout(() => { _isScrolling = false; }, 600);
 }
 
 // ════════════════════════════════════════
