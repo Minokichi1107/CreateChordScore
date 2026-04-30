@@ -25,7 +25,7 @@
  * - updatePerformPlayer()
  */
 
-import { lookupChord, drawDiagram, transposeChord } from './chords.js';
+import { lookupChord, drawDiagram } from './chords.js';
 import { fmt } from './audio.js';
 
 // ════════════════════════════════════════
@@ -135,11 +135,7 @@ export function renderPerformLines() {
           let diagramHTML = '';
 
           if (performState.diagOn) {
-            // カポ分だけ逆移調した実音コードでダイアグラムを検索
-            const capoEl = document.getElementById('capo-select');
-            const capo = capoEl ? parseInt(capoEl.value) || 0 : 0;
-            const realChord = capo > 0 ? transposeChord(chordName, -capo) : chordName;
-            const result = lookupChord(realChord);
+            const result = lookupChord(chordName);
             if (result && result.data.v.length > 0) {
               const vr = result.data.v[0];
               diagramHTML = drawDiagram(vr.f, vr.b || null);
