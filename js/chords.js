@@ -87,19 +87,20 @@ export const CHORD_DB = {
 // ════════════════════════════════════════
 // SVG DIAGRAM RENDERER
 // ════════════════════════════════════════
-export function drawDiagram(frets, barre) {
+export function drawDiagram(frets, barre, options = {}) {
   // ════════════════════════════════════════
   // 横向きダイアグラム（ナット左・90°回転）
   // X軸 = フレット方向（左がナット）
   // Y軸 = 弦方向（上が6弦・下が1弦）
   // ════════════════════════════════════════
+  const scale = options.scale ?? 1;
   const ST=6, FC=4;
   // sS: 弦間隔(Y), fS: フレット間隔(X)
-  const sS=11, fS=14;
+  const sS=11*scale, fS=14*scale;
   // マージン
-  const mL=24, mT=7, mR=10, mB=12;
+  const mL=24*scale, mT=7*scale, mR=10*scale, mB=12*scale;
   // ミュート/開放記号のための左側スペース
-  const symW=12;
+  const symW=12*scale;
   // グリッドサイズ
   const gW=fS*FC, gH=sS*(ST-1);
   const W=symW+mL+gW+mR, H=mT+gH+mB;

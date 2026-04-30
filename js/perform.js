@@ -38,7 +38,8 @@ export const performState = {
   diagOn: true,
   mode: 'follow',
   page: 0,
-  linesPerPage: 10
+  linesPerPage: 10,
+  fontScale: 1.0
 };
 
 // app.js から受け取る参照
@@ -74,6 +75,16 @@ export function openPerformMode() {
   performState.active = true;
   performState.focusIdx = -1;
   performState.mode = 'follow';
+
+  // compact-mode と diagOn の状態を同期
+  if (performState.diagOn) {
+    overlay.classList.remove('compact-mode');
+  } else {
+    overlay.classList.add('compact-mode');
+  }
+
+  // フォントスケールを同期
+  overlay.style.setProperty('--perform-font-scale', performState.fontScale);
 
   // Title設定
   const title = document.getElementById('project-title').value || '無題';
@@ -141,7 +152,8 @@ export function renderPerformLines() {
             const result = lookupChord(chordName);
             if (result && result.data.v.length > 0) {
               const vr = result.data.v[0];
-              diagramHTML = drawDiagram(vr.f, vr.b || null);
+              const diagramScale = performState.fontScale * 0.9;
+              diagramHTML = drawDiagram(vr.f, vr.b || null, { scale: diagramScale });
             } else {
               diagramHTML = '<div class="perform-chord-empty">-</div>';
             }

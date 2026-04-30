@@ -540,9 +540,14 @@ body.diag-off .chord-tag{cursor:default}
 }
 
 /* 演奏モード: 行 */
+#perform-overlay {
+  --perform-font-scale: 1;
+}
+
 .perform-line {
   margin: 16px 0;
   text-align: center;
+  font-size: calc(15px * var(--perform-font-scale));
 }
 
 /* 演奏モード: フェード表示（追従モード時のみ） */
@@ -578,7 +583,7 @@ body.diag-off .chord-tag{cursor:default}
 
 /* コード名 */
 .perform-chord-name {
-  font-size: 16px;
+  font-size: 1em;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 3px;
@@ -586,7 +591,7 @@ body.diag-off .chord-tag{cursor:default}
 }
 
 .perform-line.focused .perform-chord-name {
-  font-size: 24px;
+  font-size: 1.4em;
   font-weight: bold;
 }
 
@@ -618,26 +623,26 @@ body.diag-off .chord-tag{cursor:default}
 /* 演奏モード: 小節線 */
 .perform-sep {
   font-family: var(--mono);
-  font-size: 24px;
+  font-size: 1.4em;
   color: var(--accent);
   font-weight: bold;
   line-height: 1;
 }
 
 .perform-line.focused .perform-sep {
-  font-size: 32px;
+  font-size: 1.8em;
 }
 
 /* 歌詞 */
 .perform-line .lyric {
-  font-size: 16px;
+  font-size: 1.1em;
   color: var(--text);
-  min-height: 20px;
+  min-height: 1.4em;
 }
 
 .perform-line.focused .lyric {
-  font-size: 20px;
-  min-height: 24px;
+  font-size: 1.4em;
+  min-height: 1.6em;
 }
 
 /* 演奏モード: 繰り返し記号 */
@@ -676,16 +681,14 @@ body.diag-off .chord-tag{cursor:default}
   margin-bottom: 2px;
 }
 
-/* コード名 */
+/* コード名（font-sizeはemベースに集約済み） */
 .perform-chord-name {
-  font-size: 14px;
   font-weight: 600;
   min-width: 28px;
   text-align: center;
 }
 
 .perform-line.focused .perform-chord-name {
-  font-size: 18px;
   font-weight: bold;
 }
 
@@ -705,18 +708,16 @@ body.diag-off .chord-tag{cursor:default}
   text-align: left;
 }
 
-/* 歌詞 */
+/* 歌詞（font-sizeはemベースに集約済み） */
 .perform-line .lyric {
-  font-size: 15px;
   color: var(--text);
-  min-height: 14px;
+  min-height: 1.4em;
   text-align: left;
   padding-left: 4px;
 }
 
 .perform-line.focused .lyric {
-  font-size: 18px;
-  min-height: 22px;
+  min-height: 1.6em;
 }
 
 /* コンパクトモード（ダイアグラムOFF） */
@@ -732,10 +733,4 @@ body.diag-off .chord-tag{cursor:default}
   margin-bottom: 4px;
 }
 
-#perform-overlay.compact-mode .perform-chord-name {
-  font-size: 15px;
-}
-
-#perform-overlay.compact-mode .perform-line.focused .perform-chord-name {
-  font-size: 20px;
-}
+/* compact-modeはダイアグラム非表示のみ。font-sizeはemスケールに従う */

@@ -1605,6 +1605,17 @@ function setupEventHandlers() {
     
     // 再レンダリング不要（CSSで制御）
   });
+
+  // 演奏モード: フォントスケール
+  document.getElementById('perform-font-scale').addEventListener('input', e => {
+    performState.fontScale = parseFloat(e.target.value);
+    document.getElementById('perform-overlay').style.setProperty(
+      '--perform-font-scale',
+      performState.fontScale
+    );
+    // ダイアグラムサイズも連動して再描画
+    if (performState.diagOn) renderPerformLines();
+  });
   
   // 演奏モード: モード切替
   const performModeRadios = document.querySelectorAll('input[name="perform-mode"]');
