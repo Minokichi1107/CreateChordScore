@@ -114,6 +114,13 @@ import {
 } from './csvImporter.js';
 
 import {
+  initTapMode,
+  updateTovTime,
+  renderTovLines,
+  resetTovFocus
+} from './tapmode.js';
+
+import {
   initReplace,
   rbRefresh
 } from './replace.js';
@@ -178,9 +185,7 @@ const popEl = document.getElementById('popup');
 let popT = null;
 
 // TAPモードオーバーレイ
-let tovFocusIdx = -1;
-let tovSeeking = false;
-let tovTapBtn = null;
+// tap mode state → tapmode.js に移動
 
 // 自動保存タイマー
 let asT = null;
@@ -850,7 +855,7 @@ function resetProject() {
   // Focus State
   focLine = -1;
   tapIdx = -1;
-  tovFocusIdx = -1;
+  resetTovFocus();
   
   // UI Reset
   document.getElementById('project-title').value = '';
@@ -927,153 +932,15 @@ function loadProj(data){
 }
 
 // ════════════════════════════════════════
-// TAP MODE OVERLAY
+// TAP MODE OVERLAY → tapmode.js に移動
 // ════════════════════════════════════════
-/**
- * TAPモードオーバーレイ制御
- * 
- * 【責務】
- * - TAPモードの開閉
- * - TAPオーバーレイ内の行描画（renderTovLines）
- * - 再生位置同期（syncTovPlayer, updateTovTime）
- * 
- * 【State】
- * - tovFocusIdx: TAPモード内のフォーカス行
- * - tovSeeking: シーク中フラグ
- * - tovTapBtn: TAPボタンDOM参照
- * 
- * 【データフロー】
- * TAP操作 → project.lines更新 → renderTovLines → UI反映
- */
 
-function openTapMode() {
-  document.getElementById('tap-overlay').classList.add('open');
-  renderTovLines();
-  syncTovPlayer();
-  // 音声が再生中なら同期
-  updateTovTime();
-}
 
-function closeTapMode() {
-  document.getElementById('tap-overlay').classList.remove('open');
-  refreshEditor(); // 編集エリアを最新に更新
-}
 
 // TAPオーバーレイ内の再生コントロールをメインaElに同期
-function syncTovPlayer() {
-  const tovPlay = document.getElementById('tov-play-btn');
-  tovPlay.textContent = aEl.paused ? '▶' : '⏸';
-  const d = aEl.duration || 0;
-  if (d > 0) {
-    const pct = aEl.currentTime / d * 100;
-    document.getElementById('tap-ov-seek-fill').style.width = pct + '%';
-    document.getElementById('tap-ov-seek-in').value = Math.round(aEl.currentTime / d * 1000);
-  }
-  document.getElementById('tap-ov-tapbtn').disabled = !aEl.src;
-}
 
-function updateTovTime() {
-  if (!document.getElementById('tap-overlay').classList.contains('open')) return;
-  const t = aEl.currentTime;
-  const d = aEl.duration || 0;
-  document.getElementById('tap-ov-time').textContent = fmt(t, true);
-  if (d > 0 && !tovSeeking) {
-    document.getElementById('tap-ov-seek-fill').style.width = (t / d * 100) + '%';
-    document.getElementById('tap-ov-seek-in').value = Math.round(t / d * 1000);
-  }
-  // 現在コード
-  if (window._ct && window._cn) {
-    let cur = '-';
-    for (let i = 0; i < window._ct.length; i++) { if (window._ct[i] <= t) cur = window._cn[i]; else break; }
-    document.getElementById('tap-ov-chord').textContent = cur;
-  }
-  // アクティブ行ハイライト＋スクロール
-  let ai = -1;
-  for (let i = project.lines.length - 1; i >= 0; i--) {
-    if (project.lines[i].time != null && project.lines[i].time <= t) { ai = i; break; }
-  }
-  const rows = document.querySelectorAll('.tap-ov-line');
-  rows.forEach((r, i) => r.classList.toggle('tov-active', i === ai));
-  if (ai >= 0 && rows[ai]) {
-    const area = document.getElementById('tap-ov-lines');
-    const el = rows[ai];
-    const top = el.offsetTop;
-    const h = area.clientHeight;
-    const target = top - h * 0.35;
-    if (top < area.scrollTop + h * 0.15 || top + el.offsetHeight > area.scrollTop + h * 0.85) {
-      area.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
-    }
-  }
-  updateTovStatus();
-}
 
-function renderTovLines() {
-  const area = document.getElementById('tap-ov-lines');
-  area.innerHTML = '';
-  project.lines.forEach((line, idx) => {
-    const row = document.createElement('div');
-    row.className = 'tap-ov-line';
-    if (idx === tovFocusIdx) row.style.borderColor = 'var(--green)';
 
-    // 時刻（クリックで削除）
-    const timeEl = document.createElement('div');
-    timeEl.className = 'tov-time' + (line.time != null ? '' : ' no-t');
-    timeEl.textContent = line.time != null ? fmt(line.time, true) : '--:--.--';
-    timeEl.title = line.time != null ? 'クリックで時刻を削除' : '未設定';
-    timeEl.addEventListener('click', e => {
-      e.stopPropagation();
-      if (line.time != null) { project.lines[idx].time = null; renderTovLines(); autoSaveLocal(); }
-    });
-
-    // リピートバッジ
-    const chordWrap = document.createElement('div');
-    chordWrap.className = 'tov-chords';
-    if (line.repeat) {
-      const rb = document.createElement('span');
-      rb.className = 'tov-repeat';
-      rb.textContent = `×${line.repeat.count}`;
-      chordWrap.appendChild(rb);
-    }
-    line.chords.forEach(c => {
-      if(c.type==='sep'){
-        const sp=document.createElement('span');
-        sp.style.cssText='color:var(--text3);font-size:15px;padding:0 1px;align-self:center';
-        sp.textContent='/';chordWrap.appendChild(sp);return;
-      }
-      const ct = document.createElement('span');
-      ct.className = 'tov-chord-tag';
-      ct.textContent = c.chord;
-      chordWrap.appendChild(ct);
-    });
-
-    // 歌詞
-    const lyricEl = document.createElement('div');
-    lyricEl.className = 'tov-lyric';
-    lyricEl.textContent = line.lyric || '(空)';
-
-    // 行クリック→フォーカス設定
-    row.addEventListener('click', () => {
-      tovFocusIdx = idx;
-      renderTovLines();
-      toast(`行${idx + 1}にフォーカス — TAP で時刻をセット`);
-    });
-
-    row.appendChild(timeEl);
-    row.appendChild(chordWrap);
-    row.appendChild(lyricEl);
-    area.appendChild(row);
-  });
-  updateTovStatus();
-}
-
-function updateTovStatus() {
-  const timed = project.lines.filter(l => l.time != null).length;
-  const total = project.lines.length;
-  const el1 = document.getElementById('tov-timed');
-  const el2 = document.getElementById('tov-total');
-  if (el1) el1.textContent = timed;
-  if (el2) el2.textContent = total;
-}
 
 // ⑦ コード置換バー → replace.js に移動
 
@@ -1339,108 +1206,11 @@ function setupEventHandlers() {
   // TAP Mode Events
   // ============================================
   
-  // TAP オーバーレイ ON/OFF
-  document.getElementById('btn-tapmode').addEventListener('click', openTapMode);
-  document.getElementById('btn-tapmode-close').addEventListener('click', closeTapMode);
-  
-  // TAP オーバーレイ内 再生コントロール
-  document.getElementById('tov-play-btn').addEventListener('click', () => {
-    if (!aEl.src) return;
-    aEl.paused ? aEl.play() : aEl.pause();
-  });
 
-  document.getElementById('tov-m5').addEventListener('click', () => {
-    aEl.currentTime = Math.max(0, aEl.currentTime - 5);
-  });
-
-  document.getElementById('tov-speed').addEventListener('input', e => {
-    const pct=parseInt(e.target.value);
-    setSpeed(pct);
-  });
-
-
-  // TAP オーバーレイ内 シークバー
-  const tovSeekIn = document.getElementById('tap-ov-seek-in');
-  tovSeekIn.addEventListener('mousedown', () => tovSeeking = true);
-  tovSeekIn.addEventListener('mouseup', () => {
-    tovSeeking = false;
-    aEl.currentTime = (tovSeekIn.value / 1000) * (aEl.duration || 0);
-  });
-  tovSeekIn.addEventListener('input', () => {
-    if (!tovSeeking) return;
-    const pct = tovSeekIn.value / 10;
-    document.getElementById('tap-ov-seek-fill').style.width = pct + '%';
-  });
-
-  // メインaElのイベント（TAPオーバーレイ同期用）
-  aEl.addEventListener('timeupdate', updateTovTime);
-  aEl.addEventListener('timeupdate', updatePerformFocus);
-  aEl.addEventListener('timeupdate', updatePerformPlayer);
-  aEl.addEventListener('play', () => {
-    document.getElementById('tov-play-btn').textContent = '⏸';
-    const performBtn = document.getElementById('perform-play-btn');
-    if (performBtn) performBtn.textContent = '⏸';
-  });
-  aEl.addEventListener('pause', () => {
-    document.getElementById('tov-play-btn').textContent = '▶';
-    const performBtn = document.getElementById('perform-play-btn');
-    if (performBtn) performBtn.textContent = '▶';
-  });
-
-  // TAPボタン（オーバーレイ）
-  tovTapBtn = document.getElementById('tap-ov-tapbtn');
-  tovTapBtn.addEventListener('click', () => {
-    if (!aEl.src) return;
-    const t = aEl.currentTime;
-    let idx = tovFocusIdx;
-    if (idx < 0 || idx >= project.lines.length) {
-      idx = project.lines.findIndex(l => l.time == null);
-    }
-    if (idx < 0) idx = 0;
-    if (idx < project.lines.length) {
-      project.lines[idx].time = parseFloat(t.toFixed(3));
-      // 次の行に自動フォーカス
-      tovFocusIdx = idx + 1;
-      renderTovLines();
-      autoSaveLocal();
-      // TAP視覚フィードバック
-      const rows = document.querySelectorAll('.tap-ov-line');
-      if (rows[idx]) {
-        rows[idx].classList.add('tov-tapped');
-        setTimeout(() => rows[idx].classList.remove('tov-tapped'), 350);
-      }
-      // フォーカス行が画面外なら次の行へスクロール
-      if (tovFocusIdx < project.lines.length && rows[tovFocusIdx]) {
-        const area = document.getElementById('tap-ov-lines');
-        const nextEl = rows[tovFocusIdx];
-        const top = nextEl.offsetTop;
-        const h = area.clientHeight;
-        if (top > area.scrollTop + h * 0.6) {
-          area.scrollTo({ top: top - h * 0.35, behavior: 'smooth' });
-        }
-      }
-    }
-    // ボタンアニメ
-    tovTapBtn.classList.add('tapping');
-    setTimeout(() => tovTapBtn.classList.remove('tapping'), 150);
-  });
 
   // ============================================
   // Global Keyboard Events
   // ============================================
-  document.addEventListener('keydown', e => {
-    if (!document.getElementById('tap-overlay').classList.contains('open')) return;
-    if (e.code === 'Space') { 
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      tovTapBtn.click(); 
-    }
-    if (e.code === 'ArrowLeft') aEl.currentTime = Math.max(0, aEl.currentTime - 5);
-    if (e.code === 'ArrowRight') aEl.currentTime = Math.min(aEl.duration || 0, aEl.currentTime + 5);
-    if (e.code === 'Escape') closeTapMode();
-  }, { capture: true }); // capture phase で先に処理
-
   // Ctrl+H で置換バー開閉
   document.addEventListener('keydown',e=>{
     if(e.ctrlKey&&e.key==='h'){
@@ -1670,6 +1440,17 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   // ④ Performance Mode 初期化
   initPerformMode(aEl, () => project.lines);
+
+  // ④-2 TAP Mode 初期化
+  initTapMode(aEl, {
+    getLines:      () => project.lines,
+    setLineTime:   (idx, time) => { project.lines[idx].time = time; },
+    autoSaveLocal: autoSaveLocal,
+    refreshEditor: refreshEditor,
+    fmt:           fmt,
+    setSpeed:      setSpeed,
+    toast:         toast
+  });
 
   // ⑤ Replace 初期化
   initReplace(
