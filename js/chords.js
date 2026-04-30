@@ -94,12 +94,12 @@ export function drawDiagram(frets, barre) {
   // Y軸 = 弦方向（上が6弦・下が1弦）
   // ════════════════════════════════════════
   const ST=6, FC=4;
-  // sS: 弦間隔(Y), fS: フレット間隔(X)
-  const sS=13, fS=16;
+  // sS: 弦間隔(Y), fS: フレット間隔(X) ※2倍サイズ
+  const sS=26, fS=32;
   // マージン
-  const mL=28, mT=8, mR=12, mB=14;
+  const mL=44, mT=10, mR=16, mB=16;
   // ミュート/開放記号のための左側スペース
-  const symW=14;
+  const symW=20;
   // グリッドサイズ
   const gW=fS*FC, gH=sS*(ST-1);
   const W=symW+mL+gW+mR, H=mT+gH+mB;

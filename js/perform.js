@@ -167,8 +167,11 @@ export function renderPerformLines() {
     }
 
     el.innerHTML = `
-      ${chordColumns ? `<div class="chords">${chordColumns}</div>` : '<div class="chords">&nbsp;</div>'}
-      <div class="lyric">${line.lyric || '&nbsp;'}${repeatHTML}</div>
+      <div class="chords-row">
+        ${chordColumns ? `<div class="chords">${chordColumns}</div>` : '<div class="chords">&nbsp;</div>'}
+        ${repeatHTML}
+      </div>
+      <div class="lyric">${line.lyric || '&nbsp;'}</div>
     `;
 
     container.appendChild(el);
