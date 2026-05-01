@@ -32,6 +32,10 @@ let _callbacks = {};
 let tovFocusIdx = -1;
 let tovSeeking = false;
 let tovTapBtn = null;
+let tovSelected = new Set();   // 複数選択中の行インデックス
+let tovLastClicked = -1;       // Shift範囲選択の基点
+let tovScrollLock = false;     // TAPボタン押下後の一時スクロールロック
+let tovScrollTimer = null;     // スクロールロック解除タイマー
 
 // ════════════════════════════════════════
 // INIT
@@ -56,6 +60,8 @@ export function initTapMode(aEl, callbacks) {
 
 export function resetTovFocus() {
   tovFocusIdx = -1;
+  tovSelected.clear();
+  tovLastClicked = -1;
 }
 
 // ════════════════════════════════════════
@@ -109,7 +115,7 @@ export function updateTovTime() {
     document.getElementById('tap-ov-chord').textContent = cur;
   }
 
-  // アクティブ行ハイライト＋スクロール
+  // アクティブ行ハイライト（再生位置）
   const lines = _callbacks.getLines();
   let ai = -1;
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -117,15 +123,16 @@ export function updateTovTime() {
   }
   const rows = document.querySelectorAll('.tap-ov-line');
   rows.forEach((r, i) => r.classList.toggle('tov-active', i === ai));
-  if (ai >= 0 && rows[ai]) {
+
+  // スクロールはTAPボタン押下後のロック中のみ（手動スクロールを妨げない）
+  if (tovScrollLock && tovFocusIdx >= 0 && rows[tovFocusIdx]) {
     const area = document.getElementById('tap-ov-lines');
-    const el = rows[ai];
-    const top = el.offsetTop;
+    const el = rows[tovFocusIdx];
+    // el.offsetTopはコンテナ内の絶対位置
+    const elTop = el.offsetTop - area.offsetTop;
     const h = area.clientHeight;
-    const target = top - h * 0.35;
-    if (top < area.scrollTop + h * 0.15 || top + el.offsetHeight > area.scrollTop + h * 0.85) {
-      area.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
-    }
+    const targetScrollTop = elTop - h * 0.4;
+    area.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
   }
   _updateTovStatus();
 }
@@ -185,11 +192,35 @@ export function renderTovLines() {
     lyricEl.className = 'tov-lyric';
     lyricEl.textContent = line.lyric || '(空)';
 
-    // 行クリック→フォーカス設定
-    row.addEventListener('click', () => {
-      tovFocusIdx = idx;
+    // フォーカス行・選択行のクラス付与
+    if (idx === tovFocusIdx) row.classList.add('tov-focus');
+    if (tovSelected.has(idx)) row.classList.add('tov-selected');
+
+    // 行クリック：
+    //   通常クリック    → フォーカス移動のみ
+    //   Ctrl+クリック   → 選択トグル
+    //   Shift+クリック  → 範囲選択
+    row.addEventListener('click', e => {
+      if (e.shiftKey && tovLastClicked >= 0) {
+        // 範囲選択
+        const from = Math.min(tovLastClicked, idx);
+        const to   = Math.max(tovLastClicked, idx);
+        for (let i = from; i <= to; i++) tovSelected.add(i);
+        tovLastClicked = idx;
+      } else if (e.ctrlKey || e.metaKey) {
+        // Ctrl+クリック：選択トグル
+        if (tovSelected.has(idx)) {
+          tovSelected.delete(idx);
+        } else {
+          tovSelected.add(idx);
+        }
+        tovLastClicked = idx;
+      } else {
+        // 通常クリック：フォーカス移動のみ（選択状態は変えない）
+        tovFocusIdx = idx;
+      }
       renderTovLines();
-      _callbacks.toast(`行${idx + 1}にフォーカス — TAP で時刻をセット`);
+      _updateSelectionBar();
     });
 
     row.appendChild(timeEl);
@@ -198,6 +229,7 @@ export function renderTovLines() {
     area.appendChild(row);
   });
   _updateTovStatus();
+  _updateSelectionBar();
 }
 
 function _updateTovStatus() {
@@ -208,6 +240,47 @@ function _updateTovStatus() {
   const el2 = document.getElementById('tov-total');
   if (el1) el1.textContent = timed;
   if (el2) el2.textContent = total;
+}
+
+// ════════════════════════════════════════
+// SELECTION BAR
+// ════════════════════════════════════════
+
+function _updateSelectionBar() {
+  const bar = document.getElementById('tov-selection-bar');
+  if (!bar) return;
+  const countEl = document.getElementById('tov-sel-count');
+  const n = tovSelected.size;
+  if (n > 0) {
+    bar.style.display = 'flex';
+    if (countEl) countEl.textContent = n;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function _clearSelectedTimes() {
+  const lines = _callbacks.getLines();
+  tovSelected.forEach(idx => {
+    if (idx < lines.length) lines[idx].time = null;
+  });
+  tovSelected.clear();
+  tovLastClicked = -1;
+  _callbacks.autoSaveLocal();
+  renderTovLines();
+  _callbacks.toast('選択した時刻を削除しました');
+}
+
+function _clearAllTimes() {
+  if (!confirm('すべての時刻データを消去しますか？')) return;
+  const lines = _callbacks.getLines();
+  lines.forEach(l => { l.time = null; });
+  tovSelected.clear();
+  tovLastClicked = -1;
+  tovFocusIdx = -1;
+  _callbacks.autoSaveLocal();
+  renderTovLines();
+  _callbacks.toast('すべての時刻を消去しました');
 }
 
 // ════════════════════════════════════════
@@ -289,17 +362,13 @@ function _setupEvents() {
         rows[idx].classList.add('tov-tapped');
         setTimeout(() => rows[idx].classList.remove('tov-tapped'), 350);
       }
-      // フォーカス行が画面外なら次の行へスクロール
-      if (tovFocusIdx < lines.length && rows[tovFocusIdx]) {
-        const area = document.getElementById('tap-ov-lines');
-        const nextEl = rows[tovFocusIdx];
-        const top = nextEl.offsetTop;
-        const h = area.clientHeight;
-        if (top > area.scrollTop + h * 0.6) {
-          area.scrollTo({ top: top - h * 0.35, behavior: 'smooth' });
-        }
-      }
+      // スクロールはupdateTovTime内のtovScrollLockで処理
     }
+    // TAPボタン押下後1秒間スクロールロック（フォーカス追尾）
+    tovScrollLock = true;
+    if (tovScrollTimer) clearTimeout(tovScrollTimer);
+    tovScrollTimer = setTimeout(() => { tovScrollLock = false; }, 1000);
+
     tovTapBtn.classList.add('tapping');
     setTimeout(() => tovTapBtn.classList.remove('tapping'), 150);
   });
@@ -315,6 +384,29 @@ function _setupEvents() {
     }
     if (e.code === 'ArrowLeft') _aEl.currentTime = Math.max(0, _aEl.currentTime - 5);
     if (e.code === 'ArrowRight') _aEl.currentTime = Math.min(_aEl.duration || 0, _aEl.currentTime + 5);
-    if (e.code === 'Escape') closeTapMode();
+    if (e.code === 'Escape') {
+      if (tovSelected.size > 0) {
+        tovSelected.clear();
+        tovLastClicked = -1;
+        renderTovLines();
+        _updateSelectionBar();
+      } else {
+        closeTapMode();
+      }
+    }
   }, { capture: true });
+
+  // 全消去ボタン
+  document.getElementById('tov-clear-all')?.addEventListener('click', _clearAllTimes);
+
+  // 選択削除ボタン
+  document.getElementById('tov-clear-selected')?.addEventListener('click', _clearSelectedTimes);
+
+  // 選択解除ボタン
+  document.getElementById('tov-deselect')?.addEventListener('click', () => {
+    tovSelected.clear();
+    tovLastClicked = -1;
+    renderTovLines();
+    _updateSelectionBar();
+  });
 }

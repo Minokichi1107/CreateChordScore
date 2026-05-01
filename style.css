@@ -369,6 +369,20 @@ body.diag-off .chord-tag{cursor:default}
   border-color:var(--green);
   transition:background 0s,border-color 0s;
 }
+/* フォーカス行（次にTAPする行） */
+.tap-ov-line.tov-focus{
+  background:rgba(61,220,132,.08);
+  border-color:var(--green);
+}
+/* 選択行 */
+.tap-ov-line.tov-selected{
+  background:rgba(255,184,64,.10);
+  border-color:rgba(255,184,64,.5);
+}
+.tap-ov-line.tov-selected.tov-focus{
+  background:rgba(61,220,132,.12);
+  border-color:var(--green);
+}
 .tov-time{
   font-family:var(--mono);font-size:11px;
   color:var(--amber);min-width:58px;flex-shrink:0;

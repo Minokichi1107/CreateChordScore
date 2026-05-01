@@ -190,8 +190,16 @@
   </div>
   <div id="tap-ov-lines"></div>
   <div id="tap-ov-footer">
-    <div>時刻済み: <span id="tov-timed">0</span> / <span id="tov-total">0</span> 行</div>
-    <div class="tov-hint">行をクリック → その行にフォーカス　TAP → 現在時刻をセット　時刻数字クリック → 削除</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div>時刻済み: <span id="tov-timed">0</span> / <span id="tov-total">0</span> 行</div>
+      <button id="tov-clear-all" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--red);cursor:pointer;font-family:var(--mono)">全消去</button>
+    </div>
+    <div id="tov-selection-bar" style="display:none;align-items:center;gap:8px;">
+      <span style="font-size:11px;color:var(--amber)"><span id="tov-sel-count">0</span>件選択中</span>
+      <button id="tov-clear-selected" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--red);cursor:pointer;font-family:var(--mono)">選択した時刻を削除</button>
+      <button id="tov-deselect" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono)">選択解除</button>
+    </div>
+    <div class="tov-hint">クリック: フォーカス移動　Ctrl+クリック: 選択　Shift+クリック: 範囲選択　TAP: 時刻をセット　時刻数字クリック: 削除　Esc: 選択解除 / 閉じる</div>
   </div>
 </div>
 
