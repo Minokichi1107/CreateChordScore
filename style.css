@@ -369,6 +369,20 @@ body.diag-off .chord-tag{cursor:default}
   border-color:var(--green);
   transition:background 0s,border-color 0s;
 }
+/* フォーカス行（次にTAPする行） */
+.tap-ov-line.tov-focus{
+  background:rgba(61,220,132,.08);
+  border-color:var(--green);
+}
+/* 選択行 */
+.tap-ov-line.tov-selected{
+  background:rgba(255,184,64,.10);
+  border-color:rgba(255,184,64,.5);
+}
+.tap-ov-line.tov-selected.tov-focus{
+  background:rgba(61,220,132,.12);
+  border-color:var(--green);
+}
 .tov-time{
   font-family:var(--mono);font-size:11px;
   color:var(--amber);min-width:58px;flex-shrink:0;
@@ -540,9 +554,14 @@ body.diag-off .chord-tag{cursor:default}
 }
 
 /* 演奏モード: 行 */
+#perform-overlay {
+  --perform-font-scale: 1;
+}
+
 .perform-line {
   margin: 16px 0;
   text-align: center;
+  font-size: calc(15px * var(--perform-font-scale));
 }
 
 /* 演奏モード: フェード表示（追従モード時のみ） */
@@ -564,16 +583,6 @@ body.diag-off .chord-tag{cursor:default}
 }
 
 /* 演奏モード: コードエリア */
-.perform-line .chords {
-  font-family: var(--mono);
-  color: var(--accent);
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  margin-bottom: 8px;
-  min-height: 20px;
-}
-
 .perform-line.focused .chords {
   margin-bottom: 12px;
 }
@@ -588,7 +597,7 @@ body.diag-off .chord-tag{cursor:default}
 
 /* コード名 */
 .perform-chord-name {
-  font-size: 16px;
+  font-size: 1em;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 3px;
@@ -596,7 +605,7 @@ body.diag-off .chord-tag{cursor:default}
 }
 
 .perform-line.focused .perform-chord-name {
-  font-size: 24px;
+  font-size: 1.4em;
   font-weight: bold;
 }
 
@@ -612,12 +621,12 @@ body.diag-off .chord-tag{cursor:default}
 }
 
 .perform-chord-diagram svg {
-  width: 50px;
+  width: auto;
   height: auto;
 }
 
 .perform-line.focused .perform-chord-diagram svg {
-  width: 70px;
+  width: auto;
 }
 
 .perform-chord-empty {
@@ -628,26 +637,26 @@ body.diag-off .chord-tag{cursor:default}
 /* 演奏モード: 小節線 */
 .perform-sep {
   font-family: var(--mono);
-  font-size: 24px;
+  font-size: 1.4em;
   color: var(--accent);
   font-weight: bold;
   line-height: 1;
 }
 
 .perform-line.focused .perform-sep {
-  font-size: 32px;
+  font-size: 1.8em;
 }
 
 /* 歌詞 */
 .perform-line .lyric {
-  font-size: 16px;
+  font-size: 1.1em;
   color: var(--text);
-  min-height: 20px;
+  min-height: 1.4em;
 }
 
 .perform-line.focused .lyric {
-  font-size: 20px;
-  min-height: 24px;
+  font-size: 1.4em;
+  min-height: 1.6em;
 }
 
 /* 演奏モード: 繰り返し記号 */
@@ -681,32 +690,30 @@ body.diag-off .chord-tag{cursor:default}
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start;
+  align-items: center;
   gap: 16px;
   margin-bottom: 2px;
-  min-height: 20px;
 }
 
-/* コード名 */
+/* コード名（font-sizeはemベースに集約済み） */
 .perform-chord-name {
-  font-size: 14px;
   font-weight: 600;
   min-width: 28px;
   text-align: center;
 }
 
 .perform-line.focused .perform-chord-name {
-  font-size: 18px;
   font-weight: bold;
 }
 
 /* ダイアグラム */
 .perform-chord-diagram svg {
-  width: 40px;
+  width: auto;
   height: auto;
 }
 
 .perform-line.focused .perform-chord-diagram svg {
-  width: 50px;
+  width: auto;
 }
 
 /* 行間隔 */
@@ -715,18 +722,16 @@ body.diag-off .chord-tag{cursor:default}
   text-align: left;
 }
 
-/* 歌詞 */
+/* 歌詞（font-sizeはemベースに集約済み） */
 .perform-line .lyric {
-  font-size: 15px;
   color: var(--text);
-  min-height: 14px;
+  min-height: 1.4em;
   text-align: left;
   padding-left: 4px;
 }
 
 .perform-line.focused .lyric {
-  font-size: 18px;
-  min-height: 22px;
+  min-height: 1.6em;
 }
 
 /* コンパクトモード（ダイアグラムOFF） */
@@ -742,10 +747,4 @@ body.diag-off .chord-tag{cursor:default}
   margin-bottom: 4px;
 }
 
-#perform-overlay.compact-mode .perform-chord-name {
-  font-size: 15px;
-}
-
-#perform-overlay.compact-mode .perform-line.focused .perform-chord-name {
-  font-size: 20px;
-}
+/* compact-modeはダイアグラム非表示のみ。font-sizeはemスケールに従う */

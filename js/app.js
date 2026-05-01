@@ -113,6 +113,30 @@ import {
   parseJSON
 } from './csvImporter.js';
 
+import {
+  initTapMode,
+  updateTovTime,
+  renderTovLines,
+  resetTovFocus
+} from './tapmode.js';
+
+import {
+  initReplace,
+  rbRefresh
+} from './replace.js';
+
+import {
+  initPerformMode,
+  openPerformMode,
+  closePerformMode,
+  renderPerformLines,
+  updatePerformFocus,
+  updatePerformPlayer,
+  nextPerformPage,
+  prevPerformPage,
+  performState
+} from './perform.js';
+
 // ════════════════════════════════════════
 // GLOBAL STATE
 // ════════════════════════════════════════
@@ -161,14 +185,7 @@ const popEl = document.getElementById('popup');
 let popT = null;
 
 // TAPモードオーバーレイ
-let tovFocusIdx = -1;
-let tovSeeking = false;
-let tovTapBtn = null;
-
-// コード置換バー
-let rbSnapshot = null;
-let rbHits = [];
-let rbCurr = -1;
+// tap mode state → tapmode.js に移動
 
 // 自動保存タイマー
 let asT = null;
@@ -838,7 +855,7 @@ function resetProject() {
   // Focus State
   focLine = -1;
   tapIdx = -1;
-  tovFocusIdx = -1;
+  resetTovFocus();
   
   // UI Reset
   document.getElementById('project-title').value = '';
@@ -915,235 +932,17 @@ function loadProj(data){
 }
 
 // ════════════════════════════════════════
-// TAP MODE OVERLAY
+// TAP MODE OVERLAY → tapmode.js に移動
 // ════════════════════════════════════════
-/**
- * TAPモードオーバーレイ制御
- * 
- * 【責務】
- * - TAPモードの開閉
- * - TAPオーバーレイ内の行描画（renderTovLines）
- * - 再生位置同期（syncTovPlayer, updateTovTime）
- * 
- * 【State】
- * - tovFocusIdx: TAPモード内のフォーカス行
- * - tovSeeking: シーク中フラグ
- * - tovTapBtn: TAPボタンDOM参照
- * 
- * 【データフロー】
- * TAP操作 → project.lines更新 → renderTovLines → UI反映
- */
 
-function openTapMode() {
-  document.getElementById('tap-overlay').classList.add('open');
-  renderTovLines();
-  syncTovPlayer();
-  // 音声が再生中なら同期
-  updateTovTime();
-}
 
-function closeTapMode() {
-  document.getElementById('tap-overlay').classList.remove('open');
-  refreshEditor(); // 編集エリアを最新に更新
-}
 
 // TAPオーバーレイ内の再生コントロールをメインaElに同期
-function syncTovPlayer() {
-  const tovPlay = document.getElementById('tov-play-btn');
-  tovPlay.textContent = aEl.paused ? '▶' : '⏸';
-  const d = aEl.duration || 0;
-  if (d > 0) {
-    const pct = aEl.currentTime / d * 100;
-    document.getElementById('tap-ov-seek-fill').style.width = pct + '%';
-    document.getElementById('tap-ov-seek-in').value = Math.round(aEl.currentTime / d * 1000);
-  }
-  document.getElementById('tap-ov-tapbtn').disabled = !aEl.src;
-}
 
-function updateTovTime() {
-  if (!document.getElementById('tap-overlay').classList.contains('open')) return;
-  const t = aEl.currentTime;
-  const d = aEl.duration || 0;
-  document.getElementById('tap-ov-time').textContent = fmt(t, true);
-  if (d > 0 && !tovSeeking) {
-    document.getElementById('tap-ov-seek-fill').style.width = (t / d * 100) + '%';
-    document.getElementById('tap-ov-seek-in').value = Math.round(t / d * 1000);
-  }
-  // 現在コード
-  if (window._ct && window._cn) {
-    let cur = '-';
-    for (let i = 0; i < window._ct.length; i++) { if (window._ct[i] <= t) cur = window._cn[i]; else break; }
-    document.getElementById('tap-ov-chord').textContent = cur;
-  }
-  // アクティブ行ハイライト＋スクロール
-  let ai = -1;
-  for (let i = project.lines.length - 1; i >= 0; i--) {
-    if (project.lines[i].time != null && project.lines[i].time <= t) { ai = i; break; }
-  }
-  const rows = document.querySelectorAll('.tap-ov-line');
-  rows.forEach((r, i) => r.classList.toggle('tov-active', i === ai));
-  if (ai >= 0 && rows[ai]) {
-    const area = document.getElementById('tap-ov-lines');
-    const el = rows[ai];
-    const top = el.offsetTop;
-    const h = area.clientHeight;
-    const target = top - h * 0.35;
-    if (top < area.scrollTop + h * 0.15 || top + el.offsetHeight > area.scrollTop + h * 0.85) {
-      area.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
-    }
-  }
-  updateTovStatus();
-}
 
-function renderTovLines() {
-  const area = document.getElementById('tap-ov-lines');
-  area.innerHTML = '';
-  project.lines.forEach((line, idx) => {
-    const row = document.createElement('div');
-    row.className = 'tap-ov-line';
-    if (idx === tovFocusIdx) row.style.borderColor = 'var(--green)';
 
-    // 時刻（クリックで削除）
-    const timeEl = document.createElement('div');
-    timeEl.className = 'tov-time' + (line.time != null ? '' : ' no-t');
-    timeEl.textContent = line.time != null ? fmt(line.time, true) : '--:--.--';
-    timeEl.title = line.time != null ? 'クリックで時刻を削除' : '未設定';
-    timeEl.addEventListener('click', e => {
-      e.stopPropagation();
-      if (line.time != null) { project.lines[idx].time = null; renderTovLines(); autoSaveLocal(); }
-    });
 
-    // リピートバッジ
-    const chordWrap = document.createElement('div');
-    chordWrap.className = 'tov-chords';
-    if (line.repeat) {
-      const rb = document.createElement('span');
-      rb.className = 'tov-repeat';
-      rb.textContent = `×${line.repeat.count}`;
-      chordWrap.appendChild(rb);
-    }
-    line.chords.forEach(c => {
-      if(c.type==='sep'){
-        const sp=document.createElement('span');
-        sp.style.cssText='color:var(--text3);font-size:15px;padding:0 1px;align-self:center';
-        sp.textContent='/';chordWrap.appendChild(sp);return;
-      }
-      const ct = document.createElement('span');
-      ct.className = 'tov-chord-tag';
-      ct.textContent = c.chord;
-      chordWrap.appendChild(ct);
-    });
-
-    // 歌詞
-    const lyricEl = document.createElement('div');
-    lyricEl.className = 'tov-lyric';
-    lyricEl.textContent = line.lyric || '(空)';
-
-    // 行クリック→フォーカス設定
-    row.addEventListener('click', () => {
-      tovFocusIdx = idx;
-      renderTovLines();
-      toast(`行${idx + 1}にフォーカス — TAP で時刻をセット`);
-    });
-
-    row.appendChild(timeEl);
-    row.appendChild(chordWrap);
-    row.appendChild(lyricEl);
-    area.appendChild(row);
-  });
-  updateTovStatus();
-}
-
-function updateTovStatus() {
-  const timed = project.lines.filter(l => l.time != null).length;
-  const total = project.lines.length;
-  const el1 = document.getElementById('tov-timed');
-  const el2 = document.getElementById('tov-total');
-  if (el1) el1.textContent = timed;
-  if (el2) el2.textContent = total;
-}
-
-// ════════════════════════════════════════
-// ⑦ コード置換バー
-// ════════════════════════════════════════
-
-function rbGetFind(){ return document.getElementById('rb-find').value.trim(); }
-function rbGetRepl(){ return document.getElementById('rb-replace').value.trim(); }
-function rbScopeAll(){ return document.getElementById('rb-all').checked; }
-
-// ヒットリストを更新してタグをハイライト
-function rbRefresh(){
-  // 既存ハイライトをクリア
-  document.querySelectorAll('.chord-tag.rb-hit,.chord-tag.rb-curr').forEach(el=>{
-    el.classList.remove('rb-hit','rb-curr');
-  });
-  rbHits=[];
-  const find=rbGetFind();
-  if(!find){document.getElementById('rb-count').textContent='-';rbCurr=-1;return;}
-
-  const scopeAll=rbScopeAll();
-  const targetLines=scopeAll
-    ? project.lines.map((_,i)=>i)
-    : (focLine>=0?[focLine]:[]);
-
-  targetLines.forEach(li=>{
-    project.lines[li].chords.forEach((c,ci)=>{
-      if(c.type==='sep')return;
-      if(c.chord===find) rbHits.push({li,ci});
-    });
-  });
-
-  document.getElementById('rb-count').textContent=
-    rbHits.length ? `${rbHits.length}件` : '0件';
-
-  // ヒットタグを黄色に
-  rbHits.forEach(({li,ci})=>{
-    const tag=document.querySelector(`.line-row[data-idx="${li}"] .chord-tag:nth-child(${ci+2})`);
-    // nth-child はリピートバッジの分ズレるので data属性で探す
-  });
-  // data属性ベースで確実にハイライト
-  rbHighlightAll();
-  if(rbCurr>=rbHits.length) rbCurr=0;
-  rbScrollToCurrent();
-}
-
-function rbHighlightAll(){
-  // まずレンダリング済みタグを全走査
-  document.querySelectorAll('.chord-tag').forEach(tag=>{
-    const nameEl=tag.querySelector('.chord-name');
-    if(!nameEl)return;
-    const chord=nameEl.textContent;
-    const find=rbGetFind();
-    if(chord===find) tag.classList.add('rb-hit');
-    else tag.classList.remove('rb-hit','rb-curr');
-  });
-}
-
-function rbScrollToCurrent(){
-  if(rbCurr<0||rbCurr>=rbHits.length){
-    document.getElementById('rb-count').textContent=
-      rbHits.length?`${rbHits.length}件`:'0件';
-    return;
-  }
-  document.getElementById('rb-count').textContent=
-    `${rbCurr+1} / ${rbHits.length}件`;
-  const {li}=rbHits[rbCurr];
-
-  // editor-area内スクロール（scrollEditorToRowで統一、force=trueで必ず動かす）
-  const rows=document.querySelectorAll('.line-row');
-  if(rows[li]) scrollEditorToRow(rows[li], true);
-
-  // 現在ハイライトをrb-currに
-  document.querySelectorAll('.chord-tag.rb-curr').forEach(el=>el.classList.remove('rb-curr'));
-  rbHits.forEach((h,i)=>{
-    if(i!==rbCurr)return;
-    const row=rows[h.li];
-    if(!row)return;
-    const nonSepIdx=project.lines[h.li].chords.slice(0,h.ci+1).filter(c=>c.type!=='sep').length-1;
-    const allTags=row.querySelectorAll('.chord-tag');
-    if(allTags[nonSepIdx]) allTags[nonSepIdx].classList.add('rb-curr');
-  });
-}
+// ⑦ コード置換バー → replace.js に移動
 
 // ════════════════════════════════════════
 // ⑤ 音量バー
@@ -1407,108 +1206,11 @@ function setupEventHandlers() {
   // TAP Mode Events
   // ============================================
   
-  // TAP オーバーレイ ON/OFF
-  document.getElementById('btn-tapmode').addEventListener('click', openTapMode);
-  document.getElementById('btn-tapmode-close').addEventListener('click', closeTapMode);
-  
-  // TAP オーバーレイ内 再生コントロール
-  document.getElementById('tov-play-btn').addEventListener('click', () => {
-    if (!aEl.src) return;
-    aEl.paused ? aEl.play() : aEl.pause();
-  });
 
-  document.getElementById('tov-m5').addEventListener('click', () => {
-    aEl.currentTime = Math.max(0, aEl.currentTime - 5);
-  });
-
-  document.getElementById('tov-speed').addEventListener('input', e => {
-    const pct=parseInt(e.target.value);
-    setSpeed(pct);
-  });
-
-
-  // TAP オーバーレイ内 シークバー
-  const tovSeekIn = document.getElementById('tap-ov-seek-in');
-  tovSeekIn.addEventListener('mousedown', () => tovSeeking = true);
-  tovSeekIn.addEventListener('mouseup', () => {
-    tovSeeking = false;
-    aEl.currentTime = (tovSeekIn.value / 1000) * (aEl.duration || 0);
-  });
-  tovSeekIn.addEventListener('input', () => {
-    if (!tovSeeking) return;
-    const pct = tovSeekIn.value / 10;
-    document.getElementById('tap-ov-seek-fill').style.width = pct + '%';
-  });
-
-  // メインaElのイベント（TAPオーバーレイ同期用）
-  aEl.addEventListener('timeupdate', updateTovTime);
-  aEl.addEventListener('timeupdate', updatePerformFocus);
-  aEl.addEventListener('timeupdate', updatePerformPlayer);
-  aEl.addEventListener('play', () => {
-    document.getElementById('tov-play-btn').textContent = '⏸';
-    const performBtn = document.getElementById('perform-play-btn');
-    if (performBtn) performBtn.textContent = '⏸';
-  });
-  aEl.addEventListener('pause', () => {
-    document.getElementById('tov-play-btn').textContent = '▶';
-    const performBtn = document.getElementById('perform-play-btn');
-    if (performBtn) performBtn.textContent = '▶';
-  });
-
-  // TAPボタン（オーバーレイ）
-  tovTapBtn = document.getElementById('tap-ov-tapbtn');
-  tovTapBtn.addEventListener('click', () => {
-    if (!aEl.src) return;
-    const t = aEl.currentTime;
-    let idx = tovFocusIdx;
-    if (idx < 0 || idx >= project.lines.length) {
-      idx = project.lines.findIndex(l => l.time == null);
-    }
-    if (idx < 0) idx = 0;
-    if (idx < project.lines.length) {
-      project.lines[idx].time = parseFloat(t.toFixed(3));
-      // 次の行に自動フォーカス
-      tovFocusIdx = idx + 1;
-      renderTovLines();
-      autoSaveLocal();
-      // TAP視覚フィードバック
-      const rows = document.querySelectorAll('.tap-ov-line');
-      if (rows[idx]) {
-        rows[idx].classList.add('tov-tapped');
-        setTimeout(() => rows[idx].classList.remove('tov-tapped'), 350);
-      }
-      // フォーカス行が画面外なら次の行へスクロール
-      if (tovFocusIdx < project.lines.length && rows[tovFocusIdx]) {
-        const area = document.getElementById('tap-ov-lines');
-        const nextEl = rows[tovFocusIdx];
-        const top = nextEl.offsetTop;
-        const h = area.clientHeight;
-        if (top > area.scrollTop + h * 0.6) {
-          area.scrollTo({ top: top - h * 0.35, behavior: 'smooth' });
-        }
-      }
-    }
-    // ボタンアニメ
-    tovTapBtn.classList.add('tapping');
-    setTimeout(() => tovTapBtn.classList.remove('tapping'), 150);
-  });
 
   // ============================================
   // Global Keyboard Events
   // ============================================
-  document.addEventListener('keydown', e => {
-    if (!document.getElementById('tap-overlay').classList.contains('open')) return;
-    if (e.code === 'Space') { 
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      tovTapBtn.click(); 
-    }
-    if (e.code === 'ArrowLeft') aEl.currentTime = Math.max(0, aEl.currentTime - 5);
-    if (e.code === 'ArrowRight') aEl.currentTime = Math.min(aEl.duration || 0, aEl.currentTime + 5);
-    if (e.code === 'Escape') closeTapMode();
-  }, { capture: true }); // capture phase で先に処理
-
   // Ctrl+H で置換バー開閉
   document.addEventListener('keydown',e=>{
     if(e.ctrlKey&&e.key==='h'){
@@ -1593,6 +1295,17 @@ function setupEventHandlers() {
     
     // 再レンダリング不要（CSSで制御）
   });
+
+  // 演奏モード: フォントスケール
+  document.getElementById('perform-font-scale').addEventListener('input', e => {
+    performState.fontScale = parseFloat(e.target.value);
+    document.getElementById('perform-overlay').style.setProperty(
+      '--perform-font-scale',
+      performState.fontScale
+    );
+    // ダイアグラムサイズも連動して再描画
+    if (performState.diagOn) renderPerformLines();
+  });
   
   // 演奏モード: モード切替
   const performModeRadios = document.querySelectorAll('input[name="perform-mode"]');
@@ -1600,6 +1313,11 @@ function setupEventHandlers() {
     performModeRadios.forEach(radio => {
       radio.addEventListener('change', e => {
         performState.mode = e.target.value;
+        // staticモードに切り替えた時はfocusIdxをリセット
+        if (performState.mode === 'static') {
+          performState.focusIdx = -1;
+          document.querySelectorAll('.perform-line').forEach(el => el.classList.remove('focused'));
+        }
         renderPerformLines();
       });
     });
@@ -1645,130 +1363,7 @@ function setupEventHandlers() {
     }
   });
   
-  // 演奏モード: スワイプ/ドラッグ操作
-  let pointerStartX = 0;
-  let pointerStartY = 0;
-  
-  const performLines = document.getElementById('perform-lines');
-  
-  performLines.addEventListener('pointerdown', e => {
-    if (!performState.active || performState.mode !== 'static') return;
-    pointerStartX = e.clientX;
-    pointerStartY = e.clientY;
-  });
-  
-  performLines.addEventListener('pointerup', e => {
-    if (!performState.active || performState.mode !== 'static') return;
-    
-    const deltaX = e.clientX - pointerStartX;
-    const deltaY = e.clientY - pointerStartY;
-    
-    // 移動が小さい場合はクリック判定
-    if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
-    
-    // 縦方向の移動が大きい場合はスワイプ判定しない
-    if (Math.abs(deltaY) > Math.abs(deltaX)) return;
-    
-    const threshold = 50;
-    
-    // 右スワイプ: 前ページ
-    if (deltaX > threshold) {
-      prevPerformPage();
-    }
-    // 左スワイプ: 次ページ
-    else if (deltaX < -threshold) {
-      nextPerformPage();
-    }
-  });
-
   // ============================================
-  // Replace Bar Events
-  // ============================================
-  document.getElementById('rb-find').addEventListener('input',()=>{rbCurr=0;rbRefresh();});
-  document.getElementById('rb-replace').addEventListener('input',()=>{});
-  document.getElementById('rb-all').addEventListener('change',()=>{rbCurr=0;rbRefresh();});
-  document.getElementById('rb-focus').addEventListener('change',()=>{rbCurr=0;rbRefresh();});
-
-  document.getElementById('rb-next').addEventListener('click',()=>{
-    if(!rbHits.length){rbRefresh();return;}
-    rbCurr=(rbCurr+1)%rbHits.length;
-    rbHighlightAll();rbScrollToCurrent();
-    setTimeout(()=>document.getElementById('rb-find').focus(),10);
-  });
-
-  document.getElementById('rb-prev').addEventListener('click',()=>{
-    if(!rbHits.length){rbRefresh();return;}
-    rbCurr=(rbCurr-1+rbHits.length)%rbHits.length;
-    rbHighlightAll();rbScrollToCurrent();
-    setTimeout(()=>document.getElementById('rb-find').focus(),10);
-  });
-
-  document.getElementById('rb-one').addEventListener('click',()=>{
-    if(!rbHits.length||rbCurr<0||rbCurr>=rbHits.length)return;
-    const repl=rbGetRepl();
-    const {li,ci}=rbHits[rbCurr];
-    if(!rbSnapshot) rbSnapshot=JSON.stringify(project.lines);
-    document.getElementById('rb-undo').disabled=false;
-    if(repl===''){
-      project.lines[li].chords.splice(ci,1);
-    } else {
-      project.lines[li].chords[ci].chord=repl;
-      addToPaletteIfNew(repl);
-    }
-    refreshEditor();
-    rbHits=[];rbCurr=0;rbRefresh();
-    toast(`1つ置換しました`);
-    setTimeout(()=>document.getElementById('rb-find').focus(),10);
-  });
-
-  document.getElementById('rb-all-btn').addEventListener('click',()=>{
-    const find=rbGetFind();
-    const repl=rbGetRepl();
-    if(!find)return;
-    rbSnapshot=JSON.stringify(project.lines);
-    document.getElementById('rb-undo').disabled=false;
-    const scopeAll=rbScopeAll();
-    let count=0;
-    project.lines.forEach((line,li)=>{
-      if(!scopeAll&&li!==focLine)return;
-      for(let ci=line.chords.length-1;ci>=0;ci--){
-        const c=line.chords[ci];
-        if(c.type==='sep'||c.chord!==find)continue;
-        if(repl==='') line.chords.splice(ci,1);
-        else { line.chords[ci].chord=repl; addToPaletteIfNew(repl); }
-        count++;
-      }
-    });
-    refreshEditor();
-    rbHits=[];rbCurr=0;rbRefresh();
-    toast(`${count}件置換しました`);
-  });
-
-  document.getElementById('rb-undo').addEventListener('click',()=>{
-    if(!rbSnapshot)return;
-    project.lines=JSON.parse(rbSnapshot);
-    rbSnapshot=null;
-    document.getElementById('rb-undo').disabled=true;
-    refreshEditor();
-    rbHits=[];rbCurr=0;rbRefresh();
-    toast('置換を元に戻しました');
-  });
-
-  document.getElementById('rb-close').addEventListener('click',()=>{
-    document.getElementById('replace-bar').classList.remove('open');
-    document.querySelectorAll('.chord-tag.rb-hit,.chord-tag.rb-curr').forEach(el=>{
-      el.classList.remove('rb-hit','rb-curr');
-    });
-    rbHits=[];rbCurr=-1;
-  });
-
-  document.getElementById('btn-replace-open').addEventListener('click',()=>{
-    const bar=document.getElementById('replace-bar');
-    bar.classList.toggle('open');
-    if(bar.classList.contains('open')){
-      setTimeout(()=>document.getElementById('rb-find').focus(),80);
-    }
-  });
 
   // ============================================
   // Project Meta Events
@@ -1843,6 +1438,38 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   initAudioEngine(aEl, audioElements, audioCallbacks);
 
+  // ④ Performance Mode 初期化
+  initPerformMode(aEl, () => project.lines);
+
+  // ④-2 TAP Mode 初期化
+  initTapMode(aEl, {
+    getLines:      () => project.lines,
+    setLineTime:   (idx, time) => { project.lines[idx].time = time; },
+    autoSaveLocal: autoSaveLocal,
+    refreshEditor: refreshEditor,
+    fmt:           fmt,
+    setSpeed:      setSpeed,
+    toast:         toast
+  });
+
+  // Audio timeupdate リスナー（initTapMode/initPerformModeの後に登録）
+  aEl.addEventListener('timeupdate', updateTovTime);
+  aEl.addEventListener('timeupdate', updatePerformFocus);
+  aEl.addEventListener('timeupdate', updatePerformPlayer);
+
+  // ⑤ Replace 初期化
+  initReplace(
+    () => project.lines,
+    (lines) => { project.lines = lines; },
+    {
+      getFocLine:        () => focLine,
+      scrollEditorToRow: scrollEditorToRow,
+      addToPaletteIfNew: addToPaletteIfNew,
+      refreshEditor:     refreshEditor,
+      toast:             toast
+    }
+  );
+
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
   loadCustomDiagrams();
   const curDiagChord = document.getElementById('diag-in').value.trim();
@@ -1867,223 +1494,3 @@ window.addEventListener('DOMContentLoaded',()=>{
   }
   refreshEditor();renderPalette();
 });
-
-// ════════════════════════════════════════
-// PERFORM MODE
-// ════════════════════════════════════════
-
-const performState = {
-  active: false,
-  focusIdx: -1,
-  diagOn: true,
-  mode: 'follow',
-  page: 0,
-  linesPerPage: 10
-};
-
-// 演奏モード: ビューポートベースのページング
-function nextPerformPage() {
-  const container = document.getElementById('perform-lines');
-  container.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
-}
-
-function prevPerformPage() {
-  const container = document.getElementById('perform-lines');
-  container.scrollBy({ top: -window.innerHeight, behavior: 'smooth' });
-}
-
-function openPerformMode() {
-  const overlay = document.getElementById('perform-overlay');
-  overlay.hidden = false;
-  overlay.style.display = 'flex';
-  
-  performState.active = true;
-  performState.focusIdx = -1;
-  performState.mode = 'follow';
-  
-  // Title設定
-  const title = document.getElementById('project-title').value || '無題';
-  const titleEl = document.getElementById('perform-title');
-  if (titleEl) {
-    titleEl.textContent = `🎸 演奏モード — ${title}`;
-  }
-  
-  // 行描画
-  renderPerformLines();
-  
-  // 再生状態同期
-  updatePerformPlayer();
-  
-  // スワイプイベント
-  setupPerformSwipe();
-}
-
-function closePerformMode() {
-  const overlay = document.getElementById('perform-overlay');
-  overlay.hidden = true;
-  overlay.style.display = 'none';
-  performState.active = false;
-}
-
-function renderPerformLines() {
-  const container = document.getElementById('perform-lines');
-  const overlay = document.getElementById('perform-overlay');
-  container.innerHTML = '';
-  
-  // 静止モード時はdata属性追加（CSS用）
-  if (performState.mode === 'static') {
-    overlay.setAttribute('data-static-mode', 'true');
-  } else {
-    overlay.removeAttribute('data-static-mode');
-  }
-  
-  project.lines.forEach((line, i) => {
-    const el = document.createElement('div');
-    el.className = 'perform-line';
-    
-    // 静止モード: 等サイズ表示
-    if (performState.mode === 'static') {
-      el.classList.add('static-mode');
-    }
-    
-    el.dataset.idx = i;
-    
-    // コード列生成（小節線と繰り返しを含む）
-    let chordColumns = '';
-    
-    if (line.chords.length > 0) {
-      chordColumns = line.chords.map(c => {
-        // 小節線（両形式に対応）
-        if (c.type === 'sep' || c.chord === '/') {
-          return `<div class="perform-chord-col"><div class="perform-sep">/</div></div>`;
-        }
-        
-        // コード
-        if (c.chord && c.chord !== '') {
-          const chordName = c.chord;
-          let diagramHTML = '';
-          
-          if (performState.diagOn) {
-            const result = lookupChord(chordName);
-            if (result && result.data.v.length > 0) {
-              const vr = result.data.v[0];
-              diagramHTML = drawDiagram(vr.f, vr.b || null);
-            } else {
-              diagramHTML = '<div class="perform-chord-empty">-</div>';
-            }
-          }
-          
-          return `
-            <div class="perform-chord-col">
-              <div class="perform-chord-name">${chordName}</div>
-              ${performState.diagOn ? `<div class="perform-chord-diagram">${diagramHTML}</div>` : ''}
-            </div>
-          `;
-        }
-        
-        return '';
-      }).join('');
-    }
-    
-    // 繰り返し記号
-    let repeatHTML = '';
-    if (line.repeat !== null && line.repeat !== undefined) {
-      const repeatCount = typeof line.repeat === 'object' ? line.repeat.count || 2 : line.repeat;
-      repeatHTML = `<div class="perform-repeat">×${repeatCount}</div>`;
-    }
-    
-    el.innerHTML = `
-      ${chordColumns ? `<div class="chords">${chordColumns}</div>` : '<div class="chords">&nbsp;</div>'}
-      <div class="lyric">${line.lyric || '&nbsp;'}${repeatHTML}</div>
-    `;
-    
-    container.appendChild(el);
-  });
-}
-
-
-
-function updatePerformFocus() {
-  if (!performState.active || performState.mode === 'static') return;
-  
-  const t = aEl.currentTime;
-  let idx = -1;
-  
-  for (let i = project.lines.length - 1; i >= 0; i--) {
-    const line = project.lines[i];
-    if (line.time !== null && line.time <= t) {
-      idx = i;
-      break;
-    }
-  }
-  
-  if (idx === performState.focusIdx) return;
-  
-  performState.focusIdx = idx;
-  
-  document.querySelectorAll('.perform-line').forEach(el => {
-    el.classList.remove('focused');
-  });
-  
-  const target = document.querySelector(`.perform-line[data-idx="${idx}"]`);
-  if (target) {
-    target.classList.add('focused');
-    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }
-}
-
-function updatePerformPlayer() {
-  if (!performState.active) return;
-  
-  const seekIn = document.getElementById('perform-seek-in');
-  const seekFill = document.getElementById('perform-seek-fill');
-  const timeDisplay = document.getElementById('perform-time');
-  
-  if (aEl.duration) {
-    const pct = (aEl.currentTime / aEl.duration) * 100;
-    seekIn.value = pct * 10;
-    seekFill.style.width = `${pct}%`;
-    
-    const min = Math.floor(aEl.currentTime / 60);
-    const sec = Math.floor(aEl.currentTime % 60);
-    timeDisplay.textContent = `${min}:${String(sec).padStart(2, '0')}`;
-  }
-}
-
-function performNextPage() {
-  if (performState.mode !== 'static') return;
-  const totalPages = Math.ceil(project.lines.length / performState.linesPerPage);
-  if (performState.page < totalPages - 1) {
-    performState.page++;
-    renderPerformLines();
-  }
-}
-
-function performPrevPage() {
-  if (performState.mode !== 'static') return;
-  if (performState.page > 0) {
-    performState.page--;
-    renderPerformLines();
-  }
-}
-
-let performSwipe = { startX: 0, startY: 0 };
-
-function setupPerformSwipe() {
-  const container = document.getElementById('perform-lines');
-  
-  container.addEventListener('pointerdown', e => {
-    performSwipe.startX = e.clientX;
-    performSwipe.startY = e.clientY;
-  });
-  
-  container.addEventListener('pointerup', e => {
-    const dx = e.clientX - performSwipe.startX;
-    const dy = e.clientY - performSwipe.startY;
-    
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-      if (dx < 0) performNextPage();
-      else performPrevPage();
-    }
-  });
-}
