@@ -255,6 +255,18 @@ function _setupEvents() {
     if (performBtn) performBtn.textContent = '▶';
   });
 
+  // メタデータ取得後にシークバーを同期（durationがNaNの場合の対策）
+  _aEl.addEventListener('loadedmetadata', () => {
+    if (document.getElementById('tap-overlay').classList.contains('open')) {
+      syncTovPlayer();
+    }
+  });
+  _aEl.addEventListener('durationchange', () => {
+    if (document.getElementById('tap-overlay').classList.contains('open')) {
+      syncTovPlayer();
+    }
+  });
+
   // TAPボタン
   tovTapBtn = document.getElementById('tap-ov-tapbtn');
   tovTapBtn.addEventListener('click', () => {

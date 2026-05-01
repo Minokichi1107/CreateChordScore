@@ -1452,6 +1452,11 @@ window.addEventListener('DOMContentLoaded',()=>{
     toast:         toast
   });
 
+  // Audio timeupdate リスナー（initTapMode/initPerformModeの後に登録）
+  aEl.addEventListener('timeupdate', updateTovTime);
+  aEl.addEventListener('timeupdate', updatePerformFocus);
+  aEl.addEventListener('timeupdate', updatePerformPlayer);
+
   // ⑤ Replace 初期化
   initReplace(
     () => project.lines,
