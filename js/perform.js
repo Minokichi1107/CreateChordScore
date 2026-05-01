@@ -74,7 +74,18 @@ export function openPerformMode() {
 
   performState.active = true;
   performState.focusIdx = -1;
-  performState.mode = 'follow';
+  // mode は前回の状態を引き継ぐ（強制リセットしない）
+
+  // ラジオボタンをperformState.modeに同期
+  const modeRadio = document.querySelector(`input[name="perform-mode"][value="${performState.mode}"]`);
+  if (modeRadio) modeRadio.checked = true;
+
+  // data-static-mode属性をperformState.modeに同期（opacity制御のため）
+  if (performState.mode === 'static') {
+    overlay.setAttribute('data-static-mode', 'true');
+  } else {
+    overlay.removeAttribute('data-static-mode');
+  }
 
   // compact-mode と diagOn の状態を同期
   if (performState.diagOn) {
@@ -85,6 +96,18 @@ export function openPerformMode() {
 
   // フォントスケールを同期
   overlay.style.setProperty('--perform-font-scale', performState.fontScale);
+
+  // カポ表示を更新
+  const capoVal = parseInt(document.getElementById('capo')?.value) || 0;
+  const capoDisplay = document.getElementById('perform-capo-display');
+  if (capoDisplay) {
+    if (capoVal > 0) {
+      capoDisplay.textContent = `CAPO ${capoVal}`;
+      capoDisplay.style.display = 'inline';
+    } else {
+      capoDisplay.style.display = 'none';
+    }
+  }
 
   // Title設定
   const title = document.getElementById('project-title').value || '無題';
