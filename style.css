@@ -1,3 +1,6 @@
+﻿
+
+/* 基本トークン */
 :root {
   --radius:6px; --radius2:10px;
   --mono:'IBM Plex Mono',monospace;
@@ -5,6 +8,9 @@
   --display:'DM Serif Display',serif;
   --green:#3ddc84; --amber:#ffb840; --red:#ff5c5c;
 }
+
+
+
 
 /* DARK テーマ（デフォルト） */
 body, body[data-theme="dark"] {
@@ -24,7 +30,12 @@ body, body[data-theme="dark"] {
   --btn-text:#e2e6f0;
 }
 
-/* SILVER テーマ - スキューモーフィック */
+
+
+
+/* ════════════════════════════════════════
+   SILVER テーマ（統合・整理版）
+   ════════════════════════════════════════ */
 body[data-theme="silver"] {
   --bg:#b8bec8; --bg2:#c8ced8; --bg3:#d8dde6;
   --border:#909aac; --border2:#788090;
@@ -34,12 +45,12 @@ body[data-theme="silver"] {
   --shadow:0 6px 20px rgba(0,0,0,.28);
   --settings-bg:#c0c6d0;
   --green:#167a3e; --amber:#a86400; --red:#b81818;
-  /* ブラシドメタル質感グラデーション */
+  
   --grad-panel:linear-gradient(180deg,#d8dce6 0%,#c0c6d2 20%,#cdd3de 50%,#b8bec8 80%,#c4cad4 100%);
   --grad-header:linear-gradient(180deg,#e0e4ec 0%,#c8ceda 25%,#d8dde8 50%,#b8beca 75%,#ccd0da 100%);
   --grad-btn:linear-gradient(180deg,#e8ecf4 0%,#ccd2de 30%,#dde2ec 55%,#b8bece 85%,#d0d5e0 100%);
   --grad-btn-active:linear-gradient(180deg,#a8acba 0%,#c0c5d0 100%);
-  /* 強いエンボス */
+  
   --emboss-shadow:
     0 1px 0 rgba(255,255,255,.9),
     0 -1px 0 rgba(0,0,0,.15),
@@ -55,6 +66,9 @@ body[data-theme="silver"] {
   --text-shadow:0 1px 0 rgba(255,255,255,.7),0 -1px 0 rgba(0,0,0,.1);
   --text-shadow-dark:0 1px 1px rgba(0,0,0,.4);
 }
+
+
+
 
 /* BLUE テーマ */
 body[data-theme="blue"] {
@@ -80,6 +94,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-weight:
 ::-webkit-scrollbar-track{background:var(--bg2)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
+
+
+
 /* HEADER */
 #header{background:var(--grad-header);border-bottom:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .logo{font-family:var(--display);font-size:17px;font-weight:400;color:var(--accent);letter-spacing:.5px;white-space:nowrap}
@@ -94,8 +111,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-weight:
 .hdr-btn.primary:hover{background:var(--accent)}
 input[type=file]{display:none}
 
+
+
+
 /* LAYOUT */
-#app{display:grid;grid-template-columns:minmax(200px,260px) 1fr;grid-template-rows:1fr auto;min-height:0;height:calc(100vh - 47px)}
+#app{display:grid;grid-template-columns:minmax(200px,260px) 1fr 261px;grid-template-rows:1fr auto;min-height:0;height:calc(100vh - 47px)}
+
+
+
 
 /* LEFT PANEL TABS */
 #left-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
@@ -105,13 +128,16 @@ input[type=file]{display:none}
 .left-tab-content{display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0}
 .left-tab-content.active{display:flex}
 
-/* 歌詞タブ内 */
+
 #tab-lyric{padding:10px}
 #tab-lyric #lyric-import{background:none;border:none;border-radius:0;padding:0;margin:0;display:flex;flex-direction:column;flex:1;min-height:0}
 #tab-lyric #lyric-import h4{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
 #tab-lyric #lyric-ta{flex:1;min-height:120px;resize:none}
 #tab-lyric .import-btns{margin-top:6px;flex-shrink:0}
 
+
+
+/* LEFT PANEL */
 #panel-left{background:var(--grad-panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;grid-row:1;box-shadow:inset 1px 0 0 rgba(255,255,255,.08)}
 .phdr{padding:7px 12px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0}
 .pbody{padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
@@ -131,7 +157,7 @@ input[type=file]{display:none}
 #chord-pal{display:flex;flex-wrap:wrap;gap:4px}
 .pal-chord{background:var(--chord-bg);border:1px solid var(--chord-border);border-radius:4px;color:var(--chord-text);cursor:pointer;font-family:var(--mono);font-size:11px;padding:3px 7px;transition:all .12s;user-select:none}
 .pal-chord:hover{background:var(--accent2);border-color:var(--accent);color:#fff;transform:translateY(-1px)}
-/* 手打ち */
+
 #custom-row{display:flex;gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
 #custom-in{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:4px 8px}
 #custom-in:focus{outline:none;border-color:var(--accent)}
@@ -139,44 +165,50 @@ input[type=file]{display:none}
 #custom-add{background:var(--bg3);border:1px solid var(--accent);border-radius:var(--radius);color:var(--accent);cursor:pointer;font-family:var(--mono);font-size:11px;padding:4px 8px;transition:all .15s;white-space:nowrap}
 #custom-add:hover{background:var(--accent2);color:#fff}
 
-/* CENTER */
+
+
+
+/* CENTER PANEL */
 #panel-center{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-height:0;grid-row:1}
 #replace-bar-wrap{flex-shrink:0;}
+
+
+/* AUDIO BAR */
 #audio-bar{background:var(--grad-header);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;flex-direction:column;gap:8px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 #editor-area{flex:1;overflow-y:scroll;padding:10px 12px 60px;min-height:0}
 #audio-row{display:flex;align-items:center;gap:10px}
 
-/* 再生ボタン */
+
 .play-btn{width:36px;height:36px;background:linear-gradient(180deg,var(--accent) 0%,var(--accent2) 100%);border:none;border-radius:50%;color:#fff;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;box-shadow:0 2px 8px rgba(0,0,0,.3),0 1px 0 rgba(255,255,255,.15) inset}
 .play-btn:hover{filter:brightness(1.15)}
 .play-btn:active{transform:scale(.93);box-shadow:0 1px 3px rgba(0,0,0,.3)}
 
-/* 時刻表示 */
+
 #time-dis{font-family:var(--mono);font-size:12px;color:var(--text2);min-width:82px;text-align:center;letter-spacing:.5px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:3px 6px;box-shadow:var(--inset-shadow)}
 
-/* シークバー */
+
 #seek-wrap{flex:1;position:relative;height:28px;display:flex;align-items:center;cursor:pointer}
 #seek-track{width:100%;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;box-shadow:var(--inset-shadow)}
 #seek-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:3px;width:0%;transition:width .1s linear}
 #seek-in{position:absolute;width:100%;height:100%;opacity:0;cursor:pointer;top:0;left:0}
 
-/* 各種ボタン */
+
 .trans-btn{background:var(--grad-btn);border:1px solid var(--border);border-top-color:var(--border2);border-bottom-color:rgba(0,0,0,.2);border-radius:var(--radius);color:var(--btn-text);cursor:pointer;font-size:11px;font-family:var(--mono);padding:4px 8px;transition:all .15s;white-space:nowrap;box-shadow:var(--emboss-shadow)}
 .trans-btn:hover{border-color:var(--accent);color:var(--accent)}
 .trans-btn:active{background:var(--grad-btn-active);box-shadow:var(--inset-shadow);transform:translateY(1px)}
 
-/* スピードスライダー */
+
 #speed-sel{-webkit-appearance:none;appearance:none;width:70px;height:6px;border-radius:3px;background:var(--bg3);outline:none;cursor:pointer;box-shadow:var(--inset-shadow)}
 #speed-sel::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:linear-gradient(180deg,var(--border2) 0%,var(--bg2) 100%);border:1px solid var(--border2);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3),0 1px 0 rgba(255,255,255,.1) inset}
 
-/* TAPボタン */
+
 #tap-btn{background:var(--grad-btn);border:1px solid var(--border2);border-top-color:var(--border2);border-bottom-color:rgba(0,0,0,.2);border-radius:var(--radius2);color:var(--btn-text);cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;padding:5px 16px;letter-spacing:1px;transition:all .15s;user-select:none;box-shadow:var(--emboss-shadow)}
 #tap-btn:hover{border-color:var(--green);color:var(--green)}
 #tap-btn:active{background:var(--grad-btn-active);box-shadow:var(--inset-shadow);transform:translateY(1px)}
 #tap-btn:disabled{opacity:.35;cursor:not-allowed}
 #cur-chord{font-family:var(--mono);font-size:12px;color:var(--chord-text);font-weight:600;min-width:40px}
 
-/* 音量バー */
+
 #vol-wrap{display:flex;align-items:center;gap:5px;flex-shrink:0}
 #vol-icon{cursor:pointer;font-size:14px;user-select:none;transition:opacity .15s;line-height:1}
 #vol-icon:hover{opacity:.7}
@@ -195,6 +227,8 @@ input[type=file]{display:none}
 .sm-btn.green{border-color:var(--green);color:var(--green)}
 .sm-btn.green:hover{background:var(--green);color:#000}
 
+
+
 /* LINE ROWS */
 .line-row{display:grid;grid-template-columns:28px 76px 1fr;margin-bottom:2px;border-radius:var(--radius);transition:background .1s;position:relative;min-width:0}
 .line-row:hover{background:var(--bg2)}
@@ -205,14 +239,14 @@ input[type=file]{display:none}
 .line-time:hover{color:var(--accent)}
 .line-time.has-t{color:var(--amber)}
 .line-content{padding:5px 5px 3px;display:flex;flex-direction:column;gap:3px;min-width:0}
-/* フォーカス行のスタイル */
+
 .focused-line {
   background-color: rgba(59, 130, 246, 0.1);
   border-left: 3px solid #3b82f6;
 }
-/* CHORD TAGS - 折り返し対応 */
+
 .chord-tags{display:flex;flex-wrap:wrap;gap:5px;min-height:4px;align-items:center;padding:2px 0}
-/* コードタグ：見やすいサイズ・色・フォント */
+
 .chord-tag{
   background:linear-gradient(135deg,#1e3a6e 0%,#162a52 100%);
   border:1.5px solid #4a7fd4;
@@ -239,24 +273,24 @@ input[type=file]{display:none}
   color:#c8e4ff;
   letter-spacing:.3px;
 }
-/* ポップアップOFF時はホバーのみダイアグラム表示しない */
+
 body.diag-off .chord-tag:hover{cursor:default}
 .del-x{font-size:15px;font-weight:900;color:rgba(160,180,210,.5);line-height:1;padding:2px 5px;border-radius:3px;transition:all .12s;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px}
 .del-x:hover{color:#fff;background:var(--red)}
 
-/* REPEAT BADGE */
+
 .repeat-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(255,184,64,.1);border:1px solid rgba(255,184,64,.4);border-radius:4px;color:var(--amber);font-family:var(--mono);font-size:12px;font-weight:600;padding:4px 8px;cursor:pointer;transition:all .12s;user-select:none;white-space:nowrap}
 .repeat-badge:hover{background:rgba(255,184,64,.2)}
 .rb-del{font-size:14px;color:rgba(255,184,64,.5);padding:1px 4px;border-radius:2px;transition:all .12s;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:20px;min-height:20px}
 .rb-del:hover{color:var(--red);background:rgba(255,92,92,.15)}
 
-.lyric-input{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;padding:2px 0;width:100%;transition:border-color .15s}
+.lyric-input{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;padding:2px 8px 2px 10px;width:100%;transition:border-color .15s}
 .lyric-input:focus{outline:none;border-bottom-color:var(--border2)}
 .lyric-input::placeholder{color:var(--text3)}
 .add-chord-btn{background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:10px;padding:2px 7px;transition:all .15s}
 .add-chord-btn:hover{border-color:var(--accent);color:var(--accent)}
 
-/* LINE ACTIONS */
+
 .line-acts{position:absolute;right:4px;top:4px;display:none;gap:3px;z-index:10}
 .line-row:hover .line-acts{display:flex}
 .la{background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text3);cursor:pointer;font-size:10px;padding:2px 5px;font-family:var(--mono);transition:all .12s;white-space:nowrap}
@@ -267,7 +301,7 @@ body.diag-off .chord-tag:hover{cursor:default}
 #add-line-btn{background:var(--bg2);border:1px dashed var(--border);border-radius:var(--radius);color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:11px;padding:8px;text-align:center;width:100%;margin-top:6px;transition:all .15s}
 #add-line-btn:hover{border-color:var(--accent);color:var(--accent)}
 
-/* RIGHT */
+
 #diag-search{padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:5px}
 #diag-in{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:14px;padding:6px 10px;text-align:center;letter-spacing:1px}
 #diag-in:focus{outline:none;border-color:var(--accent)}
@@ -282,7 +316,7 @@ body.diag-off .chord-tag:hover{cursor:default}
 .dv-svg{display:flex;justify-content:center}
 .diag-empty{text-align:center;color:var(--text3);font-family:var(--mono);font-size:11px;padding:28px 0;line-height:2.2}
 
-/* MODAL */
+
 #modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center}
 #modal-ov.open{display:flex}
 #modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius2);padding:20px;min-width:300px;max-width:480px;max-height:82vh;overflow-y:auto;box-shadow:var(--shadow)}
@@ -302,16 +336,16 @@ body.diag-off .chord-tag:hover{cursor:default}
 .mi-sm{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px}
 .mi-sm:focus{outline:none;border-color:var(--accent)}
 
-/* HOVER POPUP */
+
 #popup{position:fixed;display:none;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius2);padding:10px;z-index:300;box-shadow:var(--shadow);pointer-events:none}
 #popup.show{display:block}
 #pop-name{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);text-align:center;margin-bottom:6px}
 #pop-vars{display:flex;gap:10px}
 
-/* ダイアグラムOFF時のタグスタイル */
+
 body.diag-off .chord-tag{cursor:default}
 
-/* ダイアグラムONトグルボタン */
+
 #diag-toggle{background:var(--grad-btn);border:1px solid var(--border);border-top-color:var(--border2);border-bottom-color:rgba(0,0,0,.2);border-radius:var(--radius);color:#fff;cursor:pointer;font-family:var(--mono);font-size:11px;padding:5px 10px;white-space:nowrap;transition:all .15s;box-shadow:var(--emboss-shadow)}
 #diag-toggle.off{opacity:.65}
 #diag-toggle:hover{opacity:.88}
@@ -320,10 +354,10 @@ body.diag-off .chord-tag{cursor:default}
 #btn-tapmode:hover,#btn-perform-mode:hover{border-color:var(--accent)}
 #btn-tapmode:active,#btn-perform-mode:active{background:var(--grad-btn-active);box-shadow:var(--inset-shadow);transform:translateY(1px)}
 
-/* アクティブ行のスクロール用マーカー */
+
 .line-row.active-line{background:rgba(79,158,255,.1);border-left:2px solid var(--accent)}
 
-/* ③ コード間「/」セパレーター */
+
 .chord-sep{
   display:inline-flex;align-items:center;
   color:var(--text3);font-family:var(--mono);font-size:17px;font-weight:300;
@@ -338,7 +372,7 @@ body.diag-off .chord-tag{cursor:default}
 }
 .add-sep-btn:hover{border-color:var(--text2);color:var(--text2)}
 
-/* コードタグラッパー（/挿入ボタン付き） */
+
 .chord-tag-wrap{display:inline-flex;align-items:center;gap:0;position:relative;}
 .insert-sep-btn{
   display:none;
@@ -350,7 +384,7 @@ body.diag-off .chord-tag{cursor:default}
 .chord-tag-wrap:hover .insert-sep-btn{display:inline-flex;}
 .insert-sep-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg2);}
 
-/* ③ コードセパレーター "/" */
+
 .chord-sep{
   display:inline-flex;align-items:center;
   color:var(--text3);font-family:var(--mono);font-size:16px;font-weight:300;
@@ -365,7 +399,7 @@ body.diag-off .chord-tag{cursor:default}
 }
 .add-sep-btn:hover{border-color:var(--text2);color:var(--text2)}
 
-/* ⑦ 置換バー */
+
 #replace-bar{
   display:none;background:var(--bg2);border-bottom:2px solid var(--accent2);
   padding:6px 14px;flex-shrink:0;
@@ -392,13 +426,16 @@ body.diag-off .chord-tag{cursor:default}
 .chord-tag.rb-hit{border-color:var(--amber)!important;background:rgba(255,184,64,.18)!important;color:#ffe08a!important}
 .chord-tag.rb-curr{border-color:#fff!important;background:rgba(79,158,255,.25)!important;color:#fff!important;box-shadow:0 0 0 2px var(--amber)}
 
-/* ⑧ 右パネル固定（スクロール連動しない） */
+
+
+
+/* RIGHT PANEL */
 #panel-right{
   background:var(--bg2);border-left:1px solid var(--border);
   display:flex;flex-direction:column;overflow:hidden;
   position:sticky;top:0;height:calc(100vh - 47px);grid-row:1;
 }
-/* ダイアグラム登録ボタンを下部にも固定 */
+
 #diag-footer{
   padding:8px 10px;border-top:1px solid var(--border);flex-shrink:0;
 }
@@ -410,15 +447,17 @@ body.diag-off .chord-tag{cursor:default}
 }
 #btn-add-diag-bottom:hover{background:rgba(255,184,64,.1)}
 
-/* TOAST */
+
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 18px;z-index:1000;pointer-events:none;transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .25s;opacity:0}
 #toast.show{transform:translateX(-50%) translateY(0);opacity:1}
 
-/* STATUS */
+
+
+/* STATUS BAR */
 #status{background:var(--bg2);border-top:1px solid var(--border);padding:3px 14px;font-family:var(--mono);font-size:10px;color:var(--text3);display:flex;gap:14px;align-items:center;flex-shrink:0;grid-column:1/-1}
 #status span{color:var(--text2)}
 
-/* ════ TAP MODE OVERLAY ════ */
+
 #tap-overlay{
   display:none;position:fixed;inset:0;z-index:400;
   background:#0a0d14;
@@ -434,7 +473,7 @@ body.diag-off .chord-tag{cursor:default}
 #tap-ov-time{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--text);letter-spacing:2px;min-width:100px;text-align:center}
 #tap-ov-chord{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--chord-text);min-width:60px;text-align:center}
 
-/* プレーヤーコントロール（オーバーレイ内） */
+
 #tap-ov-ctrl{
   display:flex;align-items:center;gap:10px;
   background:var(--bg2);border-bottom:2px solid var(--border2);
@@ -445,7 +484,7 @@ body.diag-off .chord-tag{cursor:default}
 #tap-ov-seek-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;transition:width .1s linear}
 #tap-ov-seek-in{position:absolute;width:100%;height:100%;opacity:0;cursor:pointer;top:0;left:0}
 
-/* 歌詞スクロールエリア */
+
 #tap-ov-lines{
   flex:1;overflow-y:auto;padding:16px;
   display:flex;flex-direction:column;gap:6px;
@@ -467,12 +506,12 @@ body.diag-off .chord-tag{cursor:default}
   border-color:var(--green);
   transition:background 0s,border-color 0s;
 }
-/* フォーカス行（次にTAPする行） */
+
 .tap-ov-line.tov-focus{
   background:rgba(61,220,132,.08);
   border-color:var(--green);
 }
-/* 選択行 */
+
 .tap-ov-line.tov-selected{
   background:rgba(255,184,64,.10);
   border-color:rgba(255,184,64,.5);
@@ -504,7 +543,7 @@ body.diag-off .chord-tag{cursor:default}
 .tov-lyric{font-size:18px;color:var(--text);line-height:1.5;flex:1}
 .tov-active .tov-lyric{font-size:20px;color:#fff;font-weight:700}
 
-/* 大きなTAPボタン */
+
 #tap-ov-tapbtn{
   flex-shrink:0;
   width:80px;height:80px;
@@ -524,7 +563,7 @@ body.diag-off .chord-tag{cursor:default}
 }
 #tap-ov-tapbtn:disabled{opacity:.3;cursor:not-allowed}
 
-/* フッター情報 */
+
 #tap-ov-footer{
   background:var(--bg2);border-top:1px solid var(--border);
   padding:7px 16px;display:flex;align-items:center;gap:16px;
@@ -534,7 +573,7 @@ body.diag-off .chord-tag{cursor:default}
 #tap-ov-footer span{color:var(--amber)}
 .tov-hint{color:var(--text3);font-size:10px}
 
-/* TAPモードを開くボタン */
+
 #btn-tapmode{
   background:rgba(61,220,132,.12);
   border:1px solid var(--green);
@@ -545,11 +584,9 @@ body.diag-off .chord-tag{cursor:default}
 }
 #btn-tapmode:hover{background:rgba(61,220,132,.25)}
 
-/* ════════════════════════════════════════
-   PERFORM MODE OVERLAY
-   ════════════════════════════════════════ */
 
-/* 初期状態を確実に非表示 */
+
+
 #perform-overlay[hidden] {
   display: none !important;
 }
@@ -566,27 +603,27 @@ body.diag-off .chord-tag{cursor:default}
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;  /* 16px → 8px */
+  padding: 8px 16px;  
   background: var(--bg2);
   border-bottom: 1px solid var(--border);
 }
 
 #perform-title {
-  font-size: 13px;  /* 16px → 13px */
+  font-size: 13px;  
   font-weight: 600;
   color: var(--text);
 }
 
 #perform-options {
   display: flex;
-  gap: 12px;  /* 16px → 12px */
+  gap: 12px;  
 }
 
 #perform-controls {
   display: flex;
   align-items: center;
-  gap: 8px;  /* 12px → 8px */
-  padding: 6px 16px;  /* 12px → 6px */
+  gap: 8px;  
+  padding: 6px 16px;  
   background: var(--bg2);
   border-bottom: 1px solid var(--border);
 }
@@ -643,15 +680,15 @@ body.diag-off .chord-tag{cursor:default}
   min-width: 48px;
 }
 
-/* 演奏モード: コンテンツエリア */
+
 #perform-lines {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px;  /* 20px → 12px */
+  padding: 12px 16px;  
   scroll-behavior: smooth;
 }
 
-/* 演奏モード: 行 */
+
 #perform-overlay {
   --perform-font-scale: 1;
 }
@@ -662,7 +699,7 @@ body.diag-off .chord-tag{cursor:default}
   font-size: calc(15px * var(--perform-font-scale));
 }
 
-/* 演奏モード: フェード表示（追従モード時のみ） */
+
 #perform-overlay:not([data-static-mode]) .perform-line {
   opacity: 0.3;
 }
@@ -675,17 +712,17 @@ body.diag-off .chord-tag{cursor:default}
   opacity: 1;
 }
 
-/* 静止モード時は全て明るく */
+
 #perform-overlay[data-static-mode] .perform-line {
   opacity: 1;
 }
 
-/* 演奏モード: コードエリア */
+
 .perform-line.focused .chords {
   margin-bottom: 12px;
 }
 
-/* コード縦カラム */
+
 .perform-chord-col {
   display: flex;
   flex-direction: column;
@@ -693,7 +730,7 @@ body.diag-off .chord-tag{cursor:default}
   gap: 4px;
 }
 
-/* コード名 */
+
 .perform-chord-name {
   font-size: 1em;
   cursor: pointer;
@@ -711,7 +748,7 @@ body.diag-off .chord-tag{cursor:default}
   background: var(--bg3);
 }
 
-/* ダイアグラム */
+
 .perform-chord-diagram {
   display: flex;
   justify-content: center;
@@ -732,7 +769,7 @@ body.diag-off .chord-tag{cursor:default}
   font-size: 10px;
 }
 
-/* 演奏モード: 小節線 */
+
 .perform-sep {
   font-family: var(--mono);
   font-size: 1.4em;
@@ -745,7 +782,7 @@ body.diag-off .chord-tag{cursor:default}
   font-size: 1.8em;
 }
 
-/* 歌詞 */
+
 .perform-line .lyric {
   font-size: 1.1em;
   color: var(--text);
@@ -757,7 +794,7 @@ body.diag-off .chord-tag{cursor:default}
   min-height: 1.6em;
 }
 
-/* 演奏モード: 繰り返し記号 */
+
 .perform-repeat {
   display: inline-block;
   margin-left: 8px;
@@ -769,11 +806,9 @@ body.diag-off .chord-tag{cursor:default}
 .perform-line.focused .perform-repeat {
   font-size: 20px;
 }
-/* ════════════════════════════════════════
-   PERFORMANCE MODE - HORIZONTAL LAYOUT
-   ════════════════════════════════════════ */
 
-/* 横並びレイアウト */
+
+
 .perform-chord-col {
   display: flex;
   flex-direction: row;
@@ -781,7 +816,7 @@ body.diag-off .chord-tag{cursor:default}
   gap: 6px;
 }
 
-/* コードエリア: 左寄せ + 折り返し */
+
 .perform-line .chords {
   font-family: var(--mono);
   color: var(--accent);
@@ -793,7 +828,7 @@ body.diag-off .chord-tag{cursor:default}
   margin-bottom: 2px;
 }
 
-/* コード名（font-sizeはemベースに集約済み） */
+
 .perform-chord-name {
   font-weight: 600;
   min-width: 28px;
@@ -804,7 +839,7 @@ body.diag-off .chord-tag{cursor:default}
   font-weight: bold;
 }
 
-/* ダイアグラム */
+
 .perform-chord-diagram svg {
   width: auto;
   height: auto;
@@ -814,13 +849,13 @@ body.diag-off .chord-tag{cursor:default}
   width: auto;
 }
 
-/* 行間隔 */
+
 .perform-line {
   margin: 6px 0;
   text-align: left;
 }
 
-/* 歌詞（font-sizeはemベースに集約済み） */
+
 .perform-line .lyric {
   color: var(--text);
   min-height: 1.4em;
@@ -832,7 +867,7 @@ body.diag-off .chord-tag{cursor:default}
   min-height: 1.6em;
 }
 
-/* コンパクトモード（ダイアグラムOFF） */
+
 #perform-overlay.compact-mode .perform-chord-diagram {
   display: none;
 }
@@ -845,7 +880,10 @@ body.diag-off .chord-tag{cursor:default}
   margin-bottom: 4px;
 }
 
-/* compact-modeはダイアグラム非表示のみ。font-sizeはemスケールに従う */
+
+
+
+
 
 /* SETTINGS PANEL */
 #settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -868,11 +906,9 @@ body.diag-off .chord-tag{cursor:default}
 .silver-preview{background:linear-gradient(135deg,#dde1e7 50%,#2d6fd4 50%)}
 .blue-preview{background:linear-gradient(135deg,#0e1e3a 50%,#4fb8ff 50%)}
 
-/* ════════════════════════════════════════
-   SILVER テーマ スキューモーフィック追加スタイル
-   ════════════════════════════════════════ */
 
-/* ブラシドメタル背景（強化版ヘアライン） */
+
+
 body[data-theme="silver"] {
   background-color: var(--bg);
   background-image:
@@ -898,12 +934,14 @@ body[data-theme="silver"] {
     );
 }
 
-/* パネル全体にベゼル感 */
+
+
 body[data-theme="silver"] #panel-left {
   background: var(--grad-panel);
   border-right: 1px solid var(--border);
   box-shadow: inset -2px 0 4px rgba(0,0,0,.08), 2px 0 4px rgba(255,255,255,.5);
 }
+
 
 body[data-theme="silver"] #panel-right {
   background: var(--grad-panel);
@@ -911,12 +949,14 @@ body[data-theme="silver"] #panel-right {
   box-shadow: inset 2px 0 4px rgba(0,0,0,.08);
 }
 
-/* ヘッダーテキストシャドウ */
+
 body[data-theme="silver"] .logo {
   text-shadow: 0 1px 0 rgba(255,255,255,.8), 0 -1px 0 rgba(0,0,0,.15);
 }
 
-/* ボタン光沢強化（グロス + ラジアルハイライト） */
+
+
+/* ── ボタン共通（グロス + ラジアルハイライト）── */
 body[data-theme="silver"] .hdr-btn,
 body[data-theme="silver"] .trans-btn,
 body[data-theme="silver"] #tap-btn,
@@ -972,7 +1012,9 @@ body[data-theme="silver"] #tap-btn:active {
   transform: translateY(1px);
 }
 
-/* コードタグをスキューモーフィックに */
+
+
+/* ── コードタグ ── */
 body[data-theme="silver"] .chord-tag {
   background: linear-gradient(180deg, #2a5cc0 0%, #1a3ea0 40%, #2050b8 60%, #0e2878 100%);
   border: 1px solid #3060c0;
@@ -993,7 +1035,9 @@ body[data-theme="silver"] .chord-tag .chord-name {
   color: #e8f2ff;
 }
 
-/* 入力フィールドをベゼル感強く */
+
+
+/* ── 入力フィールド・テキストエリア（埋め込み感）── */
 body[data-theme="silver"] input[type=text],
 body[data-theme="silver"] input[type=number],
 body[data-theme="silver"] #pal-filter,
@@ -1008,7 +1052,7 @@ body[data-theme="silver"] #diag-in {
   color: var(--text);
 }
 
-/* テキストエリア */
+
 body[data-theme="silver"] textarea {
   background: linear-gradient(180deg, #b8bdc8 0%, #c8cdd8 100%);
   border-top: 1px solid rgba(0,0,0,.25);
@@ -1019,7 +1063,9 @@ body[data-theme="silver"] textarea {
   color: var(--text);
 }
 
-/* ダイアグラムパネル枠 */
+
+
+/* ── ダイアグラムパネル枠 ── */
 body[data-theme="silver"] .dv {
   background: linear-gradient(180deg, #d0d5e0 0%, #c0c5d0 100%);
   border: 1px solid var(--border);
@@ -1039,7 +1085,9 @@ body[data-theme="silver"] #diag-title {
   text-shadow: 0 1px 0 rgba(255,255,255,.7), 0 -1px 0 rgba(0,0,0,.1);
 }
 
-/* phdr（パネルヘッダー）角丸＋刻印感強化 */
+
+
+/* ── phdr（パネルヘッダー）── */
 body[data-theme="silver"] .phdr {
   background: linear-gradient(180deg, #c8ccda 0%, #a8acba 100%);
   color: #28304a;
@@ -1059,14 +1107,18 @@ body[data-theme="silver"] .phdr {
     inset 0 -1px 0 rgba(0,0,0,.1);
 }
 
-/* ステータスバー */
+
+
+/* ── ステータスバー ── */
 body[data-theme="silver"] #status {
   background: linear-gradient(180deg, #b0b4be 0%, #bcc0ca 100%);
   border-top: 1px solid rgba(0,0,0,.2);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
 }
 
-/* シークバー・音量バー強化 */
+
+
+/* ── シークバー ── */
 body[data-theme="silver"] #seek-track {
   height: 8px;
   background: linear-gradient(180deg, #8890a0 0%, #a8acbc 40%, #b8bcc8 100%);
@@ -1115,17 +1167,21 @@ body[data-theme="silver"] #speed-sel::-webkit-slider-thumb {
     inset 0 1px 0 rgba(255,255,255,.5);
 }
 
-/* タイムスタンプ色をsilverで視認できる色に */
+
+
+/* ── タイムスタンプ・ファイルボタン ── */
 body[data-theme="silver"] .line-time.has-t { color: var(--amber); }
 body[data-theme="silver"] #status span { color: var(--text2); }
 
-/* ファイルボタン */
+
 body[data-theme="silver"] .file-btn.loaded {
   border-color: var(--green);
   color: var(--green);
 }
 
-/* ダイアグラム指板：線と文字を黒く・太く */
+
+
+/* ── ダイアグラム指板（線・文字を黒く）── */
 body[data-theme="silver"] .dv svg line,
 body[data-theme="silver"] .dv svg rect {
   stroke: #1a2030 !important;
@@ -1141,7 +1197,9 @@ body[data-theme="silver"] .dv svg circle {
   stroke-width: 1.5 !important;
 }
 
-/* 再生ボタンのメタリック化 */
+
+
+/* ── 再生ボタン ── */
 body[data-theme="silver"] .play-btn {
   background:
     radial-gradient(circle at 40% 30%, rgba(255,255,255,.5) 0%, transparent 55%),
@@ -1159,7 +1217,9 @@ body[data-theme="silver"] .play-btn:hover {
   filter: brightness(1.12);
 }
 
-/* パレットコード小タグにもメタリック感 */
+
+
+/* ── パレットタグ ── */
 body[data-theme="silver"] .pal-chord {
   background: linear-gradient(180deg, #d8dce8 0%, #b8bcd0 100%);
   border-top: 1px solid rgba(255,255,255,.7);
@@ -1176,7 +1236,9 @@ body[data-theme="silver"] .pal-chord:hover {
   border-color: #2a5cc0;
 }
 
-/* audio-barのグロス */
+
+
+/* ── オーディオバー ── */
 body[data-theme="silver"] #audio-bar {
   background: var(--grad-header);
   border-bottom: 1px solid rgba(0,0,0,.2);
@@ -1186,9 +1248,9 @@ body[data-theme="silver"] #audio-bar {
     inset 0 1px 0 rgba(255,255,255,.35);
 }
 
-/* ── パネルの角丸・浮き上がり・テクスチャ強化 ── */
 
-/* body背景を少し暗くしてパネルとのコントラストを確保 */
+
+
 body[data-theme="silver"] {
   background-color: #a8acb4;
   background-image:
@@ -1214,14 +1276,16 @@ body[data-theme="silver"] {
     );
 }
 
-/* appレイアウト：silverのみgapを設定してパネルを分離 */
+
+
+/* ── appレイアウト ── */
 body[data-theme="silver"] #app {
   gap: 6px;
   padding: 6px;
   background: transparent;
 }
 
-/* 左パネル：角丸 + 浮き上がり + メタルテクスチャ */
+
 body[data-theme="silver"] #panel-left {
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,.5);
@@ -1245,7 +1309,7 @@ body[data-theme="silver"] #panel-left {
     inset 0 -1px 3px rgba(0,0,0,.1);
 }
 
-/* 右パネル：角丸 + 浮き上がり + メタルテクスチャ */
+
 body[data-theme="silver"] #panel-right {
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,.5);
@@ -1269,7 +1333,9 @@ body[data-theme="silver"] #panel-right {
     inset 0 -1px 3px rgba(0,0,0,.1);
 }
 
-/* 中央パネル：角丸 + 軽い浮き */
+
+
+/* ── 中央パネル ── */
 body[data-theme="silver"] #panel-center {
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,.45);
@@ -1281,22 +1347,24 @@ body[data-theme="silver"] #panel-center {
     inset 0 1px 0 rgba(255,255,255,.65);
 }
 
-/* ヘッダーも丸みを持たせる */
+
+
+/* ── ヘッダー ── */
 body[data-theme="silver"] #header {
-  border-radius: 0;  /* headerは画面上端なので角丸なし */
+  border-radius: 0;  
 }
 
-/* audio-barの上角丸を消す（panel-centerの内側なので） */
+
 body[data-theme="silver"] #audio-bar {
   border-radius: 0;
 }
 
-/* ステータスバー */
+
 body[data-theme="silver"] #status {
   border-radius: 0 0 0 0;
 }
 
-/* ダイアグラム枠の角丸強化 */
+
 body[data-theme="silver"] .dv {
   border-radius: 10px;
   margin: 8px 10px;
@@ -1311,7 +1379,7 @@ body[data-theme="silver"] .dv {
     inset 0 -1px 2px rgba(0,0,0,.08);
 }
 
-/* 入力フィールドの角丸統一 */
+
 body[data-theme="silver"] input[type=text],
 body[data-theme="silver"] input[type=number],
 body[data-theme="silver"] #pal-filter,
@@ -1323,13 +1391,13 @@ body[data-theme="silver"] textarea {
   border-radius: 7px;
 }
 
-/* phdrの角丸（左パネルの丸みに合わせて最上部は角丸なし） */
+
 body[data-theme="silver"] .phdr {
   border-radius: 6px;
   margin: 5px 8px 2px;
 }
 
-/* ダイアグラムタイトルヘッダー */
+
 body[data-theme="silver"] #diag-search {
   padding: 8px 10px 4px;
 }
@@ -1338,7 +1406,9 @@ body[data-theme="silver"] #diag-in {
   width: 100%;
 }
 
-/* ダイアグラム登録ボタン */
+
+
+/* ── ダイアグラム登録ボタン ── */
 body[data-theme="silver"] #btn-add-diag-bottom {
   background: linear-gradient(180deg, #2a7a3a 0%, #1a5a28 100%);
   border: 1px solid #1a5a28;
@@ -1350,3 +1420,237 @@ body[data-theme="silver"] #btn-add-diag-bottom {
     inset 0 1px 0 rgba(255,255,255,.25),
     0 2px 4px rgba(0,0,0,.2);
 }
+
+
+
+/* ── タブ ── */
+body[data-theme="silver"] #left-tabs {
+  margin: 8px 8px 0;
+  padding: 0;
+  gap: 2px;
+  border-radius: 10px 10px 0 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 9%, rgba(255,255,255,.08) 10.4%),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 5.2%, rgba(0,0,0,.03) 5.9%),
+    linear-gradient(180deg, #d3d8e0 0%, #bcc3ce 55%, #b0b8c4 100%);
+  border: 1px solid rgba(255,255,255,.55);
+  border-bottom-color: rgba(0,0,0,.2);
+  border-bottom: none;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+}
+
+body[data-theme="silver"] #panel-left {
+background: linear-gradient(38deg, #757575 0%, #9e9e9e 45%, #e8e8e8 70%, #9e9e9e 85%, #757575 90%, #757575 100%);
+}
+
+body[data-theme="silver"] #panel-right {
+background: linear-gradient(38deg, #757575 0%, #9e9e9e 45%, #e8e8e8 70%, #9e9e9e 85%, #757575 90%, #757575 100%);
+}
+
+
+#diag-search {
+display: none;
+}
+
+
+#panel-right {
+  width: 261px;
+  min-width: 261px;
+  max-width: 261px;
+}
+
+#diag-title {
+  width: 100%;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body[data-theme="silver"] #panel-left .file-btn,
+body[data-theme="silver"] #panel-left .capo-row input[type=number],
+body[data-theme="silver"] #panel-left #proj-key,
+body[data-theme="silver"] #panel-left #proj-bpm {
+background:
+  repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 10%, rgba(255,255,255,.08) 11.4%),
+  linear-gradient(180deg, #b9bec8 0%, #cdd2db 100%) !important;
+border: 1px solid rgba(255,255,255,.48) !important;
+border-top-color: rgba(0,0,0,.22) !important;
+border-left-color: rgba(0,0,0,.16) !important;
+border-bottom-color: rgba(255,255,255,.64) !important;
+border-right-color: rgba(255,255,255,.54) !important;
+box-shadow:
+  inset 0 2px 5px rgba(0,0,0,.2),
+  inset 0 1px 0 rgba(0,0,0,.12),
+  inset 0 -1px 0 rgba(255,255,255,.35) !important;
+}
+
+body[data-theme="silver"] .left-tab {
+  margin: 0;
+  border: 1px solid rgba(255,255,255,.5);
+  border-bottom-color: rgba(0,0,0,.15);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 9%, rgba(255,255,255,.08) 10.4%),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 5.2%, rgba(0,0,0,.03) 5.9%),
+    linear-gradient(180deg, #d3d8e0 0%, #bcc3ce 55%, #b0b8c4 100%);
+  color: #2f466d;
+  font-weight: 600;
+  letter-spacing: .2px;
+  padding: 9px 6px 8px;
+}
+
+body[data-theme="silver"] .left-tab.active {
+  border-color: rgba(255,255,255,.55);
+  border-bottom: 1px solid rgba(188,195,206,1);
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 10%, rgba(255,255,255,.08) 11.2%),
+    linear-gradient(180deg, #dde2ea 0%, #c8ced9 100%);
+  color: #4c596f;
+  box-shadow: none;
+}
+
+
+
+
+/* ── BLUE パネル背景メタリック上書き ── */
+body[data-theme="blue"] #panel-left,
+body[data-theme="blue"] #panel-right {
+  background: linear-gradient(38deg, #1d3552 0%, #2c4f78 45%, #7ea4d0 70%, #2c4f78 85%, #1d3552 100%);
+}
+
+body[data-theme="blue"] #panel-center {
+  background: linear-gradient(180deg, #9fb4ce 0%, #89a4c3 55%, #7d98b8 100%);
+}
+
+/* ── BLUE 入力欄：凹みメタリック ── */
+body[data-theme="blue"] .file-btn,
+body[data-theme="blue"] .capo-row input[type=number],
+body[data-theme="blue"] #proj-key,
+body[data-theme="blue"] #proj-bpm,
+body[data-theme="blue"] #pal-filter,
+body[data-theme="blue"] #custom-in,
+body[data-theme="blue"] #project-title,
+body[data-theme="blue"] #diag-in,
+body[data-theme="blue"] textarea,
+body[data-theme="blue"] #time-dis {
+  background: linear-gradient(180deg, #5c7fa8 0%, #7fa0c3 100%) !important;
+  border-top: 1px solid rgba(0,28,58,.55) !important;
+  border-left: 1px solid rgba(0,38,74,.45) !important;
+  border-bottom: 1px solid rgba(195,225,255,.45) !important;
+  border-right: 1px solid rgba(165,205,245,.40) !important;
+  box-shadow:
+    inset 0 2px 5px rgba(0,28,58,.45),
+    inset 0 1px 0 rgba(0,22,48,.30),
+    inset 0 -1px 0 rgba(180,220,255,.20) !important;
+  color: #eaf4ff !important;
+}
+
+body[data-theme="blue"] .lyric-input {
+  color: #eaf4ff;
+}
+body[data-theme="blue"] .lyric-input::placeholder {
+  color: rgba(220,236,255,.65);
+}
+
+body[data-theme="blue"] .line-num {
+  color: rgba(196,222,246,.92);
+}
+body[data-theme="blue"] .line-time {
+  color: rgba(255,202,112,1);
+}
+body[data-theme="blue"] .add-chord-btn {
+  color: rgba(210,232,252,.94);
+  border-color: rgba(150,192,236,.94);
+  background: rgba(34,80,126,.18);
+}
+
+body[data-theme="blue"] .phdr {
+  border-radius: 6px;
+  margin: 5px 8px 2px;
+  padding: 5px 10px;
+  background: linear-gradient(180deg, #6ea0d1 0%, #4e78a8 100%);
+  color: #d8ecff;
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-shadow: 0 1px 0 rgba(10,35,70,.55);
+  border-top: 1px solid rgba(180,220,255,.7);
+  border-left: 1px solid rgba(140,196,246,.45);
+  border-right: 1px solid rgba(10,40,80,.28);
+  border-bottom: 1px solid rgba(8,30,64,.38);
+  box-shadow:
+    inset 0 1px 0 rgba(200,230,255,.35),
+    0 1px 3px rgba(0,0,0,.22);
+}
+
+body[data-theme="blue"] .dv {
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(185,225,255,.16) 0%, rgba(130,190,245,.08) 34%, rgba(24,74,126,.12) 100%),
+    linear-gradient(180deg, #4b83bd 0%, #3d73ad 100%);
+  border-top: 1px solid rgba(182,222,255,.55);
+  border-left: 1px solid rgba(150,205,255,.38);
+  border-right: 1px solid rgba(12,44,82,.34);
+  border-bottom: 1px solid rgba(8,30,64,.42);
+  box-shadow:
+    inset 0 1px 0 rgba(210,235,255,.28),
+    inset 0 -2px 4px rgba(12,40,76,.26),
+    0 2px 6px rgba(0,0,0,.22);
+}
+
+/* Perform mode readability tuning for Silver / Blue */
+body[data-theme="silver"] #perform-overlay:not([data-static-mode]) .perform-line,
+body[data-theme="blue"] #perform-overlay:not([data-static-mode]) .perform-line {
+  opacity: 0.62;
+}
+body[data-theme="silver"] #perform-overlay:not([data-static-mode]) .perform-line.near,
+body[data-theme="blue"] #perform-overlay:not([data-static-mode]) .perform-line.near {
+  opacity: 0.82;
+}
+
+body[data-theme="silver"] .perform-line .chords,
+body[data-theme="blue"] .perform-line .chords {
+  color: #d7ecff;
+}
+body[data-theme="silver"] .perform-chord-name,
+body[data-theme="blue"] .perform-chord-name {
+  color: #e9f5ff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.42);
+}
+body[data-theme="silver"] .perform-line.focused .perform-chord-name,
+body[data-theme="blue"] .perform-line.focused .perform-chord-name {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.55);
+}
+
+body[data-theme="silver"] .perform-line .lyric,
+body[data-theme="blue"] .perform-line .lyric {
+  color: #eef6ff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.45);
+}
+body[data-theme="silver"] .perform-line.focused .lyric,
+body[data-theme="blue"] .perform-line.focused .lyric {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.6);
+}
+
+body[data-theme="silver"] #perform-overlay {
+  background: linear-gradient(180deg, #6f7784 0%, #5f6775 60%, #565f6d 100%);
+}
+body[data-theme="silver"] #perform-header,
+body[data-theme="silver"] #perform-controls {
+  background: linear-gradient(180deg, #7b8391 0%, #666f7e 100%);
+}
+
+body[data-theme="blue"] #perform-overlay {
+  background: linear-gradient(180deg, #284e7a 0%, #23476f 60%, #1f3f63 100%);
+}
+body[data-theme="blue"] #perform-header,
+body[data-theme="blue"] #perform-controls {
+  background: linear-gradient(180deg, #37669a 0%, #2b5685 100%);
+}
+
+
+
