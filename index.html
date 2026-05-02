@@ -9,7 +9,7 @@
 <link rel="shortcut icon" href="resource/favicon.ico?v=20260417">
 <link rel="apple-touch-icon" sizes="180x180" href="resource/favicon-180x180.png?v=20260417">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,6 +25,7 @@
   <button class="hdr-btn primary" id="btn-save">💾 上書保存</button>
   <button class="hdr-btn" id="btn-saveas">📁 別名保存</button>
   <button class="hdr-btn" id="btn-new" style="color:var(--red)">✕ 新規</button>
+  <button class="hdr-btn" id="btn-settings" title="設定">⚙</button>
   <input type="file" id="file-project" accept=".json">
 </header>
 
@@ -58,18 +59,36 @@
       </div>
     </div>
 
-    <div class="phdr">
-      CHORD PALETTE
-      <span id="pal-count" style="color:var(--text3)">0</span>
+    <!-- タブヘッダー -->
+    <div id="left-tabs">
+      <button class="left-tab active" data-tab="palette">パレット <span id="pal-count" style="color:var(--text3)">0</span></button>
+      <button class="left-tab" data-tab="lyric">歌詞入力</button>
     </div>
-    <div class="pbody" style="padding-bottom:5px">
-      <input type="text" id="pal-filter" placeholder="絞り込み (例: m7)">
+
+    <!-- パレットタブ -->
+    <div id="tab-palette" class="left-tab-content active">
+      <div class="pbody" style="padding-bottom:5px">
+        <input type="text" id="pal-filter" placeholder="絞り込み (例: m7)">
+      </div>
+      <div id="pal-wrap">
+        <div id="chord-pal"><div style="color:var(--text3);font-size:11px;font-family:var(--mono)">コードJSONを読み込むとここに表示されます</div></div>
+        <div id="custom-row">
+          <input type="text" id="custom-in" placeholder="手打ちで追加 (例: Gadd9)">
+          <button id="custom-add">＋追加</button>
+        </div>
+      </div>
     </div>
-    <div id="pal-wrap">
-      <div id="chord-pal"><div style="color:var(--text3);font-size:11px;font-family:var(--mono)">コードJSONを読み込むとここに表示されます</div></div>
-      <div id="custom-row">
-        <input type="text" id="custom-in" placeholder="手打ちで追加 (例: Gadd9)">
-        <button id="custom-add">＋追加</button>
+
+    <!-- 歌詞タブ -->
+    <div id="tab-lyric" class="left-tab-content">
+      <div id="lyric-import">
+        <h4>歌詞テキスト入力（改行で行分割）</h4>
+        <textarea id="lyric-ta" placeholder="歌詞をここに貼り付け...&#10;例:&#10;とっても とっても&#10;あなたのことが"></textarea>
+        <div class="import-btns">
+          <button class="sm-btn green" id="btn-import">行を取り込む</button>
+          <button class="sm-btn" id="btn-append">追記</button>
+          <button class="sm-btn" id="btn-clearall" style="color:var(--red)">全クリア</button>
+        </div>
       </div>
     </div>
   </aside>
@@ -126,15 +145,6 @@
     </div>
 
     <div id="editor-area">
-      <div id="lyric-import">
-        <h4>歌詞テキスト入力（改行で行分割）</h4>
-        <textarea id="lyric-ta" placeholder="歌詞をここに貼り付け...&#10;例:&#10;とっても とっても&#10;あなたのことが"></textarea>
-        <div class="import-btns">
-          <button class="sm-btn green" id="btn-import">行を取り込む</button>
-          <button class="sm-btn" id="btn-append">追記</button>
-          <button class="sm-btn" id="btn-clearall" style="color:var(--red)">全クリア</button>
-        </div>
-      </div>
       <div id="lines-cont"></div>
       <button id="add-line-btn">＋ 行を追加</button>
     </div>
@@ -262,8 +272,85 @@
   <div id="pop-vars"></div>
 </div>
 
+<!-- SETTINGS PANEL -->
+<div id="settings-overlay"></div>
+<div id="settings-panel">
+  <div id="settings-header">
+    <span id="settings-title">⚙ 設定</span>
+    <button id="settings-close">✕</button>
+  </div>
+  <div id="settings-body">
+    <div class="settings-section">
+      <div class="settings-section-title">テーマ</div>
+      <div id="theme-options">
+        <button class="theme-btn active" data-theme="dark">
+          <span class="theme-preview dark-preview"></span>
+          Dark
+        </button>
+        <button class="theme-btn" data-theme="silver">
+          <span class="theme-preview silver-preview"></span>
+          Silver
+        </button>
+        <button class="theme-btn" data-theme="blue">
+          <span class="theme-preview blue-preview"></span>
+          Blue
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <audio id="audio-el" preload="auto"></audio>
 
+<script>
+// 左パネルタブ切り替え
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.left-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('.left-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.left-tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    });
+  });
+
+  // テーマ初期化
+  const savedTheme = localStorage.getItem('chordscore-theme') || 'dark';
+  applyTheme(savedTheme);
+
+  // 設定パネル開閉
+  const panel = document.getElementById('settings-panel');
+  const overlay = document.getElementById('settings-overlay');
+
+  document.getElementById('btn-settings').addEventListener('click', () => {
+    panel.classList.add('open');
+    overlay.classList.add('open');
+  });
+  document.getElementById('settings-close').addEventListener('click', closeSettings);
+  overlay.addEventListener('click', closeSettings);
+
+  function closeSettings() {
+    panel.classList.remove('open');
+    overlay.classList.remove('open');
+  }
+
+  // テーマ選択
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      applyTheme(btn.dataset.theme);
+      localStorage.setItem('chordscore-theme', btn.dataset.theme);
+    });
+  });
+
+  function applyTheme(theme) {
+    document.body.dataset.theme = theme;
+    document.querySelectorAll('.theme-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.theme === theme);
+    });
+  }
+});
+</script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
