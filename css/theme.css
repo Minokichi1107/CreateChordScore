@@ -1,0 +1,141 @@
+/* theme.css — CSS変数 / カラートークン / テーマ定義 */
+
+
+/* 基本トークン */
+:root {
+  --radius:6px; --radius2:10px;
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'Noto Sans JP',sans-serif;
+  --display:'DM Serif Display',serif;
+  --green:#3ddc84; --amber:#ffb840; --red:#ff5c5c;
+}
+
+
+
+
+/* DARK テーマ（デフォルト） */
+body, body[data-theme="dark"] {
+  --bg:#0f1117; --bg2:#171a24; --bg3:#1e2130;
+  --border:#2a2f45; --border2:#3a4060;
+  --text:#e2e6f0; --text2:#8890a8; --text3:#555e7a;
+  --accent:#4f9eff; --accent2:#2d6fd4;
+  --chord-bg:#1a2540; --chord-border:#2e4a8a; --chord-text:#7eb8ff;
+  --shadow:0 4px 24px rgba(0,0,0,.4);
+  --settings-bg:#171a24;
+  --grad-panel:linear-gradient(180deg,#22263a 0%,#1d2235 30%,#252a40 50%,#1a1e2e 100%);
+  --grad-header:linear-gradient(180deg,#2a2f48 0%,#1e2338 40%,#282d44 60%,#161a28 100%);
+  --grad-btn:linear-gradient(180deg,#2e3450 0%,#222840 40%,#2a3050 60%,#1a1e30 100%);
+  --grad-btn-active:linear-gradient(180deg,#14182a 0%,#1e2238 100%);
+  --emboss-shadow:0 1px 0 rgba(255,255,255,.08),0 2px 5px rgba(0,0,0,.35);
+  --inset-shadow:inset 0 2px 4px rgba(0,0,0,.5),inset 0 1px 0 rgba(0,0,0,.3);
+  --btn-text:#e2e6f0;
+  /* 追加: 共通shadow変数 */
+  --shadow-outer-sm: 0 2px 8px rgba(0,0,0,.2);
+  --shadow-outer-md: 0 4px 16px rgba(0,0,0,.3);
+  --grad-knob: linear-gradient(180deg,var(--border2) 0%,var(--bg2) 100%);
+  --knob-shadow: 0 1px 3px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.1);
+}
+
+
+
+
+/* ════════════════════════════════════════
+   SILVER テーマ（統合・整理版）
+   ════════════════════════════════════════ */
+body[data-theme="silver"] {
+  --bg:#b8bec8; --bg2:#c8ced8; --bg3:#d8dde6;
+  --border:#909aac; --border2:#788090;
+  --text:#18202e; --text2:#28304a; --text3:#485870;
+  --accent:#1a55c8; --accent2:#103898;
+  --chord-bg:#1e3a7a; --chord-border:#2a52a8; --chord-text:#c8e0ff;
+  --shadow:0 6px 20px rgba(0,0,0,.28);
+  --settings-bg:#c0c6d0;
+  --green:#167a3e; --amber:#a86400; --red:#b81818;
+  
+  --grad-panel:linear-gradient(180deg,#d8dce6 0%,#c0c6d2 20%,#cdd3de 50%,#b8bec8 80%,#c4cad4 100%);
+  --grad-header:linear-gradient(180deg,#e0e4ec 0%,#c8ceda 25%,#d8dde8 50%,#b8beca 75%,#ccd0da 100%);
+  --grad-btn:linear-gradient(180deg,#e8ecf4 0%,#ccd2de 30%,#dde2ec 55%,#b8bece 85%,#d0d5e0 100%);
+  --grad-btn-active:linear-gradient(180deg,#a8acba 0%,#c0c5d0 100%);
+  
+  --emboss-shadow:
+    0 1px 0 rgba(255,255,255,.9),
+    0 -1px 0 rgba(0,0,0,.15),
+    1px 0 0 rgba(255,255,255,.5),
+    -1px 0 0 rgba(0,0,0,.1),
+    0 3px 6px rgba(0,0,0,.22),
+    0 1px 2px rgba(0,0,0,.15);
+  --inset-shadow:
+    inset 0 2px 5px rgba(0,0,0,.22),
+    inset 0 1px 0 rgba(0,0,0,.15),
+    inset 0 0 0 1px rgba(0,0,0,.08);
+  --btn-text:#18202e;
+  --text-shadow:0 1px 0 rgba(255,255,255,.7),0 -1px 0 rgba(0,0,0,.1);
+  --text-shadow-dark:0 1px 1px rgba(0,0,0,.4);
+  /* 追加: silver固有shadow変数 */
+  --shadow-outer-sm: 0 2px 8px rgba(0,0,0,.22);
+  --shadow-outer-md: 0 4px 16px rgba(0,0,0,.28);
+  --grad-track: linear-gradient(180deg,#8890a0 0%,#b0b4c0 100%);
+  --grad-knob: radial-gradient(circle at 40% 35%,rgba(255,255,255,.7) 0%,transparent 55%),linear-gradient(180deg,#f0f2f8 0%,#d0d4e0 40%,#e0e4f0 60%,#b8bcc8 100%);
+  --knob-shadow: 0 2px 5px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.5);
+  --border-shadow: rgba(0,0,0,.25);   /* 影になる辺（上・左）に使う色 */
+  --border-highlight: rgba(255,255,255,.7); /* 光が当たる辺（下・右）に使う色 */
+  --input-shadow: inset 0 2px 5px rgba(0,0,0,.18),inset 0 1px 0 rgba(0,0,0,.12);
+  /* ブラッシュドメタル背景 */
+  background-color: #a8acb4;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      rgba(255,255,255,.06) 1px,
+      transparent 2px,
+      rgba(0,0,0,.03) 3px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0px,
+      rgba(255,255,255,.04) 1px,
+      transparent 2px
+    ),
+    linear-gradient(180deg,
+      rgba(255,255,255,.15) 0%,
+      transparent 25%,
+      rgba(0,0,0,.08) 75%,
+      rgba(0,0,0,.18) 100%
+    );
+}
+
+
+
+
+/* BLUE テーマ */
+body[data-theme="blue"] {
+  --bg:#2a5a8a; --bg2:#3068a0; --bg3:#3a78b8;
+  --border:#2a5888; --border2:#5090c8;
+  --text:#f0f8ff; --text2:#c0e0ff; --text3:#80b8e8;
+  --accent:#80d8ff; --accent2:#3090d8;
+  --chord-bg:#245080; --chord-border:#4888c0; --chord-text:#b0e0ff;
+  --shadow:0 4px 24px rgba(0,0,0,.35);
+  --settings-bg:#2a5a8a;
+  --grad-panel:linear-gradient(180deg,#4a80b8 0%,#306090 35%,#4878a8 55%,#1e4878 100%);
+  --grad-header:linear-gradient(180deg,#5a90c8 0%,#3870a8 35%,#5088be 55%,#265a90 100%);
+  --grad-btn:linear-gradient(180deg,#5898c8 0%,#306898 35%,#4880b0 55%,#245880 100%);
+  --grad-btn-active:linear-gradient(180deg,#1a4070 0%,#3868a0 100%);
+  --emboss-shadow:0 1px 0 rgba(200,240,255,.4),0 2px 6px rgba(0,0,0,.3),inset 0 -1px 0 rgba(0,40,80,.25);
+  --inset-shadow:inset 0 2px 4px rgba(0,30,70,.4),inset 0 0 0 1px rgba(0,30,70,.2);
+  --btn-text:#f0f8ff;
+  --shadow-outer-sm: 0 2px 8px rgba(0,0,0,.3);
+  --shadow-outer-md: 0 4px 16px rgba(0,0,0,.35);
+  --grad-knob: linear-gradient(180deg,var(--border2) 0%,var(--bg2) 100%);
+  --knob-shadow: 0 1px 3px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-weight:500;min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+
+
+

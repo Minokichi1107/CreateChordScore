@@ -1,0 +1,130 @@
+/* components.css — TAPモードオーバーレイ / コンポーネント */
+#tap-overlay{
+  display:none;position:fixed;inset:0;z-index:400;
+  background:#0a0d14;
+  flex-direction:column;
+}
+#tap-overlay.open{display:flex}
+
+#tap-ov-header{
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:10px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;
+}
+#tap-ov-title{font-family:var(--mono);font-size:13px;color:var(--text2);flex:1}
+#tap-ov-time{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--text);letter-spacing:2px;min-width:100px;text-align:center}
+#tap-ov-chord{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--chord-text);min-width:60px;text-align:center}
+
+
+#tap-ov-ctrl{
+  display:flex;align-items:center;gap:10px;
+  background:var(--bg2);border-bottom:2px solid var(--border2);
+  padding:8px 16px;flex-shrink:0;
+}
+#tap-ov-seek-wrap{flex:1;position:relative;height:20px;display:flex;align-items:center}
+#tap-ov-seek-track{width:100%;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+#tap-ov-seek-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;transition:width .1s linear}
+#tap-ov-seek-in{position:absolute;width:100%;height:100%;opacity:0;cursor:pointer;top:0;left:0}
+
+
+#tap-ov-lines{
+  flex:1;overflow-y:auto;padding:16px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.tap-ov-line{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 14px;border-radius:8px;
+  border:1px solid transparent;
+  cursor:pointer;transition:all .12s;
+  position:relative;
+}
+.tap-ov-line:hover{background:var(--bg2);border-color:var(--border)}
+.tap-ov-line.tov-active{
+  background:rgba(79,158,255,.12);
+  border-color:var(--accent);
+}
+.tap-ov-line.tov-tapped{
+  background:rgba(61,220,132,.15);
+  border-color:var(--green);
+  transition:background 0s,border-color 0s;
+}
+
+.tap-ov-line.tov-focus{
+  background:rgba(61,220,132,.08);
+  border-color:var(--green);
+}
+
+.tap-ov-line.tov-selected{
+  background:rgba(255,184,64,.10);
+  border-color:rgba(255,184,64,.5);
+}
+.tap-ov-line.tov-selected.tov-focus{
+  background:rgba(61,220,132,.12);
+  border-color:var(--green);
+}
+.tov-time{
+  font-family:var(--mono);font-size:11px;
+  color:var(--amber);min-width:58px;flex-shrink:0;
+  cursor:pointer;
+}
+.tov-time.no-t{color:var(--text3)}
+.tov-time:hover{color:var(--accent)}
+.tov-chords{display:flex;flex-wrap:wrap;gap:4px;flex-shrink:0;min-width:0}
+.tov-chord-tag{
+  background:linear-gradient(135deg,#1e3a6e,#162a52);
+  border:1.5px solid #4a7fd4;border-radius:4px;
+  color:#c8e4ff;font-family:var(--mono);font-size:13px;font-weight:700;
+  padding:3px 9px;white-space:nowrap;
+}
+.tov-repeat{
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  color:var(--amber);padding:2px 6px;
+  background:rgba(255,184,64,.1);border:1px solid rgba(255,184,64,.35);
+  border-radius:3px;
+}
+.tov-lyric{font-size:18px;color:var(--text);line-height:1.5;flex:1}
+.tov-active .tov-lyric{font-size:20px;color:#fff;font-weight:700}
+
+
+#tap-ov-tapbtn{
+  flex-shrink:0;
+  width:80px;height:80px;
+  background:var(--bg3);
+  border:3px solid var(--border2);
+  border-radius:50%;
+  color:var(--text2);cursor:pointer;
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  letter-spacing:1px;
+  transition:all .1s;user-select:none;
+  display:flex;align-items:center;justify-content:center;
+}
+#tap-ov-tapbtn:hover{border-color:var(--green);color:var(--green)}
+#tap-ov-tapbtn.tapping{
+  background:var(--green);border-color:var(--green);color:#000;
+  transform:scale(.94);
+}
+#tap-ov-tapbtn:disabled{opacity:.3;cursor:not-allowed}
+
+
+#tap-ov-footer{
+  background:var(--bg2);border-top:1px solid var(--border);
+  padding:7px 16px;display:flex;align-items:center;gap:16px;
+  font-family:var(--mono);font-size:11px;color:var(--text3);
+  flex-shrink:0;
+}
+#tap-ov-footer span{color:var(--amber)}
+.tov-hint{color:var(--text3);font-size:10px}
+
+
+#btn-tapmode{
+  background:rgba(61,220,132,.12);
+  border:1px solid var(--green);
+  border-radius:var(--radius);color:var(--green);
+  cursor:pointer;font-family:var(--mono);font-size:11px;
+  font-weight:600;padding:5px 12px;white-space:nowrap;
+  transition:all .15s;letter-spacing:.5px;
+}
+#btn-tapmode:hover{background:rgba(61,220,132,.25)}
+
+
+
+

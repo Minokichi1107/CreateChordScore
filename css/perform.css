@@ -1,0 +1,270 @@
+/* perform.css — 演奏モード / パフォームUI */
+#perform-overlay[hidden] {
+  display: none !important;
+}
+
+#perform-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 9999;
+  flex-direction: column;
+  --perform-font-scale: 1;
+}
+
+#perform-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;  
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+
+#perform-title {
+  font-size: 13px;  
+  font-weight: 600;
+  color: var(--text);
+}
+
+#perform-options {
+  display: flex;
+  gap: 12px;  
+}
+
+
+
+#btn-perform-close:hover {
+  background: var(--bg4);
+  color: var(--text);
+}
+
+#perform-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+
+#perform-seek-wrap {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  cursor: pointer;
+}
+
+#perform-seek-track {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: var(--bg3);
+  border-radius: 3px;
+}
+
+#perform-seek-fill {
+  position: absolute;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.1s;
+}
+
+#perform-seek-in {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+#perform-time {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text2);
+  min-width: 48px;
+}
+
+
+#perform-lines {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;  
+  scroll-behavior: smooth;
+}
+
+
+
+
+
+
+
+#perform-overlay:not([data-static-mode]) .perform-line {
+  opacity: 0.3;
+}
+
+#perform-overlay:not([data-static-mode]) .perform-line.near {
+  opacity: 0.6;
+}
+
+#perform-overlay:not([data-static-mode]) .perform-line.focused {
+  opacity: 1;
+}
+
+
+#perform-overlay[data-static-mode] .perform-line {
+  opacity: 1;
+}
+
+
+.perform-line.focused .chords {
+  margin-bottom: 12px;
+}
+
+
+
+
+
+
+
+.perform-line.focused .perform-chord-name {
+  font-size: 1.4em;
+  font-weight: bold;
+}
+
+.perform-chord-name:hover {
+  background: var(--bg3);
+}
+
+
+.perform-chord-diagram {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
+
+
+
+.perform-chord-empty {
+  color: var(--text3);
+  font-size: 10px;
+}
+
+
+.perform-sep {
+  font-family: var(--mono);
+  font-size: 1.4em;
+  color: var(--accent);
+  font-weight: bold;
+  line-height: 1;
+}
+
+.perform-line.focused .perform-sep {
+  font-size: 1.8em;
+}
+
+
+
+
+.perform-line.focused .lyric {
+  font-size: 1.4em;
+  min-height: 1.6em;
+}
+
+
+.perform-repeat {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 16px;
+  color: var(--amber);
+  font-weight: bold;
+}
+
+.perform-line.focused .perform-repeat {
+  font-size: 20px;
+}
+
+
+
+.perform-chord-col {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+
+.perform-line .chords {
+  font-family: var(--mono);
+  color: var(--accent);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 2px;
+}
+
+
+.perform-chord-name {
+  font-size: 1em;
+  font-weight: 600;
+  min-width: 28px;
+  text-align: center;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+
+
+
+.perform-chord-diagram svg {
+  width: auto;
+  height: auto;
+}
+
+.perform-line.focused .perform-chord-diagram svg {
+  width: auto;
+}
+
+
+.perform-line {
+  margin: 6px 0;
+  text-align: left;
+  font-size: calc(15px * var(--perform-font-scale));
+}
+
+
+.perform-line .lyric {
+  font-size: 1.1em;
+  color: var(--text);
+  min-height: 1.4em;
+  text-align: left;
+  padding-left: 4px;
+}
+
+
+
+
+#perform-overlay.compact-mode .perform-chord-diagram {
+  display: none;
+}
+
+#perform-overlay.compact-mode .perform-line {
+  margin: 6px 0;
+}
+
+#perform-overlay.compact-mode .perform-line .chords {
+  margin-bottom: 4px;
+}
+
+
+
+
+
+

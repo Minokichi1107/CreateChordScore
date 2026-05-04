@@ -1,0 +1,647 @@
+/* state.css — 設定パネル / Silver・Blueテーマ上書き */
+/* SETTINGS PANEL */
+#settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s}
+#settings-overlay.open{opacity:1;pointer-events:auto}
+#settings-panel{position:fixed;top:0;right:0;width:260px;height:100vh;background:var(--settings-bg);border-left:1px solid var(--border);z-index:201;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease;box-shadow:var(--shadow)}
+#settings-panel.open{transform:translateX(0)}
+#settings-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+#settings-title{font-family:var(--mono);font-size:12px;color:var(--text2);letter-spacing:1px;text-transform:uppercase}
+#settings-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:var(--radius);transition:color .15s}
+#settings-close:hover{color:var(--text)}
+#settings-body{flex:1;overflow-y:auto;padding:16px 14px}
+.settings-section{margin-bottom:24px}
+.settings-section-title{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:10px}
+#theme-options{display:flex;flex-direction:column;gap:6px}
+.theme-btn{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:12px;padding:8px 12px;display:flex;align-items:center;gap:10px;transition:all .15s;text-align:left}
+.theme-btn:hover{border-color:var(--accent);color:var(--text)}
+.theme-btn.active{border-color:var(--accent);color:var(--accent);background:var(--bg2)}
+.theme-preview{width:16px;height:16px;border-radius:3px;border:1px solid rgba(255,255,255,.15);flex-shrink:0}
+.dark-preview{background:linear-gradient(135deg,#0f1117 50%,#4f9eff 50%)}
+.silver-preview{background:linear-gradient(135deg,#dde1e7 50%,#2d6fd4 50%)}
+.blue-preview{background:linear-gradient(135deg,#0e1e3a 50%,#4fb8ff 50%)}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+body[data-theme="silver"] .logo {
+  text-shadow: 0 1px 0 rgba(255,255,255,.8), 0 -1px 0 rgba(0,0,0,.15);
+}
+
+
+
+/* ── ボタン共通（グロス + ラジアルハイライト）── */
+body[data-theme="silver"] .hdr-btn,
+body[data-theme="silver"] .trans-btn,
+body[data-theme="silver"] #tap-btn,
+body[data-theme="silver"] #diag-toggle,
+body[data-theme="silver"] #btn-tapmode,
+body[data-theme="silver"] #btn-perform-mode {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.35) 0%, transparent 65%),
+    linear-gradient(180deg,
+      #f0f4fc 0%,
+      #d0d6e8 30%,
+      #e2e6f2 55%,
+      #b8bece 85%,
+      #ccd0de 100%
+    );
+  border-top: 1px solid rgba(255,255,255,.9) !important;
+  border-bottom: 1px solid rgba(0,0,0,.22) !important;
+  border-left: 1px solid rgba(255,255,255,.6) !important;
+  border-right: 1px solid rgba(0,0,0,.14) !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.9),
+    0 -1px 0 rgba(0,0,0,.18),
+    0 3px 7px rgba(0,0,0,.22),
+    0 1px 2px rgba(0,0,0,.15),
+    inset 0 1px 0 rgba(255,255,255,.4),
+    inset 0 -1px 0 rgba(0,0,0,.08) !important;
+  color: #18202e !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.7), 0 -1px 0 rgba(0,0,0,.12) !important;
+}
+body[data-theme="silver"] .hdr-btn::after,
+body[data-theme="silver"] .trans-btn::after,
+body[data-theme="silver"] #tap-btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 50%;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,.5) 0%,
+    rgba(255,255,255,.15) 70%,
+    rgba(255,255,255,0) 100%
+  );
+  pointer-events: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+body[data-theme="silver"] .hdr-btn:active,
+body[data-theme="silver"] .trans-btn:active,
+body[data-theme="silver"] #tap-btn:active {
+  background:
+    linear-gradient(180deg, #a8acba 0%, #c0c4d0 100%) !important;
+  box-shadow: var(--inset-shadow) !important;
+  transform: translateY(1px);
+}
+
+
+
+/* ── コードタグ ── */
+body[data-theme="silver"] .chord-tag {
+  background: linear-gradient(180deg, #2a5cc0 0%, #1a3ea0 40%, #2050b8 60%, #0e2878 100%);
+  border: 1px solid #3060c0;
+  border-top-color: #5080e0;
+  border-bottom-color: #0a1e60;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.2) inset,
+    0 2px 6px rgba(0,0,0,.3),
+    0 1px 2px rgba(0,0,0,.2);
+  border-radius: 7px;
+  color: #d8eaff;
+  text-shadow: 0 1px 2px rgba(0,0,20,.6);
+}
+body[data-theme="silver"] .chord-tag:hover {
+  background: linear-gradient(180deg, #3a6cd8 0%, #2a4ec0 40%, #3060d0 60%, #1a3890 100%);
+}
+body[data-theme="silver"] .chord-tag .chord-name {
+  color: #e8f2ff;
+}
+
+
+
+/* ── 入力フィールド・テキストエリア（埋め込み感）── */
+body[data-theme="silver"] input[type=text],
+body[data-theme="silver"] input[type=number],
+body[data-theme="silver"] #pal-filter,
+body[data-theme="silver"] #project-title {
+  background: linear-gradient(180deg, #b8bdc8 0%, #c8cdd8 100%);
+  border-top: 1px solid var(--border-shadow);
+  border-left: 1px solid rgba(0,0,0,.18);
+  border-bottom: 1px solid var(--border-highlight);
+  border-right: 1px solid rgba(255,255,255,.5);
+  box-shadow: var(--input-shadow);
+  border-radius: 7px;
+  color: var(--text);
+}
+
+
+body[data-theme="silver"] textarea {
+  background: linear-gradient(180deg, #b8bdc8 0%, #c8cdd8 100%);
+  border-top: 1px solid var(--border-shadow);
+  border-left: 1px solid rgba(0,0,0,.18);
+  border-bottom: 1px solid var(--border-highlight);
+  border-right: 1px solid rgba(255,255,255,.5);
+  box-shadow: var(--input-shadow);
+  border-radius: 7px;
+  color: var(--text);
+}
+
+
+
+/* ── ダイアグラムパネル枠 ── */
+
+body[data-theme="silver"] .dv-label {
+  color: #28304a;
+  text-shadow: 0 1px 0 rgba(255,255,255,.6);
+}
+body[data-theme="silver"] #diag-title {
+  color: var(--text);
+  text-shadow: 0 1px 0 rgba(255,255,255,.7), 0 -1px 0 rgba(0,0,0,.1);
+}
+
+
+
+/* ── phdr（パネルヘッダー）── */
+body[data-theme="silver"] .phdr {
+  background: linear-gradient(180deg, #c8ccda 0%, #a8acba 100%);
+  color: #28304a;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-shadow: 0 1px 0 rgba(255,255,255,.65), 0 -1px 0 rgba(0,0,0,.2);
+  border: 1px solid rgba(0,0,0,.18);
+  border-top-color: rgba(255,255,255,.6);
+  border-radius: 6px;
+  margin: 5px 8px 2px;
+  padding: 5px 10px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.5),
+    0 2px 4px rgba(0,0,0,.15),
+    inset 0 1px 0 rgba(255,255,255,.3),
+    inset 0 -1px 0 rgba(0,0,0,.1);
+}
+
+
+
+/* ── ステータスバー ── */
+body[data-theme="silver"] #status {
+  background: linear-gradient(180deg, #b0b4be 0%, #bcc0ca 100%);
+  border-top: 1px solid rgba(0,0,0,.2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
+}
+
+
+
+/* ── シークバー ── */
+body[data-theme="silver"] #seek-track {
+  height: 8px;
+  background: linear-gradient(180deg, #8890a0 0%, #a8acbc 40%, #b8bcc8 100%);
+  border-radius: 4px;
+  border-top: 1px solid rgba(0,0,0,.25);
+  border-bottom: 1px solid rgba(255,255,255,.5);
+  box-shadow: var(--input-shadow);
+}
+body[data-theme="silver"] #seek-fill {
+  background: linear-gradient(180deg, #3070e0 0%, #1a4ab8 50%, #2860d0 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+}
+body[data-theme="silver"] #vol-slider {
+  -webkit-appearance: none; appearance: none;
+  height: 8px;
+  background: var(--grad-track);
+  border-radius: 4px;
+  border-top: 1px solid rgba(0,0,0,.22);
+  border-bottom: 1px solid rgba(255,255,255,.45);
+  box-shadow: var(--input-shadow);
+}
+body[data-theme="silver"] #speed-sel {
+  height: 8px;
+  background: var(--grad-track);
+  border-radius: 4px;
+  border-top: 1px solid rgba(0,0,0,.22);
+  border-bottom: 1px solid rgba(255,255,255,.45);
+  box-shadow: var(--input-shadow);
+}
+body[data-theme="silver"] #vol-slider::-webkit-slider-thumb,
+body[data-theme="silver"] #speed-sel::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--grad-knob);
+  border-top: 1px solid rgba(255,255,255,.9);
+  border-bottom: 1px solid rgba(0,0,0,.25);
+  border-left: 1px solid rgba(255,255,255,.6);
+  border-right: 1px solid rgba(0,0,0,.12);
+  cursor: pointer;
+  box-shadow:
+    0 2px 5px rgba(0,0,0,.3),
+    0 1px 0 rgba(255,255,255,.8),
+    inset 0 1px 0 rgba(255,255,255,.5);
+}
+
+
+
+/* ── タイムスタンプ・ファイルボタン ── */
+body[data-theme="silver"] .line-time.has-t { color: var(--amber); }
+body[data-theme="silver"] #status span { color: var(--text2); }
+
+
+body[data-theme="silver"] .file-btn.loaded {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+
+
+/* ── ダイアグラム指板（線・文字を黒く）── */
+body[data-theme="silver"] .dv svg line,
+body[data-theme="silver"] .dv svg rect {
+  stroke: #1a2030 !important;
+  stroke-width: 1.5 !important;
+}
+body[data-theme="silver"] .dv svg text {
+  fill: #18202e !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+}
+body[data-theme="silver"] .dv svg circle {
+  stroke: #1a2030 !important;
+  stroke-width: 1.5 !important;
+}
+
+
+
+/* ── 再生ボタン ── */
+body[data-theme="silver"] .play-btn {
+  background:
+    radial-gradient(circle at 40% 30%, rgba(255,255,255,.5) 0%, transparent 55%),
+    linear-gradient(180deg, #e0e8ff 0%, #6090e0 30%, #3060c0 65%, #1a3a90 100%);
+  border: 1px solid #1a3a90;
+  border-top-color: #8ab0ff;
+  border-bottom-color: #0a1e60;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6),
+    0 3px 8px rgba(0,0,0,.35),
+    0 1px 2px rgba(0,0,0,.2),
+    inset 0 1px 0 rgba(255,255,255,.3);
+}
+body[data-theme="silver"] .play-btn:hover {
+  filter: brightness(1.12);
+}
+
+
+
+/* ── パレットタグ ── */
+body[data-theme="silver"] .pal-chord {
+  background: linear-gradient(180deg, #d8dce8 0%, #b8bcd0 100%);
+  border-top: 1px solid rgba(255,255,255,.7);
+  border-bottom: 1px solid rgba(0,0,0,.15);
+  color: #18307a;
+  font-weight: 600;
+  text-shadow: 0 1px 0 rgba(255,255,255,.5);
+  box-shadow: 0 1px 3px rgba(0,0,0,.15), 0 1px 0 rgba(255,255,255,.5);
+}
+body[data-theme="silver"] .pal-chord:hover {
+  background: linear-gradient(180deg, #3a6cd8 0%, #1a4ab0 100%);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,40,.5);
+  border-color: #2a5cc0;
+}
+
+
+
+/* ── オーディオバー ── */
+body[data-theme="silver"] #audio-bar {
+  background: var(--grad-header);
+  border-bottom: 1px solid rgba(0,0,0,.2);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.5),
+    var(--shadow-outer-sm),
+    inset 0 1px 0 rgba(255,255,255,.35);
+  border-radius: 0;
+}
+
+
+
+
+
+
+
+
+/* ── appレイアウト ── */
+body[data-theme="silver"] #app {
+  gap: 6px;
+  padding: 6px;
+  background: transparent;
+}
+
+
+
+
+
+
+
+
+
+/* ── 中央パネル ── */
+body[data-theme="silver"] #panel-center {
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.45);
+  border-bottom-color: rgba(0,0,0,.18);
+  overflow: hidden;
+  background: #e8eaee;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,.22),
+    inset 0 1px 0 rgba(255,255,255,.65);
+}
+
+
+
+/* ── ヘッダー ── */
+body[data-theme="silver"] #header {
+  border-radius: 0;  
+}
+
+
+
+
+
+
+
+
+body[data-theme="silver"] .dv {
+  border-radius: 10px;
+  margin: 8px 10px;
+  background:
+    linear-gradient(180deg, #dcdee6 0%, #c8ccd4 100%);
+  border: 1px solid rgba(255,255,255,.55);
+  border-bottom-color: rgba(0,0,0,.18);
+  border-right-color: rgba(0,0,0,.12);
+  box-shadow:
+    0 1px 4px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(255,255,255,.65),
+    inset 0 -1px 2px rgba(0,0,0,.08);
+}
+
+
+body[data-theme="silver"] input[type=text],
+body[data-theme="silver"] input[type=number],
+body[data-theme="silver"] #pal-filter,
+body[data-theme="silver"] #project-title,
+
+
+
+
+
+
+
+body[data-theme="silver"] #diag-search {
+  padding: 8px 10px 4px;
+}
+
+
+
+
+/* ── ダイアグラム登録ボタン ── */
+body[data-theme="silver"] #btn-add-diag-bottom {
+  background: linear-gradient(180deg, #2a7a3a 0%, #1a5a28 100%);
+  border: 1px solid #1a5a28;
+  border-top-color: #4aaa5a;
+  border-radius: 8px;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0,40,0,.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.25),
+    0 2px 4px rgba(0,0,0,.2);
+}
+
+
+
+/* ── タブ ── */
+body[data-theme="silver"] #left-tabs {
+  margin: 8px 8px 0;
+  padding: 0;
+  gap: 2px;
+  border-radius: 10px 10px 0 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 9%, rgba(255,255,255,.08) 10.4%),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 5.2%, rgba(0,0,0,.03) 5.9%),
+    linear-gradient(180deg, #d3d8e0 0%, #bcc3ce 55%, #b0b8c4 100%);
+  border: 1px solid rgba(255,255,255,.55);
+  border-bottom-color: rgba(0,0,0,.2);
+  border-bottom: none;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+}
+
+body[data-theme="silver"] #panel-left {
+background: linear-gradient(38deg, #757575 0%, #9e9e9e 45%, #e8e8e8 70%, #9e9e9e 85%, #757575 90%, #757575 100%);
+}
+
+body[data-theme="silver"] #panel-right {
+background: linear-gradient(38deg, #757575 0%, #9e9e9e 45%, #e8e8e8 70%, #9e9e9e 85%, #757575 90%, #757575 100%);
+}
+
+
+#diag-search {
+display: none;
+}
+
+
+
+
+#diag-title {
+  width: 100%;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body[data-theme="silver"] #panel-left .file-btn,
+body[data-theme="silver"] #panel-left .capo-row input[type=number],
+body[data-theme="silver"] #panel-left #proj-key,
+body[data-theme="silver"] #panel-left #proj-bpm {
+background:
+  repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 10%, rgba(255,255,255,.08) 11.4%),
+  linear-gradient(180deg, #b9bec8 0%, #cdd2db 100%) !important;
+border: 1px solid rgba(255,255,255,.48) !important;
+border-top-color: rgba(0,0,0,.22) !important;
+border-left-color: rgba(0,0,0,.16) !important;
+border-bottom-color: rgba(255,255,255,.64) !important;
+border-right-color: rgba(255,255,255,.54) !important;
+box-shadow:
+  inset 0 2px 5px rgba(0,0,0,.2),
+  inset 0 1px 0 rgba(0,0,0,.12),
+  inset 0 -1px 0 rgba(255,255,255,.35) !important;
+}
+
+body[data-theme="silver"] .left-tab {
+  margin: 0;
+  border: 1px solid rgba(255,255,255,.5);
+  border-bottom-color: rgba(0,0,0,.15);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 9%, rgba(255,255,255,.08) 10.4%),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 5.2%, rgba(0,0,0,.03) 5.9%),
+    linear-gradient(180deg, #d3d8e0 0%, #bcc3ce 55%, #b0b8c4 100%);
+  color: #2f466d;
+  font-weight: 600;
+  letter-spacing: .2px;
+  padding: 9px 6px 8px;
+}
+
+body[data-theme="silver"] .left-tab.active {
+  border-color: rgba(255,255,255,.55);
+  border-bottom: 1px solid rgba(188,195,206,1);
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 10%, rgba(255,255,255,.08) 11.2%),
+    linear-gradient(180deg, #dde2ea 0%, #c8ced9 100%);
+  color: #4c596f;
+  box-shadow: none;
+}
+
+
+
+
+/* ── BLUE パネル背景メタリック上書き ── */
+body[data-theme="blue"] #panel-left,
+body[data-theme="blue"] #panel-right {
+  background: linear-gradient(38deg, #1d3552 0%, #2c4f78 45%, #7ea4d0 70%, #2c4f78 85%, #1d3552 100%);
+}
+
+body[data-theme="blue"] #panel-center {
+  background: linear-gradient(180deg, #9fb4ce 0%, #89a4c3 55%, #7d98b8 100%);
+}
+
+/* ── BLUE 入力欄：凹みメタリック ── */
+body[data-theme="blue"] .file-btn,
+body[data-theme="blue"] .capo-row input[type=number],
+body[data-theme="blue"] #proj-key,
+body[data-theme="blue"] #proj-bpm,
+body[data-theme="blue"] #pal-filter,
+body[data-theme="blue"] #custom-in,
+body[data-theme="blue"] #project-title,
+body[data-theme="blue"] #diag-in,
+body[data-theme="blue"] textarea,
+body[data-theme="blue"] #time-dis {
+  background: linear-gradient(180deg, #5c7fa8 0%, #7fa0c3 100%) !important;
+  border-top: 1px solid rgba(0,28,58,.55) !important;
+  border-left: 1px solid rgba(0,38,74,.45) !important;
+  border-bottom: 1px solid rgba(195,225,255,.45) !important;
+  border-right: 1px solid rgba(165,205,245,.40) !important;
+  box-shadow:
+    inset 0 2px 5px rgba(0,28,58,.45),
+    inset 0 1px 0 rgba(0,22,48,.30),
+    inset 0 -1px 0 rgba(180,220,255,.20) !important;
+  color: #eaf4ff !important;
+}
+
+body[data-theme="blue"] .lyric-input {
+  color: #eaf4ff;
+}
+body[data-theme="blue"] .lyric-input::placeholder {
+  color: rgba(220,236,255,.65);
+}
+
+body[data-theme="blue"] .line-num {
+  color: rgba(196,222,246,.92);
+}
+body[data-theme="blue"] .line-time {
+  color: rgba(255,202,112,1);
+}
+body[data-theme="blue"] .add-chord-btn {
+  color: rgba(210,232,252,.94);
+  border-color: rgba(150,192,236,.94);
+  background: rgba(34,80,126,.18);
+}
+
+body[data-theme="blue"] .phdr {
+  border-radius: 6px;
+  margin: 5px 8px 2px;
+  padding: 5px 10px;
+  background: linear-gradient(180deg, #6ea0d1 0%, #4e78a8 100%);
+  color: #d8ecff;
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-shadow: 0 1px 0 rgba(10,35,70,.55);
+  border-top: 1px solid rgba(180,220,255,.7);
+  border-left: 1px solid rgba(140,196,246,.45);
+  border-right: 1px solid rgba(10,40,80,.28);
+  border-bottom: 1px solid rgba(8,30,64,.38);
+  box-shadow:
+    inset 0 1px 0 rgba(200,230,255,.35),
+    0 1px 3px rgba(0,0,0,.22);
+}
+
+body[data-theme="blue"] .dv {
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(185,225,255,.16) 0%, rgba(130,190,245,.08) 34%, rgba(24,74,126,.12) 100%),
+    linear-gradient(180deg, #4b83bd 0%, #3d73ad 100%);
+  border-top: 1px solid rgba(182,222,255,.55);
+  border-left: 1px solid rgba(150,205,255,.38);
+  border-right: 1px solid rgba(12,44,82,.34);
+  border-bottom: 1px solid rgba(8,30,64,.42);
+  box-shadow:
+    inset 0 1px 0 rgba(210,235,255,.28),
+    inset 0 -2px 4px rgba(12,40,76,.26),
+    0 2px 6px rgba(0,0,0,.22);
+}
+
+/* Perform mode readability tuning for Silver / Blue */
+body[data-theme="silver"] #perform-overlay:not([data-static-mode]) .perform-line,
+body[data-theme="blue"] #perform-overlay:not([data-static-mode]) .perform-line {
+  opacity: 0.62;
+}
+body[data-theme="silver"] #perform-overlay:not([data-static-mode]) .perform-line.near,
+body[data-theme="blue"] #perform-overlay:not([data-static-mode]) .perform-line.near {
+  opacity: 0.82;
+}
+
+body[data-theme="silver"] .perform-line .chords,
+body[data-theme="blue"] .perform-line .chords {
+  color: #d7ecff;
+}
+body[data-theme="silver"] .perform-chord-name,
+body[data-theme="blue"] .perform-chord-name {
+  color: #e9f5ff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.42);
+}
+body[data-theme="silver"] .perform-line.focused .perform-chord-name,
+body[data-theme="blue"] .perform-line.focused .perform-chord-name {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.55);
+}
+
+body[data-theme="silver"] .perform-line .lyric,
+body[data-theme="blue"] .perform-line .lyric {
+  color: #eef6ff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.45);
+}
+body[data-theme="silver"] .perform-line.focused .lyric,
+body[data-theme="blue"] .perform-line.focused .lyric {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.6);
+}
+
+body[data-theme="silver"] #perform-overlay {
+  background: linear-gradient(180deg, #6f7784 0%, #5f6775 60%, #565f6d 100%);
+}
+body[data-theme="silver"] #perform-header,
+body[data-theme="silver"] #perform-controls {
+  background: linear-gradient(180deg, #7b8391 0%, #666f7e 100%);
+}
+
+body[data-theme="blue"] #perform-overlay {
+  background: linear-gradient(180deg, #284e7a 0%, #23476f 60%, #1f3f63 100%);
+}
+body[data-theme="blue"] #perform-header,
+body[data-theme="blue"] #perform-controls {
+  background: linear-gradient(180deg, #37669a 0%, #2b5685 100%);
+}
+
+
+
