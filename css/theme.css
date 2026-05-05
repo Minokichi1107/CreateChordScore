@@ -112,7 +112,7 @@ body[data-theme="silver"] {
 body[data-theme="blue"] {
   --bg:#2a5a8a; --bg2:#3068a0; --bg3:#3a78b8;
   --border:#2a5888; --border2:#5090c8;
-  --text:#f0f8ff; --text2:#c0e0ff; --text3:#80b8e8;
+  --text:#6c9db5; --text2:#939a9c; --text3:#4b6681;
   --accent:#80d8ff; --accent2:#3090d8;
   --chord-bg:#245080; --chord-border:#4888c0; --chord-text:#b0e0ff;
   --shadow:0 4px 24px rgba(0,0,0,.35);
@@ -136,11 +136,28 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-weight:
 ::-webkit-scrollbar-track{background:var(--bg2)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
+/* ── DARK パネル背景：水平メタリック ── */
+body #panel-left,
+body[data-theme="dark"] #panel-left {
+  background: linear-gradient(89deg, #151824 0%, #1c2133 25%, #222840 50%, #1c2133 75%, #151824 100%);
+}
+body #panel-right,
+body[data-theme="dark"] #panel-right {
+  background: linear-gradient(89deg, #171a28 0%, #1e2236 25%, #252b44 50%, #1e2236 75%, #171a28 100%);
+}
+
 /* ════════════════════════════════════════
    SILVER / BLUE テーマ コンポーネント上書き
    ════════════════════════════════════════ */
 body[data-theme="silver"] .logo {
-  text-shadow: 0 1px 0 rgba(255,255,255,.8), 0 -1px 0 rgba(0,0,0,.15);
+  color: #1a3a70;
+  text-shadow:
+    1px 1px 0 rgba(255,255,255,.7),
+    2px 2px 0 rgba(180,190,210,.5),
+    3px 3px 6px rgba(0,0,0,.2);
+}
+body[data-theme="silver"] .logo span {
+  color: #555e7a;
 }
 
 
@@ -154,28 +171,25 @@ body[data-theme="silver"] #btn-tapmode,
 body[data-theme="silver"] #btn-perform-mode {
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.35) 0%, transparent 65%),
-    linear-gradient(180deg,
-      #f0f4fc 0%,
-      #d0d6e8 30%,
-      #e2e6f2 55%,
-      #b8bece 85%,
-      #ccd0de 100%
-    );
-  border-top: 1px solid rgba(255,255,255,.9) !important;
-  border-bottom: 1px solid rgba(0,0,0,.22) !important;
-  border-left: 1px solid rgba(255,255,255,.6) !important;
-  border-right: 1px solid rgba(0,0,0,.14) !important;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,.9),
-    0 -1px 0 rgba(0,0,0,.18),
-    0 3px 7px rgba(0,0,0,.22),
-    0 1px 2px rgba(0,0,0,.15),
-    inset 0 1px 0 rgba(255,255,255,.4),
-    inset 0 -1px 0 rgba(0,0,0,.08) !important;
+  background: linear-gradient(180deg,
+    #f2f4f8 0%,
+    #e0e4ec 20%,
+    #eaedf4 50%,
+    #c8ccd8 80%,
+    #d4d8e4 100%
+  );
+  border-radius: 4px !important;
+  border-top: 1px solid rgba(255,255,255,.92) !important;
+  border-left: 1px solid rgba(255,255,255,.65) !important;
+  border-right: 1px solid rgba(0,0,0,.22) !important;
+  border-bottom: 1px solid rgba(0,0,0,.38) !important;
   color: #18202e !important;
-  text-shadow: 0 1px 0 rgba(255,255,255,.7), 0 -1px 0 rgba(0,0,0,.12) !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.75) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.6),
+    inset 0 -1px 0 rgba(0,0,0,.12),
+    0 2px 3px rgba(0,0,0,.25),
+    0 1px 0 rgba(255,255,255,.12) !important;
 }
 body[data-theme="silver"] .hdr-btn::after,
 body[data-theme="silver"] .trans-btn::after,
@@ -183,21 +197,19 @@ body[data-theme="silver"] #tap-btn::after {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 50%;
-  background: linear-gradient(180deg,
-    rgba(255,255,255,.5) 0%,
-    rgba(255,255,255,.15) 70%,
-    rgba(255,255,255,0) 100%
-  );
+  height: 48%;
+  background: linear-gradient(180deg, rgba(255,255,255,.45) 0%, rgba(255,255,255,.08) 100%);
   pointer-events: none;
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-radius: 4px 4px 0 0;
 }
 body[data-theme="silver"] .hdr-btn:active,
 body[data-theme="silver"] .trans-btn:active,
 body[data-theme="silver"] #tap-btn:active {
-  background:
-    linear-gradient(180deg, #a8acba 0%, #c0c4d0 100%) !important;
-  box-shadow: var(--inset-shadow) !important;
+  background: linear-gradient(180deg, #b0b4c0 0%, #c8ccda 100%) !important;
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,.3),
+    inset 0 1px 0 rgba(0,0,0,.18),
+    inset 0 -1px 0 rgba(255,255,255,.15) !important;
   transform: translateY(1px);
 }
 
@@ -279,7 +291,7 @@ body[data-theme="silver"] .phdr {
   border: 1px solid rgba(0,0,0,.18);
   border-top-color: rgba(255,255,255,.6);
   border-radius: 6px;
-  margin: 5px 8px 2px;
+  margin: 12px 8px 2px;
   padding: 5px 10px;
   box-shadow:
     0 1px 0 rgba(255,255,255,.5),
@@ -541,11 +553,11 @@ body[data-theme="silver"] #left-tabs {
 }
 
 body[data-theme="silver"] #panel-left {
-background: linear-gradient(38deg, #757575 0%, #9e9e9e 45%, #e8e8e8 70%, #9e9e9e 85%, #757575 90%, #757575 100%);
+background: linear-gradient(89deg, #b0afaf 0%, #c9c9c9 25%, #d5d5d5 50%, #cfd1d0 75%, #cccccc 85%, #b1b3b2 100%);
 }
 
 body[data-theme="silver"] #panel-right {
-background: linear-gradient(38deg, #757575 0%, #9e9e9e 45%, #e8e8e8 70%, #9e9e9e 85%, #757575 90%, #757575 100%);
+background: linear-gradient(89deg, #c4c4c4 0%, #d8d8d6 25%, #eaeaea 50%, #d9d9d9 75%, #c9c9c9 85%, #c0bfbf 100%);
 }
 
 
@@ -611,14 +623,63 @@ body[data-theme="silver"] .left-tab.active {
 
 
 
+/* ── BLUE ボタン：ブラシドメタル角型 ── */
+body[data-theme="blue"] .hdr-btn,
+body[data-theme="blue"] .trans-btn,
+body[data-theme="blue"] #tap-btn,
+body[data-theme="blue"] #diag-toggle,
+body[data-theme="blue"] #btn-tapmode,
+body[data-theme="blue"] #btn-perform-mode {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg,
+    #5a90c8 0%,
+    #4278b0 20%,
+    #4e84bc 50%,
+    #305888 80%,
+    #3e6898 100%
+  );
+  border-radius: 4px !important;
+  border-top: 1px solid rgba(180,220,255,.75) !important;
+  border-left: 1px solid rgba(160,210,255,.5) !important;
+  border-right: 1px solid rgba(0,20,50,.35) !important;
+  border-bottom: 1px solid rgba(0,20,50,.5) !important;
+  color: #e8f4ff !important;
+  text-shadow: 0 1px 1px rgba(0,20,60,.5) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(200,235,255,.4),
+    inset 0 -1px 0 rgba(0,20,60,.2),
+    0 2px 4px rgba(0,0,0,.3) !important;
+}
+body[data-theme="blue"] .hdr-btn::after,
+body[data-theme="blue"] .trans-btn::after,
+body[data-theme="blue"] #tap-btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 48%;
+  background: linear-gradient(180deg, rgba(200,235,255,.3) 0%, rgba(200,235,255,.05) 100%);
+  pointer-events: none;
+  border-radius: 4px 4px 0 0;
+}
+body[data-theme="blue"] .hdr-btn:active,
+body[data-theme="blue"] .trans-btn:active,
+body[data-theme="blue"] #tap-btn:active {
+  background: linear-gradient(180deg, #284870 0%, #3a6090 100%) !important;
+  box-shadow:
+    inset 0 2px 5px rgba(0,20,60,.4),
+    inset 0 1px 0 rgba(0,20,60,.2) !important;
+  transform: translateY(1px);
+}
+
 /* ── BLUE パネル背景メタリック上書き ── */
 body[data-theme="blue"] #panel-left,
 body[data-theme="blue"] #panel-right {
-  background: linear-gradient(38deg, #1d3552 0%, #2c4f78 45%, #7ea4d0 70%, #2c4f78 85%, #1d3552 100%);
+  background: linear-gradient(89deg, #5d9abf 0%, #9ed4f5 25%, #97d6f9 50%, #7fbee1 75%, #538fb7 100%);
 }
 
 body[data-theme="blue"] #panel-center {
-  background: linear-gradient(180deg, #9fb4ce 0%, #89a4c3 55%, #7d98b8 100%);
+  background: linear-gradient(180deg, #d5ecf9 0%, #d5ebf8 55%, #d7edf8 100%);
 }
 
 /* ── BLUE 入力欄：凹みメタリック ── */
@@ -644,6 +705,43 @@ body[data-theme="blue"] #time-dis {
   color: #eaf4ff !important;
 }
 
+body[data-theme="blue"] .logo {
+  color: #d0eaff;
+  text-shadow:
+    1px 1px 0 rgba(0,30,80,.5),
+    2px 2px 0 rgba(0,20,60,.35),
+    3px 3px 6px rgba(0,0,0,.3);
+}
+body[data-theme="blue"] .logo span {
+  color: #90bce0;
+}
+/* ── BLUE テーマ 文字色修正（--text変更に伴う上書き）── */
+body[data-theme="blue"] .left-tab {
+  color: #a8d0f0;
+}
+body[data-theme="blue"] .left-tab:hover {
+  color: #c8e4ff;
+}
+body[data-theme="blue"] .left-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+body[data-theme="blue"] .line-row .lyric-input {
+  color: #d8eeff !important;
+}
+body[data-theme="blue"] .lyric-input::placeholder {
+  color: rgba(180,220,255,.55) !important;
+}
+body[data-theme="blue"] .phdr {
+  color: #c8e4ff;
+}
+body[data-theme="blue"] #status {
+  color: #a8cce8;
+}
+body[data-theme="blue"] #status span {
+  color: #c8e4ff;
+}
+
 body[data-theme="blue"] .lyric-input {
   color: #eaf4ff;
 }
@@ -665,7 +763,7 @@ body[data-theme="blue"] .add-chord-btn {
 
 body[data-theme="blue"] .phdr {
   border-radius: 6px;
-  margin: 5px 8px 2px;
+  margin: 12px 8px 2px;
   padding: 5px 10px;
   background: linear-gradient(180deg, #6ea0d1 0%, #4e78a8 100%);
   color: #d8ecff;
