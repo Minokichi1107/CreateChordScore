@@ -1,168 +1,592 @@
-/* theme.css — CSS変数 / カラートークン / テーマ定義 */
+/* ================================================
+   theme.css — ChordScore UI Variable System
+   Layer 1: Primitive  → 純粋な値。直接使用禁止
+   Layer 2: Semantic   → 意味ベース。テーマで上書き
+   Layer 3: Component  → var()のみ。直書き禁止
+   ================================================ */
 
 
-/* 基本トークン */
+/* ================================================
+   PRIMITIVE LAYER
+   値のみ。どのテーマでも変わらない固定値。
+   ================================================ */
 :root {
-  --radius:6px; --radius2:10px;
-  --mono:'IBM Plex Mono',monospace;
-  --sans:'Noto Sans JP',sans-serif;
-  --display:'DM Serif Display',serif;
-  --green:#3ddc84; --amber:#ffb840; --red:#ff5c5c;
+  /* shape */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+
+  /* typography */
+  --font-mono:    'IBM Plex Mono', monospace;
+  --font-sans:    'Noto Sans JP', sans-serif;
+  --font-display: 'DM Serif Display', serif;
+
+  /* fixed status colors (全テーマ共通) */
+  --color-green: #3ddc84;
+  --color-amber: #ffb840;
+  --color-red:   #ff5c5c;
 }
 
 
+/* ================================================
+   SEMANTIC LAYER — DARK テーマ（デフォルト）
+   ここを触ればDarkテーマ全体が変わる。
+   ================================================ */
+:root {
+  /* --- surface --- */
+  --surface-base:    #0f1117;
+  --surface-raised:  #171a24;
+  --surface-overlay: #1e2130;
+  --surface-chord:   #1a2540;
+  --surface-settings:#171a24;
 
+  /* --- border --- */
+  --border-ui:            #2a2f45;
+  --border-ui-strong:     #3a4060;
+  --border-ui-light:      rgba(255,255,255,.08);
+  --border-ui-dark:       rgba(0,0,0,.3);
+  --border-ui-light-soft: rgba(255,255,255,.5);
+  --border-ui-light-mid:  rgba(255,255,255,.6);
+  --border-ui-dark-soft:  rgba(0,0,0,.18);
+  --border-ui-dark-mid:   rgba(0,0,0,.25);
+  --border-chord:         #2e4a8a;
 
-/* DARK テーマ（デフォルト） */
-body, body[data-theme="dark"] {
-  --bg:#0f1117; --bg2:#171a24; --bg3:#1e2130;
-  --border:#2a2f45; --border2:#3a4060;
-  --text:#e2e6f0; --text2:#8890a8; --text3:#555e7a;
-  --accent:#4f9eff; --accent2:#2d6fd4;
-  --chord-bg:#1a2540; --chord-border:#2e4a8a; --chord-text:#7eb8ff;
-  --shadow:0 4px 24px rgba(0,0,0,.4);
-  --settings-bg:#171a24;
-  --grad-panel:linear-gradient(180deg,#22263a 0%,#1d2235 30%,#252a40 50%,#1a1e2e 100%);
-  --grad-header:linear-gradient(180deg,#2a2f48 0%,#1e2338 40%,#282d44 60%,#161a28 100%);
-  --grad-btn:linear-gradient(180deg,#2e3450 0%,#222840 40%,#2a3050 60%,#1a1e30 100%);
-  --grad-btn-active:linear-gradient(180deg,#14182a 0%,#1e2238 100%);
-  --emboss-shadow:0 1px 0 rgba(255,255,255,.08),0 2px 5px rgba(0,0,0,.35);
-  --inset-shadow:inset 0 2px 4px rgba(0,0,0,.5),inset 0 1px 0 rgba(0,0,0,.3);
-  --btn-text:#e2e6f0;
-  /* 追加: 共通shadow変数 */
-  --shadow-outer-sm: 0 2px 8px rgba(0,0,0,.2);
-  --shadow-outer-md: 0 4px 16px rgba(0,0,0,.3);
-  --grad-knob: linear-gradient(180deg,var(--border2) 0%,var(--bg2) 100%);
-  --knob-shadow: 0 1px 3px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.1);
+  /* --- text --- */
+  --text-primary:   #e2e6f0;
+  --text-secondary: #8890a8;
+  --text-muted:     #555e7a;
+  --text-chord:     #7eb8ff;
+  --text-accent:    #4f9eff;
+  --text-accent2:   #2d6fd4;
+
+  /* --- perform text --- */
+  --text-perform:         #e9f5ff;
+  --text-perform-focused: #ffffff;
+  --text-perform-lyric:   #eef6ff;
+  --text-perform-lyric-focused: #ffffff;
+  --text-perform-chords:  #d7ecff;
+  --shadow-perform-chord:        0 1px 2px rgba(0,0,0,.42);
+  --shadow-perform-chord-focused:0 1px 3px rgba(0,0,0,.55);
+  --shadow-perform-lyric:        0 1px 2px rgba(0,0,0,.45);
+  --shadow-perform-lyric-focused:0 1px 3px rgba(0,0,0,.6);
+
+  /* --- logo --- */
+  --text-logo:      #e2e6f0;
+  --text-logo-span: #8890a8;
+  --shadow-logo:    1px 1px 0 rgba(255,255,255,.05), 2px 2px 0 rgba(60,80,140,.3), 3px 3px 6px rgba(0,0,0,.4);
+
+  /* --- shadow --- */
+  --shadow-sm:    0 2px 8px rgba(0,0,0,.25);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.4);
+  --shadow-inset: inset 0 2px 4px rgba(0,0,0,.5), inset 0 1px 0 rgba(0,0,0,.3);
+
+  /* --- gradient --- */
+  --grad-surface:        linear-gradient(89deg,#151824 0%,#1c2133 25%,#222840 50%,#1c2133 75%,#151824 100%);
+  --grad-panel-right:    linear-gradient(89deg,#171a28 0%,#1e2236 25%,#252b44 50%,#1e2236 75%,#171a28 100%);
+  --grad-header:         linear-gradient(180deg,#2a2f48 0%,#1e2338 40%,#282d44 60%,#161a28 100%);
+  --grad-control:        linear-gradient(180deg,#2e3450 0%,#222840 40%,#2a3050 60%,#1a1e30 100%);
+  --grad-control-active: linear-gradient(180deg,#14182a 0%,#1e2238 100%);
+  --grad-input:          linear-gradient(180deg,#1a1e2e 0%,#1e2238 100%);
+  --grad-chord-tag:      linear-gradient(180deg,#1e2a50 0%,#141e3a 40%,#1a2448 60%,#0e1830 100%);
+  --grad-chord-tag-hover:linear-gradient(180deg,#263060 0%,#1a2448 40%,#223058 60%,#162040 100%);
+  --grad-pal-chord:      linear-gradient(180deg,#2a3058 0%,#1e2440 100%);
+  --grad-pal-chord-hover:linear-gradient(180deg,#3a4068 0%,#2a304e 100%);
+  --grad-dv-surface:     linear-gradient(180deg,#232840 0%,#1a1e30 100%);
+  --grad-phdr:           linear-gradient(180deg,#2e3450 0%,#1e2238 100%);
+  --grad-status:         linear-gradient(180deg,#171a24 0%,#1e2238 100%);
+  --grad-panel-center:   linear-gradient(180deg,#1e2238 0%,#1a1e30 100%);
+  --grad-seek-track:     linear-gradient(180deg,#1a1e2e 0%,#242840 40%,#2a2e48 100%);
+  --grad-seek-fill:      linear-gradient(180deg,#2060d0 0%,#1040b0 50%,#1850c0 100%);
+  --grad-slider:         linear-gradient(180deg,#1e2238 0%,#2a2e48 100%);
+  --grad-play-btn:       radial-gradient(circle at 40% 30%,rgba(255,255,255,.15) 0%,transparent 55%),
+                         linear-gradient(180deg,#2a3060 0%,#1a2050 30%,#141840 65%,#0e1230 100%);
+  --grad-add-diag-btn:   linear-gradient(180deg,#1e6030 0%,#124820 100%);
+  --grad-btn-gloss:      linear-gradient(180deg,rgba(255,255,255,.08) 0%,rgba(255,255,255,.02) 100%);
+  --grad-perform-overlay:linear-gradient(180deg,#0f1117 0%,#0a0d14 60%,#080b11 100%);
+  --grad-perform-header: linear-gradient(180deg,#171a24 0%,#111420 100%);
+
+  /* --- knob (slider) --- */
+  --grad-knob:   linear-gradient(180deg,var(--border-ui-strong) 0%,var(--surface-raised) 100%);
+  --knob-shadow: 0 1px 3px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.1);
+
+  /* --- component-specific shadows / borders --- */
+  --shadow-knob-border-top:    rgba(255,255,255,.1);
+  --shadow-knob-border-bottom: rgba(0,0,0,.25);
+  --shadow-knob-border-side:   rgba(255,255,255,.06);
+  --shadow-chord-tag:          0 2px 6px rgba(0,0,0,.3);
+  --shadow-add-diag-btn:       inset 0 1px 0 rgba(255,255,255,.15);
+  --border-add-diag-btn:       #124820;
+  --border-add-diag-btn-top:   #2a7a3a;
+  --text-add-diag-btn:         #ffffff;
+  --shadow-text-add-diag-btn:  0 1px 1px rgba(0,40,0,.4);
+  --border-chord-tag-top:      #2a3868;
+  --border-chord-tag-bottom:   #060c20;
+  --text-logo-span-color:      #8890a8;
+
+  /* --- phdr component --- */
+  --text-phdr:           #8890a8;
+  --shadow-text-phdr:    0 1px 0 rgba(255,255,255,.05), 0 -1px 0 rgba(0,0,0,.2);
+  --border-phdr:         #2a2f45;
+  --border-phdr-top:     rgba(255,255,255,.08);
+  --shadow-phdr:         0 1px 0 rgba(255,255,255,.04), 0 2px 4px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.06), inset 0 -1px 0 rgba(0,0,0,.15);
+
+  /* --- dv component --- */
+  --border-dv-top:    rgba(255,255,255,.08);
+  --border-dv-left:   rgba(255,255,255,.05);
+  --border-dv-right:  rgba(0,0,0,.3);
+  --border-dv-bottom: rgba(0,0,0,.4);
+  --shadow-dv:        0 1px 4px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.06), inset 0 -1px 2px rgba(0,0,0,.15);
+
+  /* --- play-btn borders --- */
+  --border-play-btn:        #141840;
+  --border-play-btn-top:    #3a4888;
+  --border-play-btn-bottom: #060a1e;
+  --shadow-play-btn:        0 1px 0 rgba(255,255,255,.12), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.08);
+
+  /* --- seek/slider borders --- */
+  --border-seek-top:    rgba(0,0,0,.25);
+  --border-seek-bottom: rgba(255,255,255,.08);
+  --border-slider-top:    rgba(0,0,0,.22);
+  --border-slider-bottom: rgba(255,255,255,.08);
+  --knob-border-top:    rgba(255,255,255,.15);
+  --knob-border-bottom: rgba(0,0,0,.3);
+  --knob-border-left:   rgba(255,255,255,.1);
+  --knob-border-right:  rgba(0,0,0,.15);
+
+  /* --- panel-center border --- */
+  --border-panel-center:        rgba(255,255,255,.05);
+  --border-panel-center-bottom: rgba(0,0,0,.2);
+  --shadow-panel-center:        var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.04);
+
+  /* --- audio-bar / status --- */
+  --border-audio-bar-bottom: rgba(0,0,0,.3);
+  --shadow-audio-bar:        0 1px 0 rgba(255,255,255,.04), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.06);
+
+  /* --- btn gloss / box-shadow --- */
+  --shadow-btn:       inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.15), var(--shadow-sm);
+  --text-shadow-btn:  0 1px 1px rgba(0,0,0,.4);
+  --border-btn-top:   rgba(255,255,255,.12);
+  --border-btn-left:  rgba(255,255,255,.08);
+  --border-btn-right: rgba(0,0,0,.3);
+  --border-btn-bottom:rgba(0,0,0,.4);
+
+  /* --- add-chord-btn --- */
+  --bg-add-chord-btn: rgba(255,255,255,.04);
+
+  /* --- placeholder --- */
+  --color-placeholder: rgba(200,210,240,.25);
+
+  /* --- tabs (left panel) --- */
+  --bg-left-tabs:         var(--surface-raised);
+  --border-left-tabs:     rgba(255,255,255,.06);
+  --shadow-left-tabs:     inset 0 1px 0 rgba(255,255,255,.04);
+  --bg-left-tab:          var(--surface-raised);
+  --border-left-tab:      rgba(255,255,255,.06);
+  --bg-left-tab-active:   var(--surface-overlay);
+  --border-left-tab-active:rgba(255,255,255,.08);
+  --border-left-tab-active-bottom: var(--surface-overlay);
 }
 
 
-
-
-/* ════════════════════════════════════════
-   SILVER テーマ（統合・整理版）
-   ════════════════════════════════════════ */
+/* ================================================
+   SEMANTIC LAYER — SILVER テーマ
+   ================================================ */
 body[data-theme="silver"] {
-  --bg:#b8bec8; --bg2:#c8ced8; --bg3:#d8dde6;
-  --border:#909aac; --border2:#788090;
-  --text:#18202e; --text2:#28304a; --text3:#485870;
-  --accent:#1a55c8; --accent2:#103898;
-  --chord-bg:#1e3a7a; --chord-border:#2a52a8; --chord-text:#c8e0ff;
-  --shadow:0 6px 20px rgba(0,0,0,.28);
-  --settings-bg:#c0c6d0;
-  --green:#167a3e; --amber:#a86400; --red:#b81818;
-  
-  --grad-panel:linear-gradient(180deg,#d8dce6 0%,#c0c6d2 20%,#cdd3de 50%,#b8bec8 80%,#c4cad4 100%);
-  --grad-header:linear-gradient(180deg,#e0e4ec 0%,#c8ceda 25%,#d8dde8 50%,#b8beca 75%,#ccd0da 100%);
-  --grad-btn:linear-gradient(180deg,#e8ecf4 0%,#ccd2de 30%,#dde2ec 55%,#b8bece 85%,#d0d5e0 100%);
-  --grad-btn-active:linear-gradient(180deg,#a8acba 0%,#c0c5d0 100%);
-  
-  --emboss-shadow:
-    0 1px 0 rgba(255,255,255,.9),
-    0 -1px 0 rgba(0,0,0,.15),
-    1px 0 0 rgba(255,255,255,.5),
-    -1px 0 0 rgba(0,0,0,.1),
-    0 3px 6px rgba(0,0,0,.22),
-    0 1px 2px rgba(0,0,0,.15);
-  --inset-shadow:
-    inset 0 2px 5px rgba(0,0,0,.22),
-    inset 0 1px 0 rgba(0,0,0,.15),
-    inset 0 0 0 1px rgba(0,0,0,.08);
-  --btn-text:#18202e;
-  --text-shadow:0 1px 0 rgba(255,255,255,.7),0 -1px 0 rgba(0,0,0,.1);
-  --text-shadow-dark:0 1px 1px rgba(0,0,0,.4);
-  /* 追加: silver固有shadow変数 */
-  --shadow-outer-sm: 0 2px 8px rgba(0,0,0,.22);
-  --shadow-outer-md: 0 4px 16px rgba(0,0,0,.28);
-  --grad-track: linear-gradient(180deg,#8890a0 0%,#b0b4c0 100%);
-  --grad-knob: radial-gradient(circle at 40% 35%,rgba(255,255,255,.7) 0%,transparent 55%),linear-gradient(180deg,#f0f2f8 0%,#d0d4e0 40%,#e0e4f0 60%,#b8bcc8 100%);
-  --knob-shadow: 0 2px 5px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.5);
-  --border-shadow: rgba(0,0,0,.25);   /* 影になる辺（上・左）に使う色 */
-  --border-highlight: rgba(255,255,255,.7); /* 光が当たる辺（下・右）に使う色 */
-  --input-shadow: inset 0 2px 5px rgba(0,0,0,.18),inset 0 1px 0 rgba(0,0,0,.12);
-  /* ブラッシュドメタル背景 */
-  background-color: #a8acb4;
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      transparent 0px,
-      rgba(255,255,255,.06) 1px,
-      transparent 2px,
-      rgba(0,0,0,.03) 3px,
-      transparent 4px
-    ),
-    repeating-linear-gradient(
-      180deg,
-      transparent 0px,
-      rgba(255,255,255,.04) 1px,
-      transparent 2px
-    ),
-    linear-gradient(180deg,
-      rgba(255,255,255,.15) 0%,
-      transparent 25%,
-      rgba(0,0,0,.08) 75%,
-      rgba(0,0,0,.18) 100%
-    );
+  /* --- surface --- */
+  --surface-base:    #a8acb4;
+  --surface-raised:  #c8ced8;
+  --surface-overlay: #d8dde6;
+  --surface-chord:   #1e3a7a;
+  --surface-settings:#c0c6d0;
+
+  /* --- border --- */
+  --border-ui:            #909aac;
+  --border-ui-strong:     #788090;
+  --border-ui-light:      rgba(255,255,255,.92);
+  --border-ui-dark:       rgba(0,0,0,.38);
+  --border-ui-light-soft: rgba(255,255,255,.5);
+  --border-ui-light-mid:  rgba(255,255,255,.6);
+  --border-ui-dark-soft:  rgba(0,0,0,.18);
+  --border-ui-dark-mid:   rgba(0,0,0,.25);
+  --border-chord:         #2a52a8;
+
+  /* --- text --- */
+  --text-primary:   #18202e;
+  --text-secondary: #28304a;
+  --text-muted:     #485870;
+  --text-chord:     #c8e0ff;
+  --text-accent:    #1a55c8;
+  --text-accent2:   #103898;
+
+  /* --- status colors --- */
+  --color-green: #167a3e;
+  --color-amber: #a86400;
+  --color-red:   #b81818;
+
+  /* --- perform text --- */
+  --text-perform:               #e9f5ff;
+  --text-perform-focused:       #ffffff;
+  --text-perform-lyric:         #eef6ff;
+  --text-perform-lyric-focused: #ffffff;
+  --text-perform-chords:        #d7ecff;
+
+  /* --- logo --- */
+  --text-logo:      #1a3a70;
+  --text-logo-span: #555e7a;
+  --shadow-logo:    1px 1px 0 rgba(255,255,255,.7), 2px 2px 0 rgba(180,190,210,.5), 3px 3px 6px rgba(0,0,0,.2);
+
+  /* --- shadow --- */
+  --shadow-sm:    0 2px 8px rgba(0,0,0,.22);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.28);
+  --shadow-inset: inset 0 2px 5px rgba(0,0,0,.22), inset 0 1px 0 rgba(0,0,0,.15);
+
+  /* --- gradient --- */
+  --grad-surface:        linear-gradient(89deg,#b0afaf 0%,#c9c9c9 25%,#d5d5d5 50%,#cfd1d0 75%,#cccccc 85%,#b1b3b2 100%);
+  --grad-panel-right:    linear-gradient(89deg,#c4c4c4 0%,#d8d8d6 25%,#eaeaea 50%,#d9d9d9 75%,#c9c9c9 85%,#c0bfbf 100%);
+  --grad-header:         linear-gradient(180deg,#e0e4ec 0%,#c8ceda 25%,#d8dde8 50%,#b8beca 75%,#ccd0da 100%);
+  --grad-control:        linear-gradient(180deg,#f2f4f8 0%,#e0e4ec 20%,#eaedf4 50%,#c8ccd8 80%,#d4d8e4 100%);
+  --grad-control-active: linear-gradient(180deg,#b0b4c0 0%,#c8ccda 100%);
+  --grad-input:          linear-gradient(180deg,#b8bdc8 0%,#c8cdd8 100%);
+  --grad-input-panel:
+    repeating-linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0) 10%,rgba(255,255,255,.08) 11.4%),
+    linear-gradient(180deg,#b9bec8 0%,#cdd2db 100%);
+  --grad-chord-tag:      linear-gradient(180deg,#2a5cc0 0%,#1a3ea0 40%,#2050b8 60%,#0e2878 100%);
+  --grad-chord-tag-hover:linear-gradient(180deg,#3a6cd8 0%,#2a4ec0 40%,#3060d0 60%,#1a3890 100%);
+  --grad-pal-chord:      linear-gradient(180deg,#d8dce8 0%,#b8bcd0 100%);
+  --grad-pal-chord-hover:linear-gradient(180deg,#3a6cd8 0%,#1a4ab0 100%);
+  --grad-dv-surface:     linear-gradient(180deg,#dcdee6 0%,#c8ccd4 100%);
+  --grad-phdr:           linear-gradient(180deg,#c8ccda 0%,#a8acba 100%);
+  --grad-status:         linear-gradient(180deg,#b0b4be 0%,#bcc0ca 100%);
+  --grad-panel-center:   #e8eaee;
+  --grad-seek-track:     linear-gradient(180deg,#8890a0 0%,#a8acbc 40%,#b8bcc8 100%);
+  --grad-seek-fill:      linear-gradient(180deg,#3070e0 0%,#1a4ab8 50%,#2860d0 100%);
+  --grad-slider:         linear-gradient(180deg,#8890a0 0%,#b0b4c0 100%);
+  --grad-play-btn:
+    radial-gradient(circle at 40% 30%,rgba(255,255,255,.5) 0%,transparent 55%),
+    linear-gradient(180deg,#e0e8ff 0%,#6090e0 30%,#3060c0 65%,#1a3a90 100%);
+  --grad-add-diag-btn:   linear-gradient(180deg,#2a7a3a 0%,#1a5a28 100%);
+  --grad-btn-gloss:      linear-gradient(180deg,rgba(255,255,255,.45) 0%,rgba(255,255,255,.08) 100%);
+  --grad-tabs:
+    repeating-linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0) 9%,rgba(255,255,255,.08) 10.4%),
+    linear-gradient(180deg,#d3d8e0 0%,#bcc3ce 55%,#b0b8c4 100%);
+  --grad-tab-active:
+    repeating-linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0) 10%,rgba(255,255,255,.08) 11.2%),
+    linear-gradient(180deg,#dde2ea 0%,#c8ced9 100%);
+  --grad-perform-overlay:linear-gradient(180deg,#6f7784 0%,#5f6775 60%,#565f6d 100%);
+  --grad-perform-header: linear-gradient(180deg,#7b8391 0%,#666f7e 100%);
+
+  /* --- texture --- */
+  --bg-texture-metal:
+    repeating-linear-gradient(90deg,transparent 0px,rgba(255,255,255,.06) 1px,transparent 2px,rgba(0,0,0,.03) 3px,transparent 4px),
+    repeating-linear-gradient(180deg,transparent 0px,rgba(255,255,255,.04) 1px,transparent 2px),
+    linear-gradient(180deg,rgba(255,255,255,.15) 0%,transparent 25%,rgba(0,0,0,.08) 75%,rgba(0,0,0,.18) 100%);
+
+  /* --- knob --- */
+  --grad-knob:
+    radial-gradient(circle at 40% 35%,rgba(255,255,255,.7) 0%,transparent 55%),
+    linear-gradient(180deg,#f0f2f8 0%,#d0d4e0 40%,#e0e4f0 60%,#b8bcc8 100%);
+  --knob-shadow: 0 2px 5px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.5);
+
+  /* --- component-specific borders --- */
+  --border-chord-tag:        #3060c0;
+  --border-chord-tag-top:    #5080e0;
+  --border-chord-tag-bottom: #0a1e60;
+  --shadow-chord-tag:        inset 0 1px 0 rgba(255,255,255,.2), 0 2px 6px rgba(0,0,0,.3);
+  --text-chord-tag:          #d8eaff;
+  --shadow-text-chord-tag:   0 1px 2px rgba(0,0,20,.6);
+
+  --border-play-btn:        #1a3a90;
+  --border-play-btn-top:    #8ab0ff;
+  --border-play-btn-bottom: #0a1e60;
+  --shadow-play-btn:        0 1px 0 rgba(255,255,255,.6), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.3);
+
+  --border-seek-top:    rgba(0,0,0,.25);
+  --border-seek-bottom: rgba(255,255,255,.5);
+  --shadow-seek-fill:   inset 0 1px 0 rgba(255,255,255,.25);
+  --border-slider-top:    rgba(0,0,0,.22);
+  --border-slider-bottom: rgba(255,255,255,.45);
+  --knob-border-top:    rgba(255,255,255,.9);
+  --knob-border-bottom: rgba(0,0,0,.25);
+  --knob-border-left:   rgba(255,255,255,.6);
+  --knob-border-right:  rgba(0,0,0,.12);
+
+  --border-add-diag-btn:        #1a5a28;
+  --border-add-diag-btn-top:    #4aaa5a;
+  --text-add-diag-btn:          #ffffff;
+  --shadow-text-add-diag-btn:   0 1px 1px rgba(0,40,0,.4);
+  --shadow-add-diag-btn:        inset 0 1px 0 rgba(255,255,255,.25), var(--shadow-sm);
+
+  --text-phdr:        #28304a;
+  --shadow-text-phdr: 0 1px 0 rgba(255,255,255,.65), 0 -1px 0 rgba(0,0,0,.2);
+  --border-phdr:         rgba(0,0,0,.18);
+  --border-phdr-top:     rgba(255,255,255,.6);
+  --shadow-phdr:         0 1px 0 rgba(255,255,255,.5), 0 2px 4px rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.3), inset 0 -1px 0 rgba(0,0,0,.1);
+
+  --border-dv-top:    rgba(255,255,255,.55);
+  --border-dv-left:   rgba(255,255,255,.55);
+  --border-dv-right:  rgba(0,0,0,.12);
+  --border-dv-bottom: rgba(0,0,0,.18);
+  --shadow-dv:        0 1px 4px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.65), inset 0 -1px 2px rgba(0,0,0,.08);
+  --shadow-text-dv-label: 0 1px 0 rgba(255,255,255,.6);
+  --shadow-text-diag-title: 0 1px 0 rgba(255,255,255,.7), 0 -1px 0 rgba(0,0,0,.1);
+
+  --border-panel-center:        rgba(255,255,255,.45);
+  --border-panel-center-bottom: rgba(0,0,0,.18);
+  --shadow-panel-center:        var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.65);
+
+  --border-audio-bar-bottom: rgba(0,0,0,.2);
+  --shadow-audio-bar:        0 1px 0 rgba(255,255,255,.5), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.35);
+
+  --shadow-status: inset 0 1px 0 rgba(255,255,255,.4);
+  --border-status-top: rgba(0,0,0,.2);
+
+  --border-btn-top:    rgba(255,255,255,.92);
+  --border-btn-left:   rgba(255,255,255,.65);
+  --border-btn-right:  rgba(0,0,0,.22);
+  --border-btn-bottom: rgba(0,0,0,.38);
+  --shadow-btn:        inset 0 1px 0 rgba(255,255,255,.6), inset 0 -1px 0 rgba(0,0,0,.12), var(--shadow-sm);
+  --text-shadow-btn:   0 1px 0 rgba(255,255,255,.75);
+
+  --bg-add-chord-btn:     rgba(200,210,230,.15);
+  --text-pal-chord:       #18307a;
+  --shadow-text-pal-chord:0 1px 0 rgba(255,255,255,.5);
+  --text-pal-chord-hover: #ffffff;
+  --shadow-text-pal-chord-hover: 0 1px 2px rgba(0,0,40,.5);
+  --border-pal-chord-hover: #2a5cc0;
+  --shadow-pal-chord:     0 1px 3px rgba(0,0,0,.15);
+
+  --color-placeholder:    rgba(30,50,80,.35);
+
+  /* --- tabs --- */
+  --bg-left-tabs:           var(--grad-tabs);
+  --border-left-tabs:       rgba(255,255,255,.55);
+  --shadow-left-tabs:       inset 0 1px 0 rgba(255,255,255,.35);
+  --bg-left-tab:            var(--grad-tabs);
+  --border-left-tab:        rgba(255,255,255,.5);
+  --bg-left-tab-active:     var(--grad-tab-active);
+  --border-left-tab-active: rgba(255,255,255,.55);
+  --border-left-tab-active-bottom: rgba(188,195,206,1);
+
+  /* --- dv svg (component-specific, theme-dependent) --- */
+  --dv-svg-stroke: #1a2030;
+  --dv-svg-text:   #18202e;
 }
 
 
-
-
-/* BLUE テーマ */
+/* ================================================
+   SEMANTIC LAYER — BLUE テーマ
+   ================================================ */
 body[data-theme="blue"] {
-  --bg:#2a5a8a; --bg2:#3068a0; --bg3:#3a78b8;
-  --border:#2a5888; --border2:#5090c8;
-  --text:#6c9db5; --text2:#939a9c; --text3:#4b6681;
-  --accent:#80d8ff; --accent2:#3090d8;
-  --chord-bg:#245080; --chord-border:#4888c0; --chord-text:#b0e0ff;
-  --shadow:0 4px 24px rgba(0,0,0,.35);
-  --settings-bg:#2a5a8a;
-  --grad-panel:linear-gradient(180deg,#4a80b8 0%,#306090 35%,#4878a8 55%,#1e4878 100%);
-  --grad-header:linear-gradient(180deg,#5a90c8 0%,#3870a8 35%,#5088be 55%,#265a90 100%);
-  --grad-btn:linear-gradient(180deg,#5898c8 0%,#306898 35%,#4880b0 55%,#245880 100%);
-  --grad-btn-active:linear-gradient(180deg,#1a4070 0%,#3868a0 100%);
-  --emboss-shadow:0 1px 0 rgba(200,240,255,.4),0 2px 6px rgba(0,0,0,.3),inset 0 -1px 0 rgba(0,40,80,.25);
-  --inset-shadow:inset 0 2px 4px rgba(0,30,70,.4),inset 0 0 0 1px rgba(0,30,70,.2);
-  --btn-text:#f0f8ff;
-  --shadow-outer-sm: 0 2px 8px rgba(0,0,0,.3);
-  --shadow-outer-md: 0 4px 16px rgba(0,0,0,.35);
-  --grad-knob: linear-gradient(180deg,var(--border2) 0%,var(--bg2) 100%);
-  --knob-shadow: 0 1px 3px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.1);
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{font-size:14px}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);font-weight:500;min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
-::-webkit-scrollbar{width:6px;height:6px}
-::-webkit-scrollbar-track{background:var(--bg2)}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+  /* --- surface --- */
+  --surface-base:    #c8dff0;
+  --surface-raised:  #d5e9f8;
+  --surface-overlay: #a8c8e8;
+  --surface-chord:   #1e3a7a;
+  --surface-settings:#c8dff0;
 
-/* ── DARK パネル背景：水平メタリック ── */
+  /* --- border --- */
+  --border-ui:            rgba(0,28,58,.35);
+  --border-ui-strong:     rgba(0,38,74,.28);
+  --border-ui-light:      rgba(255,255,255,.6);
+  --border-ui-dark:       rgba(0,28,58,.5);
+  --border-ui-light-soft: rgba(255,255,255,.5);
+  --border-ui-light-mid:  rgba(255,255,255,.5);
+  --border-ui-dark-soft:  rgba(0,20,50,.35);
+  --border-ui-dark-mid:   rgba(0,20,50,.28);
+  --border-chord:         #2a52a8;
+
+  /* --- text --- */
+  --text-primary:   #0e1e30;
+  --text-secondary: #1a3050;
+  --text-muted:     #2a4a6a;
+  --text-chord:     #c8e0ff;
+  --text-accent:    #0a3080;
+  --text-accent2:   #0a2060;
+
+  /* --- status colors --- */
+  --color-amber: #a06000;
+
+  /* --- perform text --- */
+  --text-perform:               #e9f5ff;
+  --text-perform-focused:       #ffffff;
+  --text-perform-lyric:         #eef6ff;
+  --text-perform-lyric-focused: #ffffff;
+  --text-perform-chords:        #d7ecff;
+
+  /* --- logo --- */
+  --text-logo:      #0a2040;
+  --text-logo-span: #2a5080;
+  --shadow-logo:    1px 1px 0 rgba(255,255,255,.4), 2px 2px 0 rgba(100,150,200,.3), 3px 3px 6px rgba(0,0,0,.15);
+
+  /* --- shadow --- */
+  --shadow-sm:    0 2px 8px rgba(0,0,0,.2);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.3);
+  --shadow-inset: inset 0 2px 4px rgba(0,28,58,.3), inset 0 1px 0 rgba(0,20,50,.2);
+
+  /* --- gradient --- */
+  --grad-surface:        linear-gradient(89deg,#5d9abf 0%,#9ed4f5 25%,#97d6f9 50%,#7fbee1 75%,#538fb7 100%);
+  --grad-panel-right:    var(--grad-surface);
+  --grad-header:         linear-gradient(180deg,#8bc4e8 0%,#a8d8f5 40%,#9ccef2 60%,#7ab4e0 100%);
+  --grad-control:        linear-gradient(180deg,#a8c8e8 0%,#c0d8f0 100%);
+  --grad-control-active: linear-gradient(180deg,#8ab0d8 0%,#a8c8e8 100%);
+  --grad-input:          linear-gradient(180deg,#a8c8e8 0%,#c0d8f0 100%);
+  --grad-chord-tag:      linear-gradient(180deg,#1e2a50 0%,#141e3a 40%,#1a2448 60%,#0e1830 100%);
+  --grad-chord-tag-hover:linear-gradient(180deg,#263060 0%,#1a2448 40%,#223058 60%,#162040 100%);
+  --grad-pal-chord:      linear-gradient(180deg,#2a3058 0%,#1e2440 100%);
+  --grad-pal-chord-hover:linear-gradient(180deg,#3a4068 0%,#2a304e 100%);
+  --grad-dv-surface:
+    linear-gradient(145deg,rgba(185,225,255,.16) 0%,rgba(130,190,245,.08) 34%,rgba(24,74,126,.12) 100%),
+    linear-gradient(180deg,#4b83bd 0%,#3d73ad 100%);
+  --grad-phdr:           linear-gradient(180deg,#6ea0d1 0%,#4e78a8 100%);
+  --grad-status:         var(--grad-surface);
+  --grad-panel-center:   linear-gradient(180deg,#d5ecf9 0%,#d5ebf8 55%,#d7edf8 100%);
+  --grad-seek-track:     linear-gradient(180deg,#8890a0 0%,#a8acbc 40%,#b8bcc8 100%);
+  --grad-seek-fill:      linear-gradient(180deg,#3070e0 0%,#1a4ab8 50%,#2860d0 100%);
+  --grad-slider:         linear-gradient(180deg,#8890a0 0%,#b0b4c0 100%);
+  --grad-play-btn:
+    radial-gradient(circle at 40% 30%,rgba(255,255,255,.2) 0%,transparent 55%),
+    linear-gradient(180deg,#6090c8 0%,#3060a0 30%,#1a4080 65%,#0e2860 100%);
+  --grad-add-diag-btn:   linear-gradient(180deg,#2a7a3a 0%,#1a5a28 100%);
+  --grad-btn-gloss:      linear-gradient(180deg,rgba(200,235,255,.3) 0%,rgba(200,235,255,.05) 100%);
+  --grad-perform-overlay:linear-gradient(180deg,#284e7a 0%,#23476f 60%,#1f3f63 100%);
+  --grad-perform-header: linear-gradient(180deg,#37669a 0%,#2b5685 100%);
+
+  /* --- texture (blue has none, inherit transparent) --- */
+  --bg-texture-metal: none;
+
+  /* --- knob --- */
+  --grad-knob:   linear-gradient(180deg,var(--border-ui-strong) 0%,var(--surface-raised) 100%);
+  --knob-shadow: 0 1px 3px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.15);
+
+  /* --- component-specific borders --- */
+  --border-chord-tag:        #2a52a8;
+  --border-chord-tag-top:    #4470c8;
+  --border-chord-tag-bottom: #0a1840;
+  --shadow-chord-tag:        inset 0 1px 0 rgba(255,255,255,.15), 0 2px 6px rgba(0,0,0,.3);
+  --text-chord-tag:          #c8e0ff;
+  --shadow-text-chord-tag:   0 1px 2px rgba(0,0,40,.5);
+
+  --border-play-btn:        #0e2860;
+  --border-play-btn-top:    #5888c0;
+  --border-play-btn-bottom: #061430;
+  --shadow-play-btn:        0 1px 0 rgba(255,255,255,.2), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.1);
+
+  --border-seek-top:    rgba(0,0,0,.25);
+  --border-seek-bottom: rgba(255,255,255,.5);
+  --shadow-seek-fill:   inset 0 1px 0 rgba(255,255,255,.25);
+  --border-slider-top:    rgba(0,0,0,.22);
+  --border-slider-bottom: rgba(255,255,255,.45);
+  --knob-border-top:    rgba(255,255,255,.9);
+  --knob-border-bottom: rgba(0,0,0,.25);
+  --knob-border-left:   rgba(255,255,255,.6);
+  --knob-border-right:  rgba(0,0,0,.12);
+
+  --border-add-diag-btn:        #1a5a28;
+  --border-add-diag-btn-top:    #4aaa5a;
+  --text-add-diag-btn:          #ffffff;
+  --shadow-text-add-diag-btn:   0 1px 1px rgba(0,40,0,.4);
+  --shadow-add-diag-btn:        inset 0 1px 0 rgba(255,255,255,.25), var(--shadow-sm);
+
+  --text-phdr:           #d8ecff;
+  --shadow-text-phdr:    0 1px 0 rgba(10,35,70,.55);
+  --border-phdr:         rgba(10,40,80,.28);
+  --border-phdr-top:     rgba(180,220,255,.7);
+  --border-phdr-left:    rgba(140,196,246,.45);
+  --border-phdr-bottom:  rgba(8,30,64,.38);
+  --shadow-phdr:         inset 0 1px 0 rgba(200,230,255,.35), var(--shadow-sm);
+
+  --border-dv-top:    rgba(182,222,255,.55);
+  --border-dv-left:   rgba(150,205,255,.38);
+  --border-dv-right:  rgba(12,44,82,.34);
+  --border-dv-bottom: rgba(8,30,64,.42);
+  --shadow-dv:        inset 0 1px 0 rgba(210,235,255,.28), inset 0 -2px 4px rgba(12,40,76,.26), var(--shadow-sm);
+
+  --border-panel-center:        rgba(255,255,255,.45);
+  --border-panel-center-bottom: rgba(0,28,58,.18);
+  --shadow-panel-center:        var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.35);
+
+  --border-audio-bar-bottom: rgba(0,20,50,.3);
+  --shadow-audio-bar:        0 1px 0 rgba(255,255,255,.25), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.15);
+
+  --shadow-status: none;
+  --border-status-top: transparent;
+
+  --border-btn-top:    rgba(180,220,255,.75);
+  --border-btn-left:   rgba(160,210,255,.5);
+  --border-btn-right:  rgba(0,20,50,.35);
+  --border-btn-bottom: rgba(0,20,50,.5);
+  --shadow-btn:        inset 0 1px 0 rgba(200,235,255,.4), inset 0 -1px 0 rgba(0,20,60,.2), var(--shadow-sm);
+  --text-shadow-btn:   0 1px 1px rgba(0,20,60,.5);
+  --text-btn:          #e8f4ff;
+
+  --bg-add-chord-btn:     rgba(200,220,240,.3);
+
+  --text-pal-chord:            #c8e0ff;
+  --shadow-text-pal-chord:     0 1px 0 rgba(0,0,40,.4);
+  --text-pal-chord-hover:      #ffffff;
+  --shadow-text-pal-chord-hover: 0 1px 2px rgba(0,0,40,.5);
+  --border-pal-chord-hover:    #2a52a8;
+  --shadow-pal-chord:          0 1px 3px rgba(0,0,0,.2);
+
+  --color-placeholder: rgba(30,60,100,.5);
+
+  /* --- tabs --- */
+  --bg-left-tabs:           var(--surface-overlay);
+  --border-left-tabs:       var(--border-ui);
+  --shadow-left-tabs:       none;
+  --bg-left-tab:            var(--surface-overlay);
+  --border-left-tab:        var(--border-ui);
+  --bg-left-tab-active:     var(--surface-raised);
+  --border-left-tab-active: var(--border-ui-strong);
+  --border-left-tab-active-bottom: var(--surface-raised);
+}
+
+
+/* ================================================
+   BASE STYLES（将来 base.css に移動予定）
+   ================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface-raised); }
+::-webkit-scrollbar-thumb { background: var(--border-ui-strong); border-radius: 3px; }
+
+
+/* ================================================
+   COMPONENT OVERRIDES — DARK パネル背景
+   ================================================ */
 body #panel-left,
 body[data-theme="dark"] #panel-left {
-  background: linear-gradient(89deg, #151824 0%, #1c2133 25%, #222840 50%, #1c2133 75%, #151824 100%);
+  background: var(--grad-surface);
 }
 body #panel-right,
 body[data-theme="dark"] #panel-right {
-  background: linear-gradient(89deg, #171a28 0%, #1e2236 25%, #252b44 50%, #1e2236 75%, #171a28 100%);
+  background: var(--grad-panel-right);
 }
 
-/* ════════════════════════════════════════
-   SILVER / BLUE テーマ コンポーネント上書き
-   ════════════════════════════════════════ */
+
+/* ================================================
+   COMPONENT OVERRIDES — SILVER
+   ================================================ */
+
+/* logo */
 body[data-theme="silver"] .logo {
-  color: #1a3a70;
-  text-shadow:
-    1px 1px 0 rgba(255,255,255,.7),
-    2px 2px 0 rgba(180,190,210,.5),
-    3px 3px 6px rgba(0,0,0,.2);
+  color: var(--text-logo);
+  text-shadow: var(--shadow-logo);
 }
-body[data-theme="silver"] .logo span {
-  color: #555e7a;
-}
+body[data-theme="silver"] .logo span { color: var(--text-logo-span); }
 
-
-
-/* ── ボタン共通（グロス + ラジアルハイライト）── */
+/* button */
 body[data-theme="silver"] .hdr-btn,
 body[data-theme="silver"] .trans-btn,
 body[data-theme="silver"] #tap-btn,
@@ -171,25 +595,15 @@ body[data-theme="silver"] #btn-tapmode,
 body[data-theme="silver"] #btn-perform-mode {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(180deg,
-    #f2f4f8 0%,
-    #e0e4ec 20%,
-    #eaedf4 50%,
-    #c8ccd8 80%,
-    #d4d8e4 100%
-  );
-  border-radius: 4px !important;
-  border-top: 1px solid rgba(255,255,255,.92) !important;
-  border-left: 1px solid rgba(255,255,255,.65) !important;
-  border-right: 1px solid rgba(0,0,0,.22) !important;
-  border-bottom: 1px solid rgba(0,0,0,.38) !important;
-  color: #18202e !important;
-  text-shadow: 0 1px 0 rgba(255,255,255,.75) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.6),
-    inset 0 -1px 0 rgba(0,0,0,.12),
-    0 2px 3px rgba(0,0,0,.25),
-    0 1px 0 rgba(255,255,255,.12) !important;
+  background: var(--grad-control);
+  border-radius: var(--r-sm) !important;
+  border-top:    1px solid var(--border-btn-top) !important;
+  border-left:   1px solid var(--border-btn-left) !important;
+  border-right:  1px solid var(--border-btn-right) !important;
+  border-bottom: 1px solid var(--border-btn-bottom) !important;
+  color: var(--text-primary) !important;
+  text-shadow: var(--text-shadow-btn) !important;
+  box-shadow: var(--shadow-btn) !important;
 }
 body[data-theme="silver"] .hdr-btn::after,
 body[data-theme="silver"] .trans-btn::after,
@@ -198,148 +612,204 @@ body[data-theme="silver"] #tap-btn::after {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 48%;
-  background: linear-gradient(180deg, rgba(255,255,255,.45) 0%, rgba(255,255,255,.08) 100%);
+  background: var(--grad-btn-gloss);
   pointer-events: none;
-  border-radius: 4px 4px 0 0;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
 }
 body[data-theme="silver"] .hdr-btn:active,
 body[data-theme="silver"] .trans-btn:active,
 body[data-theme="silver"] #tap-btn:active {
-  background: linear-gradient(180deg, #b0b4c0 0%, #c8ccda 100%) !important;
-  box-shadow:
-    inset 0 2px 5px rgba(0,0,0,.3),
-    inset 0 1px 0 rgba(0,0,0,.18),
-    inset 0 -1px 0 rgba(255,255,255,.15) !important;
+  background: var(--grad-control-active) !important;
+  box-shadow: var(--shadow-inset) !important;
   transform: translateY(1px);
 }
 
-
-
-/* ── コードタグ ── */
-body[data-theme="silver"] .chord-tag {
-  background: linear-gradient(180deg, #2a5cc0 0%, #1a3ea0 40%, #2050b8 60%, #0e2878 100%);
-  border: 1px solid #3060c0;
-  border-top-color: #5080e0;
-  border-bottom-color: #0a1e60;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,.2) inset,
-    0 2px 6px rgba(0,0,0,.3),
-    0 1px 2px rgba(0,0,0,.2);
-  border-radius: 7px;
-  color: #d8eaff;
-  text-shadow: 0 1px 2px rgba(0,0,20,.6);
-}
-body[data-theme="silver"] .chord-tag:hover {
-  background: linear-gradient(180deg, #3a6cd8 0%, #2a4ec0 40%, #3060d0 60%, #1a3890 100%);
-}
-body[data-theme="silver"] .chord-tag .chord-name {
-  color: #e8f2ff;
-}
-
-
-
-/* ── 入力フィールド・テキストエリア（埋め込み感）── */
+/* input / textarea */
 body[data-theme="silver"] input[type=text],
 body[data-theme="silver"] input[type=number],
 body[data-theme="silver"] #pal-filter,
-body[data-theme="silver"] #project-title {
-  background: linear-gradient(180deg, #b8bdc8 0%, #c8cdd8 100%);
-  border-top: 1px solid var(--border-shadow);
-  border-left: 1px solid rgba(0,0,0,.18);
-  border-bottom: 1px solid var(--border-highlight);
-  border-right: 1px solid rgba(255,255,255,.5);
-  box-shadow: var(--input-shadow);
-  border-radius: 7px;
-  color: var(--text);
-}
-
-
+body[data-theme="silver"] #project-title,
 body[data-theme="silver"] textarea {
-  background: linear-gradient(180deg, #b8bdc8 0%, #c8cdd8 100%);
-  border-top: 1px solid var(--border-shadow);
-  border-left: 1px solid rgba(0,0,0,.18);
-  border-bottom: 1px solid var(--border-highlight);
-  border-right: 1px solid rgba(255,255,255,.5);
-  box-shadow: var(--input-shadow);
-  border-radius: 7px;
-  color: var(--text);
+  background: var(--grad-input);
+  border-top:    1px solid var(--border-ui-dark);
+  border-left:   1px solid var(--border-ui-dark-soft);
+  border-bottom: 1px solid var(--border-ui-light);
+  border-right:  1px solid var(--border-ui-light-soft);
+  box-shadow: var(--shadow-inset);
+  border-radius: var(--r-lg);
+  color: var(--text-primary);
 }
 
-
-
-/* ── ダイアグラムパネル枠 ── */
-
-body[data-theme="silver"] .dv-label {
-  color: #28304a;
-  text-shadow: 0 1px 0 rgba(255,255,255,.6);
+/* left panel input (file-btn / capo等) */
+body[data-theme="silver"] #panel-left .file-btn,
+body[data-theme="silver"] #panel-left .capo-row input[type=number],
+body[data-theme="silver"] #panel-left #proj-key,
+body[data-theme="silver"] #panel-left #proj-bpm {
+  background: var(--grad-input-panel) !important;
+  border:              1px solid var(--border-ui-light-soft) !important;
+  border-top-color:    var(--border-ui-dark-soft) !important;
+  border-left-color:   var(--border-ui-dark-soft) !important;
+  border-bottom-color: var(--border-ui-light-mid) !important;
+  border-right-color:  var(--border-ui-light-mid) !important;
+  box-shadow: var(--shadow-inset) !important;
 }
-body[data-theme="silver"] #diag-title {
-  color: var(--text);
-  text-shadow: 0 1px 0 rgba(255,255,255,.7), 0 -1px 0 rgba(0,0,0,.1);
+
+/* tabs */
+body[data-theme="silver"] #left-tabs {
+  margin: 8px 8px 0;
+  gap: 2px;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: var(--bg-left-tabs);
+  border: 1px solid var(--border-left-tabs);
+  border-bottom: none;
+  box-shadow: var(--shadow-left-tabs);
+}
+body[data-theme="silver"] .left-tab {
+  border: 1px solid var(--border-left-tab);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg-left-tab);
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding: 9px 6px 8px;
+}
+body[data-theme="silver"] .left-tab.active {
+  border-color: var(--border-left-tab-active);
+  border-bottom: 1px solid var(--border-left-tab-active-bottom);
+  background: var(--bg-left-tab-active);
+  color: var(--text-muted);
+  box-shadow: none;
 }
 
-
-
-/* ── phdr（パネルヘッダー）── */
+/* phdr */
 body[data-theme="silver"] .phdr {
-  background: linear-gradient(180deg, #c8ccda 0%, #a8acba 100%);
-  color: #28304a;
+  background: var(--grad-phdr);
+  color: var(--text-phdr);
   font-weight: 700;
   font-size: 11px;
   letter-spacing: 1.5px;
-  text-shadow: 0 1px 0 rgba(255,255,255,.65), 0 -1px 0 rgba(0,0,0,.2);
-  border: 1px solid rgba(0,0,0,.18);
-  border-top-color: rgba(255,255,255,.6);
-  border-radius: 6px;
+  text-shadow: var(--shadow-text-phdr);
+  border: 1px solid var(--border-phdr);
+  border-top-color: var(--border-phdr-top);
+  border-radius: var(--r-md);
   margin: 12px 8px 2px;
   padding: 5px 10px;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,.5),
-    0 2px 4px rgba(0,0,0,.15),
-    inset 0 1px 0 rgba(255,255,255,.3),
-    inset 0 -1px 0 rgba(0,0,0,.1);
+  box-shadow: var(--shadow-phdr);
 }
 
-
-
-/* ── ステータスバー ── */
+/* panel */
+body[data-theme="silver"] #panel-left  { background: var(--grad-surface); }
+body[data-theme="silver"] #panel-right { background: var(--grad-panel-right); }
+body[data-theme="silver"] #panel-center {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-panel-center);
+  border-bottom-color: var(--border-panel-center-bottom);
+  overflow: hidden;
+  background: var(--grad-panel-center);
+  box-shadow: var(--shadow-panel-center);
+}
+body[data-theme="silver"] #app          { gap: 6px; padding: 6px; background: transparent; }
+body[data-theme="silver"] #header       { border-radius: 0; }
+body[data-theme="silver"] #audio-bar    {
+  background: var(--grad-header);
+  border-bottom: 1px solid var(--border-audio-bar-bottom);
+  box-shadow: var(--shadow-audio-bar);
+  border-radius: 0;
+}
 body[data-theme="silver"] #status {
-  background: linear-gradient(180deg, #b0b4be 0%, #bcc0ca 100%);
-  border-top: 1px solid rgba(0,0,0,.2);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
+  background: var(--grad-status);
+  border-top: 1px solid var(--border-status-top);
+  box-shadow: var(--shadow-status);
+}
+body[data-theme="silver"] #status span { color: var(--text-secondary); }
+
+/* chord tag */
+body[data-theme="silver"] .chord-tag {
+  background: var(--grad-chord-tag);
+  border: 1px solid var(--border-chord-tag);
+  border-top-color: var(--border-chord-tag-top);
+  border-bottom-color: var(--border-chord-tag-bottom);
+  box-shadow: var(--shadow-chord-tag);
+  border-radius: 7px;
+  color: var(--text-chord-tag);
+  text-shadow: var(--shadow-text-chord-tag);
+}
+body[data-theme="silver"] .chord-tag:hover {
+  background: var(--grad-chord-tag-hover);
 }
 
+/* palette chord */
+body[data-theme="silver"] .pal-chord {
+  background: var(--grad-pal-chord);
+  border-top: 1px solid var(--border-ui-light);
+  border-bottom: 1px solid var(--border-ui-dark-mid);
+  color: var(--text-pal-chord);
+  font-weight: 600;
+  text-shadow: var(--shadow-text-pal-chord);
+  box-shadow: var(--shadow-pal-chord);
+}
+body[data-theme="silver"] .pal-chord:hover {
+  background: var(--grad-pal-chord-hover);
+  color: var(--text-pal-chord-hover);
+  text-shadow: var(--shadow-text-pal-chord-hover);
+  border-color: var(--border-pal-chord-hover);
+}
 
+/* diagram */
+body[data-theme="silver"] .dv {
+  border-radius: var(--r-lg);
+  margin: 8px 10px;
+  background: var(--grad-dv-surface);
+  border: 1px solid var(--border-dv-top);
+  border-bottom-color: var(--border-dv-bottom);
+  border-right-color: var(--border-dv-right);
+  box-shadow: var(--shadow-dv);
+}
+body[data-theme="silver"] .dv-label {
+  color: var(--text-secondary);
+  text-shadow: var(--shadow-text-dv-label);
+}
+body[data-theme="silver"] #diag-title {
+  color: var(--text-primary);
+  text-shadow: var(--shadow-text-diag-title);
+}
+body[data-theme="silver"] .dv svg line,
+body[data-theme="silver"] .dv svg rect  { stroke: var(--dv-svg-stroke) !important; stroke-width: 1.5 !important; }
+body[data-theme="silver"] .dv svg text  { fill: var(--dv-svg-text) !important; font-weight: 700 !important; font-size: 11px !important; }
+body[data-theme="silver"] .dv svg circle { stroke: var(--dv-svg-stroke) !important; stroke-width: 1.5 !important; }
 
-/* ── シークバー ── */
+/* play button */
+body[data-theme="silver"] .play-btn {
+  background: var(--grad-play-btn);
+  border: 1px solid var(--border-play-btn);
+  border-top-color: var(--border-play-btn-top);
+  border-bottom-color: var(--border-play-btn-bottom);
+  box-shadow: var(--shadow-play-btn);
+}
+body[data-theme="silver"] .play-btn:hover { filter: brightness(1.12); }
+
+/* seek / slider */
 body[data-theme="silver"] #seek-track {
   height: 8px;
-  background: linear-gradient(180deg, #8890a0 0%, #a8acbc 40%, #b8bcc8 100%);
+  background: var(--grad-seek-track);
   border-radius: 4px;
-  border-top: 1px solid rgba(0,0,0,.25);
-  border-bottom: 1px solid rgba(255,255,255,.5);
-  box-shadow: var(--input-shadow);
+  border-top: 1px solid var(--border-seek-top);
+  border-bottom: 1px solid var(--border-seek-bottom);
+  box-shadow: var(--shadow-inset);
 }
 body[data-theme="silver"] #seek-fill {
-  background: linear-gradient(180deg, #3070e0 0%, #1a4ab8 50%, #2860d0 100%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+  background: var(--grad-seek-fill);
+  box-shadow: var(--shadow-seek-fill);
 }
-body[data-theme="silver"] #vol-slider {
+body[data-theme="silver"] #vol-slider,
+body[data-theme="silver"] #speed-sel {
   -webkit-appearance: none; appearance: none;
   height: 8px;
-  background: var(--grad-track);
+  background: var(--grad-slider);
   border-radius: 4px;
-  border-top: 1px solid rgba(0,0,0,.22);
-  border-bottom: 1px solid rgba(255,255,255,.45);
-  box-shadow: var(--input-shadow);
-}
-body[data-theme="silver"] #speed-sel {
-  height: 8px;
-  background: var(--grad-track);
-  border-radius: 4px;
-  border-top: 1px solid rgba(0,0,0,.22);
-  border-bottom: 1px solid rgba(255,255,255,.45);
-  box-shadow: var(--input-shadow);
+  border-top: 1px solid var(--border-slider-top);
+  border-bottom: 1px solid var(--border-slider-bottom);
+  box-shadow: var(--shadow-inset);
 }
 body[data-theme="silver"] #vol-slider::-webkit-slider-thumb,
 body[data-theme="silver"] #speed-sel::-webkit-slider-thumb {
@@ -347,283 +817,42 @@ body[data-theme="silver"] #speed-sel::-webkit-slider-thumb {
   width: 18px; height: 18px;
   border-radius: 50%;
   background: var(--grad-knob);
-  border-top: 1px solid rgba(255,255,255,.9);
-  border-bottom: 1px solid rgba(0,0,0,.25);
-  border-left: 1px solid rgba(255,255,255,.6);
-  border-right: 1px solid rgba(0,0,0,.12);
+  border-top:    1px solid var(--knob-border-top);
+  border-bottom: 1px solid var(--knob-border-bottom);
+  border-left:   1px solid var(--knob-border-left);
+  border-right:  1px solid var(--knob-border-right);
   cursor: pointer;
-  box-shadow:
-    0 2px 5px rgba(0,0,0,.3),
-    0 1px 0 rgba(255,255,255,.8),
-    inset 0 1px 0 rgba(255,255,255,.5);
+  box-shadow: var(--knob-shadow);
 }
 
-
-
-/* ── タイムスタンプ・ファイルボタン ── */
-body[data-theme="silver"] .line-time.has-t { color: var(--amber); }
-body[data-theme="silver"] #status span { color: var(--text2); }
-
-
-body[data-theme="silver"] .file-btn.loaded {
-  border-color: var(--green);
-  color: var(--green);
-}
-
-
-
-/* ── ダイアグラム指板（線・文字を黒く）── */
-body[data-theme="silver"] .dv svg line,
-body[data-theme="silver"] .dv svg rect {
-  stroke: #1a2030 !important;
-  stroke-width: 1.5 !important;
-}
-body[data-theme="silver"] .dv svg text {
-  fill: #18202e !important;
-  font-weight: 700 !important;
-  font-size: 11px !important;
-}
-body[data-theme="silver"] .dv svg circle {
-  stroke: #1a2030 !important;
-  stroke-width: 1.5 !important;
-}
-
-
-
-/* ── 再生ボタン ── */
-body[data-theme="silver"] .play-btn {
-  background:
-    radial-gradient(circle at 40% 30%, rgba(255,255,255,.5) 0%, transparent 55%),
-    linear-gradient(180deg, #e0e8ff 0%, #6090e0 30%, #3060c0 65%, #1a3a90 100%);
-  border: 1px solid #1a3a90;
-  border-top-color: #8ab0ff;
-  border-bottom-color: #0a1e60;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,.6),
-    0 3px 8px rgba(0,0,0,.35),
-    0 1px 2px rgba(0,0,0,.2),
-    inset 0 1px 0 rgba(255,255,255,.3);
-}
-body[data-theme="silver"] .play-btn:hover {
-  filter: brightness(1.12);
-}
-
-
-
-/* ── パレットタグ ── */
-body[data-theme="silver"] .pal-chord {
-  background: linear-gradient(180deg, #d8dce8 0%, #b8bcd0 100%);
-  border-top: 1px solid rgba(255,255,255,.7);
-  border-bottom: 1px solid rgba(0,0,0,.15);
-  color: #18307a;
-  font-weight: 600;
-  text-shadow: 0 1px 0 rgba(255,255,255,.5);
-  box-shadow: 0 1px 3px rgba(0,0,0,.15), 0 1px 0 rgba(255,255,255,.5);
-}
-body[data-theme="silver"] .pal-chord:hover {
-  background: linear-gradient(180deg, #3a6cd8 0%, #1a4ab0 100%);
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0,0,40,.5);
-  border-color: #2a5cc0;
-}
-
-
-
-/* ── オーディオバー ── */
-body[data-theme="silver"] #audio-bar {
-  background: var(--grad-header);
-  border-bottom: 1px solid rgba(0,0,0,.2);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,.5),
-    var(--shadow-outer-sm),
-    inset 0 1px 0 rgba(255,255,255,.35);
-  border-radius: 0;
-}
-
-
-
-
-
-
-
-
-/* ── appレイアウト ── */
-body[data-theme="silver"] #app {
-  gap: 6px;
-  padding: 6px;
-  background: transparent;
-}
-
-
-
-
-
-
-
-
-
-/* ── 中央パネル ── */
-body[data-theme="silver"] #panel-center {
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.45);
-  border-bottom-color: rgba(0,0,0,.18);
-  overflow: hidden;
-  background: #e8eaee;
-  box-shadow:
-    0 2px 8px rgba(0,0,0,.22),
-    inset 0 1px 0 rgba(255,255,255,.65);
-}
-
-
-
-/* ── ヘッダー ── */
-body[data-theme="silver"] #header {
-  border-radius: 0;  
-}
-
-
-
-
-
-
-
-
-body[data-theme="silver"] .dv {
-  border-radius: 10px;
-  margin: 8px 10px;
-  background:
-    linear-gradient(180deg, #dcdee6 0%, #c8ccd4 100%);
-  border: 1px solid rgba(255,255,255,.55);
-  border-bottom-color: rgba(0,0,0,.18);
-  border-right-color: rgba(0,0,0,.12);
-  box-shadow:
-    0 1px 4px rgba(0,0,0,.18),
-    inset 0 1px 0 rgba(255,255,255,.65),
-    inset 0 -1px 2px rgba(0,0,0,.08);
-}
-
-
-body[data-theme="silver"] input[type=text],
-body[data-theme="silver"] input[type=number],
-body[data-theme="silver"] #pal-filter,
-body[data-theme="silver"] #project-title,
-
-
-
-
-
-
-
-body[data-theme="silver"] #diag-search {
-  padding: 8px 10px 4px;
-}
-
-
-
-
-/* ── ダイアグラム登録ボタン ── */
+/* misc */
+body[data-theme="silver"] .line-time.has-t    { color: var(--color-amber); }
+body[data-theme="silver"] .file-btn.loaded    { border-color: var(--color-green); color: var(--color-green); }
 body[data-theme="silver"] #btn-add-diag-bottom {
-  background: linear-gradient(180deg, #2a7a3a 0%, #1a5a28 100%);
-  border: 1px solid #1a5a28;
-  border-top-color: #4aaa5a;
+  background: var(--grad-add-diag-btn);
+  border: 1px solid var(--border-add-diag-btn);
+  border-top-color: var(--border-add-diag-btn-top);
   border-radius: 8px;
-  color: #fff;
-  text-shadow: 0 1px 1px rgba(0,40,0,.4);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.25),
-    0 2px 4px rgba(0,0,0,.2);
+  color: var(--text-add-diag-btn);
+  text-shadow: var(--shadow-text-add-diag-btn);
+  box-shadow: var(--shadow-add-diag-btn);
 }
+#diag-search  { display: none; }
+#diag-title   { width: 100%; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 
+/* ================================================
+   COMPONENT OVERRIDES — BLUE
+   ================================================ */
 
-/* ── タブ ── */
-body[data-theme="silver"] #left-tabs {
-  margin: 8px 8px 0;
-  padding: 0;
-  gap: 2px;
-  border-radius: 10px 10px 0 0;
-  background:
-    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 9%, rgba(255,255,255,.08) 10.4%),
-    repeating-linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 5.2%, rgba(0,0,0,.03) 5.9%),
-    linear-gradient(180deg, #d3d8e0 0%, #bcc3ce 55%, #b0b8c4 100%);
-  border: 1px solid rgba(255,255,255,.55);
-  border-bottom-color: rgba(0,0,0,.2);
-  border-bottom: none;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+/* logo */
+body[data-theme="blue"] .logo {
+  color: var(--text-logo);
+  text-shadow: var(--shadow-logo);
 }
+body[data-theme="blue"] .logo span { color: var(--text-logo-span); }
 
-body[data-theme="silver"] #panel-left {
-background: linear-gradient(89deg, #b0afaf 0%, #c9c9c9 25%, #d5d5d5 50%, #cfd1d0 75%, #cccccc 85%, #b1b3b2 100%);
-}
-
-body[data-theme="silver"] #panel-right {
-background: linear-gradient(89deg, #c4c4c4 0%, #d8d8d6 25%, #eaeaea 50%, #d9d9d9 75%, #c9c9c9 85%, #c0bfbf 100%);
-}
-
-
-#diag-search {
-display: none;
-}
-
-
-
-
-#diag-title {
-  width: 100%;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-body[data-theme="silver"] #panel-left .file-btn,
-body[data-theme="silver"] #panel-left .capo-row input[type=number],
-body[data-theme="silver"] #panel-left #proj-key,
-body[data-theme="silver"] #panel-left #proj-bpm {
-background:
-  repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 10%, rgba(255,255,255,.08) 11.4%),
-  linear-gradient(180deg, #b9bec8 0%, #cdd2db 100%) !important;
-border: 1px solid rgba(255,255,255,.48) !important;
-border-top-color: rgba(0,0,0,.22) !important;
-border-left-color: rgba(0,0,0,.16) !important;
-border-bottom-color: rgba(255,255,255,.64) !important;
-border-right-color: rgba(255,255,255,.54) !important;
-box-shadow:
-  inset 0 2px 5px rgba(0,0,0,.2),
-  inset 0 1px 0 rgba(0,0,0,.12),
-  inset 0 -1px 0 rgba(255,255,255,.35) !important;
-}
-
-body[data-theme="silver"] .left-tab {
-  margin: 0;
-  border: 1px solid rgba(255,255,255,.5);
-  border-bottom-color: rgba(0,0,0,.15);
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
-  background:
-    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 9%, rgba(255,255,255,.08) 10.4%),
-    repeating-linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 5.2%, rgba(0,0,0,.03) 5.9%),
-    linear-gradient(180deg, #d3d8e0 0%, #bcc3ce 55%, #b0b8c4 100%);
-  color: #2f466d;
-  font-weight: 600;
-  letter-spacing: .2px;
-  padding: 9px 6px 8px;
-}
-
-body[data-theme="silver"] .left-tab.active {
-  border-color: rgba(255,255,255,.55);
-  border-bottom: 1px solid rgba(188,195,206,1);
-  background:
-    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 10%, rgba(255,255,255,.08) 11.2%),
-    linear-gradient(180deg, #dde2ea 0%, #c8ced9 100%);
-  color: #4c596f;
-  box-shadow: none;
-}
-
-
-
-
-/* ── BLUE ボタン：ブラシドメタル角型 ── */
+/* button */
 body[data-theme="blue"] .hdr-btn,
 body[data-theme="blue"] .trans-btn,
 body[data-theme="blue"] #tap-btn,
@@ -632,24 +861,15 @@ body[data-theme="blue"] #btn-tapmode,
 body[data-theme="blue"] #btn-perform-mode {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(180deg,
-    #5a90c8 0%,
-    #4278b0 20%,
-    #4e84bc 50%,
-    #305888 80%,
-    #3e6898 100%
-  );
-  border-radius: 4px !important;
-  border-top: 1px solid rgba(180,220,255,.75) !important;
-  border-left: 1px solid rgba(160,210,255,.5) !important;
-  border-right: 1px solid rgba(0,20,50,.35) !important;
-  border-bottom: 1px solid rgba(0,20,50,.5) !important;
-  color: #e8f4ff !important;
-  text-shadow: 0 1px 1px rgba(0,20,60,.5) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(200,235,255,.4),
-    inset 0 -1px 0 rgba(0,20,60,.2),
-    0 2px 4px rgba(0,0,0,.3) !important;
+  background: var(--grad-control);
+  border-radius: var(--r-sm) !important;
+  border-top:    1px solid var(--border-btn-top) !important;
+  border-left:   1px solid var(--border-btn-left) !important;
+  border-right:  1px solid var(--border-btn-right) !important;
+  border-bottom: 1px solid var(--border-btn-bottom) !important;
+  color: var(--text-btn) !important;
+  text-shadow: var(--text-shadow-btn) !important;
+  box-shadow: var(--shadow-btn) !important;
 }
 body[data-theme="blue"] .hdr-btn::after,
 body[data-theme="blue"] .trans-btn::after,
@@ -658,31 +878,19 @@ body[data-theme="blue"] #tap-btn::after {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 48%;
-  background: linear-gradient(180deg, rgba(200,235,255,.3) 0%, rgba(200,235,255,.05) 100%);
+  background: var(--grad-btn-gloss);
   pointer-events: none;
-  border-radius: 4px 4px 0 0;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
 }
 body[data-theme="blue"] .hdr-btn:active,
 body[data-theme="blue"] .trans-btn:active,
 body[data-theme="blue"] #tap-btn:active {
-  background: linear-gradient(180deg, #284870 0%, #3a6090 100%) !important;
-  box-shadow:
-    inset 0 2px 5px rgba(0,20,60,.4),
-    inset 0 1px 0 rgba(0,20,60,.2) !important;
+  background: var(--grad-control-active) !important;
+  box-shadow: var(--shadow-inset) !important;
   transform: translateY(1px);
 }
 
-/* ── BLUE パネル背景メタリック上書き ── */
-body[data-theme="blue"] #panel-left,
-body[data-theme="blue"] #panel-right {
-  background: linear-gradient(89deg, #5d9abf 0%, #9ed4f5 25%, #97d6f9 50%, #7fbee1 75%, #538fb7 100%);
-}
-
-body[data-theme="blue"] #panel-center {
-  background: linear-gradient(180deg, #d5ecf9 0%, #d5ebf8 55%, #d7edf8 100%);
-}
-
-/* ── BLUE 入力欄：凹みメタリック ── */
+/* input */
 body[data-theme="blue"] .file-btn,
 body[data-theme="blue"] .capo-row input[type=number],
 body[data-theme="blue"] #proj-key,
@@ -693,159 +901,120 @@ body[data-theme="blue"] #project-title,
 body[data-theme="blue"] #diag-in,
 body[data-theme="blue"] textarea,
 body[data-theme="blue"] #time-dis {
-  background: linear-gradient(180deg, #5c7fa8 0%, #7fa0c3 100%) !important;
-  border-top: 1px solid rgba(0,28,58,.55) !important;
-  border-left: 1px solid rgba(0,38,74,.45) !important;
-  border-bottom: 1px solid rgba(195,225,255,.45) !important;
-  border-right: 1px solid rgba(165,205,245,.40) !important;
-  box-shadow:
-    inset 0 2px 5px rgba(0,28,58,.45),
-    inset 0 1px 0 rgba(0,22,48,.30),
-    inset 0 -1px 0 rgba(180,220,255,.20) !important;
-  color: #eaf4ff !important;
+  background: var(--grad-input) !important;
+  border-top:    1px solid var(--border-ui-dark) !important;
+  border-left:   1px solid var(--border-ui-strong) !important;
+  border-bottom: 1px solid var(--border-ui-light) !important;
+  border-right:  1px solid var(--border-ui-light-soft) !important;
+  box-shadow: var(--shadow-inset) !important;
+  color: var(--text-primary) !important;
 }
 
-body[data-theme="blue"] .logo {
-  color: #d0eaff;
-  text-shadow:
-    1px 1px 0 rgba(0,30,80,.5),
-    2px 2px 0 rgba(0,20,60,.35),
-    3px 3px 6px rgba(0,0,0,.3);
-}
-body[data-theme="blue"] .logo span {
-  color: #90bce0;
-}
-/* ── BLUE テーマ 文字色修正（--text変更に伴う上書き）── */
-body[data-theme="blue"] .left-tab {
-  color: #a8d0f0;
-}
-body[data-theme="blue"] .left-tab:hover {
-  color: #c8e4ff;
-}
+/* text */
+body[data-theme="blue"] .lyric-input,
+body[data-theme="blue"] .line-row .lyric-input { color: var(--text-primary) !important; }
+body[data-theme="blue"] .lyric-input::placeholder { color: var(--color-placeholder) !important; }
+body[data-theme="blue"] .left-tab       { color: var(--text-secondary); }
+body[data-theme="blue"] .left-tab:hover { color: var(--text-primary); }
 body[data-theme="blue"] .left-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  color: var(--text-accent);
+  border-bottom-color: var(--text-accent);
 }
-body[data-theme="blue"] .line-row .lyric-input {
-  color: #d8eeff !important;
-}
-body[data-theme="blue"] .lyric-input::placeholder {
-  color: rgba(180,220,255,.55) !important;
-}
-body[data-theme="blue"] .phdr {
-  color: #c8e4ff;
-}
-body[data-theme="blue"] #status {
-  color: #a8cce8;
-}
-body[data-theme="blue"] #status span {
-  color: #c8e4ff;
-}
-
-body[data-theme="blue"] .lyric-input {
-  color: #eaf4ff;
-}
-body[data-theme="blue"] .lyric-input::placeholder {
-  color: rgba(220,236,255,.65);
-}
-
-body[data-theme="blue"] .line-num {
-  color: rgba(196,222,246,.92);
-}
-body[data-theme="blue"] .line-time {
-  color: rgba(255,202,112,1);
-}
+body[data-theme="blue"] .line-num   { color: var(--text-muted); }
+body[data-theme="blue"] .line-time  { color: var(--color-amber); }
 body[data-theme="blue"] .add-chord-btn {
-  color: rgba(210,232,252,.94);
-  border-color: rgba(150,192,236,.94);
-  background: rgba(34,80,126,.18);
+  color: var(--text-secondary);
+  border-color: var(--border-ui);
+  background: var(--bg-add-chord-btn);
 }
 
+/* phdr */
 body[data-theme="blue"] .phdr {
-  border-radius: 6px;
+  border-radius: var(--r-md);
   margin: 12px 8px 2px;
   padding: 5px 10px;
-  background: linear-gradient(180deg, #6ea0d1 0%, #4e78a8 100%);
-  color: #d8ecff;
+  background: var(--grad-phdr);
+  color: var(--text-phdr);
   font-weight: 600;
   font-size: 10px;
   letter-spacing: 1.5px;
-  text-shadow: 0 1px 0 rgba(10,35,70,.55);
-  border-top: 1px solid rgba(180,220,255,.7);
-  border-left: 1px solid rgba(140,196,246,.45);
-  border-right: 1px solid rgba(10,40,80,.28);
-  border-bottom: 1px solid rgba(8,30,64,.38);
-  box-shadow:
-    inset 0 1px 0 rgba(200,230,255,.35),
-    0 1px 3px rgba(0,0,0,.22);
+  text-shadow: var(--shadow-text-phdr);
+  border-top:    1px solid var(--border-phdr-top);
+  border-left:   1px solid var(--border-phdr-left);
+  border-right:  1px solid var(--border-phdr);
+  border-bottom: 1px solid var(--border-phdr-bottom);
+  box-shadow: var(--shadow-phdr);
 }
 
+/* panel */
+body[data-theme="blue"] #panel-left,
+body[data-theme="blue"] #panel-right  { background: var(--grad-surface); }
+body[data-theme="blue"] #panel-center { background: var(--grad-panel-center); }
+body[data-theme="blue"] #status       { color: var(--text-secondary); }
+body[data-theme="blue"] #status span  { color: var(--text-primary); }
+
+/* diagram */
 body[data-theme="blue"] .dv {
-  border-radius: 12px;
-  background:
-    linear-gradient(145deg, rgba(185,225,255,.16) 0%, rgba(130,190,245,.08) 34%, rgba(24,74,126,.12) 100%),
-    linear-gradient(180deg, #4b83bd 0%, #3d73ad 100%);
-  border-top: 1px solid rgba(182,222,255,.55);
-  border-left: 1px solid rgba(150,205,255,.38);
-  border-right: 1px solid rgba(12,44,82,.34);
-  border-bottom: 1px solid rgba(8,30,64,.42);
-  box-shadow:
-    inset 0 1px 0 rgba(210,235,255,.28),
-    inset 0 -2px 4px rgba(12,40,76,.26),
-    0 2px 6px rgba(0,0,0,.22);
+  border-radius: var(--r-lg);
+  background: var(--grad-dv-surface);
+  border-top:    1px solid var(--border-dv-top);
+  border-left:   1px solid var(--border-dv-left);
+  border-right:  1px solid var(--border-dv-right);
+  border-bottom: 1px solid var(--border-dv-bottom);
+  box-shadow: var(--shadow-dv);
 }
 
-/* Perform mode readability tuning for Silver / Blue */
+
+/* ================================================
+   COMPONENT OVERRIDES — PERFORM MODE
+   silver/blue共通
+   ================================================ */
 body[data-theme="silver"] #perform-overlay:not([data-static-mode]) .perform-line,
-body[data-theme="blue"] #perform-overlay:not([data-static-mode]) .perform-line {
-  opacity: 0.62;
-}
+body[data-theme="blue"]   #perform-overlay:not([data-static-mode]) .perform-line { opacity: .62; }
 body[data-theme="silver"] #perform-overlay:not([data-static-mode]) .perform-line.near,
-body[data-theme="blue"] #perform-overlay:not([data-static-mode]) .perform-line.near {
-  opacity: 0.82;
-}
+body[data-theme="blue"]   #perform-overlay:not([data-static-mode]) .perform-line.near { opacity: .82; }
 
 body[data-theme="silver"] .perform-line .chords,
-body[data-theme="blue"] .perform-line .chords {
-  color: #d7ecff;
-}
+body[data-theme="blue"]   .perform-line .chords { color: var(--text-perform-chords); }
+
 body[data-theme="silver"] .perform-chord-name,
-body[data-theme="blue"] .perform-chord-name {
-  color: #e9f5ff;
-  text-shadow: 0 1px 2px rgba(0,0,0,.42);
+body[data-theme="blue"]   .perform-chord-name {
+  color: var(--text-perform);
+  text-shadow: var(--shadow-perform-chord);
 }
 body[data-theme="silver"] .perform-line.focused .perform-chord-name,
-body[data-theme="blue"] .perform-line.focused .perform-chord-name {
-  color: #ffffff;
-  text-shadow: 0 1px 3px rgba(0,0,0,.55);
+body[data-theme="blue"]   .perform-line.focused .perform-chord-name {
+  color: var(--text-perform-focused);
+  text-shadow: var(--shadow-perform-chord-focused);
 }
-
 body[data-theme="silver"] .perform-line .lyric,
-body[data-theme="blue"] .perform-line .lyric {
-  color: #eef6ff;
-  text-shadow: 0 1px 2px rgba(0,0,0,.45);
+body[data-theme="blue"]   .perform-line .lyric {
+  color: var(--text-perform-lyric);
+  text-shadow: var(--shadow-perform-lyric);
 }
 body[data-theme="silver"] .perform-line.focused .lyric,
-body[data-theme="blue"] .perform-line.focused .lyric {
-  color: #ffffff;
-  text-shadow: 0 1px 3px rgba(0,0,0,.6);
+body[data-theme="blue"]   .perform-line.focused .lyric {
+  color: var(--text-perform-lyric-focused);
+  text-shadow: var(--shadow-perform-lyric-focused);
 }
 
 body[data-theme="silver"] #perform-overlay {
-  background: linear-gradient(180deg, #6f7784 0%, #5f6775 60%, #565f6d 100%);
+  background: var(--grad-perform-overlay);
 }
 body[data-theme="silver"] #perform-header,
 body[data-theme="silver"] #perform-controls {
-  background: linear-gradient(180deg, #7b8391 0%, #666f7e 100%);
+  background: var(--grad-perform-header);
 }
-
 body[data-theme="blue"] #perform-overlay {
-  background: linear-gradient(180deg, #284e7a 0%, #23476f 60%, #1f3f63 100%);
+  background: var(--grad-perform-overlay);
 }
 body[data-theme="blue"] #perform-header,
 body[data-theme="blue"] #perform-controls {
-  background: linear-gradient(180deg, #37669a 0%, #2b5685 100%);
+  background: var(--grad-perform-header);
 }
 
-
-
+/* silver body texture */
+body[data-theme="silver"] {
+  background-color: var(--surface-base);
+  background-image: var(--bg-texture-metal);
+}
