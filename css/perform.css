@@ -6,7 +6,7 @@
 #perform-overlay {
   position: fixed;
   inset: 0;
-  background: var(--bg);
+  background: var(--surface-base);
   z-index: 9999;
   flex-direction: column;
   --perform-font-scale: 1;
@@ -17,14 +17,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;  
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-ui);
 }
 
 #perform-title {
   font-size: 13px;  
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 #perform-options {
@@ -36,7 +36,7 @@
 
 #btn-perform-close:hover {
   background: var(--bg4);
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 #perform-controls {
@@ -44,8 +44,8 @@
   align-items: center;
   gap: 12px;
   padding: 12px 24px;
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-ui);
 }
 
 #perform-seek-wrap {
@@ -59,14 +59,14 @@
   position: absolute;
   width: 100%;
   height: 100%;
-  background: var(--bg3);
+  background: var(--surface-overlay);
   border-radius: 3px;
 }
 
 #perform-seek-fill {
   position: absolute;
   height: 100%;
-  background: var(--accent);
+  background: var(--text-accent);
   border-radius: 3px;
   transition: width 0.1s;
 }
@@ -80,9 +80,9 @@
 }
 
 #perform-time {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 13px;
-  color: var(--text2);
+  color: var(--text-secondary);
   min-width: 48px;
 }
 
@@ -134,7 +134,7 @@
 }
 
 .perform-chord-name:hover {
-  background: var(--bg3);
+  background: var(--surface-overlay);
 }
 
 
@@ -149,15 +149,15 @@
 
 
 .perform-chord-empty {
-  color: var(--text3);
+  color: var(--text-muted);
   font-size: 10px;
 }
 
 
 .perform-sep {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 1.4em;
-  color: var(--accent);
+  color: var(--text-accent);
   font-weight: bold;
   line-height: 1;
 }
@@ -179,7 +179,7 @@
   display: inline-block;
   margin-left: 8px;
   font-size: 16px;
-  color: var(--amber);
+  color: var(--color-amber);
   font-weight: bold;
 }
 
@@ -198,8 +198,8 @@
 
 
 .perform-line .chords {
-  font-family: var(--mono);
-  color: var(--accent);
+  font-family: var(--font-mono);
+  color: var(--text-accent);
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start;
@@ -244,7 +244,7 @@
 
 .perform-line .lyric {
   font-size: 1.1em;
-  color: var(--text);
+  color: var(--text-primary);
   min-height: 1.4em;
   text-align: left;
   padding-left: 4px;
