@@ -1,4 +1,4 @@
-// ════════════════════════════════════════
+﻿// ════════════════════════════════════════
 // CHORD DATABASE
 // frets[6]: 6弦→1弦  -1=ミュート 0=開放
 // ════════════════════════════════════════
@@ -206,7 +206,7 @@ export function showDiagramPanel(chord, capo){
   const r=lookupChord(chord);
   const capoInfo=showCapoInfo(chord, capo);
   if(!r){
-    c.innerHTML=`${capoInfo}<div class="diag-empty">"${chord}"<br>のダイアグラムは未登録<br><br><small style="color:var(--amber)">↑「＋ダイアグラムを手動登録」<br>で追加できます</small></div>`;
+    c.innerHTML=`${capoInfo}<div class="diag-empty">"${chord}"<br>のダイアグラムは未登録<br><br><small style="color:var(--color-amber)">↑「＋ダイアグラムを手動登録」<br>で追加できます</small></div>`;
     return;
   }
   c.innerHTML=capoInfo;
@@ -314,7 +314,7 @@ export function transposeChord(chord, semitones){
 export function showCapoInfo(displayChord, capo){
   if(capo===0)return'';
   const realChord=transposeChord(displayChord, capo);
-  return`<div style="font-size:10px;color:var(--amber);text-align:center;margin-top:4px;font-family:var(--mono)">カポ${capo} → 実音: ${realChord}</div>`;
+  return`<div style="font-size:10px;color:var(--color-amber);text-align:center;margin-top:4px;font-family:var(--font-mono)">カポ${capo} → 実音: ${realChord}</div>`;
 }
 
 // ────────────────────────────────────────

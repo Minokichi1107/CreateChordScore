@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ════════════════════════════════════════
  * tapmode.js - TAP Mode（時刻設定オーバーレイ）
  * ════════════════════════════════════════
@@ -148,7 +148,7 @@ export function renderTovLines() {
   lines.forEach((line, idx) => {
     const row = document.createElement('div');
     row.className = 'tap-ov-line';
-    if (idx === tovFocusIdx) row.style.borderColor = 'var(--green)';
+    if (idx === tovFocusIdx) row.style.borderColor = 'var(--color-green)';
 
     // 時刻（クリックで削除）
     const timeEl = document.createElement('div');
@@ -176,7 +176,7 @@ export function renderTovLines() {
     line.chords.forEach(c => {
       if (c.type === 'sep') {
         const sp = document.createElement('span');
-        sp.style.cssText = 'color:var(--text3);font-size:15px;padding:0 1px;align-self:center';
+        sp.style.cssText = 'color:var(--text-muted);font-size:15px;padding:0 1px;align-self:center';
         sp.textContent = '/';
         chordWrap.appendChild(sp);
         return;
