@@ -33,12 +33,6 @@
 }
 
 
-
-#btn-perform-close:hover {
-  background: var(--surface-overlay);
-  color: var(--text-primary);
-}
-
 #perform-controls {
   display: flex;
   align-items: center;

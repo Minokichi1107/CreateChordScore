@@ -488,7 +488,7 @@ function openAddChord(idx){
         previewEl.appendChild(s);
       } else {
         const tag=document.createElement('span');
-        tag.style.cssText='display:inline-flex;align-items:center;gap:3px;background:var(--chord-bg);border:1.5px solid var(--chord-border);border-radius:4px;color:#c8e4ff;font-family:var(--font-mono);font-size:12px;font-weight:700;padding:3px 5px 3px 8px;cursor:default;';
+        tag.style.cssText='display:inline-flex;align-items:center;gap:3px;background:var(--chord-bg);border:1.5px solid var(--chord-border);border-radius:4px;color:var(--text-primary);font-family:var(--font-mono);font-size:12px;font-weight:700;padding:3px 5px 3px 8px;cursor:default;';
         const nm=document.createElement('span');nm.textContent=c.chord;
         const dx=document.createElement('span');
         dx.textContent='✕';

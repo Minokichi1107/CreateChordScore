@@ -63,6 +63,7 @@
   --surface-base:    #0f1117;
   --surface-raised:  #171a24;
   --surface-overlay: #1e2130;
+  --surface-btn-close-hover: #1e2130;  /* [SAFE] 演奏モード閉じるボタンhover */
   --surface-chord:   #1a2540;
   --surface-settings:#171a24;
 
@@ -75,6 +76,7 @@
   --border-ui-light-mid:  rgba(255,255,255,.6);
   --border-ui-dark-soft:  rgba(0,0,0,.18);
   --border-ui-dark-mid:   rgba(0,0,0,.25);
+  --border-input-empty: var(--border-ui);
   --border-chord:         #2e4a8a;
 
   /* --- text --- */
@@ -84,6 +86,7 @@
   --text-chord:     #7eb8ff;
   --text-accent:    #4f9eff;
   --text-accent2:   #2d6fd4;
+  --text-input-empty:   var(--text-secondary);
 
   /* --- perform text --- */
   --text-perform:         #e9f5ff;
@@ -238,6 +241,7 @@ body[data-theme="silver"] {
   --surface-base:    #a8acb4;
   --surface-raised:  #c8ced8;
   --surface-overlay: #d8dde6;
+  --surface-btn-close-hover: #d8dde6;  /* [SAFE] 演奏モード閉じるボタンhover */
   --surface-chord:   #1e3a7a;
   --surface-settings:#c0c6d0;
 
@@ -250,6 +254,7 @@ body[data-theme="silver"] {
   --border-ui-light-mid:  rgba(255,255,255,.6);
   --border-ui-dark-soft:  rgba(0,0,0,.18);
   --border-ui-dark-mid:   rgba(0,0,0,.25);
+  --border-input-empty: var(--border-ui);
   --border-chord:         #2a52a8;
 
   /* --- text --- */
@@ -259,6 +264,7 @@ body[data-theme="silver"] {
   --text-chord:     #c8e0ff;
   --text-accent:    #1a55c8;
   --text-accent2:   #103898;
+  --text-input-empty:   var(--text-secondary);
 
   /* --- status colors --- */
   --color-green: #167a3e;
@@ -429,6 +435,7 @@ body[data-theme="blue"] {
   --surface-base:    #c8dff0;
   --surface-raised:  #d5e9f8;
   --surface-overlay: #a8c8e8;
+  --surface-btn-close-hover: #03386c;  /* [SAFE] 演奏モード閉じるボタンhover */
   --surface-chord:   #1e3a7a;
   --surface-settings:#c8dff0;
 
@@ -441,15 +448,17 @@ body[data-theme="blue"] {
   --border-ui-light-mid:  rgba(255,255,255,.5);
   --border-ui-dark-soft:  rgba(0,20,50,.35);
   --border-ui-dark-mid:   rgba(0,20,50,.28);
+  --border-input-empty: rgba(0,28,58,.6);
   --border-chord:         #2a52a8;
 
   /* --- text --- */
   --text-primary:   #0e1e30;
-  --text-secondary: #1a3050;
+  --text-secondary: #d1e3ff;
   --text-muted:     #2a4a6a;
   --text-chord:     #c8e0ff;
   --text-accent:    #0a3080;
   --text-accent2:   #0a2060;
+  --text-input-empty:   #4a90d9;
 
   /* --- status colors --- */
   --color-amber: #a06000;
@@ -994,8 +1003,8 @@ body[data-theme="blue"] .left-tab.active {
 body[data-theme="blue"] .line-num   { color: var(--text-muted); }
 body[data-theme="blue"] .line-time  { color: var(--color-amber); }
 body[data-theme="blue"] .add-chord-btn {
-  color: var(--text-secondary);
-  border-color: var(--border-ui);
+  color: var(--text-input-empty);
+  border-color: var(--border-input-empty);
   background: var(--bg-add-chord-btn);
 }
 
