@@ -13,8 +13,8 @@ tmp/
 
 # スクリーンショット・素材
 screenshots/
-images/
 /resource/lyric/*
+/resource/sample/*
 *.lrc
 *.txt
 
