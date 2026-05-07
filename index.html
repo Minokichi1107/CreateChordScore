@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -29,7 +29,7 @@
   <button class="hdr-btn" id="btn-open">📂 開く</button>
   <button class="hdr-btn primary" id="btn-save">💾 上書保存</button>
   <button class="hdr-btn" id="btn-saveas">📁 別名保存</button>
-  <button class="hdr-btn" id="btn-new" style="color:var(--red)">✕ 新規</button>
+  <button class="hdr-btn" id="btn-new" style="color:var(--color-red)">✕ 新規</button>
   <button class="hdr-btn" id="btn-settings" title="設定">⚙</button>
   <input type="file" id="file-project" accept=".json">
 </header>
@@ -52,21 +52,21 @@
       <div class="capo-row">
         <label>Capo</label>
         <input type="number" id="capo" value="0" min="0" max="12">
-        <span style="font-size:10px;color:var(--text3)">フレット</span>
+        <span style="font-size:10px;color:var(--text-muted)">フレット</span>
       </div>
       <div class="capo-row" style="margin-top:5px">
         <label>Key</label>
-        <input type="text" id="proj-key" placeholder="例: Gm" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;">
+        <input type="text" id="proj-key" placeholder="例: Gm" style="flex:1;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:12px;padding:3px 6px;">
       </div>
       <div class="capo-row" style="margin-top:3px">
         <label>BPM</label>
-        <input type="number" id="proj-bpm" placeholder="120" min="1" max="300" style="width:60px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;text-align:center;">
+        <input type="number" id="proj-bpm" placeholder="120" min="1" max="300" style="width:60px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:12px;padding:3px 6px;text-align:center;">
       </div>
     </div>
 
     <!-- タブヘッダー -->
     <div id="left-tabs">
-      <button class="left-tab active" data-tab="palette">パレット <span id="pal-count" style="color:var(--text3)">0</span></button>
+      <button class="left-tab active" data-tab="palette">パレット <span id="pal-count" style="color:var(--text-muted)">0</span></button>
       <button class="left-tab" data-tab="lyric">歌詞入力</button>
     </div>
 
@@ -76,7 +76,7 @@
         <input type="text" id="pal-filter" placeholder="絞り込み (例: m7)">
       </div>
       <div id="pal-wrap">
-        <div id="chord-pal"><div style="color:var(--text3);font-size:11px;font-family:var(--mono)">コードJSONを読み込むとここに表示されます</div></div>
+        <div id="chord-pal"><div style="color:var(--text-muted);font-size:11px;font-family:var(--font-mono)">コードJSONを読み込むとここに表示されます</div></div>
         <div id="custom-row">
           <input type="text" id="custom-in" placeholder="手打ちで追加 (例: Gadd9)">
           <button id="custom-add">＋追加</button>
@@ -92,7 +92,7 @@
         <div class="import-btns">
           <button class="sm-btn green" id="btn-import">行を取り込む</button>
           <button class="sm-btn" id="btn-append">追記</button>
-          <button class="sm-btn" id="btn-clearall" style="color:var(--red)">全クリア</button>
+          <button class="sm-btn" id="btn-clearall" style="color:var(--color-red)">全クリア</button>
         </div>
       </div>
     </div>
@@ -102,16 +102,16 @@
   <section id="panel-center">
     <!-- ⑦ 置換バー -->
     <div id="replace-bar">
-      <span style="color:var(--text3);white-space:nowrap">🔍 検索:</span>
+      <span style="color:var(--text-muted);white-space:nowrap">🔍 検索:</span>
       <input type="text" id="rb-find" class="rb-in" placeholder="検索コード">
-      <span style="color:var(--text3)">→</span>
+      <span style="color:var(--text-muted)">→</span>
       <input type="text" id="rb-replace" class="rb-in" placeholder="置換コード">
       <div style="display:flex;gap:4px;align-items:center">
-        <label style="display:flex;align-items:center;gap:4px;color:var(--text3);font-size:10px;cursor:pointer;white-space:nowrap">
-          <input type="radio" name="rb-scope" id="rb-all" checked style="accent-color:var(--accent)"> 全行
+        <label style="display:flex;align-items:center;gap:4px;color:var(--text-muted);font-size:10px;cursor:pointer;white-space:nowrap">
+          <input type="radio" name="rb-scope" id="rb-all" checked style="accent-color:var(--text-accent)"> 全行
         </label>
-        <label style="display:flex;align-items:center;gap:4px;color:var(--text3);font-size:10px;cursor:pointer;white-space:nowrap">
-          <input type="radio" name="rb-scope" id="rb-focus" style="accent-color:var(--accent)"> 現在行
+        <label style="display:flex;align-items:center;gap:4px;color:var(--text-muted);font-size:10px;cursor:pointer;white-space:nowrap">
+          <input type="radio" name="rb-scope" id="rb-focus" style="accent-color:var(--text-accent)"> 現在行
         </label>
       </div>
       <span id="rb-count">-</span>
@@ -133,19 +133,19 @@
         <button class="trans-btn" id="btn-m5">−5s</button>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
           <input type="range" id="speed-sel" min="25" max="300" step="1" value="100"
-            style="width:70px;accent-color:var(--accent);cursor:pointer;"
+            style="width:70px;accent-color:var(--text-accent);cursor:pointer;"
             title="再生速度 (1〜300%)">
           <button id="speed-reset" title="100%にリセット"
-            style="background:none;border:none;color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:11px;padding:2px 4px;white-space:nowrap;min-width:38px;text-align:left"
+            style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:2px 4px;white-space:nowrap;min-width:38px;text-align:left"
             >100%</button>
         </div>
         <button id="tap-btn" disabled>TAP</button>
         <!-- 再生中コード表示は非表示（カポ・コード譜と連動していないため） -->
         <span id="cur-chord" style="display:none">-</span>
         <!-- 音量バー -->
-        <button id="vol-btn" title="ミュート切替" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">🔊</button>
+        <button id="vol-btn" title="ミュート切替" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">🔊</button>
         <input type="range" id="vol-slider" min="0" max="100" value="80" title="音量"
-          style="width:70px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+          style="width:70px;accent-color:var(--text-accent);cursor:pointer;flex-shrink:0">
       </div>
     </div>
 
@@ -185,7 +185,7 @@
     <div id="tap-ov-title">🎵 TAPモード — 再生しながら歌詞行に時刻をセット</div>
     <!-- 再生中コード表示は非表示 --><div id="tap-ov-chord" style="display:none">-</div>
     <div id="tap-ov-time">0:00.0</div>
-    <button id="btn-tapmode-close" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:11px;padding:5px 12px">✕ 閉じる</button>
+    <button id="btn-tapmode-close" style="background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:5px 12px">✕ 閉じる</button>
   </div>
   <div id="tap-ov-ctrl">
     <button class="play-btn" id="tov-play-btn">▶</button>
@@ -196,9 +196,9 @@
     <button class="trans-btn" id="tov-m5">−5s</button>
     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
       <input type="range" id="tov-speed" min="25" max="300" step="1" value="100"
-        style="width:60px;accent-color:var(--accent);cursor:pointer;"
+        style="width:60px;accent-color:var(--text-accent);cursor:pointer;"
         title="再生速度 (1〜300%)">
-      <span id="tov-speed-label" style="font-family:var(--mono);font-size:11px;color:var(--text2);min-width:36px">100%</span>
+      <span id="tov-speed-label" style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);min-width:36px">100%</span>
     </div>
     <div style="flex:1"></div>
     <button id="tap-ov-tapbtn" disabled>TAP</button>
@@ -207,12 +207,12 @@
   <div id="tap-ov-footer">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <div>時刻済み: <span id="tov-timed">0</span> / <span id="tov-total">0</span> 行</div>
-      <button id="tov-clear-all" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--red);cursor:pointer;font-family:var(--mono)">全消去</button>
+      <button id="tov-clear-all" style="font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--color-red);cursor:pointer;font-family:var(--font-mono)">全消去</button>
     </div>
     <div id="tov-selection-bar" style="display:none;align-items:center;gap:8px;">
-      <span style="font-size:11px;color:var(--amber)"><span id="tov-sel-count">0</span>件選択中</span>
-      <button id="tov-clear-selected" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--red);cursor:pointer;font-family:var(--mono)">選択した時刻を削除</button>
-      <button id="tov-deselect" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono)">選択解除</button>
+      <span style="font-size:11px;color:var(--color-amber)"><span id="tov-sel-count">0</span>件選択中</span>
+      <button id="tov-clear-selected" style="font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--color-red);cursor:pointer;font-family:var(--font-mono)">選択した時刻を削除</button>
+      <button id="tov-deselect" style="font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono)">選択解除</button>
     </div>
     <div class="tov-hint">クリック: フォーカス移動　Ctrl+クリック: 選択　Shift+クリック: 範囲選択　TAP: 時刻をセット　時刻数字クリック: 削除　Esc: 選択解除 / 閉じる</div>
   </div>
@@ -223,25 +223,25 @@
   <div id="perform-header">
     <div id="perform-title">🎸 演奏モード</div>
     <div id="perform-options">
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-        <input type="radio" name="perform-mode" value="follow" checked style="accent-color:var(--accent)">
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer">
+        <input type="radio" name="perform-mode" value="follow" checked style="accent-color:var(--text-accent)">
         追従
       </label>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-        <input type="radio" name="perform-mode" value="static" style="accent-color:var(--accent)">
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer">
+        <input type="radio" name="perform-mode" value="static" style="accent-color:var(--text-accent)">
         静止
       </label>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
-        <input type="checkbox" id="perform-diag-toggle" checked style="accent-color:var(--accent)">
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer">
+        <input type="checkbox" id="perform-diag-toggle" checked style="accent-color:var(--text-accent)">
         ダイアグラム
       </label>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);">
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);">
         文字
         <input type="range" id="perform-font-scale" min="0.8" max="1.5" step="0.1" value="1.0"
-          style="width:72px;accent-color:var(--accent);">
+          style="width:72px;accent-color:var(--text-accent);">
       </label>
     </div>
-    <button id="btn-perform-close" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:11px;padding:6px 12px">✕ 閉じる</button>
+    <button id="btn-perform-close" style="background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:6px 12px">✕ 閉じる</button>
   </div>
   <div id="perform-controls">
     <button class="play-btn" id="perform-play-btn">▶</button>
@@ -250,13 +250,13 @@
       <input type="range" id="perform-seek-in" min="0" max="1000" value="0">
     </div>
     <span id="perform-time">0:00</span>
-    <button id="vol-btn-perform" title="ミュート切替" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">🔊</button>
-    <input type="range" id="vol-slider-perform" min="0" max="100" value="80" title="音量" style="width:70px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+    <button id="vol-btn-perform" title="ミュート切替" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">🔊</button>
+    <input type="range" id="vol-slider-perform" min="0" max="100" value="80" title="音量" style="width:70px;accent-color:var(--text-accent);cursor:pointer;flex-shrink:0">
     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
       <input type="range" id="perform-speed" min="25" max="300" step="1" value="100"
-        style="width:60px;accent-color:var(--accent);cursor:pointer;"
+        style="width:60px;accent-color:var(--text-accent);cursor:pointer;"
         title="再生速度">
-      <span id="perform-speed-label" style="font-family:var(--mono);font-size:11px;color:var(--text2);min-width:36px">100%</span>
+      <span id="perform-speed-label" style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);min-width:36px">100%</span>
     </div>
   </div>
   <div id="perform-lines"></div>

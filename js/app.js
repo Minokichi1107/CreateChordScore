@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ════════════════════════════════════════
  * ChordScore Editor - Main Application
  * ════════════════════════════════════════
@@ -236,7 +236,7 @@ function renderPalette(){
   const c=document.getElementById('chord-pal');
   const filtered=palette.filter(ch=>ch.toLowerCase().includes(filter));
   c.innerHTML='';
-  if(!filtered.length){c.innerHTML='<div style="color:var(--text3);font-size:11px;font-family:var(--mono)">なし</div>';return;}
+  if(!filtered.length){c.innerHTML='<div style="color:var(--text-muted);font-size:11px;font-family:var(--font-mono)">なし</div>';return;}
   filtered.forEach(chord=>{
     const btn=document.createElement('button');btn.className='pal-chord';btn.textContent=chord;
     btn.addEventListener('click',()=>handleAddChordToLine(chord));
@@ -435,7 +435,7 @@ function openTimeModal(idx){
   const line=project.lines[idx];
   mTit.textContent=`行${idx+1}の時刻を設定`;
   mBody.innerHTML=`
-    <div style="margin-bottom:8px;color:var(--text2);font-size:12px;font-family:var(--mono)">「${line.lyric||'(空)'}」</div>
+    <div style="margin-bottom:8px;color:var(--text-secondary);font-size:12px;font-family:var(--font-mono)">「${line.lyric||'(空)'}」</div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="number" id="mi-t" class="mi" value="${line.time!=null?line.time.toFixed(3):''}" step="0.1" min="0" placeholder="秒 (例: 12.500)" style="font-size:13px">
       <button id="mi-t-current" class="sm-btn" style="white-space:nowrap">▶ 現在位置</button>
@@ -476,24 +476,24 @@ function openAddChord(idx){
     if(!previewEl)return;
     previewEl.innerHTML='';
     if(!line.chords.length){
-      previewEl.innerHTML='<span style="color:var(--text3);font-family:var(--mono);font-size:11px">(コードなし)</span>';
+      previewEl.innerHTML='<span style="color:var(--text-muted);font-family:var(--font-mono);font-size:11px">(コードなし)</span>';
       return;
     }
     line.chords.forEach((c,ci)=>{
       if(c.type==='sep'){
         const s=document.createElement('span');
-        s.style.cssText='color:var(--text3);font-family:var(--mono);font-size:16px;padding:0 3px;cursor:pointer;';
+        s.style.cssText='color:var(--text-muted);font-family:var(--font-mono);font-size:16px;padding:0 3px;cursor:pointer;';
         s.textContent='/';s.title='クリックで削除';
         s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
         previewEl.appendChild(s);
       } else {
         const tag=document.createElement('span');
-        tag.style.cssText='display:inline-flex;align-items:center;gap:3px;background:var(--chord-bg);border:1.5px solid var(--chord-border);border-radius:4px;color:#c8e4ff;font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 5px 3px 8px;cursor:default;';
+        tag.style.cssText='display:inline-flex;align-items:center;gap:3px;background:var(--chord-bg);border:1.5px solid var(--chord-border);border-radius:4px;color:#c8e4ff;font-family:var(--font-mono);font-size:12px;font-weight:700;padding:3px 5px 3px 8px;cursor:default;';
         const nm=document.createElement('span');nm.textContent=c.chord;
         const dx=document.createElement('span');
         dx.textContent='✕';
         dx.style.cssText='font-size:13px;color:rgba(160,180,210,.5);cursor:pointer;padding:1px 3px;border-radius:2px;';
-        dx.addEventListener('mouseenter',()=>dx.style.background='var(--red)');
+        dx.addEventListener('mouseenter',()=>dx.style.background='var(--color-red)');
         dx.addEventListener('mouseleave',()=>dx.style.background='');
         dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
         tag.appendChild(nm);tag.appendChild(dx);
@@ -520,7 +520,7 @@ function openAddChord(idx){
   }
 
   const palHtml=palette.length
-    ?`<div style="margin-top:8px"><div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:5px">楽曲のコードから選択:</div>
+    ?`<div style="margin-top:8px"><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:5px">楽曲のコードから選択:</div>
        <div style="display:flex;flex-wrap:wrap;gap:4px;max-height:110px;overflow-y:auto">
          ${palette.map(c=>`<button class="pal-chord" style="font-size:11px" onclick="_mac_add('${c.replace(/'/g,"\\'").replace(/\//g,'\\/')}')">${c}</button>`).join('')}
        </div></div>`
@@ -528,8 +528,8 @@ function openAddChord(idx){
 
   mBody.innerHTML=`
     <div style="margin-bottom:8px">
-      <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:5px">現在のコード:</div>
-      <div id="mac-preview" style="display:flex;flex-wrap:wrap;gap:4px;min-height:28px;padding:6px;background:var(--bg3);border-radius:var(--radius);align-items:center"></div>
+      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:5px">現在のコード:</div>
+      <div id="mac-preview" style="display:flex;flex-wrap:wrap;gap:4px;min-height:28px;padding:6px;background:var(--surface-overlay);border-radius:var(--r-md);align-items:center"></div>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <input type="text" id="mac-input" class="mi" placeholder="コード名 (例: Am7)" autocomplete="off"
@@ -590,12 +590,12 @@ function openRepeatModal(idx){
   let cnt=line.repeat?line.repeat.count:2;
   mTit.textContent=`行${idx+1}のリピート設定`;
   mBody.innerHTML=`
-    <div style="margin-bottom:10px;color:var(--text2);font-size:12px;font-family:var(--mono)">イントロ・リフなどの繰り返し回数を設定します</div>
+    <div style="margin-bottom:10px;color:var(--text-secondary);font-size:12px;font-family:var(--font-mono)">イントロ・リフなどの繰り返し回数を設定します</div>
     <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:12px">
       <button id="r-minus" class="sm-btn" style="font-size:22px;padding:4px 14px;line-height:1">−</button>
       <div style="text-align:center">
-        <div id="r-cnt" style="font-family:var(--mono);font-size:40px;font-weight:700;color:var(--amber);min-width:64px;text-align:center">${cnt}</div>
-        <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">回繰り返し</div>
+        <div id="r-cnt" style="font-family:var(--font-mono);font-size:40px;font-weight:700;color:var(--color-amber);min-width:64px;text-align:center">${cnt}</div>
+        <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">回繰り返し</div>
       </div>
       <button id="r-plus" class="sm-btn" style="font-size:22px;padding:4px 14px;line-height:1">＋</button>
     </div>
@@ -618,24 +618,24 @@ function openCopyModal(fromIdx){
   mTit.textContent=`行${fromIdx+1}のコードをコピー`;
   const prev=line.chords.map(c=>`<span class="chord-tag" style="pointer-events:none"><span>${c.chord}</span></span>`).join('');
   const rows=project.lines.map((l,i)=>i===fromIdx?'':
-    `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg3);border-radius:4px;cursor:pointer">
-      <input type="checkbox" data-to="${i}" style="width:15px;height:15px;accent-color:var(--accent)">
-      <span style="font-family:var(--mono);font-size:11px;color:var(--text3);flex-shrink:0">行${i+1}</span>
+    `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surface-overlay);border-radius:4px;cursor:pointer">
+      <input type="checkbox" data-to="${i}" style="width:15px;height:15px;accent-color:var(--text-accent)">
+      <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);flex-shrink:0">行${i+1}</span>
       <span style="font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.lyric||'(空)'}</span>
-      ${l.chords.length?`<span style="font-size:10px;color:var(--chord-text);font-family:var(--mono)">[${l.chords.map(c=>c.chord).join(' ')}]</span>`:''}
+      ${l.chords.length?`<span style="font-size:10px;color:var(--chord-text);font-family:var(--font-mono)">[${l.chords.map(c=>c.chord).join(' ')}]</span>`:''}
     </label>`
   ).join('');
   mBody.innerHTML=`
-    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-bottom:5px">コピー元:</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:7px;background:var(--bg3);border-radius:6px;margin-bottom:8px">${prev}${line.repeat?`<span class="repeat-badge" style="pointer-events:none">× ${line.repeat.count}回</span>`:''}</div>
-    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-bottom:4px">コピー先（複数選択可）:</div>
+    <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:5px">コピー元:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:7px;background:var(--surface-overlay);border-radius:6px;margin-bottom:8px">${prev}${line.repeat?`<span class="repeat-badge" style="pointer-events:none">× ${line.repeat.count}回</span>`:''}</div>
+    <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">コピー先（複数選択可）:</div>
     <div style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:3px" id="copy-list">${rows}</div>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;padding:5px 0;border-top:1px solid var(--border)">
-      <input type="checkbox" id="copy-repeat" ${line.repeat?'checked':''} style="width:14px;height:14px;accent-color:var(--amber)">
-      <span style="font-size:11px;font-family:var(--mono);color:var(--amber)">リピート記号もコピーする</span>
-      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">${line.repeat?`(× ${line.repeat.count}回)`:'(元行にリピートなし)'}</span>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;padding:5px 0;border-top:1px solid var(--border-ui)">
+      <input type="checkbox" id="copy-repeat" ${line.repeat?'checked':''} style="width:14px;height:14px;accent-color:var(--color-amber)">
+      <span style="font-size:11px;font-family:var(--font-mono);color:var(--color-amber)">リピート記号もコピーする</span>
+      <span style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${line.repeat?`(× ${line.repeat.count}回)`:'(元行にリピートなし)'}</span>
     </label>
-    <div style="margin-top:4px;font-size:10px;color:var(--text3);font-family:var(--mono)">「追記」= コードを既存の後ろに追加　「上書き」= コード・リピートを置き換え</div>`;
+    <div style="margin-top:4px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">「追記」= コードを既存の後ろに追加　「上書き」= コード・リピートを置き換え</div>`;
   const doCopy=replace=>{
     const cbs=document.querySelectorAll('#copy-list input:checked');
     if(!cbs.length){toast('コピー先を選択してください');return;}
@@ -661,37 +661,37 @@ function openAddDiagramModal(defaultChord=''){
   mBody.innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div>
-        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:4px">コード名</div>
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">コード名</div>
         <input type="text" id="dd-n" class="mi-sm" value="${defaultChord}" placeholder="例: Cadd9" style="text-align:center;font-size:14px;letter-spacing:1px">
       </div>
       <div>
-        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:4px">ポジション名</div>
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">ポジション名</div>
         <input type="text" id="dd-v" class="mi-sm" value="カスタム" placeholder="ロー/バレー等">
       </div>
     </div>
-    <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:6px">各弦のフレット番号（6弦=低音側 → 1弦=高音側）<br><span style="color:var(--amber)">−1=ミュート　0=開放　1〜22=フレット番号</span></div>
+    <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px">各弦のフレット番号（6弦=低音側 → 1弦=高音側）<br><span style="color:var(--color-amber)">−1=ミュート　0=開放　1〜22=フレット番号</span></div>
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px">
       ${['6弦','5弦','4弦','3弦','2弦','1弦'].map((s,i)=>`
         <div style="text-align:center">
-          <div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-bottom:3px">${s}</div>
+          <div style="font-size:9px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:3px">${s}</div>
           <input type="number" id="dd-f${i}" value="0" min="-1" max="22"
-            style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:16px;padding:5px 2px;text-align:center"
+            style="width:100%;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:16px;padding:5px 2px;text-align:center"
             oninput="_pd()">
         </div>`).join('')}
     </div>
     <div style="display:flex;gap:14px;align-items:start">
       <div>
-        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:4px">セーハ（0=なし）</div>
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">セーハ（0=なし）</div>
         <input type="number" id="dd-b" value="0" min="0" max="22"
-          style="width:68px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:14px;padding:5px;text-align:center"
+          style="width:68px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:14px;padding:5px;text-align:center"
           oninput="_pd()">
       </div>
       <div style="flex:1;text-align:center">
-        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:4px">プレビュー</div>
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">プレビュー</div>
         <div id="dd-prev" style="display:flex;justify-content:center"></div>
       </div>
     </div>
-    <div style="margin-top:8px;font-size:10px;color:var(--text3);font-family:var(--mono)">※ 登録はブラウザを閉じるまで有効です</div>`;
+    <div style="margin-top:8px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">※ 登録はブラウザを閉じるまで有効です</div>`;
   window._pd=()=>{
     const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`dd-f${i}`)?.value)||0);
     const br=parseInt(document.getElementById('dd-b')?.value)||0;
@@ -728,7 +728,7 @@ function showPopup(chord,anchor){
   const pv=document.getElementById('pop-vars');pv.innerHTML='';
   r.data.v.slice(0,3).forEach(vr=>{
     const d=document.createElement('div');d.style.textAlign='center';
-    d.innerHTML=`<div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-bottom:3px">${vr.n}</div>${drawDiagram(vr.f,vr.b||null)}`;
+    d.innerHTML=`<div style="font-size:9px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:3px">${vr.n}</div>${drawDiagram(vr.f,vr.b||null)}`;
     pv.appendChild(d);
   });
   const rect=anchor.getBoundingClientRect();
@@ -788,16 +788,16 @@ function showReloadBanner(audioName, chordName){
   const old=document.getElementById('reload-banner');if(old)old.remove();
   const banner=document.createElement('div');
   banner.id='reload-banner';
-  banner.style.cssText='background:rgba(255,184,64,.12);border:1px solid var(--amber);border-radius:var(--radius);padding:8px 10px;margin:0 0 8px;font-size:11px;font-family:var(--mono);color:var(--amber);';
+  banner.style.cssText='background:rgba(255,184,64,.12);border:1px solid var(--color-amber);border-radius:var(--r-md);padding:8px 10px;margin:0 0 8px;font-size:11px;font-family:var(--font-mono);color:var(--color-amber);';
   banner.innerHTML=`
     <div style="margin-bottom:5px;font-weight:600">📂 ファイルを再選択してください</div>
-    ${audioName?`<div style="margin-bottom:3px;color:var(--text2)">音声: ${audioName}
-      <button onclick="document.getElementById('file-audio').click()" style="margin-left:6px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:10px;padding:2px 6px;">選択</button>
+    ${audioName?`<div style="margin-bottom:3px;color:var(--text-secondary)">音声: ${audioName}
+      <button onclick="document.getElementById('file-audio').click()" style="margin-left:6px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:3px;color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:10px;padding:2px 6px;">選択</button>
     </div>`:''}
-    ${chordName?`<div style="color:var(--text2)">コード: ${chordName}
-      <button onclick="document.getElementById('file-chord').click()" style="margin-left:6px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:10px;padding:2px 6px;">選択</button>
+    ${chordName?`<div style="color:var(--text-secondary)">コード: ${chordName}
+      <button onclick="document.getElementById('file-chord').click()" style="margin-left:6px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:3px;color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:10px;padding:2px 6px;">選択</button>
     </div>`:''}
-    <button onclick="document.getElementById('reload-banner').remove()" style="margin-top:5px;background:none;border:none;color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:10px;padding:0">✕ 閉じる</button>
+    <button onclick="document.getElementById('reload-banner').remove()" style="margin-top:5px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-family:var(--font-mono);font-size:10px;padding:0">✕ 閉じる</button>
   `;
   // editor-areaの先頭に挿入
   const ea=document.getElementById('editor-area');

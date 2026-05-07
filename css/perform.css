@@ -1,4 +1,4 @@
-/* perform.css — 演奏モード / パフォームUI */
+﻿/* perform.css — 演奏モード / パフォームUI */
 #perform-overlay[hidden] {
   display: none !important;
 }
@@ -35,7 +35,7 @@
 
 
 #btn-perform-close:hover {
-  background: var(--bg4);
+  background: var(--surface-overlay);
   color: var(--text-primary);
 }
 
