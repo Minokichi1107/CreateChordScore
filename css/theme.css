@@ -3,6 +3,29 @@
    Layer 1: Primitive  → 純粋な値。直接使用禁止
    Layer 2: Semantic   → 意味ベース。テーマで上書き
    Layer 3: Component  → var()のみ。直書き禁止
+   ================================================
+
+   ■ 編集ガイド（自分で微調整するときに読む）
+
+   コメントの意味：
+     [SAFE]      値を自由に変えてよい
+                 色・px・opacity・gradientの調整はここで
+     [STRUCTURE] var()の構造を維持すること
+                 プロパティ削除・追加は禁止
+                 値を変えるなら参照先の変数側で行う
+     [DANGER]    依存関係あり。変更時はDevToolsで確認必須
+                 少し変えるだけで見た目が壊れる可能性がある
+
+   ■ 基本の考え方
+
+     「色や質感を変えたい」 → Semantic層の変数値を変える  ✅
+     「Component層を直接いじる」               → やらない  ❌
+     「Component層のvar()に直書きを混ぜる」    → 絶対NG   ❌
+
+     なぜComponent層を触らないのか：
+     テーマ切替（dark/silver/blue）がvar()経由で動いている。
+     直書きするとその要素だけテーマ切替が効かなくなる。
+
    ================================================ */
 
 
@@ -10,6 +33,7 @@
    PRIMITIVE LAYER
    値のみ。どのテーマでも変わらない固定値。
    ================================================ */
+/* [SAFE] px値は変えてよい。変数名は変えないこと */
 :root {
   /* shape */
   --r-sm: 4px;
@@ -32,6 +56,8 @@
    SEMANTIC LAYER — DARK テーマ（デフォルト）
    ここを触ればDarkテーマ全体が変わる。
    ================================================ */
+/* [SAFE] このブロック内の「値」は自由に変えてよい
+   変数名を変えると Component層が壊れるので変数名は触らないこと */
 :root {
   /* --- surface --- */
   --surface-base:    #0f1117;
@@ -69,6 +95,7 @@
   --shadow-perform-chord-focused:0 1px 3px rgba(0,0,0,.55);
   --shadow-perform-lyric:        0 1px 2px rgba(0,0,0,.45);
   --shadow-perform-lyric-focused:0 1px 3px rgba(0,0,0,.6);
+  --text-perform-title: #ffffff;
 
   /* --- logo --- */
   --text-logo:      #e2e6f0;
@@ -191,6 +218,21 @@
 /* ================================================
    SEMANTIC LAYER — SILVER テーマ
    ================================================ */
+/* [SAFE] 色・グラデーション・shadowの値は自由に変えてよい
+   質感調整はここが主な作業場所
+
+   よく触る変数：
+     --grad-play-btn    → プレイボタンの背景グラデーション
+     --grad-control     → ヘッダーボタンの質感
+     --shadow-play-btn  → プレイボタンの影・光沢
+     --grad-surface     → 左パネルの背景
+     --bg-texture-metal → bodyのブラッシュドメタル背景
+
+   [DANGER] --grad-play-btn を変えるときの注意：
+     background プロパティに渡される値なので
+     linear-gradient / radial-gradient の記法を壊さないこと
+     セミコロンの位置に注意（最後の値の後にセミコロン）
+*/
 body[data-theme="silver"] {
   /* --- surface --- */
   --surface-base:    #a8acb4;
@@ -229,6 +271,7 @@ body[data-theme="silver"] {
   --text-perform-lyric:         #eef6ff;
   --text-perform-lyric-focused: #ffffff;
   --text-perform-chords:        #d7ecff;
+  --text-perform-title:         #e5e5e5;
 
   /* --- logo --- */
   --text-logo:      #1a3a70;
@@ -262,8 +305,10 @@ body[data-theme="silver"] {
   --grad-seek-fill:      linear-gradient(180deg,#3070e0 0%,#1a4ab8 50%,#2860d0 100%);
   --grad-slider:         linear-gradient(180deg,#8890a0 0%,#b0b4c0 100%);
   --grad-play-btn:
-    radial-gradient(circle at 40% 30%,rgba(255,255,255,.5) 0%,transparent 55%),
-    linear-gradient(180deg,#e0e8ff 0%,#6090e0 30%,#3060c0 65%,#1a3a90 100%);
+    repeating-linear-gradient(60deg, rgba(255,255,255,0) 0px, rgba(255,255,255,0) 2px, rgba(255,255,255,.10) 3px),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 5px, rgba(0,0,0,.07) 6px),
+    repeating-linear-gradient(60deg, rgba(255,255,255,0) 0px, rgba(255,255,255,0) 11px, rgba(255,255,255,.06) 12px),
+    radial-gradient(circle at 40% 20%, rgb(235,235,235) 0%, rgba(197,196,196,.9) 18%, rgb(178,178,178) 42%, rgb(118,118,118) 72%, rgb(74,74,74) 100%);
   --grad-add-diag-btn:   linear-gradient(180deg,#2a7a3a 0%,#1a5a28 100%);
   --grad-btn-gloss:      linear-gradient(180deg,rgba(255,255,255,.45) 0%,rgba(255,255,255,.08) 100%);
   --grad-tabs:
@@ -376,6 +421,9 @@ body[data-theme="silver"] {
 /* ================================================
    SEMANTIC LAYER — BLUE テーマ
    ================================================ */
+/* [SAFE] silverと同様、値は自由に変えてよい
+   [DANGER] --grad-control はrepeating-linear-gradient複合構造
+            構文を崩すとボタン全体が真っ白/透明になる */
 body[data-theme="blue"] {
   /* --- surface --- */
   --surface-base:    #c8dff0;
@@ -412,6 +460,7 @@ body[data-theme="blue"] {
   --text-perform-lyric:         #eef6ff;
   --text-perform-lyric-focused: #ffffff;
   --text-perform-chords:        #d7ecff;
+  --text-perform-title:         #ffffff;
 
   /* --- logo --- */
   --text-logo:      #0a2040;
@@ -427,7 +476,10 @@ body[data-theme="blue"] {
   --grad-surface:        linear-gradient(89deg,#5d9abf 0%,#9ed4f5 25%,#97d6f9 50%,#7fbee1 75%,#538fb7 100%);
   --grad-panel-right:    var(--grad-surface);
   --grad-header:         linear-gradient(180deg,#8bc4e8 0%,#a8d8f5 40%,#9ccef2 60%,#7ab4e0 100%);
-  --grad-control:        linear-gradient(180deg,#a8c8e8 0%,#c0d8f0 100%);
+  --grad-control:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0px, rgba(255,255,255,0) 6px, rgba(255,255,255,.08) 7px),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 4px, rgba(0,0,0,.04) 5px),
+    linear-gradient(180deg, #73aed3 0%, #e8f4ff 45%, #9bd6f8 55%, #7eb6d8 100%);
   --grad-control-active: linear-gradient(180deg,#8ab0d8 0%,#a8c8e8 100%);
   --grad-input:          linear-gradient(180deg,#a8c8e8 0%,#c0d8f0 100%);
   --grad-chord-tag:      linear-gradient(180deg,#1e2a50 0%,#141e3a 40%,#1a2448 60%,#0e1830 100%);
@@ -437,7 +489,7 @@ body[data-theme="blue"] {
   --grad-dv-surface:
     linear-gradient(145deg,rgba(185,225,255,.16) 0%,rgba(130,190,245,.08) 34%,rgba(24,74,126,.12) 100%),
     linear-gradient(180deg,#4b83bd 0%,#3d73ad 100%);
-  --grad-phdr:           linear-gradient(180deg,#6ea0d1 0%,#4e78a8 100%);
+  --grad-phdr:           linear-gradient(180deg,#6ea0d1 0%,#3d5c80 100%);
   --grad-status:         var(--grad-surface);
   --grad-panel-center:   linear-gradient(180deg,#d5ecf9 0%,#d5ebf8 55%,#d7edf8 100%);
   --grad-seek-track:     linear-gradient(180deg,#8890a0 0%,#a8acbc 40%,#b8bcc8 100%);
@@ -517,7 +569,7 @@ body[data-theme="blue"] {
   --border-btn-bottom: rgba(0,20,50,.5);
   --shadow-btn:        inset 0 1px 0 rgba(200,235,255,.4), inset 0 -1px 0 rgba(0,20,60,.2), var(--shadow-sm);
   --text-shadow-btn:   0 1px 1px rgba(0,20,60,.5);
-  --text-btn:          #e8f4ff;
+  --text-btn:          #544848;
 
   --bg-add-chord-btn:     rgba(200,220,240,.3);
 
@@ -545,6 +597,8 @@ body[data-theme="blue"] {
 /* ================================================
    BASE STYLES（将来 base.css に移動予定）
    ================================================ */
+/* [STRUCTURE] bodyの基本レイアウト。触る必要はほぼない
+   background/color は var()経由なので直接変えないこと */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; }
 body {
@@ -565,6 +619,10 @@ body {
 /* ================================================
    COMPONENT OVERRIDES — DARK パネル背景
    ================================================ */
+/* [STRUCTURE] ここは「部品の接続担当」
+   色や質感はSemantic変数側（上のブロック）で調整する
+   直書きするとテーマ切替が壊れる
+   var()の中身（変数名）だけ変えてよい */
 body #panel-left,
 body[data-theme="dark"] #panel-left {
   background: var(--grad-surface);
@@ -578,6 +636,14 @@ body[data-theme="dark"] #panel-right {
 /* ================================================
    COMPONENT OVERRIDES — SILVER
    ================================================ */
+/* [STRUCTURE] このブロックは基本触らない
+   「なぜvar()しか書いてはいけないのか」：
+   ここに色や数値を直書きすると、その値はsilverテーマにしか
+   効かなくなる。変数経由にすることで dark/silver/blue の
+   テーマ切替がすべて1箇所の変更で済む設計になっている
+
+   [DANGER] box-shadow / background / border は特に注意
+            プロパティ自体を削除するとレイアウトが崩れる */
 
 /* logo */
 body[data-theme="silver"] .logo {
@@ -605,6 +671,8 @@ body[data-theme="silver"] #btn-perform-mode {
   text-shadow: var(--text-shadow-btn) !important;
   box-shadow: var(--shadow-btn) !important;
 }
+body[data-theme="silver"] #diag-toggle { width: 135px; text-align: left; justify-content: left; }
+
 body[data-theme="silver"] .hdr-btn::after,
 body[data-theme="silver"] .trans-btn::after,
 body[data-theme="silver"] #tap-btn::after {
@@ -844,6 +912,7 @@ body[data-theme="silver"] #btn-add-diag-bottom {
 /* ================================================
    COMPONENT OVERRIDES — BLUE
    ================================================ */
+/* [STRUCTURE] silverと同様。触るならSemantic変数側で */
 
 /* logo */
 body[data-theme="blue"] .logo {
@@ -871,6 +940,8 @@ body[data-theme="blue"] #btn-perform-mode {
   text-shadow: var(--text-shadow-btn) !important;
   box-shadow: var(--shadow-btn) !important;
 }
+body[data-theme="blue"] #diag-toggle { width: 135px; text-align: left; justify-content: left; }
+
 body[data-theme="blue"] .hdr-btn::after,
 body[data-theme="blue"] .trans-btn::after,
 body[data-theme="blue"] #tap-btn::after {
@@ -969,6 +1040,9 @@ body[data-theme="blue"] .dv {
    COMPONENT OVERRIDES — PERFORM MODE
    silver/blue共通
    ================================================ */
+/* [STRUCTURE] 演奏モードのオーバーレイ表示
+   opacity値（.62/.82）は演奏時の視認性に直結するので
+   [DANGER] 変えるならDevToolsで演奏モードを実際に確認すること */
 body[data-theme="silver"] #perform-overlay:not([data-static-mode]) .perform-line,
 body[data-theme="blue"]   #perform-overlay:not([data-static-mode]) .perform-line { opacity: .62; }
 body[data-theme="silver"] #perform-overlay:not([data-static-mode]) .perform-line.near,
