@@ -32,6 +32,20 @@
   gap: 12px;  
 }
 
+#btn-perform-close {
+  background: var(--surface-btn-close-hover);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 6px 12px;
+}
+#btn-perform-close:hover {
+  background: var(--surface-raised);
+}
+
 
 #perform-controls {
   display: flex;
@@ -95,11 +109,11 @@
 
 
 #perform-overlay:not([data-static-mode]) .perform-line {
-  opacity: 0.3;
+  opacity: var(--opacity-perform-line);
 }
 
 #perform-overlay:not([data-static-mode]) .perform-line.near {
-  opacity: 0.6;
+  opacity: var(--opacity-perform-line-near);
 }
 
 #perform-overlay:not([data-static-mode]) .perform-line.focused {
@@ -218,13 +232,13 @@
 
 
 .perform-chord-diagram svg {
-  width: 80px;
+  width: calc(80px * var(--perform-font-scale));
   height: auto;
   display: block;
 }
 
 .perform-line.focused .perform-chord-diagram svg {
-  width: 110px;
+  width: calc(110px * var(--perform-font-scale));
   height: auto;
 }
 

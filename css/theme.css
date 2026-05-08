@@ -99,6 +99,8 @@
   --shadow-perform-lyric:        0 1px 2px rgba(0,0,0,.45);
   --shadow-perform-lyric-focused:0 1px 3px rgba(0,0,0,.6);
   --text-perform-title: #ffffff;
+  --opacity-perform-line:      0.3;  /* [SAFE] 演奏モード非フォーカス行 */
+  --opacity-perform-line-near: 0.6;  /* [SAFE] 演奏モード近接行 */
 
   /* --- logo --- */
   --text-logo:      #e2e6f0;
@@ -278,6 +280,8 @@ body[data-theme="silver"] {
   --text-perform-lyric-focused: #ffffff;
   --text-perform-chords:        #d7ecff;
   --text-perform-title:         #e5e5e5;
+  --opacity-perform-line:      0.62;  /* [SAFE] 演奏モード非フォーカス行 */
+  --opacity-perform-line-near: 0.82;  /* [SAFE] 演奏モード近接行 */
 
   /* --- logo --- */
   --text-logo:      #1a3a70;
@@ -470,6 +474,8 @@ body[data-theme="blue"] {
   --text-perform-lyric-focused: #ffffff;
   --text-perform-chords:        #d7ecff;
   --text-perform-title:         #ffffff;
+  --opacity-perform-line:      0.62;  /* [SAFE] 演奏モード非フォーカス行 */
+  --opacity-perform-line-near: 0.82;  /* [SAFE] 演奏モード近接行 */
 
   /* --- logo --- */
   --text-logo:      #0a2040;
@@ -1050,12 +1056,7 @@ body[data-theme="blue"] .dv {
    silver/blue共通
    ================================================ */
 /* [STRUCTURE] 演奏モードのオーバーレイ表示
-   opacity値（.62/.82）は演奏時の視認性に直結するので
-   [DANGER] 変えるならDevToolsで演奏モードを実際に確認すること */
-body[data-theme="silver"] #perform-overlay:not([data-static-mode]) .perform-line,
-body[data-theme="blue"]   #perform-overlay:not([data-static-mode]) .perform-line { opacity: .62; }
-body[data-theme="silver"] #perform-overlay:not([data-static-mode]) .perform-line.near,
-body[data-theme="blue"]   #perform-overlay:not([data-static-mode]) .perform-line.near { opacity: .82; }
+   opacity値はtheme.css各テーマの --opacity-perform-line / --opacity-perform-line-near で制御 */
 
 body[data-theme="silver"] .perform-line .chords,
 body[data-theme="blue"]   .perform-line .chords { color: var(--text-perform-chords); }
