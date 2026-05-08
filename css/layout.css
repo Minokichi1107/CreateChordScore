@@ -19,8 +19,8 @@ input[type=file]{display:none}
 /* GROUP B: accent-color（ブロック単位） */
 #replace-bar input[type=radio],
 #replace-bar input[type=range],
-#perform-options input[type=radio],
-#perform-options input[type=checkbox],
+.perform-options input[type=radio],
+.perform-options input[type=checkbox],
 #perform-controls input[type=range],
 #tap-ov-ctrl input[type=range],
 #status-bar input[type=range]{accent-color:var(--text-accent)}

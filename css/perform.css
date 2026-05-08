@@ -27,7 +27,7 @@
   color: var(--text-perform-title);
 }
 
-#perform-options {
+.perform-options {
   display: flex;
   gap: 12px;  
 }

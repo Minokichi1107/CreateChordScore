@@ -106,11 +106,11 @@
       <input type="text" id="rb-find" class="rb-in" placeholder="検索コード">
       <span>→</span>
       <input type="text" id="rb-replace" class="rb-in" placeholder="置換コード">
-      <div style="display:flex;gap:4px;align-items:center">
-        <label style="display:flex;align-items:center;gap:4px;color:var(--text-muted);font-size:10px;cursor:pointer;white-space:nowrap">
+      <div class="scope-selector">
+        <label>
           <input type="radio" name="rb-scope" id="rb-all" checked> 全行
         </label>
-        <label style="display:flex;align-items:center;gap:4px;color:var(--text-muted);font-size:10px;cursor:pointer;white-space:nowrap">
+        <label>
           <input type="radio" name="rb-scope" id="rb-focus"> 現在行
         </label>
       </div>
@@ -222,20 +222,20 @@
 <div id="perform-overlay" hidden>
   <div id="perform-header">
     <div id="perform-title">🎸 演奏モード</div>
-    <div id="perform-options">
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer">
+    <div class="perform-options">
+      <label>
         <input type="radio" name="perform-mode" value="follow" checked>
         追従
       </label>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer">
+      <label>
         <input type="radio" name="perform-mode" value="static">
         静止
       </label>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer">
+      <label>
         <input type="checkbox" id="perform-diag-toggle" checked>
         ダイアグラム
       </label>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);">
+      <label class="control-inline">
         文字
         <input type="range" id="perform-font-scale" min="0.7" max="1.5" step="0.1" value="1.0"
          >
