@@ -13,6 +13,17 @@
 .hdr-btn.primary{background:var(--text-accent2);border-color:var(--text-accent);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.2),0 2px 8px rgba(0,100,200,.4)}
 .hdr-btn.primary:hover{background:var(--text-accent)}
 input[type=file]{display:none}
+#btn-new{color:var(--color-red)}
+#btn-clearall{color:var(--color-red)}
+
+/* GROUP B: accent-color（ブロック単位） */
+#replace-bar input[type=radio],
+#replace-bar input[type=range],
+#perform-options input[type=radio],
+#perform-options input[type=checkbox],
+#perform-controls input[type=range],
+#tap-ov-ctrl input[type=range],
+#status-bar input[type=range]{accent-color:var(--text-accent)}
 
 
 
@@ -51,6 +62,9 @@ input[type=file]{display:none}
 .file-btn.loaded{border-style:solid;border-color:var(--color-green);color:var(--color-green)}
 .capo-row{display:flex;align-items:center;gap:8px;margin-top:2px}
 .capo-row label{font-size:11px;color:var(--text-secondary);font-family:var(--font-mono)}
+.capo-row span{font-size:10px;color:var(--text-muted)}
+#pal-count{color:var(--text-muted)}
+#tov-sel-info{font-size:11px;color:var(--color-amber)}
 .capo-row input{background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:12px;padding:3px 6px}
 #proj-key{flex:1}
 #proj-bpm{width:60px;text-align:center}
@@ -214,10 +228,10 @@ body.diag-off .chord-tag:hover{cursor:default}
 #btn-add-diag{background:var(--surface-overlay);border:1px dashed var(--border-ui-strong);border-radius:var(--r-md);color:var(--text-muted);cursor:pointer;font-family:var(--font-mono);font-size:10px;padding:4px 8px;text-align:center;transition:all .15s}
 #btn-add-diag:hover{border-color:var(--color-amber);color:var(--color-amber)}
 #diag-panel{flex:1;overflow-y:auto;padding:10px}
-#diag-title{font-family:var(--font-mono);font-size:20px;font-weight:600;color:var(--text-primary);text-align:center;margin-bottom:10px;min-height:26px}
+#diag-title{display:none}
 #diag-container{display:flex;flex-direction:column;gap:14px}
 .dv{background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-lg);padding:10px}
-.dv-label{font-family:var(--font-mono);font-size:10px;color:#ffffff;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;text-align:center}
+.dv-label{display:none}
 .dv-svg{display:flex;justify-content:center}
 .diag-empty{text-align:center;color:var(--text-muted);font-family:var(--font-mono);font-size:11px;padding:28px 0;line-height:2.2}
 
@@ -242,7 +256,7 @@ body.diag-off .chord-tag:hover{cursor:default}
 .mi-sm:focus{outline:none;border-color:var(--text-accent)}
 
 
-#popup{position:fixed;display:none;background:var(--surface-raised);border:1px solid var(--border-ui-strong);border-radius:var(--r-lg);padding:10px;z-index:300;box-shadow:var(--shadow-md);pointer-events:none}
+#popup{position:fixed;display:none;background:var(--grad-dv-surface);border:1px solid var(--border-ui-strong);border-radius:var(--r-lg);padding:10px;z-index:300;box-shadow:var(--shadow-md);pointer-events:none}
 #popup.show{display:block}
 #pop-name{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--text-primary);text-align:center;margin-bottom:6px}
 #pop-vars{display:flex;gap:10px}
@@ -320,6 +334,8 @@ body.diag-off .chord-tag{cursor:default}
 .rb-btn.ok{background:var(--text-accent2);border-color:var(--text-accent);color:#fff}
 .rb-btn.ok:hover{background:var(--text-accent)}
 #rb-count{color:var(--color-amber);font-size:11px;min-width:50px}
+#rb-close{margin-left:4px}
+#replace-bar > span{color:var(--text-muted)}
 .chord-tag.rb-hit{border-color:var(--color-amber)!important;background:rgba(255,184,64,.18)!important;color:#ffe08a!important}
 .chord-tag.rb-curr{border-color:#fff!important;background:rgba(79,158,255,.25)!important;color:#fff!important;box-shadow:0 0 0 2px var(--color-amber)}
 
@@ -358,3 +374,11 @@ body.diag-off .chord-tag{cursor:default}
 #status span{color:var(--text-secondary)}
 
 
+
+
+/* ICON BUTTONS (background:none系) */
+#speed-reset{background:none;border:none;color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:2px 4px;white-space:nowrap;min-width:38px;text-align:left}
+#vol-btn{background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0}
+
+/* PALETTE PLACEHOLDER */
+#chord-pal-empty{color:var(--text-muted);font-size:11px;font-family:var(--font-mono)}

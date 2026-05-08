@@ -278,3 +278,8 @@
 
 
 
+
+
+/* PERFORM: icon button / speed label */
+#vol-btn-perform{background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0}
+#perform-speed-label{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);min-width:36px}

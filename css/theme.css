@@ -101,6 +101,7 @@
   --text-perform-title: #ffffff;
   --opacity-perform-line:      0.3;  /* [SAFE] 演奏モード非フォーカス行 */
   --opacity-perform-line-near: 0.6;  /* [SAFE] 演奏モード近接行 */
+  --diag-stroke: #e2e6f0;            /* [SAFE] ダイアグラム弦線・ナット・フレット番号色 */
 
   /* --- logo --- */
   --text-logo:      #e2e6f0;
@@ -282,9 +283,7 @@ body[data-theme="silver"] {
   --text-perform-title:         #e5e5e5;
   --opacity-perform-line:      0.62;  /* [SAFE] 演奏モード非フォーカス行 */
   --opacity-perform-line-near: 0.82;  /* [SAFE] 演奏モード近接行 */
-
-  /* --- logo --- */
-  --text-logo:      #1a3a70;
+  --diag-stroke: #2a3a5a;             /* [SAFE] ダイアグラム弦線・ナット・フレット番号色 */
   --text-logo-span: #555e7a;
   --shadow-logo:    1px 1px 0 rgba(255,255,255,.7), 2px 2px 0 rgba(180,190,210,.5), 3px 3px 6px rgba(0,0,0,.2);
 
@@ -476,6 +475,7 @@ body[data-theme="blue"] {
   --text-perform-title:         #ffffff;
   --opacity-perform-line:      0.62;  /* [SAFE] 演奏モード非フォーカス行 */
   --opacity-perform-line-near: 0.82;  /* [SAFE] 演奏モード近接行 */
+  --diag-stroke: #c8e0f8;             /* [SAFE] ダイアグラム弦線・ナット・フレット番号色 */
 
   /* --- logo --- */
   --text-logo:      #0a2040;
@@ -1082,18 +1082,24 @@ body[data-theme="blue"]   .perform-line.focused .lyric {
   text-shadow: var(--shadow-perform-lyric-focused);
 }
 
-body[data-theme="silver"] #perform-overlay {
+body[data-theme="silver"] #perform-overlay,
+body[data-theme="silver"] #tap-overlay {
   background: var(--grad-perform-overlay);
 }
 body[data-theme="silver"] #perform-header,
-body[data-theme="silver"] #perform-controls {
+body[data-theme="silver"] #perform-controls,
+body[data-theme="silver"] #tap-ov-header,
+body[data-theme="silver"] #tap-ov-ctrl {
   background: var(--grad-perform-header);
 }
-body[data-theme="blue"] #perform-overlay {
+body[data-theme="blue"] #perform-overlay,
+body[data-theme="blue"] #tap-overlay {
   background: var(--grad-perform-overlay);
 }
 body[data-theme="blue"] #perform-header,
-body[data-theme="blue"] #perform-controls {
+body[data-theme="blue"] #perform-controls,
+body[data-theme="blue"] #tap-ov-header,
+body[data-theme="blue"] #tap-ov-ctrl {
   background: var(--grad-perform-header);
 }
 

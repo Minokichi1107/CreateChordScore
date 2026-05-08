@@ -1,7 +1,7 @@
 /* components.css — TAPモードオーバーレイ / コンポーネント */
 #tap-overlay{
   display:none;position:fixed;inset:0;z-index:400;
-  background:#0a0d14;
+  background:var(--surface-base);
   flex-direction:column;
 }
 #tap-overlay.open{display:flex}
@@ -128,3 +128,10 @@
 
 
 
+
+
+/* TAP OVERLAY: footer buttons / speed label */
+#btn-tapmode-close{background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:5px 12px}
+#tov-speed-label{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);min-width:36px}
+#tov-clear-all,#tov-clear-selected{font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--color-red);cursor:pointer;font-family:var(--font-mono)}
+#tov-deselect{font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono)}
