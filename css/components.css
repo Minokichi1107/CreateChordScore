@@ -135,3 +135,5 @@
 #tov-speed-label{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);min-width:36px}
 #tov-clear-all,#tov-clear-selected{font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--color-red);cursor:pointer;font-family:var(--font-mono)}
 #tov-deselect{font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono)}
+/* SPEED CONTROL CLUSTER */
+.speed-cluster{display:flex;align-items:center;gap:4px;flex-shrink:0}
