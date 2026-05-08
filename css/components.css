@@ -136,7 +136,7 @@
 #tov-clear-all,#tov-clear-selected{font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--color-red);cursor:pointer;font-family:var(--font-mono)}
 #tov-deselect{font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono)}
 /* SPEED CONTROL CLUSTER */
-.speed-cluster{disp
+.speed-cluster{display:flex;align-items:center;gap:6px} /*欠損していたのを予測で追加したため要確認*/
 /* SCOPE SELECTOR (replace-bar) */
 .scope-selector{display:flex;gap:4px;align-items:center}
 .scope-selector label{display:flex;align-items:center;gap:4px;color:var(--text-muted);font-size:10px;cursor:pointer;white-space:nowrap}
@@ -144,3 +144,37 @@
 /* PERFORM OPTIONS */
 .perform-options label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer}
 .perform-options label.control-inline{cursor:default}
+
+/* ─── MODAL ROLE CLASSES ─────────────────────────── */
+/* typography・color ownership。spacing は container所有が原則 */
+
+.modal-caption {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.modal-section-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.modal-field-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-bottom: 4px; /* role spacing許容：field-label直下のinputとの関係固定 */
+}
+
+/* ─── MODAL STRUCTURE ────────────────────────────── */
+.modal-section {
+  margin-bottom: 8px; /* default vertical separation */
+}
+
+/* ─── MODAL INTERACTION ROW ──────────────────────── */
+/* input + action controls の最小interaction row。layout container化禁止 */
+.modal-input-row {
+  display: flex;
+  align-items: center;
+}
