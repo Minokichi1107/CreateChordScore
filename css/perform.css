@@ -33,7 +33,7 @@
 }
 
 #btn-perform-close {
-  background: var(--surface-btn-close-hover);
+  background: var(--surface-btn-close);
   border: 1px solid var(--border-ui);
   border-radius: var(--r-md);
   color: var(--text-secondary);

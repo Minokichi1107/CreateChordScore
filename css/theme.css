@@ -63,7 +63,7 @@
   --surface-base:    #0f1117;
   --surface-raised:  #171a24;
   --surface-overlay: #1e2130;
-  --surface-btn-close-hover: #1e2130;  /* [SAFE] 演奏モード閉じるボタンhover */
+  --surface-btn-close: #1e2130;  /* [SAFE] 演奏モード閉じるボタンhover */
   --surface-chord:   #1a2540;
   --surface-settings:#171a24;
 
@@ -244,7 +244,7 @@ body[data-theme="silver"] {
   --surface-base:    #a8acb4;
   --surface-raised:  #c8ced8;
   --surface-overlay: #d8dde6;
-  --surface-btn-close-hover: #d8dde6;  /* [SAFE] 演奏モード閉じるボタンhover */
+  --surface-btn-close: #d8dde6;  /* [SAFE] 演奏モード閉じるボタンhover */
   --surface-chord:   #1e3a7a;
   --surface-settings:#c0c6d0;
 
@@ -438,7 +438,7 @@ body[data-theme="blue"] {
   --surface-base:    #c8dff0;
   --surface-raised:  #d5e9f8;
   --surface-overlay: #a8c8e8;
-  --surface-btn-close-hover: #03386c;  /* [SAFE] 演奏モード閉じるボタンhover */
+  --surface-btn-close: #03386c;  /* [SAFE] 演奏モード閉じるボタンhover */
   --surface-chord:   #1e3a7a;
   --surface-settings:#c8dff0;
 
