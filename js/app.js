@@ -492,7 +492,7 @@ function openAddChord(idx){
         const nm=document.createElement('span');nm.textContent=c.chord;
         const dx=document.createElement('span');
         dx.textContent='✕';
-        dx.style.cssText='font-size:13px;color:rgba(160,180,210,.5);cursor:pointer;padding:1px 3px;border-radius:2px;';
+        dx.style.cssText='font-size:13px;color:var(--text-muted);cursor:pointer;padding:1px 3px;border-radius:2px;';
         dx.addEventListener('mouseenter',()=>dx.style.background='var(--color-red)');
         dx.addEventListener('mouseleave',()=>dx.style.background='');
         dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
