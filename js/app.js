@@ -435,7 +435,7 @@ function openTimeModal(idx){
   const line=project.lines[idx];
   mTit.textContent=`行${idx+1}の時刻を設定`;
   mBody.innerHTML=`
-    <div style="margin-bottom:8px;color:var(--text-secondary);font-size:12px;font-family:var(--font-mono)">「${line.lyric||'(空)'}」</div>
+    <div class="modal-caption modal-section">「${line.lyric||'(空)'}」</div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="number" id="mi-t" class="mi" value="${line.time!=null?line.time.toFixed(3):''}" step="0.1" min="0" placeholder="秒 (例: 12.500)" style="font-size:13px">
       <button id="mi-t-current" class="sm-btn" style="white-space:nowrap">▶ 現在位置</button>
@@ -590,7 +590,7 @@ function openRepeatModal(idx){
   let cnt=line.repeat?line.repeat.count:2;
   mTit.textContent=`行${idx+1}のリピート設定`;
   mBody.innerHTML=`
-    <div style="margin-bottom:10px;color:var(--text-secondary);font-size:12px;font-family:var(--font-mono)">イントロ・リフなどの繰り返し回数を設定します</div>
+    <div class="modal-caption modal-section">イントロ・リフなどの繰り返し回数を設定します</div>
     <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:12px">
       <button id="r-minus" class="sm-btn" style="font-size:22px;padding:4px 14px;line-height:1">−</button>
       <div style="text-align:center">
