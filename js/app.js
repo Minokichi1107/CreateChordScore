@@ -482,17 +482,17 @@ function openAddChord(idx){
     line.chords.forEach((c,ci)=>{
       if(c.type==='sep'){
         const s=document.createElement('span');
-        s.style.cssText='color:var(--text-muted);font-family:var(--font-mono);font-size:16px;padding:0 3px;cursor:pointer;';
+        s.className='mac-sep-token';
         s.textContent='/';s.title='クリックで削除';
         s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
         previewEl.appendChild(s);
       } else {
         const tag=document.createElement('span');
-        tag.style.cssText='display:inline-flex;align-items:center;gap:3px;background:var(--chord-bg);border:1.5px solid var(--chord-border);border-radius:4px;color:var(--text-primary);font-family:var(--font-mono);font-size:12px;font-weight:700;padding:3px 5px 3px 8px;cursor:default;';
+        tag.className='mac-preview-tag';
         const nm=document.createElement('span');nm.textContent=c.chord;
         const dx=document.createElement('span');
         dx.textContent='✕';
-        dx.style.cssText='font-size:13px;color:var(--text-muted);cursor:pointer;padding:1px 3px;border-radius:2px;';
+        dx.className='mac-preview-tag-del';
         dx.addEventListener('mouseenter',()=>dx.style.background='var(--color-red)');
         dx.addEventListener('mouseleave',()=>dx.style.background='');
         dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
@@ -520,18 +520,18 @@ function openAddChord(idx){
   }
 
   const palHtml=palette.length
-    ?`<div style="margin-top:8px"><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:5px">楽曲のコードから選択:</div>
-       <div style="display:flex;flex-wrap:wrap;gap:4px;max-height:110px;overflow-y:auto">
+    ?`<div class="modal-section"><div class="modal-field-label">楽曲のコードから選択:</div>
+       <div class="mac-palette-list">
          ${palette.map(c=>`<button class="pal-chord" style="font-size:11px" onclick="_mac_add('${c.replace(/'/g,"\\'").replace(/\//g,'\\/')}')">${c}</button>`).join('')}
        </div></div>`
     :'';
 
   mBody.innerHTML=`
-    <div style="margin-bottom:8px">
-      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:5px">現在のコード:</div>
+    <div class="modal-section">
+      <div class="modal-field-label">現在のコード:</div>
       <div id="mac-preview" style="display:flex;flex-wrap:wrap;gap:4px;min-height:28px;padding:6px;background:var(--surface-overlay);border-radius:var(--r-md);align-items:center"></div>
     </div>
-    <div style="display:flex;gap:6px;margin-bottom:8px">
+    <div class="modal-input-row modal-section" style="gap:6px">
       <input type="text" id="mac-input" class="mi" placeholder="コード名 (例: Am7)" autocomplete="off"
         style="font-size:15px;letter-spacing:1px;flex:1">
       <button id="mac-add-btn" class="sm-btn green" style="white-space:nowrap;font-size:13px">追加</button>

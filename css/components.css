@@ -240,3 +240,43 @@
   padding: 5px 2px;
   text-align: center;
 }
+
+/* ─── ADD CHORD MODAL ────────────────────────────── */
+.mac-preview-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--chord-bg);
+  border: 1.5px solid var(--chord-border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 5px 3px 8px;
+  cursor: default;
+}
+
+.mac-preview-tag-del {
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+.mac-sep-token {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  padding: 0 3px;
+  cursor: pointer;
+}
+
+.mac-palette-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 110px;
+  overflow-y: auto;
+}
