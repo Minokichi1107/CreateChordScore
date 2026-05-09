@@ -659,7 +659,7 @@ mBody.innerHTML=`
 function openAddDiagramModal(defaultChord=''){
   mTit.textContent='ギターダイアグラムを手動登録';
   mBody.innerHTML=`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+    <div class="diagram-string-grid modal-section">
       <div>
         <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">コード名</div>
         <input type="text" id="dd-n" class="mi-sm" value="${defaultChord}" placeholder="例: Cadd9" style="text-align:center;font-size:14px;letter-spacing:1px">
@@ -670,13 +670,11 @@ function openAddDiagramModal(defaultChord=''){
       </div>
     </div>
     <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px">各弦のフレット番号（6弦=低音側 → 1弦=高音側）<br><span style="color:var(--color-amber)">−1=ミュート　0=開放　1〜22=フレット番号</span></div>
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px">
+    <div class="diagram-string-grid modal-section">
       ${['6弦','5弦','4弦','3弦','2弦','1弦'].map((s,i)=>`
-        <div style="text-align:center">
-          <div style="font-size:9px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:3px">${s}</div>
-          <input type="number" id="dd-f${i}" value="0" min="-1" max="22"
-            style="width:100%;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:16px;padding:5px 2px;text-align:center"
-            oninput="_pd()">
+        <div class="diagram-string-field">
+          <div class="modal-field-label" style="margin-bottom:3px">${s}</div>
+          <input type="number" id="dd-f${i}" value="0" min="-1" max="22" oninput="_pd()">
         </div>`).join('')}
     </div>
     <div style="display:flex;gap:14px;align-items:start">
