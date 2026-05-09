@@ -618,18 +618,18 @@ function openCopyModal(fromIdx){
   mTit.textContent=`行${fromIdx+1}のコードをコピー`;
   const prev=line.chords.map(c=>`<span class="chord-tag" style="pointer-events:none"><span>${c.chord}</span></span>`).join('');
   const rows=project.lines.map((l,i)=>i===fromIdx?'':
-    `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surface-overlay);border-radius:4px;cursor:pointer">
+    `<label class="copy-list-item">
       <input type="checkbox" data-to="${i}" style="width:15px;height:15px;accent-color:var(--text-accent)">
-      <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);flex-shrink:0">行${i+1}</span>
-      <span style="font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.lyric||'(空)'}</span>
-      ${l.chords.length?`<span style="font-size:10px;color:var(--chord-text);font-family:var(--font-mono)">[${l.chords.map(c=>c.chord).join(' ')}]</span>`:''}
+      <span class="modal-section-label" style="flex-shrink:0">行${i+1}</span>
+      <span class="copy-list-item-lyric">${l.lyric||'(空)'}</span>
+      ${l.chords.length?`<span class="copy-list-item-chords">[${l.chords.map(c=>c.chord).join(' ')}]</span>`:''}
     </label>`
   ).join('');
-  mBody.innerHTML=`
-    <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:5px">コピー元:</div>
+mBody.innerHTML=`
+    <div class="modal-section-label modal-section">コピー元:</div>
     <div style="display:flex;flex-wrap:wrap;gap:4px;padding:7px;background:var(--surface-overlay);border-radius:6px;margin-bottom:8px">${prev}${line.repeat?`<span class="repeat-badge" style="pointer-events:none">× ${line.repeat.count}回</span>`:''}</div>
-    <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">コピー先（複数選択可）:</div>
-    <div style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:3px" id="copy-list">${rows}</div>
+    <div class="modal-section-label modal-section">コピー先（複数選択可）:</div>
+    <div class="copy-list modal-section" id="copy-list">${rows}</div>
     <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;padding:5px 0;border-top:1px solid var(--border-ui)">
       <input type="checkbox" id="copy-repeat" ${line.repeat?'checked':''} style="width:14px;height:14px;accent-color:var(--color-amber)">
       <span style="font-size:11px;font-family:var(--font-mono);color:var(--color-amber)">リピート記号もコピーする</span>
