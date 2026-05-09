@@ -591,15 +591,15 @@ function openRepeatModal(idx){
   mTit.textContent=`行${idx+1}のリピート設定`;
   mBody.innerHTML=`
     <div class="modal-caption modal-section">イントロ・リフなどの繰り返し回数を設定します</div>
-    <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:12px">
-      <button id="r-minus" class="sm-btn" style="font-size:22px;padding:4px 14px;line-height:1">−</button>
+    <div class="repeat-stepper modal-section">
+      <button id="r-minus" class="sm-btn repeat-stepper-btn">−</button>
       <div style="text-align:center">
-        <div id="r-cnt" style="font-family:var(--font-mono);font-size:40px;font-weight:700;color:var(--color-amber);min-width:64px;text-align:center">${cnt}</div>
-        <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">回繰り返し</div>
+        <div id="r-cnt" class="repeat-stepper-value">${cnt}</div>
+        <div class="repeat-stepper-label">回繰り返し</div>
       </div>
-      <button id="r-plus" class="sm-btn" style="font-size:22px;padding:4px 14px;line-height:1">＋</button>
+      <button id="r-plus" class="sm-btn repeat-stepper-btn">＋</button>
     </div>
-    <div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap">
+    <div class="repeat-quickpick">
       ${[2,3,4,8,16].map(n=>`<button class="pal-chord" style="font-size:13px" onclick="_sr(${n})">${n}回</button>`).join('')}
     </div>`;
   window._sr=(n)=>{cnt=n;document.getElementById('r-cnt').textContent=n;};
