@@ -178,3 +178,42 @@
   display: flex;
   align-items: center;
 }
+
+.repeat-stepper-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ─── COPY LIST ──────────────────────────────────── */
+.copy-list {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.copy-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: var(--surface-overlay);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.copy-list-item-lyric {
+  font-size: 13px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-list-item-chords {
+  font-size: 10px;
+  color: var(--chord-text);
+  font-family: var(--font-mono);
+}
