@@ -689,7 +689,7 @@ function openAddDiagramModal(defaultChord=''){
         <div id="dd-prev" style="display:flex;justify-content:center"></div>
       </div>
     </div>
-    <div style="margin-top:8px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">※ 登録はブラウザを閉じるまで有効です</div>`;
+    <div style="margin-top:8px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">※ 登録はブラウザのサイトデータを削除するまで保持されます</div>`;
   window._pd=()=>{
     const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`dd-f${i}`)?.value)||0);
     const br=parseInt(document.getElementById('dd-b')?.value)||0;
