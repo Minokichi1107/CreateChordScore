@@ -609,23 +609,6 @@ body[data-theme="blue"] {
 }
 
 
-/* ================================================
-   BASE STYLES（将来 base.css に移動予定）
-   ================================================ */
-/* [STRUCTURE] bodyの基本レイアウト。触る必要はほぼない
-   background/color は var()経由なので直接変えないこと */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 14px; }
-body {
-  background: var(--surface-base);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  font-weight: 500;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow-x: hidden;
-}
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--surface-raised); }
 ::-webkit-scrollbar-thumb { background: var(--border-ui-strong); border-radius: 3px; }

@@ -1,0 +1,42 @@
+/* ================================================
+   base.css — ChordScore Browser Baseline
+   責務：reset / normalize / app初期条件
+   ================================================
+
+   ■ このファイルに書いてよいもの
+     * / html / body / その他グローバルセレクタのみ
+     ブラウザ挙動の初期化・アプリ全体の初期条件
+
+   ■ このファイルに書いてはいけないもの
+     var() … themeに依存するものはtheme.cssへ
+     component / layout / utility / token の類
+
+   ■ ロード順
+     base.css → theme.css → layout.css → components.css → perform.css → state.css
+
+   ================================================ */
+
+
+/* reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* typography baseline */
+html {
+  font-size: 14px;
+}
+
+/* app root */
+body {
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
