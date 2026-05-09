@@ -217,3 +217,26 @@
   color: var(--chord-text);
   font-family: var(--font-mono);
 }
+
+/* ─── DIAGRAM STRING GRID ────────────────────────── */
+.diagram-string-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.diagram-string-field {
+  text-align: center;
+}
+
+.diagram-string-field input {
+  width: 100%;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  padding: 5px 2px;
+  text-align: center;
+}
