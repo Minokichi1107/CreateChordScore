@@ -282,7 +282,7 @@ export function renderLines(lines, uiState, callbacks) {
     acts.appendChild(mk('⏱', '', '次TAPでこの行に時刻セット', () => onTapSet(idx)));
     acts.appendChild(mk('🔁 リピート', 'am', 'リピート記号を追加/編集', () => onRepeatClick(idx)));
     acts.appendChild(mk('📋 コピー', 'gn', 'コードを別の行にコピー', () => onCopyClick(idx)));
-    acts.appendChild(mk('↑挿入', '', '上に空行を挿入', () => onLineInsert(idx)));
+    acts.appendChild(mk('↓挿入', '', '下に空行を挿入', () => onLineInsert(idx)));
     acts.appendChild(mk('削除', 'del', '', () => onLineDelete(idx)));
     row.appendChild(acts);
     
