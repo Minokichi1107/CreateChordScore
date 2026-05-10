@@ -305,7 +305,7 @@ function createEditorCallbacks() {
       refreshEditor();
     },
     onLineInsert: (idx) => {
-      project.lines.splice(idx, 0, mkLine());
+      project.lines.splice(idx + 1, 0, mkLine());
       refreshEditor();
     },
     onLineDelete: (idx) => {
