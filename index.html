@@ -74,7 +74,14 @@
     <!-- パレットタブ -->
     <div id="tab-palette" class="left-tab-content active">
       <div class="pbody" style="padding-bottom:5px">
-        <input type="text" id="pal-filter" placeholder="絞り込み (例: m7)">
+        <div id="pal-filter-row">
+          <input type="text" id="pal-filter" placeholder="絞り込み (例: m7)">
+          <div id="pal-transpose">
+            <button id="pal-tr-down">－</button>
+            <span id="pal-tr-val">0</span>
+            <button id="pal-tr-up">＋</button>
+          </div>
+        </div>
       </div>
       <div id="pal-wrap">
         <div id="chord-pal"><div id="chord-pal-empty">コードJSONを読み込むとここに表示されます</div></div>
