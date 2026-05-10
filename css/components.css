@@ -304,3 +304,34 @@
   max-height: 110px;
   overflow-y: auto;
 }
+
+/* パレット移調UI */
+#pal-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#pal-filter-row #pal-filter {
+  flex: 1;
+  min-width: 0;
+}
+#pal-transpose {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+#pal-transpose button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+}
+#pal-tr-val {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  min-width: 26px;
+  text-align: center;
+  color: var(--text-primary);
+}

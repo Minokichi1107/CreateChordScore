@@ -160,6 +160,7 @@ import {
 // プロジェクトデータ
 let project = {title:'',audio:'',capo:0,lines:[],chord_source:''};
 let palette = [];
+let paletteTranspose = 0; // session only、-6〜+6、循環
 let focLine = -1;
 
 // Audio関連
@@ -234,13 +235,14 @@ function checkReloadBannerDone(){
 function renderPalette(){
   const filter=document.getElementById('pal-filter').value.toLowerCase();
   const c=document.getElementById('chord-pal');
-  const filtered=palette.filter(ch=>ch.toLowerCase().includes(filter));
+  const filtered=palette.filter(ch=>transposeChord(ch,paletteTranspose).toLowerCase().includes(filter));
   c.innerHTML='';
   if(!filtered.length){c.innerHTML='<div style="color:var(--text-muted);font-size:11px;font-family:var(--font-mono)">なし</div>';return;}
   filtered.forEach(chord=>{
-    const btn=document.createElement('button');btn.className='pal-chord';btn.textContent=chord;
-    btn.addEventListener('click',()=>handleAddChordToLine(chord));
-    btn.addEventListener('mouseenter',()=>setDiagRight(chord, getCapo()));
+    const displayChord=transposeChord(chord,paletteTranspose);
+    const btn=document.createElement('button');btn.className='pal-chord';btn.textContent=displayChord;
+    btn.addEventListener('click',()=>handleAddChordToLine(displayChord));
+    btn.addEventListener('mouseenter',()=>setDiagRight(displayChord, getCapo()));
     c.appendChild(btn);
   });
 }
@@ -305,7 +307,7 @@ function createEditorCallbacks() {
       refreshEditor();
     },
     onLineInsert: (idx) => {
-      project.lines.splice(idx + 1, 0, mkLine());
+      project.lines.splice(idx, 0, mkLine());
       refreshEditor();
     },
     onLineDelete: (idx) => {
@@ -470,49 +472,21 @@ function addToPaletteIfNew(chord){
 function openAddChord(idx){
   mTit.textContent=`行${idx+1} コードをまとめて追加`;
 
-  // 挿入位置 (modal local state)
-  // null = 末尾, 数値 = splice位置
-  let insertAt=null;
-
-  function mkInsertBtn(pos){
-    const btn=document.createElement('button');
-    btn.className='mac-insert-btn';
-    btn.textContent='＋';
-    btn.title=pos===null?'末尾に挿入':`位置${pos+1}に挿入`;
-    btn.dataset.pos=pos===null?'end':String(pos);
-    btn.addEventListener('click',()=>{
-      insertAt=pos;
-      renderModalPreview();
-      const inp=document.getElementById('mac-input');
-      if(inp)inp.focus();
-    });
-    return btn;
-  }
-
   function renderModalPreview(){
     const line=project.lines[idx];
     const previewEl=document.getElementById('mac-preview');
     if(!previewEl)return;
     previewEl.innerHTML='';
-
-    // 行頭の挿入ボタン
-    const headBtn=mkInsertBtn(0);
-    if(insertAt===0)headBtn.classList.add('active');
-    previewEl.appendChild(headBtn);
-
     if(!line.chords.length){
-      const empty=document.createElement('span');
-      empty.style.cssText='color:var(--text-muted);font-family:var(--font-mono);font-size:11px;margin:0 4px';
-      empty.textContent='(コードなし)';
-      previewEl.appendChild(empty);
+      previewEl.innerHTML='<span style="color:var(--text-muted);font-family:var(--font-mono);font-size:11px">(コードなし)</span>';
+      return;
     }
-
     line.chords.forEach((c,ci)=>{
       if(c.type==='sep'){
         const s=document.createElement('span');
         s.className='mac-sep-token';
         s.textContent='/';s.title='クリックで削除';
-        s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);if(insertAt!==null&&insertAt>ci)insertAt--;refreshEditor();renderModalPreview();});
+        s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
         previewEl.appendChild(s);
       } else {
         const tag=document.createElement('span');
@@ -523,45 +497,26 @@ function openAddChord(idx){
         dx.className='mac-preview-tag-del';
         dx.addEventListener('mouseenter',()=>dx.style.background='var(--color-red)');
         dx.addEventListener('mouseleave',()=>dx.style.background='');
-        dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);if(insertAt!==null&&insertAt>ci)insertAt--;refreshEditor();renderModalPreview();});
+        dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
         tag.appendChild(nm);tag.appendChild(dx);
         previewEl.appendChild(tag);
       }
-
-      // 各要素の後ろの挿入ボタン
-      const pos=ci+1;
-      const isLast=ci===line.chords.length-1;
-      const isActive=isLast?(insertAt===null):(insertAt===pos);
-      const afterBtn=mkInsertBtn(isLast?null:pos);
-      if(isActive)afterBtn.classList.add('active');
-      previewEl.appendChild(afterBtn);
     });
   }
 
   function addChord(ch){
     if(!ch)return;
     addToPaletteIfNew(ch);
-    const chords=project.lines[idx].chords;
-    if(insertAt===null){
-      chords.push({chord:ch,offset:0});
-    } else {
-      chords.splice(insertAt,0,{chord:ch,offset:0});
-      insertAt++;
-    }
+    project.lines[idx].chords.push({chord:ch,offset:0});
     refreshEditor();
     renderModalPreview();
+    // 入力欄をクリア＆フォーカス
     const inp=document.getElementById('mac-input');
     if(inp){inp.value='';inp.focus();}
   }
 
   function addSep(){
-    const chords=project.lines[idx].chords;
-    if(insertAt===null){
-      chords.push({type:'sep'});
-    } else {
-      chords.splice(insertAt,0,{type:'sep'});
-      insertAt++;
-    }
+    project.lines[idx].chords.push({type:'sep'});
     refreshEditor();
     renderModalPreview();
   }
@@ -569,7 +524,7 @@ function openAddChord(idx){
   const palHtml=palette.length
     ?`<div class="modal-section"><div class="modal-field-label">楽曲のコードから選択:</div>
        <div class="mac-palette-list">
-         ${palette.map(c=>`<button class="pal-chord" style="font-size:11px" onclick="_mac_add('${c.replace(/'/g,"\\'").replace(/\//g,'\\/')}')">${c}</button>`).join('')}
+         ${palette.map(c=>{const d=transposeChord(c,paletteTranspose);return`<button class="pal-chord" style="font-size:11px" onclick="_mac_add('${d.replace(/'/g,"\\'").replace(/\//g,'\\/')}')">${d}</button>`;}).join('')}
        </div></div>`
     :'';
 
@@ -1124,6 +1079,22 @@ function setupEventHandlers() {
   // ============================================
   // Palette filter
   document.getElementById('pal-filter').addEventListener('input',renderPalette);
+
+  // Palette transpose
+  document.getElementById('pal-tr-up').addEventListener('click',()=>{
+    let next=paletteTranspose+1;
+    if(next>6)next=-6;
+    paletteTranspose=next;
+    document.getElementById('pal-tr-val').textContent=paletteTranspose>0?`+${paletteTranspose}`:String(paletteTranspose);
+    renderPalette();
+  });
+  document.getElementById('pal-tr-down').addEventListener('click',()=>{
+    let next=paletteTranspose-1;
+    if(next<-6)next=6;
+    paletteTranspose=next;
+    document.getElementById('pal-tr-val').textContent=paletteTranspose>0?`+${paletteTranspose}`:String(paletteTranspose);
+    renderPalette();
+  });
 
   // Custom chord add
   document.getElementById('custom-add').addEventListener('click',()=>{
