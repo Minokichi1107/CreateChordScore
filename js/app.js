@@ -565,21 +565,49 @@ function addToPaletteIfNew(chord){
 function openAddChord(idx){
   mTit.textContent=`行${idx+1} コードをまとめて追加`;
 
+  // 挿入位置 (modal local state)
+  // null = 末尾, 数値 = splice位置
+  let insertAt=null;
+
+  function mkInsertBtn(pos){
+    const btn=document.createElement('button');
+    btn.className='mac-insert-btn';
+    btn.textContent='＋';
+    btn.title=pos===null?'末尾に挿入':`位置${pos+1}に挿入`;
+    btn.dataset.pos=pos===null?'end':String(pos);
+    btn.addEventListener('click',()=>{
+      insertAt=pos;
+      renderModalPreview();
+      const inp=document.getElementById('mac-input');
+      if(inp)inp.focus();
+    });
+    return btn;
+  }
+
   function renderModalPreview(){
     const line=project.lines[idx];
     const previewEl=document.getElementById('mac-preview');
     if(!previewEl)return;
     previewEl.innerHTML='';
+
+    // 行頭の挿入ボタン
+    const headBtn=mkInsertBtn(0);
+    if(insertAt===0)headBtn.classList.add('active');
+    previewEl.appendChild(headBtn);
+
     if(!line.chords.length){
-      previewEl.innerHTML='<span style="color:var(--text-muted);font-family:var(--font-mono);font-size:11px">(コードなし)</span>';
-      return;
+      const empty=document.createElement('span');
+      empty.style.cssText='color:var(--text-muted);font-family:var(--font-mono);font-size:11px;margin:0 4px';
+      empty.textContent='(コードなし)';
+      previewEl.appendChild(empty);
     }
+
     line.chords.forEach((c,ci)=>{
       if(c.type==='sep'){
         const s=document.createElement('span');
         s.className='mac-sep-token';
         s.textContent='/';s.title='クリックで削除';
-        s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
+        s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);if(insertAt!==null&&insertAt>ci)insertAt--;refreshEditor();renderModalPreview();});
         previewEl.appendChild(s);
       } else {
         const tag=document.createElement('span');
@@ -590,26 +618,45 @@ function openAddChord(idx){
         dx.className='mac-preview-tag-del';
         dx.addEventListener('mouseenter',()=>dx.style.background='var(--color-red)');
         dx.addEventListener('mouseleave',()=>dx.style.background='');
-        dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();renderModalPreview();});
+        dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);if(insertAt!==null&&insertAt>ci)insertAt--;refreshEditor();renderModalPreview();});
         tag.appendChild(nm);tag.appendChild(dx);
         previewEl.appendChild(tag);
       }
+
+      // 各要素の後ろの挿入ボタン
+      const pos=ci+1;
+      const isLast=ci===line.chords.length-1;
+      const isActive=isLast?(insertAt===null):(insertAt===pos);
+      const afterBtn=mkInsertBtn(isLast?null:pos);
+      if(isActive)afterBtn.classList.add('active');
+      previewEl.appendChild(afterBtn);
     });
   }
 
   function addChord(ch){
     if(!ch)return;
     addToPaletteIfNew(ch);
-    project.lines[idx].chords.push({chord:ch,offset:0});
+    const chords=project.lines[idx].chords;
+    if(insertAt===null){
+      chords.push({chord:ch,offset:0});
+    } else {
+      chords.splice(insertAt,0,{chord:ch,offset:0});
+      insertAt++;
+    }
     refreshEditor();
     renderModalPreview();
-    // 入力欄をクリア＆フォーカス
     const inp=document.getElementById('mac-input');
     if(inp){inp.value='';inp.focus();}
   }
 
   function addSep(){
-    project.lines[idx].chords.push({type:'sep'});
+    const chords=project.lines[idx].chords;
+    if(insertAt===null){
+      chords.push({type:'sep'});
+    } else {
+      chords.splice(insertAt,0,{type:'sep'});
+      insertAt++;
+    }
     refreshEditor();
     renderModalPreview();
   }
