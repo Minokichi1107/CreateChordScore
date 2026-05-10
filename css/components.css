@@ -257,6 +257,30 @@
   cursor: default;
 }
 
+/* コード挿入位置ボタン */
+.mac-insert-btn {
+  padding: 0 5px;
+  height: 22px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.mac-insert-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+.mac-insert-btn.active {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+
 .mac-preview-tag-del {
   font-size: 13px;
   color: var(--text-muted);
