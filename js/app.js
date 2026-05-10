@@ -162,6 +162,7 @@ let project = {title:'',audio:'',capo:0,lines:[],chord_source:''};
 let palette = [];
 let paletteTranspose = 0; // session only、-6〜+6、循環
 let focLine = -1;
+let importUndoStack = []; // import単位undo用
 
 // Audio関連
 const aEl = document.getElementById('audio-el');
@@ -219,6 +220,7 @@ function loadChordData(data,filename){
   renderPalette();document.getElementById('pal-count').textContent=palette.length;
   toast(`コード読み込み: ${palette.length}種`+(data.tempo?` / ${Math.round(data.tempo)}BPM`:'')+(data.key?` / ${data.key}`:''));
   checkReloadBannerDone();
+  renderImportBtn();
 }
 
 function checkReloadBannerDone(){
@@ -227,6 +229,97 @@ function checkReloadBannerDone(){
   const audioOk=aEl.src&&aEl.src!==window.location.href;
   const chordOk=palette.length>0||!project.chord_source;
   if(audioOk&&chordOk)banner.remove();
+}
+
+function renderImportBtn(){
+  const old=document.getElementById('json-import-btn-wrap');if(old)old.remove();
+  const cn=window._cn||[];const ct=window._ct||[];
+  if(!cn.length||!ct.length)return;
+  const hasTimed=project.lines.some(l=>l.time!=null);
+  const wrap=document.createElement('div');
+  wrap.id='json-import-btn-wrap';
+  wrap.style.cssText='padding:4px 8px 6px';
+  const btn=document.createElement('button');
+  btn.id='json-import-btn';
+  btn.className='file-btn';
+  btn.style.cssText='width:100%;font-size:11px';
+  btn.textContent='🎵 コードを行に自動登録';
+  btn.disabled=!hasTimed;
+  btn.title=hasTimed?'JSONのコードをタイムスタンプに基づいて行に登録':'タイムスタンプ付きの行がありません';
+  btn.addEventListener('click',importChordsFromJson);
+  wrap.appendChild(btn);
+  // file-rowの「コード」ボタン行の直後に挿入
+  const chordRow=document.getElementById('chord-btn').closest('.file-row');
+  if(chordRow&&chordRow.parentNode)chordRow.parentNode.insertBefore(wrap,chordRow.nextSibling);
+}
+
+function importChordsFromJson(){
+  const cn=window._cn||[];const ct=window._ct||[];
+  if(!cn.length||!ct.length){toast('コードデータがありません');return;}
+
+  // タイムスタンプ未設定行を補完（前後の有効timestampで線形補間）
+  const lines=project.lines;
+  const ts=lines.map(l=>l.time); // null含む
+
+  // 有効tsのインデックスを収集
+  const validIdx=ts.map((t,i)=>t!=null?i:-1).filter(i=>i>=0);
+  if(!validIdx.length){toast('タイムスタンプ付きの行がありません');return;}
+
+  // 各行の有効timestamp（補完済み）を計算
+  const effTs=ts.map((t,i)=>{
+    if(t!=null)return t;
+    // 前後の有効インデックスを探す
+    const prev=validIdx.filter(vi=>vi<i).pop();
+    const next=validIdx.find(vi=>vi>i);
+    if(prev==null&&next==null)return null;
+    if(prev==null)return ts[next];
+    if(next==null)return ts[prev];
+    // 線形補間
+    const span=next-prev;
+    const frac=(i-prev)/span;
+    return ts[prev]+(ts[next]-ts[prev])*frac;
+  });
+
+  // 既存コードがある行があれば上書き確認
+  const hasExisting=lines.some(l=>l.chords.length>0);
+  const doImport=(overwrite)=>{
+    // import前スナップショットをundo stackへ
+    importUndoStack.push(lines.map(l=>({...l,chords:l.chords.map(c=>({...c}))})));
+
+    // 各行にコードを配置
+    const newLines=lines.map(l=>({...l,chords:overwrite?[]:l.chords.map(c=>({...c}))}));
+    cn.forEach((chord,ji)=>{
+      if(!chord||chord==='N')return;
+      const t=ct[ji];
+      if(t==null)return;
+      // どの行に属するか判定: effTs[i] <= t < effTs[i+1]
+      let target=-1;
+      for(let i=0;i<newLines.length;i++){
+        const cur=effTs[i];
+        if(cur==null)continue;
+        const nxt=effTs[i+1]??Infinity;
+        if(t>=cur&&t<nxt){target=i;break;}
+      }
+      if(target<0)return;
+      newLines[target].chords.push({chord,offset:0});
+    });
+
+    project.lines=newLines;
+    refreshEditor();
+    renderImportBtn(); // undo後にボタン状態を更新
+    toast(`✅ コード自動登録完了 / Ctrl+Z で元に戻せます`);
+  };
+
+  if(hasExisting){
+    mTit.textContent='上書き確認';
+    mBody.innerHTML='<p style="margin:0;line-height:1.6">既存のコードがある行があります。<br>上書きして自動登録しますか？</p>';
+    mBtns.innerHTML='';
+    mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
+    mBtns.appendChild(mkMBtn('上書きして登録','ok',()=>{closeMod();doImport(true);}));
+    mOv.classList.add('open');
+  } else {
+    doImport(false);
+  }
 }
 
 // ════════════════════════════════════════
@@ -307,7 +400,7 @@ function createEditorCallbacks() {
       refreshEditor();
     },
     onLineInsert: (idx) => {
-      project.lines.splice(idx, 0, mkLine());
+      project.lines.splice(idx + 1, 0, mkLine());
       refreshEditor();
     },
     onLineDelete: (idx) => {
@@ -841,6 +934,8 @@ function resetProject() {
   palette = [];
   window._cn = [];
   window._ct = [];
+  importUndoStack = [];
+  const oldBtn=document.getElementById('json-import-btn-wrap');if(oldBtn)oldBtn.remove();
   _fileHandle = null;
   
   // Audio State
@@ -924,6 +1019,7 @@ function loadProj(data){
   }
   
   refreshEditor();
+  renderImportBtn();
   
   const curDiagChord = document.getElementById('diag-in').value.trim();
   if (curDiagChord) {
@@ -1249,6 +1345,17 @@ function setupEventHandlers() {
     if (e.altKey && e.key === 'n') {
       e.preventDefault();
       document.getElementById('btn-new').click();
+    }
+
+    // Ctrl+Z: import undo
+    if (e.ctrlKey && e.key === 'z') {
+      if (importUndoStack.length) {
+        e.preventDefault();
+        project.lines = importUndoStack.pop();
+        refreshEditor();
+        renderImportBtn();
+        toast('↩ コード自動登録を元に戻しました');
+      }
     }
   });
 
