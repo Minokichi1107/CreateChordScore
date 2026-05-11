@@ -1,4 +1,4 @@
-# ChordScore Phase18 引き継ぎプロンプト
+# ChordScore Phase19 引き継ぎプロンプト
 
 ---
 
@@ -12,14 +12,14 @@
 
 ```
 ## 完了ブランチ
-phase17（mainへ統合済み）
+phase18（mainへ統合済み）
 
 ## 現在の作業ブランチ
-phase18-（未定）
+phase19-（未定）
 
 index.html
 css/
-  base.css      ← Phase17で新規追加
+  base.css
   theme.css
   layout.css
   components.css
@@ -32,27 +32,26 @@ js/
 
 ---
 
-## Phase17で完了した作業
+## Phase18で完了した作業
 
-- `base.css` 導入（`*` / `html` / `body` を theme.css から分離）
-- `openAddDiagramModal` 注意書き文言修正（「ブラウザを閉じるまで」→「ブラウザのローカルストレージに保存されます」）
-
-### CSS ロード順（確定）
-
-```html
-base.css → theme.css → layout.css → components.css → perform.css → state.css
-```
-
-### base.css 責務（確定）
-
-| ファイル | 内容 |
+| 内容 | 詳細 |
 |---|---|
-| base.css | `*` reset / `html` / `body` のみ。var()不使用が理想だが、CSSカスタムプロパティはcomputed-value時に解決されるため現状のvar()参照は実害なし |
-| theme.css | scrollbar含むすべてのthemed visual surface |
+| 行挿入を選択行の後ろに変更 | `splice(idx, 0)` → `splice(idx + 1, 0)`。`onLyricEnter` と挙動統一 |
+| コード挿入位置対応（A案） | `openAddChord` モーダル内に `insertAt` local state を追加。行頭・途中・末尾への挿入が可能に。通常画面は末尾追加のまま（B案は将来フェーズ） |
+| コードパレット移調ボタン（#13） | パレット絞り込み欄右に－/＋ボタン追加。範囲 -6〜+6 の循環方式。`displayChord` ベースで表示・挿入・モーダルパレット全て移調後コードを使用 |
+| JSONコード自動登録（#12） | コードJSON読み込み後に「🎵 コードを行に自動登録」ボタンを表示。タイムスタンプ補完（線形補間）・既存コード上書き確認・Ctrl+Z で1段階undo |
+| ↓挿入ラベル修正 | editor.js の「↑挿入」→「↓挿入」（実動作との整合） |
+| CSS追加（components.css） | `.mac-insert-btn` / `.mac-insert-btn:hover` / `.mac-insert-btn.active`、`#pal-filter-row` / `#pal-transpose` 関連 |
+
+### Phase18で追加した CSS トークン候補（保留中）
+
+| 対象 | 状態 |
+|---|---|
+| `.mac-insert-btn.active` の `color: #fff` | `--text-on-accent` 等のtoken追加時に対応 |
 
 ---
 
-## Phase16で確定した設計方針（継続）
+## Phase16〜17で確定した設計方針（継続）
 
 **JS Component層のCSS ownership ルール**
 
@@ -130,11 +129,12 @@ base.css → theme.css → layout.css → components.css → perform.css → sta
 | 内容 | 状態 |
 |---|---|
 | コードパレットの移調ボタン | ✅ 完了（Phase18） |
+| addChordおよび中央パネルのコード編集：行頭・途中へのコード挿入対応 | ✅ 完了（Phase18） |
+| JSONコード自動登録（#12） | ✅ 完了（Phase18） |
 | A4印刷対応 | 未着手 |
 | CHORD MINIのJSONファイル取得（Python）をアプリに統合 | 未着手 |
 | コード名の全角→半角正規化（検索・保存時） | 仕様確定済み（下記参照） |
 | 通常モードのTAPボタン削除 | 未着手（TAPモードおよびJSON自動読み込みと機能重複のため） |
-| addChordおよび中央パネルのコード編集：行頭・途中へのコード挿入対応 | ✅ 完了（Phase18） |
 | addChordモーダルでコードに繰り返し記号を追加できるようにする | 未着手 |
 | mp3波形表示 | 未着手 |
 
@@ -153,7 +153,7 @@ base.css → theme.css → layout.css → components.css → perform.css → sta
 
 ### 仕様確定済み・未実装
 
-#### ⑫ コードダイアグラム拡張
+#### ⑭ コードダイアグラム拡張（Phase19予定）
 
 - 編集・削除対象：既存バリアント（ロー・バレー等）もカスタム登録も両方対象
 - UI：バリアントカードにホバーで右上に ✏️ 🗑 ボタン
@@ -161,12 +161,6 @@ base.css → theme.css → layout.css → components.css → perform.css → sta
   - 🗑 → 確認なしで即削除（バリアントが0になったらDBから除去）
 - 変更はlocalStorageに自動保存（既存の永続化の仕組みを使う）
 - カスタムダイアグラムのJSONエクスポート・インポート機能
-
-#### ⑭ JSONタイムスタンプからコード自動登録
-
-- 次の行のタイムスタンプまでの間のコードをその行に並べる
-- タイムスタンプなし行は全行均等割りで時刻を自動計算して割り当て
-- 既存コードがある行は上書き確認ダイアログ（一括で「上書きしますか？」）
 
 #### ⑪ プロジェクトライブラリ
 
@@ -241,6 +235,7 @@ Component層  → var()だけ使う。直書き禁止
 - 1回の回答で500行以上のコードを書かない
 - 既存コードを破壊するリファクタリング禁止
 - 改善提案は後出し小出し禁止。設計段階でまとめて提示
+- **アップロードされた古いファイルをベースに作業する際は、過去フェーズの修正が失われていないか冒頭で必ず確認する**（`splice(idx+1`・`insertAt`・`↓挿入` 等）
 
 ---
 
