@@ -335,3 +335,26 @@
   text-align: center;
   color: var(--text-primary);
 }
+
+/* ── ダイアグラムフッター サブ行 ── */
+#diag-footer-sub {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+#diag-footer-sub button {
+  flex: 1;
+  padding: 5px 4px;
+  font-size: 11px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+#diag-footer-sub button:hover {
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}

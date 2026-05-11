@@ -203,7 +203,8 @@ export function lookupChord(name){
 }
 
 // TODO: move to editor.js in phase4
-export function showDiagramPanel(chord, capo){
+export function showDiagramPanel(chord, capo, callbacks = {}){
+  const { onEdit = null, onDelete = null } = callbacks;
   document.getElementById('diag-title').textContent=chord||'';
   const c=document.getElementById('diag-container');
   if(!chord||chord==='N'){c.innerHTML='<div class="diag-empty">コードタグをホバー<br>または上で入力</div>';return;}
@@ -215,55 +216,166 @@ export function showDiagramPanel(chord, capo){
   }
   c.innerHTML=capoInfo;
   r.data.v.forEach(vr=>{
-    const d=document.createElement('div');d.className='dv';
-    d.innerHTML=`<div class="dv-label">${vr.n}</div><div class="dv-svg">${drawDiagram(vr.f,vr.b||null)}</div>`;
+    const d=document.createElement('div');
+    d.className='dv';
+    if(vr._id) d.dataset.diagId=vr._id;
+
+    const label=document.createElement('div');
+    label.className='dv-label';
+    label.textContent=vr.n;
+
+    const svg=document.createElement('div');
+    svg.className='dv-svg';
+    svg.innerHTML=drawDiagram(vr.f,vr.b||null);
+
+    d.appendChild(label);
+    d.appendChild(svg);
+
+    // idがある = storage管理対象 → 編集・削除ボタン表示
+    if(vr._id && onEdit && onDelete){
+      const btnRow=document.createElement('div');
+      btnRow.className='dv-btn-row';
+
+      const editBtn=document.createElement('button');
+      editBtn.className='dv-btn dv-btn-edit';
+      editBtn.textContent='✏️';
+      editBtn.title='編集';
+      editBtn.onclick=()=>onEdit(r.name, vr._id);
+
+      const delBtn=document.createElement('button');
+      delBtn.className='dv-btn dv-btn-del';
+      delBtn.textContent='🗑';
+      delBtn.title='削除';
+      delBtn.onclick=()=>onDelete(r.name, vr._id);
+
+      btnRow.appendChild(editBtn);
+      btnRow.appendChild(delBtn);
+      d.appendChild(btnRow);
+    }
+
     c.appendChild(d);
   });
 }
 
 // TODO: move to editor.js in phase4
-export function setDiagRight(chord, capo){
+export function setDiagRight(chord, capo, callbacks = {}){
   document.getElementById('diag-in').value=chord||'';
-  showDiagramPanel(chord, capo);
+  showDiagramPanel(chord, capo, callbacks);
 }
 
 // ════════════════════════════════════════
-// CHORD DB 永続化（手動登録分をlocalStorageに保存）
+// CHORD DB 永続化（カスタム登録分をlocalStorageに保存）
 // ════════════════════════════════════════
 export const CHORD_DB_BUILTIN_KEYS = new Set(Object.keys(CHORD_DB));
 
-export function diagKey(name){return name.replace(/\//g,'__SLASH__');}
-export function diagKeyDecode(k){return k.replace(/__SLASH__/g,'/');}
+export function diagKey(name)    { return name.replace(/\//g, '__SLASH__'); }
+export function diagKeyDecode(k) { return k.replace(/__SLASH__/g, '/'); }
+
+function generateId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+function stableId(rawK, n, f) {
+  return 'legacy-' + rawK + '-' + n + '-' + JSON.stringify(f);
+}
+
+function migrateCustomDiagrams(raw) {
+  if (raw && raw.version === 2) return raw;
+  const chords = {};
+  for (const [rawK, val] of Object.entries(raw || {})) {
+    const variants = (val.v || []).map(vr => ({
+      id:      stableId(rawK, vr.n, vr.f),
+      n:       vr.n,
+      f:       vr.f,
+      ...(vr.b !== undefined && { b: vr.b }),
+      _custom: true,
+    }));
+    if (variants.length) chords[rawK] = variants;
+  }
+  return { version: 2, chords };
+}
 
 export function saveCustomDiagrams() {
-  const custom = {};
-  for (const [k, v] of Object.entries(CHORD_DB)) {
-    if (!CHORD_DB_BUILTIN_KEYS.has(k)) {
-      custom[diagKey(k)] = v;
-    } else {
-      const customVariants = v.v.filter(vr => vr._custom);
-      if (customVariants.length) custom[diagKey(k)] = { v: customVariants };
-    }
+  const chords = {};
+  for (const [k, val] of Object.entries(CHORD_DB)) {
+    const targets = CHORD_DB_BUILTIN_KEYS.has(k)
+      ? val.v.filter(vr => vr._custom)
+      : val.v;
+    if (!targets.length) continue;
+    chords[diagKey(k)] = targets.map(vr => ({
+      id:      vr._id || generateId(),
+      n:       vr.n,
+      f:       vr.f,
+      ...(vr.b !== undefined && { b: vr.b }),
+      _custom: true,
+    }));
   }
-  try { localStorage.setItem('cs_customDiags', JSON.stringify(custom)); } catch(e) {}
+  try {
+    localStorage.setItem('cs_customDiags', JSON.stringify({ version: 2, chords }));
+  } catch(e) {}
+}
+
+// ────────────────────────────────────────
+// runtime上のカスタム分をクリア（load前・Undo時に使用）
+// ────────────────────────────────────────
+function clearCustomFromRuntime() {
+  for (const k of Object.keys(CHORD_DB)) {
+    if (!CHORD_DB_BUILTIN_KEYS.has(k)) delete CHORD_DB[k];
+    else CHORD_DB[k].v = CHORD_DB[k].v.filter(vr => !vr._custom);
+  }
 }
 
 export function loadCustomDiagrams() {
   try {
     const saved = localStorage.getItem('cs_customDiags');
     if (!saved) return;
-    const custom = JSON.parse(saved);
-    for (const [rawK, v] of Object.entries(custom)) {
+    const parsed = JSON.parse(saved);
+    const data   = migrateCustomDiagrams(parsed);
+
+    if (!parsed.version) {
+      localStorage.setItem('cs_customDiags', JSON.stringify(data));
+    }
+
+    // clear → rebuild（mergeではなく完全再構築）
+    clearCustomFromRuntime();
+
+    for (const [rawK, variants] of Object.entries(data.chords)) {
       const k = diagKeyDecode(rawK);
       if (!CHORD_DB[k]) CHORD_DB[k] = { v: [] };
-      v.v.forEach(vr => {
-        vr._custom = true;
-        const ei = CHORD_DB[k].v.findIndex(x => x.n === vr.n);
-        if (ei >= 0) CHORD_DB[k].v[ei] = vr; else CHORD_DB[k].v.push(vr);
-      });
+      CHORD_DB[k].v.push(...variants.map(vr => {
+        const runtime = { n: vr.n, f: vr.f, _custom: true, _id: vr.id };
+        if (vr.b !== undefined) runtime.b = vr.b;
+        return runtime;
+      }));
     }
   } catch(e) {}
 }
+
+// ────────────────────────────────────────
+// Undo stack（ダイアグラム編集用）
+// ────────────────────────────────────────
+const _diagUndoStack = [];
+const UNDO_MAX = 10;
+
+export function diagPushUndo() {
+  const snap = localStorage.getItem('cs_customDiags') || 'null';
+  _diagUndoStack.push(snap);
+  if (_diagUndoStack.length > UNDO_MAX) _diagUndoStack.shift();
+}
+
+export function diagUndo() {
+  if (!_diagUndoStack.length) return false;
+  const snap = _diagUndoStack.pop();
+  if (snap === 'null') {
+    localStorage.removeItem('cs_customDiags');
+  } else {
+    localStorage.setItem('cs_customDiags', snap);
+  }
+  return true;
+}
+
+export function diagUndoSize() { return _diagUndoStack.length; }
 
 // ════════════════════════════════════════
 // CAPO 移調ロジック

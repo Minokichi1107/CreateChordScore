@@ -76,6 +76,9 @@ import {
   diagKeyDecode,
   saveCustomDiagrams,
   loadCustomDiagrams,
+  diagPushUndo,
+  diagUndo,
+  diagUndoSize,
   transposeRoot,
   transposeChord,
   showCapoInfo,
@@ -168,6 +171,12 @@ let importUndoStack = []; // import単位undo用
 const aEl = document.getElementById('audio-el');
 let _aURL = null;
 let tapIdx = -1;
+
+// ユーティリティ
+function generateId(){
+  if(typeof crypto!=='undefined'&&crypto.randomUUID)return crypto.randomUUID();
+  return Date.now().toString(36)+Math.random().toString(36).slice(2);
+}
 
 // UI状態
 let diagOn = true;
@@ -335,7 +344,7 @@ function renderPalette(){
     const displayChord=transposeChord(chord,paletteTranspose);
     const btn=document.createElement('button');btn.className='pal-chord';btn.textContent=displayChord;
     btn.addEventListener('click',()=>handleAddChordToLine(displayChord));
-    btn.addEventListener('mouseenter',()=>setDiagRight(displayChord, getCapo()));
+    btn.addEventListener('mouseenter',()=>setDiagRight(displayChord, getCapo(), getDiagCallbacks()));
     c.appendChild(btn);
   });
 }
@@ -455,7 +464,7 @@ function createEditorCallbacks() {
       openCopyModal(idx);
     },
     setDiagRight: (chord, capo) => {
-      setDiagRight(chord, capo);
+      setDiagRight(chord, capo, getDiagCallbacks());
     },
     showPopup: (chord, element) => {
       showPopup(chord, element);
@@ -845,19 +854,150 @@ function openAddDiagramModal(defaultChord=''){
     if(!name){toast('コード名を入力してください');return;}
     const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`dd-f${i}`).value)||0);
     const br=parseInt(document.getElementById('dd-b').value)||0;
-    const variant={n:vname,f:fr,b:br||undefined,_custom:true};
     if(!CHORD_DB[name])CHORD_DB[name]={v:[]};
-    const ei=CHORD_DB[name].v.findIndex(vr=>vr.n===vname);
+    // 既存の同名variantがあればidを引き継ぐ、なければ新規id
+    const existing=CHORD_DB[name].v.find(vr=>vr.n===vname&&vr._custom);
+    const variant={n:vname,f:fr,b:br||undefined,_custom:true,_id:existing?._id||generateId()};
+    const ei=CHORD_DB[name].v.findIndex(vr=>vr._id===variant._id);
     if(ei>=0)CHORD_DB[name].v[ei]=variant;else CHORD_DB[name].v.push(variant);
     saveCustomDiagrams();
-    showDiagramPanel(name, getCapo());document.getElementById('diag-in').value=name;
+    showDiagramPanel(name, getCapo(), getDiagCallbacks());document.getElementById('diag-in').value=name;
     closeMod();toast(`✅ "${name}" (${vname}) を登録・保存しました`);
   }));
   mOv.classList.add('open');
   setTimeout(()=>{const el=document.getElementById('dd-n');if(el){el.focus();el.select();}},80);
 }
 
+// ダイアグラム編集・削除
+function refreshDiagrams(){
+  loadCustomDiagrams();
+  const cur = document.getElementById('diag-in').value.trim();
+  showDiagramPanel(cur, getCapo(), getDiagCallbacks());
+  const undoBtn = document.getElementById('btn-diag-undo');
+  if(undoBtn) undoBtn.disabled = (diagUndoSize() === 0);
+}
+
+function getDiagCallbacks(){
+  return {
+    onEdit:   (chord, id) => openEditDiagramModal(chord, id),
+    onDelete: (chord, id) => deleteDiagramVariant(chord, id),
+  };
+}
+
+function deleteDiagramVariant(chord, id){
+  if(!CHORD_DB[chord]) return;
+  diagPushUndo();
+  CHORD_DB[chord].v = CHORD_DB[chord].v.filter(vr => vr._id !== id);
+  if(!CHORD_DB[chord].v.length && !CHORD_DB_BUILTIN_KEYS.has(chord)) delete CHORD_DB[chord];
+  saveCustomDiagrams();
+  refreshDiagrams();
+  toast('削除しました');
+}
+
+function openEditDiagramModal(chord, id){
+  if(!CHORD_DB[chord]) return;
+  const vr = CHORD_DB[chord].v.find(v => v._id === id);
+  if(!vr) return;
+  mTit.textContent='ギターダイアグラムを編集';
+  mBody.innerHTML=`
+    <div class="diagram-string-grid modal-section">
+      <div>
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">コード名</div>
+        <input type="text" id="de-n" class="mi-sm" value="${chord}" disabled style="text-align:center;font-size:14px;letter-spacing:1px;opacity:0.6">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">ポジション名</div>
+        <input type="text" id="de-v" class="mi-sm" value="${vr.n}" placeholder="ロー/バレー等">
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px">各弦のフレット番号（6弦=低音側 → 1弦=高音側）<br><span style="color:var(--color-amber)">−1=ミュート　0=開放　1〜22=フレット番号</span></div>
+    <div class="diagram-string-grid modal-section">
+      ${[6,5,4,3,2,1].map((s,i)=>`
+        <div class="diagram-string-field">
+          <div class="modal-field-label" style="margin-bottom:3px">${s}弦</div>
+          <input type="number" id="de-f${i}" value="${vr.f[i]}" min="-1" max="22" oninput="_ped()">
+        </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:14px;align-items:start">
+      <div>
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">セーハ（0=なし）</div>
+        <input type="number" id="de-b" value="${vr.b||0}" min="0" max="22"
+          style="width:68px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:14px;padding:5px;text-align:center"
+          oninput="_ped()">
+      </div>
+      <div style="flex:1;text-align:center">
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">プレビュー</div>
+        <div id="de-prev" style="display:flex;justify-content:center"></div>
+      </div>
+    </div>`;
+  window._ped=()=>{
+    const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`de-f${i}`)?.value)||0);
+    const br=parseInt(document.getElementById('de-b')?.value)||0;
+    const el=document.getElementById('de-prev');if(el)el.innerHTML=drawDiagram(fr,br||null);
+  };
+  setTimeout(window._ped,50);
+  mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
+  mBtns.appendChild(mkMBtn('保存','ok',()=>{
+    const vname=document.getElementById('de-v').value.trim()||'カスタム';
+    const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`de-f${i}`).value)||0);
+    const br=parseInt(document.getElementById('de-b').value)||0;
+    diagPushUndo();
+    const ei=CHORD_DB[chord].v.findIndex(v=>v._id===id);
+    if(ei>=0){
+      CHORD_DB[chord].v[ei]={...CHORD_DB[chord].v[ei], n:vname, f:fr, b:br||undefined};
+    }
+    saveCustomDiagrams();
+    refreshDiagrams();
+    closeMod();toast(`✅ 編集しました`);
+  }));
+  mOv.classList.add('open');
+}
+
 // ════════════════════════════════════════
+// ダイアグラム export / import
+function exportCustomDiagrams(){
+  const saved = localStorage.getItem('cs_customDiags');
+  if(!saved){ toast('カスタムダイアグラムがありません'); return; }
+  const blob = new Blob([saved], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'chordscore_diagrams.json';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+function importCustomDiagrams(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!data.version || !data.chords) throw new Error();
+      const current = JSON.parse(localStorage.getItem('cs_customDiags')||'{"version":2,"chords":{}}');
+      let added = 0;
+      for(const [k, variants] of Object.entries(data.chords)){
+        if(!current.chords[k]) current.chords[k] = [];
+        const existIds = new Set(current.chords[k].map(v => v.id));
+        for(const vr of variants){
+          if(existIds.has(vr.id)) continue; // 同一idはスキップ
+          current.chords[k].push(vr);
+          added++;
+        }
+      }
+      diagPushUndo();
+      localStorage.setItem('cs_customDiags', JSON.stringify(current));
+      refreshDiagrams();
+      toast(`✅ ${added}件追加しました`);
+    } catch(err){
+      toast('❌ ファイルが未対応の形式です');
+    }
+  };
+  reader.readAsText(file);
+}
+
 // HOVER POPUP
 // ════════════════════════════════════════
 function showPopup(chord,anchor){
@@ -1070,7 +1210,7 @@ function loadProj(data){
   
   const curDiagChord = document.getElementById('diag-in').value.trim();
   if (curDiagChord) {
-    showDiagramPanel(curDiagChord, getCapo());
+    showDiagramPanel(curDiagChord, getCapo(), getDiagCallbacks());
   }
 }
 
@@ -1327,7 +1467,7 @@ function setupEventHandlers() {
   });
 
   // UI: ダイアグラム入力
-  document.getElementById('diag-in').addEventListener('input',e=>showDiagramPanel(e.target.value.trim(), getCapo()));
+  document.getElementById('diag-in').addEventListener('input',e=>showDiagramPanel(e.target.value.trim(), getCapo(), getDiagCallbacks()));
 
   // UI: ダイアグラム追加ボタン
   const _diagBtn=document.getElementById('btn-add-diag');
@@ -1357,7 +1497,7 @@ function setupEventHandlers() {
     _prevCapo=newCapo;
     autoSaveLocal();
     const cur=document.getElementById('diag-in').value.trim();
-    if(cur) showDiagramPanel(cur, getCapo());
+    if(cur) showDiagramPanel(cur, getCapo(), getDiagCallbacks());
     toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
   });
 
@@ -1550,6 +1690,17 @@ function setupEventHandlers() {
     const chord=document.getElementById('diag-in').value.trim();
     openAddDiagramModal(chord);
   });
+
+  document.getElementById('btn-diag-undo')?.addEventListener('click', () => {
+    if(diagUndo()) refreshDiagrams();
+  });
+  document.getElementById('btn-diag-export')?.addEventListener('click', exportCustomDiagrams);
+  const filediagImport = document.getElementById('file-diag-import');
+  document.getElementById('btn-diag-import')?.addEventListener('click', () => filediagImport.click());
+  filediagImport?.addEventListener('change', e => {
+    importCustomDiagrams(e.target.files[0]);
+    e.target.value = '';
+  });
 }
 
 // ----------------------------
@@ -1643,7 +1794,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
   loadCustomDiagrams();
   const curDiagChord = document.getElementById('diag-in').value.trim();
-  if(curDiagChord) showDiagramPanel(curDiagChord, getCapo());
+  if(curDiagChord) showDiagramPanel(curDiagChord, getCapo(), getDiagCallbacks());
 
   // ③ ダイアグラムON/OFF状態復元
   const diagToggleBtn = document.getElementById('diag-toggle');
