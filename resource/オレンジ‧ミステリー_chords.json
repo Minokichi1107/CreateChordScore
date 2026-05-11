@@ -1,5 +1,5 @@
 {
-  "file": "14 オレンジ‧ミステリー.flac",
+  "file": "オレンジ‧ミステリー.flac",
   "duration": 234.38,
   "tempo": 133.3,
   "key": "D major",
@@ -166,5 +166,5 @@
   "model": "Chord-CNN-LSTM",
   "source": "ChordMini (自動取得)",
   "_raw_total_chords": 78,
-  "_raw_processing_time": 14.82967495918274
+  "_raw_processing_time": 15.05933928489685
 }
