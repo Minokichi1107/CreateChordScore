@@ -82,7 +82,9 @@ import {
   transposeRoot,
   transposeChord,
   showCapoInfo,
-  normChord
+  normChord,
+  normalizeChordName,
+  findChord
 } from './chords.js';
 
 import {
@@ -139,6 +141,7 @@ import {
   prevPerformPage,
   performState
 } from './perform.js';
+
 
 // ════════════════════════════════════════
 // GLOBAL STATE
