@@ -267,19 +267,51 @@ function stableId(rawK, n, f) {
 }
 
 function migrateCustomDiagrams(raw) {
-  if (raw && raw.version === 2) return raw;
-  const chords = {};
-  for (const [rawK, val] of Object.entries(raw || {})) {
-    const variants = (val.v || []).map(vr => ({
-      id:      stableId(rawK, vr.n, vr.f),
-      n:       vr.n,
-      f:       vr.f,
-      ...(vr.b !== undefined && { b: vr.b }),
-      _custom: true,
-    }));
-    if (variants.length) chords[rawK] = variants;
+  // v1 → v2
+  if (!raw || !raw.version) {
+    const chords = {};
+    for (const [rawK, val] of Object.entries(raw || {})) {
+      const variants = (val.v || []).map(vr => ({
+        id:      stableId(rawK, vr.n, vr.f),
+        n:       vr.n,
+        f:       vr.f,
+        ...(vr.b !== undefined && { b: vr.b }),
+        _custom: true,
+      }));
+      if (variants.length) chords[rawK] = variants;
+    }
+    return { version: 2, chords };
   }
-  return { version: 2, chords };
+
+  // v2 → v3: canonical key化
+  if (raw.version === 2) {
+    const chords = {};
+    const seenIds = new Set();
+
+    for (const [rawK, variants] of Object.entries(raw.chords || {})) {
+      // storage key をデコード → normalizeChordName → 再エンコード
+      const decoded   = diagKeyDecode(rawK);
+      const canonical = normalizeChordName(decoded);
+      const newKey    = diagKey(canonical);
+
+      if (!chords[newKey]) chords[newKey] = [];
+
+      for (const v of variants) {
+        const nv = { ...v };
+        // _id 衝突 repair（clone してから修正）
+        if (!nv.id || seenIds.has(nv.id)) {
+          nv.id = generateId();
+        }
+        seenIds.add(nv.id);
+        chords[newKey].push(nv);
+      }
+    }
+
+    return { version: 3, chords };
+  }
+
+  // v3 以降はそのまま
+  return raw;
 }
 
 export function saveCustomDiagrams() {
@@ -298,7 +330,7 @@ export function saveCustomDiagrams() {
     }));
   }
   try {
-    localStorage.setItem('cs_customDiags', JSON.stringify({ version: 2, chords }));
+    localStorage.setItem('cs_customDiags', JSON.stringify({ version: 3, chords }));
   } catch(e) {}
 }
 
@@ -317,9 +349,18 @@ export function loadCustomDiagrams() {
     const saved = localStorage.getItem('cs_customDiags');
     if (!saved) return;
     const parsed = JSON.parse(saved);
-    const data   = migrateCustomDiagrams(parsed);
 
-    if (!parsed.version) {
+    // migration が必要な場合はバックアップを保存してから書き換え
+    if (!parsed.version || parsed.version < 3) {
+      // migration前のrawをバックアップ（v2バックアップは一度だけ保存）
+      if (!localStorage.getItem('cs_customDiags_backup_v2')) {
+        localStorage.setItem('cs_customDiags_backup_v2', saved);
+      }
+    }
+
+    const data = migrateCustomDiagrams(parsed);
+
+    if (!parsed.version || parsed.version < 3) {
       localStorage.setItem('cs_customDiags', JSON.stringify(data));
     }
 
