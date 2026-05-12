@@ -182,18 +182,10 @@ export function drawDiagram(frets, barre, options = {}) {
   return s+`</svg>`;
 }
 
+// compatibility wrapper — lookup migration Phase21
+// 内部を findChord() に委譲。Phase22以降で廃止予定。
 export function lookupChord(name){
-  if(!name||name==='N')return null;
-  // オンコードを含む完全名でまず検索
-  if(CHORD_DB[name])return{name,data:CHORD_DB[name]};
-  const n0=name.replace(/♭/g,'b').replace(/♯/g,'#');
-  if(CHORD_DB[n0])return{name:n0,data:CHORD_DB[n0]};
-  // ベース音を除いたルートで検索
-  const base=name.split('/')[0];
-  if(CHORD_DB[base])return{name:base,data:CHORD_DB[base]};
-  const nb=base.replace(/♭/g,'b').replace(/♯/g,'#');
-  if(CHORD_DB[nb])return{name:nb,data:CHORD_DB[nb]};
-  return null;
+  return findChord(name);
 }
 
 // TODO: move to editor.js in phase4
