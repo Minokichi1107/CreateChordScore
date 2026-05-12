@@ -1707,6 +1707,16 @@ function setupEventHandlers() {
 // APP INITIALIZATION
 // ----------------------------
 window.addEventListener('DOMContentLoaded',()=>{
+  // 左パネル折りたたみ
+  const btnCollapse = document.getElementById('btn-left-collapse');
+  if (btnCollapse) {
+    if (localStorage.getItem('leftCollapsed') === '1') document.body.classList.add('left-collapsed');
+    btnCollapse.addEventListener('click', () => {
+      const collapsed = document.body.classList.toggle('left-collapsed');
+      localStorage.setItem('leftCollapsed', collapsed ? '1' : '0');
+    });
+  }
+
   // 演奏モードを確実に非表示
   const performOverlay = document.getElementById('perform-overlay');
   if (performOverlay) {
