@@ -182,10 +182,18 @@ export function drawDiagram(frets, barre, options = {}) {
   return s+`</svg>`;
 }
 
-// compatibility wrapper — lookup migration Phase21
-// 内部を findChord() に委譲。Phase22以降で廃止予定。
 export function lookupChord(name){
-  return findChord(name);
+  if(!name||name==='N')return null;
+  // オンコードを含む完全名でまず検索
+  if(CHORD_DB[name])return{name,data:CHORD_DB[name]};
+  const n0=name.replace(/♭/g,'b').replace(/♯/g,'#');
+  if(CHORD_DB[n0])return{name:n0,data:CHORD_DB[n0]};
+  // ベース音を除いたルートで検索
+  const base=name.split('/')[0];
+  if(CHORD_DB[base])return{name:base,data:CHORD_DB[base]};
+  const nb=base.replace(/♭/g,'b').replace(/♯/g,'#');
+  if(CHORD_DB[nb])return{name:nb,data:CHORD_DB[nb]};
+  return null;
 }
 
 // TODO: move to editor.js in phase4
@@ -267,51 +275,19 @@ function stableId(rawK, n, f) {
 }
 
 function migrateCustomDiagrams(raw) {
-  // v1 → v2
-  if (!raw || !raw.version) {
-    const chords = {};
-    for (const [rawK, val] of Object.entries(raw || {})) {
-      const variants = (val.v || []).map(vr => ({
-        id:      stableId(rawK, vr.n, vr.f),
-        n:       vr.n,
-        f:       vr.f,
-        ...(vr.b !== undefined && { b: vr.b }),
-        _custom: true,
-      }));
-      if (variants.length) chords[rawK] = variants;
-    }
-    return { version: 2, chords };
+  if (raw && raw.version === 2) return raw;
+  const chords = {};
+  for (const [rawK, val] of Object.entries(raw || {})) {
+    const variants = (val.v || []).map(vr => ({
+      id:      stableId(rawK, vr.n, vr.f),
+      n:       vr.n,
+      f:       vr.f,
+      ...(vr.b !== undefined && { b: vr.b }),
+      _custom: true,
+    }));
+    if (variants.length) chords[rawK] = variants;
   }
-
-  // v2 → v3: canonical key化
-  if (raw.version === 2) {
-    const chords = {};
-    const seenIds = new Set();
-
-    for (const [rawK, variants] of Object.entries(raw.chords || {})) {
-      // storage key をデコード → normalizeChordName → 再エンコード
-      const decoded   = diagKeyDecode(rawK);
-      const canonical = normalizeChordName(decoded);
-      const newKey    = diagKey(canonical);
-
-      if (!chords[newKey]) chords[newKey] = [];
-
-      for (const v of variants) {
-        const nv = { ...v };
-        // _id 衝突 repair（clone してから修正）
-        if (!nv.id || seenIds.has(nv.id)) {
-          nv.id = generateId();
-        }
-        seenIds.add(nv.id);
-        chords[newKey].push(nv);
-      }
-    }
-
-    return { version: 3, chords };
-  }
-
-  // v3 以降はそのまま
-  return raw;
+  return { version: 2, chords };
 }
 
 export function saveCustomDiagrams() {
@@ -330,7 +306,7 @@ export function saveCustomDiagrams() {
     }));
   }
   try {
-    localStorage.setItem('cs_customDiags', JSON.stringify({ version: 3, chords }));
+    localStorage.setItem('cs_customDiags', JSON.stringify({ version: 2, chords }));
   } catch(e) {}
 }
 
@@ -349,18 +325,9 @@ export function loadCustomDiagrams() {
     const saved = localStorage.getItem('cs_customDiags');
     if (!saved) return;
     const parsed = JSON.parse(saved);
+    const data   = migrateCustomDiagrams(parsed);
 
-    // migration が必要な場合はバックアップを保存してから書き換え
-    if (!parsed.version || parsed.version < 3) {
-      // migration前のrawをバックアップ（v2バックアップは一度だけ保存）
-      if (!localStorage.getItem('cs_customDiags_backup_v2')) {
-        localStorage.setItem('cs_customDiags_backup_v2', saved);
-      }
-    }
-
-    const data = migrateCustomDiagrams(parsed);
-
-    if (!parsed.version || parsed.version < 3) {
+    if (!parsed.version) {
       localStorage.setItem('cs_customDiags', JSON.stringify(data));
     }
 
@@ -458,37 +425,6 @@ export function showCapoInfo(displayChord, capo){
   if(capo===0)return'';
   const realChord=transposeChord(displayChord, capo);
   return`<div style="font-size:10px;color:var(--color-amber);text-align:center;margin-top:4px;font-family:var(--font-mono)">カポ${capo} → 実音: ${realChord}</div>`;
-}
-
-// ────────────────────────────────────────
-// コード名正規化
-// ────────────────────────────────────────
-export function normChord(raw) {
-  if (!raw || ['N', 'X', 'n'].includes(raw)) return 'N';
-  
-  const qualityMap = {
-    maj: '',
-    min: 'm',
-    maj7: 'maj7',
-    min7: 'm7',
-    dom7: '7',
-    '7': '7',
-    dim: 'dim',
-    aug: 'aug',
-    sus2: 'sus2',
-    sus4: 'sus4',
-    hdim7: 'm7b5',
-    maj9: 'maj9',
-    min9: 'm9',
-    add9: 'add9'
-  };
-  
-  if (raw.includes(':')) {
-    const [root, quality] = raw.split(':', 2);
-    return root + (qualityMap[quality] ?? quality);
-  }
-  
-  return raw;
 }
 
 // ════════════════════════════════════════
