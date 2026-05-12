@@ -223,9 +223,12 @@ function getCapo(){return parseInt(document.getElementById('capo').value)||0;}
 function loadChordData(data,filename){
   project.chord_source=filename;
   const b=document.getElementById('chord-btn');b.textContent=filename;b.classList.add('loaded');
-  const all=(data.chords||[]).filter(c=>c&&c!=='N');
+  // Phase23: import時にcanonical化
+  const rawChords=data.chords||[];
+  const normChords=rawChords.map(c=>(c&&c!=='N')?normalizeChordName(c):c);
+  const all=normChords.filter(c=>c&&c!=='N');
   palette=[...new Set(all)];
-  window._cn=data.chords||[];window._ct=data.times||[];
+  window._cn=normChords;window._ct=data.times||[];
   // tempo・keyがあれば自動入力（空欄の場合のみ上書き）
   if(data.tempo){const bpmEl=document.getElementById('proj-bpm');if(!bpmEl.value)bpmEl.value=Math.round(data.tempo);}
   if(data.key){const keyEl=document.getElementById('proj-key');if(!keyEl.value)keyEl.value=data.key;}
@@ -980,11 +983,14 @@ function importCustomDiagrams(file){
       const current = JSON.parse(localStorage.getItem('cs_customDiags')||'{"version":2,"chords":{}}');
       let added = 0;
       for(const [k, variants] of Object.entries(data.chords)){
-        if(!current.chords[k]) current.chords[k] = [];
-        const existIds = new Set(current.chords[k].map(v => v.id));
+        // Phase23: import時にキーをcanonical化
+        const canonical=normalizeChordName(diagKeyDecode(k));
+        const newKey=diagKey(canonical);
+        if(!current.chords[newKey]) current.chords[newKey] = [];
+        const existIds = new Set(current.chords[newKey].map(v => v.id));
         for(const vr of variants){
           if(existIds.has(vr.id)) continue; // 同一idはスキップ
-          current.chords[k].push(vr);
+          current.chords[newKey].push(vr);
           added++;
         }
       }
