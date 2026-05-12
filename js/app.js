@@ -858,11 +858,9 @@ function openAddDiagramModal(defaultChord=''){
     const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`dd-f${i}`).value)||0);
     const br=parseInt(document.getElementById('dd-b').value)||0;
     if(!CHORD_DB[name])CHORD_DB[name]={v:[]};
-    // 既存の同名variantがあればidを引き継ぐ、なければ新規id
-    const existing=CHORD_DB[name].v.find(vr=>vr.n===vname&&vr._custom);
-    const variant={n:vname,f:fr,b:br||undefined,_custom:true,_id:existing?._id||generateId()};
-    const ei=CHORD_DB[name].v.findIndex(vr=>vr._id===variant._id);
-    if(ei>=0)CHORD_DB[name].v[ei]=variant;else CHORD_DB[name].v.push(variant);
+    // 追加モーダルは常に新規idで追加（編集はopenEditDiagramModal側で処理）
+    const variant={n:vname,f:fr,b:br||undefined,_custom:true,_id:generateId()};
+    CHORD_DB[name].v.push(variant);
     saveCustomDiagrams();
     showDiagramPanel(name, getCapo(), getDiagCallbacks());document.getElementById('diag-in').value=name;
     closeMod();toast(`✅ "${name}" (${vname}) を登録・保存しました`);
@@ -1387,7 +1385,7 @@ function setupEventHandlers() {
     const inp=document.getElementById('custom-in');
     const val=inp.value.trim();if(!val)return;
     if(!palette.includes(val)){palette.push(val);renderPalette();document.getElementById('pal-count').textContent=palette.length;}
-    addChordToLine(val);inp.value='';toast(`"${val}" を追加してフォーカス行に挿入`);
+    handleAddChordToLine(val);inp.value='';toast(`"${val}" を追加してフォーカス行に挿入`);
   });
   document.getElementById('custom-in').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('custom-add').click();});
 
