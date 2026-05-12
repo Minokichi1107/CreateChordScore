@@ -29,7 +29,7 @@ input[type=file]{display:none}
 
 
 /* LAYOUT */
-#app{display:grid;grid-template-columns:minmax(200px,260px) 1fr 261px;grid-template-rows:1fr auto;min-height:0;height:calc(100vh - 47px);gap:6px;padding:6px;background:var(--surface-base)}
+#app{display:grid;grid-template-columns:minmax(200px,260px) minmax(200px,1fr) minmax(0,261px);grid-template-rows:1fr auto;min-height:0;height:calc(100vh - 47px);gap:6px;padding:6px;background:var(--surface-base)}
 
 
 
@@ -348,7 +348,7 @@ body.diag-off .chord-tag{cursor:default}
   border-top-color:rgba(255,255,255,.18);border-bottom-color:rgba(0,0,0,.25);
   display:flex;flex-direction:column;overflow:hidden;
   position:sticky;top:0;height:calc(100vh - 47px);grid-row:1;
-  width:261px;min-width:261px;max-width:261px;
+  width:100%;min-width:0;max-width:261px;
   border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 2px 8px rgba(0,0,0,.28);
 }
 
@@ -382,3 +382,38 @@ body.diag-off .chord-tag{cursor:default}
 
 /* PALETTE PLACEHOLDER */
 #chord-pal-empty{color:var(--text-muted);font-size:11px;font-family:var(--font-mono)}
+
+
+/* LEFT PANEL COLLAPSE */
+#btn-left-collapse{
+  width:100%;height:24px;
+  background:var(--surface-overlay);border:none;border-bottom:1px solid var(--border-ui);
+  color:var(--text-muted);cursor:pointer;font-size:14px;line-height:1;
+  display:flex;align-items:center;justify-content:flex-end;padding:0 10px;
+  transition:all .15s;flex-shrink:0;
+}
+#btn-left-collapse:hover{color:var(--text-accent);background:var(--surface-raised)}
+
+body.left-collapsed #app{
+  grid-template-columns:32px minmax(200px,1fr) minmax(0,261px);
+}
+body.left-collapsed #panel-left{
+  overflow:hidden;
+}
+body.left-collapsed #panel-left > *:not(#btn-left-collapse){
+  opacity:0;pointer-events:none;
+}
+#btn-left-collapse::after{content:'‹';font-size:14px}
+body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
+
+/* RIGHT PANEL RESPONSIVE */
+@media (max-width:900px){
+  #panel-right{display:none}
+  #app{grid-template-columns:minmax(200px,260px) minmax(280px,1fr)}
+  body.left-collapsed #app{grid-template-columns:40px minmax(280px,1fr)}
+}
+
+/* panel-right min-width override for responsive */
+@media (max-width:900px){
+  #panel-right{min-width:0;max-width:none;width:0}
+}
