@@ -269,6 +269,8 @@ function migrateCustomDiagrams(raw) {
   if (raw && raw.version === 2) return raw;
   const chords = {};
   for (const [rawK, val] of Object.entries(raw || {})) {
+    const canonical = normalizeChordName(diagKeyDecode(rawK));
+    const storageKey = diagKey(canonical);
     const variants = (val.v || []).map(vr => ({
       id:      stableId(rawK, vr.n, vr.f),
       n:       vr.n,
@@ -276,7 +278,7 @@ function migrateCustomDiagrams(raw) {
       ...(vr.b !== undefined && { b: vr.b }),
       _custom: true,
     }));
-    if (variants.length) chords[rawK] = variants;
+    if (variants.length) chords[storageKey] = variants;
   }
   return { version: 2, chords };
 }
@@ -311,6 +313,10 @@ function clearCustomFromRuntime() {
   }
 }
 
+function _fingerprint(vr) {
+  return `${vr.n}|${(vr.f || []).map(v => String(+v || 0)).join(',')}|${String(vr.b ?? '')}`;
+}
+
 export function loadCustomDiagrams() {
   try {
     const saved = localStorage.getItem('cs_customDiags');
@@ -318,22 +324,44 @@ export function loadCustomDiagrams() {
     const parsed = JSON.parse(saved);
     const data   = migrateCustomDiagrams(parsed);
 
-    if (!parsed.version) {
-      localStorage.setItem('cs_customDiags', JSON.stringify(data));
-    }
+    let repaired = !parsed.version; // v1→v2 migration が起きた場合は必ずresave
 
-    // clear → rebuild（mergeではなく完全再構築）
+    // clear → rebuild
     clearCustomFromRuntime();
 
+    // canonical key ごとに variants を集約（merge + dedup）
+    const merged = {}; // canonical key → variants[]
+
     for (const [rawK, variants] of Object.entries(data.chords)) {
-      const k = diagKeyDecode(rawK);
-      if (!CHORD_DB[k]) CHORD_DB[k] = { v: [] };
-      CHORD_DB[k].v.push(...variants.map(vr => {
+      const canonical = normalizeChordName(diagKeyDecode(rawK));
+      if (canonical !== diagKeyDecode(rawK)) repaired = true;
+
+      if (!merged[canonical]) merged[canonical] = [];
+      const bucket = merged[canonical];
+
+      for (const vr of variants) {
+        const fp = _fingerprint(vr);
+        const dup = bucket.some(x => x.id === vr.id || _fingerprint(x) === fp);
+        if (dup) {
+          repaired = true;
+          continue;
+        }
+        bucket.push(vr);
+      }
+    }
+
+    // CHORD_DB 再構築
+    for (const [canonical, variants] of Object.entries(merged)) {
+      if (!variants.length) continue;
+      if (!CHORD_DB[canonical]) CHORD_DB[canonical] = { v: [] };
+      CHORD_DB[canonical].v.push(...variants.map(vr => {
         const runtime = { n: vr.n, f: vr.f, _custom: true, _id: vr.id };
         if (vr.b !== undefined) runtime.b = vr.b;
         return runtime;
       }));
     }
+
+    if (repaired) saveCustomDiagrams();
   } catch(e) {}
 }
 
