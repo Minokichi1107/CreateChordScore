@@ -69,7 +69,6 @@ import {
   CHORD_DB,
   CHORD_DB_BUILTIN_KEYS,
   drawDiagram,
-  lookupChord,
   showDiagramPanel,
   setDiagRight,
   diagKey,
@@ -83,7 +82,11 @@ import {
   transposeChord,
   showCapoInfo,
   normalizeChordName,
-  findChord
+  findChord,
+  getChordEntry,
+  addCustomDiagram,
+  removeCustomDiagram,
+  updateCustomDiagram
 } from './chords.js';
 
 import {
@@ -856,10 +859,9 @@ function openAddDiagramModal(defaultChord=''){
     if(!name){toast('コード名を入力してください');return;}
     const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`dd-f${i}`).value)||0);
     const br=parseInt(document.getElementById('dd-b').value)||0;
-    if(!CHORD_DB[name])CHORD_DB[name]={v:[]};
     // 追加モーダルは常に新規idで追加（編集はopenEditDiagramModal側で処理）
     const variant={n:vname,f:fr,b:br||undefined,_custom:true,_id:generateId()};
-    CHORD_DB[name].v.push(variant);
+    addCustomDiagram(name, variant);
     saveCustomDiagrams();
     showDiagramPanel(name, getCapo(), getDiagCallbacks());document.getElementById('diag-in').value=name;
     closeMod();toast(`✅ "${name}" (${vname}) を登録・保存しました`);
@@ -885,18 +887,18 @@ function getDiagCallbacks(){
 }
 
 function deleteDiagramVariant(chord, id){
-  if(!CHORD_DB[chord]) return;
+  if(!getChordEntry(chord)) return;
   diagPushUndo();
-  CHORD_DB[chord].v = CHORD_DB[chord].v.filter(vr => vr._id !== id);
-  if(!CHORD_DB[chord].v.length && !CHORD_DB_BUILTIN_KEYS.has(chord)) delete CHORD_DB[chord];
+  removeCustomDiagram(chord, id);
   saveCustomDiagrams();
   refreshDiagrams();
   toast('削除しました');
 }
 
 function openEditDiagramModal(chord, id){
-  if(!CHORD_DB[chord]) return;
-  const vr = CHORD_DB[chord].v.find(v => v._id === id);
+  const _entry = getChordEntry(chord);
+  if(!_entry) return;
+  const vr = _entry.data.v.find(v => v._id === id);
   if(!vr) return;
   mTit.textContent='ギターダイアグラムを編集';
   mBody.innerHTML=`
@@ -942,10 +944,7 @@ function openEditDiagramModal(chord, id){
     const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`de-f${i}`).value)||0);
     const br=parseInt(document.getElementById('de-b').value)||0;
     diagPushUndo();
-    const ei=CHORD_DB[chord].v.findIndex(v=>v._id===id);
-    if(ei>=0){
-      CHORD_DB[chord].v[ei]={...CHORD_DB[chord].v[ei], n:vname, f:fr, b:br||undefined};
-    }
+    updateCustomDiagram(chord, id, { n:vname, f:fr, b:br||undefined });
     saveCustomDiagrams();
     refreshDiagrams();
     closeMod();toast(`✅ 編集しました`);
@@ -1003,7 +1002,7 @@ function importCustomDiagrams(file){
 function showPopup(chord,anchor){
   if(!diagOn)return;
   clearTimeout(popT);
-  const r=lookupChord(chord);if(!r)return;
+  const r=findChord(chord);if(!r)return;
   document.getElementById('pop-name').textContent=chord;
   const pv=document.getElementById('pop-vars');pv.innerHTML='';
   r.data.v.slice(0,3).forEach(vr=>{

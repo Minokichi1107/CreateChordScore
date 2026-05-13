@@ -182,18 +182,9 @@ export function drawDiagram(frets, barre, options = {}) {
   return s+`</svg>`;
 }
 
+/** @deprecated findChord() を使用してください */
 export function lookupChord(name){
-  if(!name||name==='N')return null;
-  // オンコードを含む完全名でまず検索
-  if(CHORD_DB[name])return{name,data:CHORD_DB[name]};
-  const n0=name.replace(/♭/g,'b').replace(/♯/g,'#');
-  if(CHORD_DB[n0])return{name:n0,data:CHORD_DB[n0]};
-  // ベース音を除いたルートで検索
-  const base=name.split('/')[0];
-  if(CHORD_DB[base])return{name:base,data:CHORD_DB[base]};
-  const nb=base.replace(/♭/g,'b').replace(/♯/g,'#');
-  if(CHORD_DB[nb])return{name:nb,data:CHORD_DB[nb]};
-  return null;
+  return findChord(name);
 }
 
 // TODO: move to editor.js in phase4
@@ -202,7 +193,7 @@ export function showDiagramPanel(chord, capo, callbacks = {}){
   document.getElementById('diag-title').textContent=chord||'';
   const c=document.getElementById('diag-container');
   if(!chord||chord==='N'){c.innerHTML='<div class="diag-empty">コードタグをホバー<br>または上で入力</div>';return;}
-  const r=lookupChord(chord);
+  const r=findChord(chord);
   const capoInfo=showCapoInfo(chord, capo);
   if(!r){
     c.innerHTML=`${capoInfo}<div class="diag-empty">"${chord}"<br>のダイアグラムは未登録<br><br><small style="color:var(--color-amber)">↑「＋ダイアグラムを手動登録」<br>で追加できます</small></div>`;
@@ -474,4 +465,60 @@ export function findChord(raw) {
   const base = key.split('/')[0];
   if (CHORD_DB[base]) return { name: base, data: CHORD_DB[base] };
   return null;
+}
+// ════════════════════════════════════════
+// CHORD DB ACCESS LAYER (Phase26-B)
+// ════════════════════════════════════════
+
+// ────────────────────────────────────────
+// Read API
+// ────────────────────────────────────────
+
+/** canonical keyでCHORD_DBを参照する（read-only）。見つからなければnullを返す */
+export function getChordEntry(name) {
+  if (!name) return null;
+  const canonical = normalizeChordName(name);
+  const data = CHORD_DB[canonical];
+  if (!data) return null;
+  return { name: canonical, data };
+}
+
+/** canonical keyのentryが存在しなければ空entryを作成して返す（existence guarantee only） */
+export function ensureChordEntry(name) {
+  if (!name) return null;
+  const canonical = normalizeChordName(name);
+  if (!CHORD_DB[canonical]) {
+    CHORD_DB[canonical] = { v: [] };
+  }
+  return { name: canonical, data: CHORD_DB[canonical] };
+}
+
+// ────────────────────────────────────────
+// Mutation API
+// ────────────────────────────────────────
+
+/** カスタムダイアグラムをCHORD_DBに追加する */
+export function addCustomDiagram(name, variant) {
+  const { data } = ensureChordEntry(name);
+  data.v.push(variant);
+}
+
+/** 指定idのカスタムダイアグラムをCHORD_DBから削除する */
+export function removeCustomDiagram(name, id) {
+  const entry = getChordEntry(name);
+  if (!entry) return;
+  entry.data.v = entry.data.v.filter(vr => vr._id !== id);
+  const canonical = normalizeChordName(name);
+  if (!entry.data.v.length && !CHORD_DB_BUILTIN_KEYS.has(canonical)) {
+    delete CHORD_DB[canonical];
+  }
+}
+
+/** 指定idのカスタムダイアグラムをpatchで上書き更新する */
+export function updateCustomDiagram(name, id, patch) {
+  const entry = getChordEntry(name);
+  if (!entry) return;
+  const idx = entry.data.v.findIndex(vr => vr._id === id);
+  if (idx === -1) return;
+  entry.data.v[idx] = { ...entry.data.v[idx], ...patch };
 }
