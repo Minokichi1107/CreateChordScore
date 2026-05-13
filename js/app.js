@@ -978,11 +978,19 @@ function importCustomDiagrams(file){
       const current = JSON.parse(localStorage.getItem('cs_customDiags')||'{"version":2,"chords":{}}');
       let added = 0;
       for(const [k, variants] of Object.entries(data.chords)){
-        if(!current.chords[k]) current.chords[k] = [];
-        const existIds = new Set(current.chords[k].map(v => v.id));
+        // import側 key も canonical 化
+        const canonical = normalizeChordName(diagKeyDecode(k));
+        const storageKey = diagKey(canonical);
+        if(!current.chords[storageKey]) current.chords[storageKey] = [];
+        const bucket = current.chords[storageKey];
+        const existIds = new Set(bucket.map(v => v.id));
+        const existFps = new Set(bucket.map(v => `${v.n}|${(v.f||[]).join(',')}|${v.b ?? ''}`));
         for(const vr of variants){
-          if(existIds.has(vr.id)) continue; // 同一idはスキップ
-          current.chords[k].push(vr);
+          const fp = `${vr.n}|${(vr.f||[]).join(',')}|${vr.b ?? ''}`;
+          if(existIds.has(vr.id) || existFps.has(fp)) continue;
+          bucket.push(vr);
+          existIds.add(vr.id);
+          existFps.add(fp);
           added++;
         }
       }
