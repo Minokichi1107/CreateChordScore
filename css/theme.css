@@ -654,7 +654,6 @@ body[data-theme="silver"] .logo span { color: var(--text-logo-span); }
 body[data-theme="silver"] .hdr-btn,
 body[data-theme="silver"] .trans-btn,
 body[data-theme="silver"] #tap-btn,
-body[data-theme="silver"] #diag-toggle,
 body[data-theme="silver"] #btn-tapmode,
 body[data-theme="silver"] #btn-perform-mode {
   position: relative;
@@ -669,7 +668,6 @@ body[data-theme="silver"] #btn-perform-mode {
   text-shadow: var(--text-shadow-btn) !important;
   box-shadow: var(--shadow-btn) !important;
 }
-body[data-theme="silver"] #diag-toggle { width: 135px; text-align: left; justify-content: left; }
 
 body[data-theme="silver"] .hdr-btn::after,
 body[data-theme="silver"] .trans-btn::after,
@@ -923,7 +921,6 @@ body[data-theme="blue"] .logo span { color: var(--text-logo-span); }
 body[data-theme="blue"] .hdr-btn,
 body[data-theme="blue"] .trans-btn,
 body[data-theme="blue"] #tap-btn,
-body[data-theme="blue"] #diag-toggle,
 body[data-theme="blue"] #btn-tapmode,
 body[data-theme="blue"] #btn-perform-mode {
   position: relative;
@@ -938,7 +935,6 @@ body[data-theme="blue"] #btn-perform-mode {
   text-shadow: var(--text-shadow-btn) !important;
   box-shadow: var(--shadow-btn) !important;
 }
-body[data-theme="blue"] #diag-toggle { width: 135px; text-align: left; justify-content: left; }
 
 body[data-theme="blue"] .hdr-btn::after,
 body[data-theme="blue"] .trans-btn::after,
