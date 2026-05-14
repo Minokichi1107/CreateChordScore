@@ -21,6 +21,10 @@ testdata/debug/
 *.aac
 *.ogg
 
+# ローカル履歴・退避
+/archive/ui-history/
+/backup/
+
 # Python cache
 __pycache__/
 *.pyc
