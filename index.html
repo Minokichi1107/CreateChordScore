@@ -21,19 +21,85 @@
 <body>
 
 <header id="header">
-  <div class="logo">Chord<span>Score</span></div>
-  <input type="text" id="project-title" placeholder="曲名を入力...">
-  <button id="diag-toggle" title="コードダイアグラムのホバー表示 ON/OFF">🎸 ダイアグラム <span>ON</span></button>
-  <button id="btn-perform-mode" title="演奏モード">🎸 演奏</button>
-  <button id="btn-tapmode" title="再生しながら歌詞を見てタップ">🎵 TAPモード</button>
-  <button class="hdr-btn" id="btn-replace-open" title="コード置換 (Ctrl+H)">🔁 置換</button>
-  <button class="hdr-btn" id="btn-open">📂 開く</button>
-  <button class="hdr-btn primary" id="btn-save">💾 上書保存</button>
-  <button class="hdr-btn" id="btn-saveas">📁 別名保存</button>
-  <button class="hdr-btn" id="btn-new">✕ 新規</button>
-  <button class="hdr-btn" id="btn-settings" title="設定">⚙</button>
-  <input type="file" id="file-project" accept=".json">
+
+  <div class="header-left">
+    <img class="logo-img" src="images/logo.png" alt="ChordScore" />
+    <input id="project-title" type="text" placeholder="プロジェクト名..." />
+  </div>
+
+  <div class="header-center">
+    <button id="btn-perform-mode" class="hdr-btn">🎸 演奏モード</button>
+    <button id="btn-tapmode"      class="hdr-btn">🎵 TAPモード</button>
+  </div>
+
+  <div class="header-right">
+
+    <div class="menu-group">
+      <button class="menu-trigger hdr-btn">ファイル ▼</button>
+      <div class="dropdown" id="menu-file">
+        <button class="dd-item" id="btn-open">📂 開く</button>
+        <button class="dd-item" id="btn-save">💾 上書保存 <span class="shortcut">[Ctrl+S]</span></button>
+        <button class="dd-item" id="btn-saveas">📁 別名保存</button>
+        <button class="dd-item" id="btn-new">✕ 新規 <span class="shortcut">[Alt+N]</span></button>
+      </div>
+    </div>
+
+    <div class="menu-group">
+      <button class="menu-trigger hdr-btn">編集 ▼</button>
+      <div class="dropdown" id="menu-edit">
+        <button class="dd-item" id="btn-replace-open">🔁 置換 <span class="shortcut">[Ctrl+H]</span></button>
+      </div>
+    </div>
+
+    <div class="menu-group">
+      <button class="menu-trigger hdr-btn">表示 ▼</button>
+      <div class="dropdown" id="menu-view">
+        <button class="dd-item" id="diag-toggle">🎼 ダイアグラム表示</button>
+        <button class="dd-item" id="btn-theme-cycle" disabled>🎨 テーマ切替</button>
+        <button class="dd-item" disabled>◧ 左パネル表示</button>
+        <button class="dd-item" disabled>◨ 右パネル表示</button>
+        <button class="dd-item" disabled>⛶ 全画面編集</button>
+      </div>
+    </div>
+
+    <div class="menu-group">
+      <button class="menu-trigger hdr-btn">プロジェクト ▼</button>
+      <div class="dropdown" id="menu-project">
+        <button class="dd-item" disabled>📚 ライブラリ</button>
+        <button class="dd-item" disabled>⚙ プロジェクト設定</button>
+      </div>
+    </div>
+
+    <div class="menu-group">
+      <button class="menu-trigger hdr-btn">ツール ▼</button>
+      <div class="dropdown" id="menu-tools">
+        <button class="dd-item" disabled>🎵 コードDB</button>
+        <button class="dd-item" disabled>🔄 コード進行ロジック</button>
+        <button class="dd-item" disabled>🎸 ストロークパターン</button>
+        <button class="dd-item" disabled>🎹 アルペジオパターン</button>
+        <button class="dd-item" disabled>🔌 API拡張</button>
+      </div>
+    </div>
+
+    <div class="menu-group">
+      <button class="menu-trigger hdr-btn">設定 ▼</button>
+      <div class="dropdown" id="menu-settings">
+        <button class="dd-item" id="btn-settings">⚙ 設定を開く</button>
+        <button class="dd-item" disabled>📤 設定エクスポート</button>
+        <button class="dd-item" disabled>📥 設定インポート</button>
+        <button class="dd-item" disabled>↩ デフォルトに戻す</button>
+        <button class="dd-item" disabled>❓ ヘルプ</button>
+        <button class="dd-item" disabled>ℹ バージョン情報</button>
+      </div>
+    </div>
+
+  </div>
+
 </header>
+
+<input type="file" id="file-chord"   accept=".json,.csv" />
+<input type="file" id="file-audio"   accept="audio/*" />
+<input type="file" id="file-project" accept=".json" />
 
 <main id="app">
   <!-- LEFT -->

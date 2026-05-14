@@ -383,14 +383,6 @@ body.diag-off .chord-tag{cursor:default}
 /* PALETTE PLACEHOLDER */
 #chord-pal-empty{color:var(--text-muted);font-size:11px;font-family:var(--font-mono)}
 
-
-/* HEADER BUTTON SHRINK GUARD */
-#diag-toggle,
-#btn-tapmode,
-#btn-perform-mode,
-.hdr-btn,
-#btn-settings{flex-shrink:0}
-
 /* LEFT PANEL COLLAPSE */
 #btn-left-collapse{
   width:100%;height:24px;
@@ -423,4 +415,95 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
 /* panel-right min-width override for responsive */
 @media (max-width:900px){
   #panel-right{min-width:0;max-width:none;width:0}
+}
+
+/* ── Phase29: ヘッダー3レーン構造 ─────────────── */
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* ── ドロップダウン ──────────────────────────── */
+.menu-group {
+  position: relative;
+}
+
+.dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-ui-strong);
+  border-radius: var(--r-md);
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+  z-index: 200;
+  padding: 4px 0;
+}
+
+.menu-group.open .dropdown {
+  display: block;
+}
+
+.dd-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 14px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: left;
+  gap: 16px;
+}
+
+.dd-item:hover {
+  background: var(--surface-overlay);
+  color: var(--text-accent);
+}
+
+.shortcut {
+  color: var(--text-muted);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* ── Phase29: ヘッダーボタン収縮ガード（再定義） ── */
+.hdr-btn,
+.menu-trigger,
+#btn-settings {
+  flex-shrink: 0;
+}
+
+/* layout.css — 既存の #project-title ルールを修正 */
+#project-title {
+  flex: 1 1 auto;
+  min-width: 140px;
+  max-width: 320px;
+  /* 他のプロパティは既存のまま */
 }
