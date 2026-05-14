@@ -1,0 +1,786 @@
+./css/state.css:.theme-btn:hover{border-color:var(--text-accent);color:var(--text-primary)}
+./css/state.css:.theme-btn.active{border-color:var(--text-accent);color:var(--text-accent);background:var(--surface-raised)}
+./css/theme.css:  --grad-knob:   linear-gradient(180deg,var(--border-ui-strong) 0%,var(--surface-raised) 100%);
+./css/theme.css:  --shadow-play-btn:        0 1px 0 rgba(255,255,255,.12), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.08);
+./css/theme.css:  --shadow-panel-center:        var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.04);
+./css/theme.css:  --shadow-audio-bar:        0 1px 0 rgba(255,255,255,.04), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.06);
+./css/theme.css:  --shadow-btn:       inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.15), var(--shadow-sm);
+./css/theme.css:  --bg-left-tabs:         var(--surface-raised);
+./css/theme.css:  --bg-left-tab:          var(--surface-raised);
+./css/theme.css:  --bg-left-tab-active:   var(--surface-overlay);
+./css/theme.css:  --border-left-tab-active-bottom: var(--surface-overlay);
+./css/theme.css:  --shadow-play-btn:        0 1px 0 rgba(255,255,255,.6), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.3);
+./css/theme.css:  --shadow-add-diag-btn:        inset 0 1px 0 rgba(255,255,255,.25), var(--shadow-sm);
+./css/theme.css:  --shadow-panel-center:        var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.65);
+./css/theme.css:  --shadow-audio-bar:        0 1px 0 rgba(255,255,255,.5), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.35);
+./css/theme.css:  --shadow-btn:        inset 0 1px 0 rgba(255,255,255,.6), inset 0 -1px 0 rgba(0,0,0,.12), var(--shadow-sm);
+./css/theme.css:  --bg-left-tabs:           var(--grad-tabs);
+./css/theme.css:  --bg-left-tab:            var(--grad-tabs);
+./css/theme.css:  --bg-left-tab-active:     var(--grad-tab-active);
+./css/theme.css:  --grad-panel-right:    var(--grad-surface);
+./css/theme.css:  --grad-status:         var(--grad-surface);
+./css/theme.css:  --grad-knob:   linear-gradient(180deg,var(--border-ui-strong) 0%,var(--surface-raised) 100%);
+./css/theme.css:  --shadow-play-btn:        0 1px 0 rgba(255,255,255,.2), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.1);
+./css/theme.css:  --shadow-add-diag-btn:        inset 0 1px 0 rgba(255,255,255,.25), var(--shadow-sm);
+./css/theme.css:  --shadow-phdr:         inset 0 1px 0 rgba(200,230,255,.35), var(--shadow-sm);
+./css/theme.css:  --shadow-dv:        inset 0 1px 0 rgba(210,235,255,.28), inset 0 -2px 4px rgba(12,40,76,.26), var(--shadow-sm);
+./css/theme.css:  --shadow-panel-center:        var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.35);
+./css/theme.css:  --shadow-audio-bar:        0 1px 0 rgba(255,255,255,.25), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.15);
+./css/theme.css:  --shadow-btn:        inset 0 1px 0 rgba(200,235,255,.4), inset 0 -1px 0 rgba(0,20,60,.2), var(--shadow-sm);
+./css/theme.css:  --bg-left-tabs:           var(--surface-overlay);
+./css/theme.css:  --border-left-tabs:       var(--border-ui);
+./css/theme.css:  --bg-left-tab:            var(--surface-overlay);
+./css/theme.css:  --border-left-tab:        var(--border-ui);
+./css/theme.css:  --bg-left-tab-active:     var(--surface-raised);
+./css/theme.css:  --border-left-tab-active: var(--border-ui-strong);
+./css/theme.css:  --border-left-tab-active-bottom: var(--surface-raised);
+./css/theme.css:  background: var(--surface-base);
+./css/theme.css:  color: var(--text-primary);
+./css/theme.css:  font-family: var(--font-sans);
+./css/theme.css:::-webkit-scrollbar-track { background: var(--surface-raised); }
+./css/theme.css:::-webkit-scrollbar-thumb { background: var(--border-ui-strong); border-radius: 3px; }
+./css/theme.css:  background: var(--grad-surface);
+./css/theme.css:  background: var(--grad-panel-right);
+./css/theme.css:  color: var(--text-logo);
+./css/theme.css:  text-shadow: var(--shadow-logo);
+./css/theme.css:body[data-theme="silver"] .logo span { color: var(--text-logo-span); }
+./css/theme.css:  background: var(--grad-control);
+./css/theme.css:  border-radius: var(--r-sm) !important;
+./css/theme.css:  border-top:    1px solid var(--border-btn-top) !important;
+./css/theme.css:  border-left:   1px solid var(--border-btn-left) !important;
+./css/theme.css:  border-right:  1px solid var(--border-btn-right) !important;
+./css/theme.css:  border-bottom: 1px solid var(--border-btn-bottom) !important;
+./css/theme.css:  color: var(--text-primary) !important;
+./css/theme.css:  text-shadow: var(--text-shadow-btn) !important;
+./css/theme.css:  box-shadow: var(--shadow-btn) !important;
+./css/theme.css:  background: var(--grad-btn-gloss);
+./css/theme.css:  border-radius: var(--r-sm) var(--r-sm) 0 0;
+./css/theme.css:  background: var(--grad-control-active) !important;
+./css/theme.css:  box-shadow: var(--shadow-inset) !important;
+./css/theme.css:  background: var(--grad-input);
+./css/theme.css:  border-top:    1px solid var(--border-ui-dark);
+./css/theme.css:  border-left:   1px solid var(--border-ui-dark-soft);
+./css/theme.css:  border-bottom: 1px solid var(--border-ui-light);
+./css/theme.css:  border-right:  1px solid var(--border-ui-light-soft);
+./css/theme.css:  box-shadow: var(--shadow-inset);
+./css/theme.css:  border-radius: var(--r-lg);
+./css/theme.css:  color: var(--text-primary);
+./css/theme.css:  background: var(--grad-input-panel) !important;
+./css/theme.css:  border:              1px solid var(--border-ui-light-soft) !important;
+./css/theme.css:  border-top-color:    var(--border-ui-dark-soft) !important;
+./css/theme.css:  border-left-color:   var(--border-ui-dark-soft) !important;
+./css/theme.css:  border-bottom-color: var(--border-ui-light-mid) !important;
+./css/theme.css:  border-right-color:  var(--border-ui-light-mid) !important;
+./css/theme.css:  box-shadow: var(--shadow-inset) !important;
+./css/theme.css:  border-radius: var(--r-lg) var(--r-lg) 0 0;
+./css/theme.css:  background: var(--bg-left-tabs);
+./css/theme.css:  border: 1px solid var(--border-left-tabs);
+./css/theme.css:  box-shadow: var(--shadow-left-tabs);
+./css/theme.css:  border: 1px solid var(--border-left-tab);
+./css/theme.css:  background: var(--bg-left-tab);
+./css/theme.css:  color: var(--text-secondary);
+./css/theme.css:  border-color: var(--border-left-tab-active);
+./css/theme.css:  border-bottom: 1px solid var(--border-left-tab-active-bottom);
+./css/theme.css:  background: var(--bg-left-tab-active);
+./css/theme.css:  color: var(--text-muted);
+./css/theme.css:  background: var(--grad-phdr);
+./css/theme.css:  color: var(--text-phdr);
+./css/theme.css:  text-shadow: var(--shadow-text-phdr);
+./css/theme.css:  border: 1px solid var(--border-phdr);
+./css/theme.css:  border-top-color: var(--border-phdr-top);
+./css/theme.css:  border-radius: var(--r-md);
+./css/theme.css:  box-shadow: var(--shadow-phdr);
+./css/theme.css:body[data-theme="silver"] #panel-left  { background: var(--grad-surface); }
+./css/theme.css:body[data-theme="silver"] #panel-right { background: var(--grad-panel-right); }
+./css/theme.css:  border-radius: var(--r-lg);
+./css/theme.css:  border: 1px solid var(--border-panel-center);
+./css/theme.css:  border-bottom-color: var(--border-panel-center-bottom);
+./css/theme.css:  background: var(--grad-panel-center);
+./css/theme.css:  box-shadow: var(--shadow-panel-center);
+./css/theme.css:  background: var(--grad-header);
+./css/theme.css:  border-bottom: 1px solid var(--border-audio-bar-bottom);
+./css/theme.css:  box-shadow: var(--shadow-audio-bar);
+./css/theme.css:  background: var(--grad-status);
+./css/theme.css:  border-top: 1px solid var(--border-status-top);
+./css/theme.css:  box-shadow: var(--shadow-status);
+./css/theme.css:body[data-theme="silver"] #status span { color: var(--text-secondary); }
+./css/theme.css:  background: var(--grad-chord-tag);
+./css/theme.css:  border: 1px solid var(--border-chord-tag);
+./css/theme.css:  border-top-color: var(--border-chord-tag-top);
+./css/theme.css:  border-bottom-color: var(--border-chord-tag-bottom);
+./css/theme.css:  box-shadow: var(--shadow-chord-tag);
+./css/theme.css:  color: var(--text-chord-tag);
+./css/theme.css:  text-shadow: var(--shadow-text-chord-tag);
+./css/theme.css:  background: var(--grad-chord-tag-hover);
+./css/theme.css:  background: var(--grad-pal-chord);
+./css/theme.css:  border-top: 1px solid var(--border-ui-light);
+./css/theme.css:  border-bottom: 1px solid var(--border-ui-dark-mid);
+./css/theme.css:  color: var(--text-pal-chord);
+./css/theme.css:  text-shadow: var(--shadow-text-pal-chord);
+./css/theme.css:  box-shadow: var(--shadow-pal-chord);
+./css/theme.css:  background: var(--grad-pal-chord-hover);
+./css/theme.css:  color: var(--text-pal-chord-hover);
+./css/theme.css:  text-shadow: var(--shadow-text-pal-chord-hover);
+./css/theme.css:  border-color: var(--border-pal-chord-hover);
+./css/theme.css:  border-radius: var(--r-lg);
+./css/theme.css:  background: var(--grad-dv-surface);
+./css/theme.css:  border: 1px solid var(--border-dv-top);
+./css/theme.css:  border-bottom-color: var(--border-dv-bottom);
+./css/theme.css:  border-right-color: var(--border-dv-right);
+./css/theme.css:  box-shadow: var(--shadow-dv);
+./css/theme.css:  color: var(--text-secondary);
+./css/theme.css:  text-shadow: var(--shadow-text-dv-label);
+./css/theme.css:  color: var(--text-primary);
+./css/theme.css:  text-shadow: var(--shadow-text-diag-title);
+./css/theme.css:body[data-theme="silver"] .dv svg rect  { stroke: var(--dv-svg-stroke) !important; stroke-width: 1.5 !important; }
+./css/theme.css:body[data-theme="silver"] .dv svg text  { fill: var(--dv-svg-text) !important; font-weight: 700 !important; font-size: 11px !important; }
+./css/theme.css:body[data-theme="silver"] .dv svg circle { stroke: var(--dv-svg-stroke) !important; stroke-width: 1.5 !important; }
+./css/theme.css:  background: var(--grad-play-btn);
+./css/theme.css:  border: 1px solid var(--border-play-btn);
+./css/theme.css:  border-top-color: var(--border-play-btn-top);
+./css/theme.css:  border-bottom-color: var(--border-play-btn-bottom);
+./css/theme.css:  box-shadow: var(--shadow-play-btn);
+./css/theme.css:  background: var(--grad-seek-track);
+./css/theme.css:  border-top: 1px solid var(--border-seek-top);
+./css/theme.css:  border-bottom: 1px solid var(--border-seek-bottom);
+./css/theme.css:  box-shadow: var(--shadow-inset);
+./css/theme.css:  background: var(--grad-seek-fill);
+./css/theme.css:  box-shadow: var(--shadow-seek-fill);
+./css/theme.css:  background: var(--grad-slider);
+./css/theme.css:  border-top: 1px solid var(--border-slider-top);
+./css/theme.css:  border-bottom: 1px solid var(--border-slider-bottom);
+./css/theme.css:  box-shadow: var(--shadow-inset);
+./css/theme.css:  background: var(--grad-knob);
+./css/theme.css:  border-top:    1px solid var(--knob-border-top);
+./css/theme.css:  border-bottom: 1px solid var(--knob-border-bottom);
+./css/theme.css:  border-left:   1px solid var(--knob-border-left);
+./css/theme.css:  border-right:  1px solid var(--knob-border-right);
+./css/theme.css:  box-shadow: var(--knob-shadow);
+./css/theme.css:body[data-theme="silver"] .line-time.has-t    { color: var(--color-amber); }
+./css/theme.css:body[data-theme="silver"] .file-btn.loaded    { border-color: var(--color-green); color: var(--color-green); }
+./css/theme.css:  background: var(--grad-add-diag-btn);
+./css/theme.css:  border: 1px solid var(--border-add-diag-btn);
+./css/theme.css:  border-top-color: var(--border-add-diag-btn-top);
+./css/theme.css:  color: var(--text-add-diag-btn);
+./css/theme.css:  text-shadow: var(--shadow-text-add-diag-btn);
+./css/theme.css:  box-shadow: var(--shadow-add-diag-btn);
+./css/theme.css:  color: var(--text-logo);
+./css/theme.css:  text-shadow: var(--shadow-logo);
+./css/theme.css:body[data-theme="blue"] .logo span { color: var(--text-logo-span); }
+./css/theme.css:  background: var(--grad-control);
+./css/theme.css:  border-radius: var(--r-sm) !important;
+./css/theme.css:  border-top:    1px solid var(--border-btn-top) !important;
+./css/theme.css:  border-left:   1px solid var(--border-btn-left) !important;
+./css/theme.css:  border-right:  1px solid var(--border-btn-right) !important;
+./css/theme.css:  border-bottom: 1px solid var(--border-btn-bottom) !important;
+./css/theme.css:  color: var(--text-btn) !important;
+./css/theme.css:  text-shadow: var(--text-shadow-btn) !important;
+./css/theme.css:  box-shadow: var(--shadow-btn) !important;
+./css/theme.css:  background: var(--grad-btn-gloss);
+./css/theme.css:  border-radius: var(--r-sm) var(--r-sm) 0 0;
+./css/theme.css:  background: var(--grad-control-active) !important;
+./css/theme.css:  box-shadow: var(--shadow-inset) !important;
+./css/theme.css:  background: var(--grad-input) !important;
+./css/theme.css:  border-top:    1px solid var(--border-ui-dark) !important;
+./css/theme.css:  border-left:   1px solid var(--border-ui-strong) !important;
+./css/theme.css:  border-bottom: 1px solid var(--border-ui-light) !important;
+./css/theme.css:  border-right:  1px solid var(--border-ui-light-soft) !important;
+./css/theme.css:  box-shadow: var(--shadow-inset) !important;
+./css/theme.css:  color: var(--text-primary) !important;
+./css/theme.css:body[data-theme="blue"] .line-row .lyric-input { color: var(--text-primary) !important; }
+./css/theme.css:body[data-theme="blue"] .lyric-input::placeholder { color: var(--color-placeholder) !important; }
+./css/theme.css:body[data-theme="blue"] .left-tab       { color: var(--text-secondary); }
+./css/theme.css:body[data-theme="blue"] .left-tab:hover { color: var(--text-primary); }
+./css/theme.css:  color: var(--text-accent);
+./css/theme.css:  border-bottom-color: var(--text-accent);
+./css/theme.css:body[data-theme="blue"] .line-num   { color: var(--text-muted); }
+./css/theme.css:body[data-theme="blue"] .line-time  { color: var(--color-amber); }
+./css/theme.css:  color: var(--text-secondary);
+./css/theme.css:  border-color: var(--border-ui);
+./css/theme.css:  background: var(--bg-add-chord-btn);
+./css/theme.css:  border-radius: var(--r-md);
+./css/theme.css:  background: var(--grad-phdr);
+./css/theme.css:  color: var(--text-phdr);
+./css/theme.css:  text-shadow: var(--shadow-text-phdr);
+./css/theme.css:  border-top:    1px solid var(--border-phdr-top);
+./css/theme.css:  border-left:   1px solid var(--border-phdr-left);
+./css/theme.css:  border-right:  1px solid var(--border-phdr);
+./css/theme.css:  border-bottom: 1px solid var(--border-phdr-bottom);
+./css/theme.css:  box-shadow: var(--shadow-phdr);
+./css/theme.css:body[data-theme="blue"] #panel-right  { background: var(--grad-surface); }
+./css/theme.css:body[data-theme="blue"] #panel-center { background: var(--grad-panel-center); }
+./css/theme.css:body[data-theme="blue"] #status       { color: var(--text-secondary); }
+./css/theme.css:body[data-theme="blue"] #status span  { color: var(--text-primary); }
+./css/theme.css:  border-radius: var(--r-lg);
+./css/theme.css:  background: var(--grad-dv-surface);
+./css/theme.css:  border-top:    1px solid var(--border-dv-top);
+./css/theme.css:  border-left:   1px solid var(--border-dv-left);
+./css/theme.css:  border-right:  1px solid var(--border-dv-right);
+./css/theme.css:  border-bottom: 1px solid var(--border-dv-bottom);
+./css/theme.css:  box-shadow: var(--shadow-dv);
+./css/theme.css:body[data-theme="blue"]   .perform-line .chords { color: var(--text-perform-chords); }
+./css/theme.css:  color: var(--text-perform);
+./css/theme.css:  text-shadow: var(--shadow-perform-chord);
+./css/theme.css:  color: var(--text-perform-focused);
+./css/theme.css:  text-shadow: var(--shadow-perform-chord-focused);
+./css/theme.css:  color: var(--text-perform-lyric);
+./css/theme.css:  text-shadow: var(--shadow-perform-lyric);
+./css/theme.css:  color: var(--text-perform-lyric-focused);
+./css/theme.css:  text-shadow: var(--shadow-perform-lyric-focused);
+./css/theme.css:  background: var(--grad-perform-overlay);
+./css/theme.css:  background: var(--grad-perform-header);
+./css/theme.css:  background: var(--grad-perform-overlay);
+./css/theme.css:  background: var(--grad-perform-header);
+./css/theme.css:  background-color: var(--surface-base);
+./css/theme.css:  background-image: var(--bg-texture-metal);
+./index.html:  <button class="hdr-btn" id="btn-new" style="color:var(--color-red)">✕ 新規</button>
+./index.html:        <span style="font-size:10px;color:var(--text-muted)">フレット</span>
+./index.html:        <input type="text" id="proj-key" placeholder="例: Gm" style="flex:1;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:12px;padding:3px 6px;">
+./index.html:        <input type="number" id="proj-bpm" placeholder="120" min="1" max="300" style="width:60px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:12px;padding:3px 6px;text-align:center;">
+./index.html:      <button class="left-tab active" data-tab="palette">パレット <span id="pal-count" style="color:var(--text-muted)">0</span></button>
+./index.html:        <div id="chord-pal"><div style="color:var(--text-muted);font-size:11px;font-family:var(--font-mono)">コードJSONを読み込むとここに表示されます</div></div>
+./index.html:          <button class="sm-btn" id="btn-clearall" style="color:var(--color-red)">全クリア</button>
+./index.html:      <span style="color:var(--text-muted);white-space:nowrap">🔍 検索:</span>
+./index.html:      <span style="color:var(--text-muted)">→</span>
+./index.html:        <label style="display:flex;align-items:center;gap:4px;color:var(--text-muted);font-size:10px;cursor:pointer;white-space:nowrap">
+./index.html:          <input type="radio" name="rb-scope" id="rb-all" checked style="accent-color:var(--text-accent)"> 全行
+./index.html:        <label style="display:flex;align-items:center;gap:4px;color:var(--text-muted);font-size:10px;cursor:pointer;white-space:nowrap">
+./index.html:          <input type="radio" name="rb-scope" id="rb-focus" style="accent-color:var(--text-accent)"> 現在行
+./index.html:            style="width:70px;accent-color:var(--text-accent);cursor:pointer;"
+./index.html:            style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:2px 4px;white-space:nowrap;min-width:38px;text-align:left"
+./index.html:        <button id="vol-btn" title="ミュート切替" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">🔊</button>
+./index.html:          style="width:70px;accent-color:var(--text-accent);cursor:pointer;flex-shrink:0">
+./index.html:    <button id="btn-tapmode-close" style="background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:5px 12px">✕ 閉じる</button>
+./index.html:        style="width:60px;accent-color:var(--text-accent);cursor:pointer;"
+./index.html:      <span id="tov-speed-label" style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);min-width:36px">100%</span>
+./index.html:      <button id="tov-clear-all" style="font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--color-red);cursor:pointer;font-family:var(--font-mono)">全消去</button>
+./index.html:      <span style="font-size:11px;color:var(--color-amber)"><span id="tov-sel-count">0</span>件選択中</span>
+./index.html:      <button id="tov-clear-selected" style="font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--color-red);cursor:pointer;font-family:var(--font-mono)">選択した時刻を削除</button>
+./index.html:      <button id="tov-deselect" style="font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono)">選択解除</button>
+./index.html:      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer">
+./index.html:        <input type="radio" name="perform-mode" value="follow" checked style="accent-color:var(--text-accent)">
+./index.html:      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer">
+./index.html:        <input type="radio" name="perform-mode" value="static" style="accent-color:var(--text-accent)">
+./index.html:      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer">
+./index.html:        <input type="checkbox" id="perform-diag-toggle" checked style="accent-color:var(--text-accent)">
+./index.html:      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);">
+./index.html:          style="width:72px;accent-color:var(--text-accent);">
+./index.html:    <button id="btn-perform-close" style="background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:6px 12px">✕ 閉じる</button>
+./index.html:    <button id="vol-btn-perform" title="ミュート切替" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">🔊</button>
+./index.html:    <input type="range" id="vol-slider-perform" min="0" max="100" value="80" title="音量" style="width:70px;accent-color:var(--text-accent);cursor:pointer;flex-shrink:0">
+./index.html:        style="width:60px;accent-color:var(--text-accent);cursor:pointer;"
+./index.html:      <span id="perform-speed-label" style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);min-width:36px">100%</span>
+./js/app.js:  if(!filtered.length){c.innerHTML='<div style="color:var(--text-muted);font-size:11px;font-family:var(--font-mono)">なし</div>';return;}
+./js/app.js:    <div style="margin-bottom:8px;color:var(--text-secondary);font-size:12px;font-family:var(--font-mono)">「${line.lyric||'(空)'}」</div>
+./js/app.js:      previewEl.innerHTML='<span style="color:var(--text-muted);font-family:var(--font-mono);font-size:11px">(コードなし)</span>';
+./js/app.js:        s.style.cssText='color:var(--text-muted);font-family:var(--font-mono);font-size:16px;padding:0 3px;cursor:pointer;';
+./js/app.js:        tag.style.cssText='display:inline-flex;align-items:center;gap:3px;background:var(--chord-bg);border:1.5px solid var(--chord-border);border-radius:4px;color:#c8e4ff;font-family:var(--font-mono);font-size:12px;font-weight:700;padding:3px 5px 3px 8px;cursor:default;';
+./js/app.js:        dx.addEventListener('mouseenter',()=>dx.style.background='var(--color-red)');
+./js/app.js:    ?`<div style="margin-top:8px"><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:5px">楽曲のコードから選択:</div>
+./js/app.js:      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:5px">現在のコード:</div>
+./js/app.js:      <div id="mac-preview" style="display:flex;flex-wrap:wrap;gap:4px;min-height:28px;padding:6px;background:var(--surface-overlay);border-radius:var(--r-md);align-items:center"></div>
+./js/app.js:    <div style="margin-bottom:10px;color:var(--text-secondary);font-size:12px;font-family:var(--font-mono)">イントロ・リフなどの繰り返し回数を設定します</div>
+./js/app.js:        <div id="r-cnt" style="font-family:var(--font-mono);font-size:40px;font-weight:700;color:var(--color-amber);min-width:64px;text-align:center">${cnt}</div>
+./js/app.js:        <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">回繰り返し</div>
+./js/app.js:    `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surface-overlay);border-radius:4px;cursor:pointer">
+./js/app.js:      <input type="checkbox" data-to="${i}" style="width:15px;height:15px;accent-color:var(--text-accent)">
+./js/app.js:      <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);flex-shrink:0">行${i+1}</span>
+./js/app.js:      ${l.chords.length?`<span style="font-size:10px;color:var(--chord-text);font-family:var(--font-mono)">[${l.chords.map(c=>c.chord).join(' ')}]</span>`:''}
+./js/app.js:    <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:5px">コピー元:</div>
+./js/app.js:    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:7px;background:var(--surface-overlay);border-radius:6px;margin-bottom:8px">${prev}${line.repeat?`<span class="repeat-badge" style="pointer-events:none">× ${line.repeat.count}回</span>`:''}</div>
+./js/app.js:    <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">コピー先（複数選択可）:</div>
+./js/app.js:    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;padding:5px 0;border-top:1px solid var(--border-ui)">
+./js/app.js:      <input type="checkbox" id="copy-repeat" ${line.repeat?'checked':''} style="width:14px;height:14px;accent-color:var(--color-amber)">
+./js/app.js:      <span style="font-size:11px;font-family:var(--font-mono);color:var(--color-amber)">リピート記号もコピーする</span>
+./js/app.js:      <span style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${line.repeat?`(× ${line.repeat.count}回)`:'(元行にリピートなし)'}</span>
+./js/app.js:    <div style="margin-top:4px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">「追記」= コードを既存の後ろに追加　「上書き」= コード・リピートを置き換え</div>`;
+./js/app.js:        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">コード名</div>
+./js/app.js:        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">ポジション名</div>
+./js/app.js:    <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px">各弦のフレット番号（6弦=低音側 → 1弦=高音側）<br><span style="color:var(--color-amber)">−1=ミュート　0=開放　1〜22=フレット番号</span></div>
+./js/app.js:          <div style="font-size:9px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:3px">${s}</div>
+./js/app.js:            style="width:100%;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:16px;padding:5px 2px;text-align:center"
+./js/app.js:        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">セーハ（0=なし）</div>
+./js/app.js:          style="width:68px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:14px;padding:5px;text-align:center"
+./js/app.js:        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">プレビュー</div>
+./js/app.js:    <div style="margin-top:8px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">※ 登録はブラウザを閉じるまで有効です</div>`;
+./js/app.js:    d.innerHTML=`<div style="font-size:9px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:3px">${vr.n}</div>${drawDiagram(vr.f,vr.b||null)}`;
+./js/app.js:  banner.style.cssText='background:rgba(255,184,64,.12);border:1px solid var(--color-amber);border-radius:var(--r-md);padding:8px 10px;margin:0 0 8px;font-size:11px;font-family:var(--font-mono);color:var(--color-amber);';
+./js/app.js:    ${audioName?`<div style="margin-bottom:3px;color:var(--text-secondary)">音声: ${audioName}
+./js/app.js:      <button onclick="document.getElementById('file-audio').click()" style="margin-left:6px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:3px;color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:10px;padding:2px 6px;">選択</button>
+./js/app.js:    ${chordName?`<div style="color:var(--text-secondary)">コード: ${chordName}
+./js/app.js:      <button onclick="document.getElementById('file-chord').click()" style="margin-left:6px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:3px;color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:10px;padding:2px 6px;">選択</button>
+./js/app.js:    <button onclick="document.getElementById('reload-banner').remove()" style="margin-top:5px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-family:var(--font-mono);font-size:10px;padding:0">✕ 閉じる</button>
+./js/chords.js:    c.innerHTML=`${capoInfo}<div class="diag-empty">"${chord}"<br>のダイアグラムは未登録<br><br><small style="color:var(--color-amber)">↑「＋ダイアグラムを手動登録」<br>で追加できます</small></div>`;
+./js/chords.js:  return`<div style="font-size:10px;color:var(--color-amber);text-align:center;margin-top:4px;font-family:var(--font-mono)">カポ${capo} → 実音: ${realChord}</div>`;
+./js/tapmode.js:    if (idx === tovFocusIdx) row.style.borderColor = 'var(--color-green)';
+./js/tapmode.js:        sp.style.cssText = 'color:var(--text-muted);font-size:15px;padding:0 1px;align-self:center';
+./tmp/style.css:  --grad-knob: linear-gradient(180deg,var(--border2) 0%,var(--bg2) 100%);
+./tmp/style.css:  --grad-knob: linear-gradient(180deg,var(--border2) 0%,var(--bg2) 100%);
+./tmp/style.css:body{background:var(--bg);color:var(--text);font-family:var(--sans);font-weight:500;min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
+./tmp/style.css:::-webkit-scrollbar-track{background:var(--bg2)}
+./tmp/style.css:::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+./tmp/style.css:#header{background:var(--grad-header);border-bottom:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-outer-sm)}
+./tmp/style.css:.logo{font-family:var(--display);font-size:17px;font-weight:400;color:var(--accent);letter-spacing:.5px;white-space:nowrap}
+./tmp/style.css:.logo span{color:var(--text2);font-weight:400}
+./tmp/style.css:#project-title{flex:1;background:var(--bg3);border:1px solid var(--border);border-top-color:rgba(0,0,0,.2);border-bottom-color:var(--border2);border-radius:var(--radius);color:var(--text);font-family:var(--sans);font-size:14px;padding:5px 10px;min-width:0;box-shadow:var(--inset-shadow)}
+./tmp/style.css:#project-title:focus{outline:none;border-color:var(--accent)}
+./tmp/style.css:#project-title::placeholder{color:var(--text3)}
+./tmp/style.css:.hdr-btn{background:var(--grad-btn);border:1px solid var(--border);border-top-color:var(--border2);border-bottom-color:rgba(0,0,0,.25);border-radius:var(--radius);color:var(--btn-text);cursor:pointer;font-family:var(--mono);font-size:11px;padding:5px 10px;white-space:nowrap;transition:all .15s;display:flex;align-items:center;gap:4px;box-shadow:var(--emboss-shadow)}
+./tmp/style.css:.hdr-btn:hover{border-color:var(--accent);color:var(--accent)}
+./tmp/style.css:.hdr-btn:active{background:var(--grad-btn-active);box-shadow:var(--inset-shadow);transform:translateY(1px);border-top-color:rgba(0,0,0,.2);border-bottom-color:var(--border2)}
+./tmp/style.css:.hdr-btn.primary{background:var(--accent2);border-color:var(--accent);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.2),0 2px 8px rgba(0,100,200,.4)}
+./tmp/style.css:.hdr-btn.primary:hover{background:var(--accent)}
+./tmp/style.css:#left-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+./tmp/style.css:.left-tab{flex:1;background:none;border:none;border-bottom:2px solid transparent;color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;padding:8px 4px;transition:all .15s;text-align:center}
+./tmp/style.css:.left-tab:hover{color:var(--text2)}
+./tmp/style.css:.left-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+./tmp/style.css:#tab-lyric #lyric-import h4{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+./tmp/style.css:#panel-left{background:var(--grad-panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;grid-row:1;box-shadow:inset 1px 0 0 rgba(255,255,255,.08)}
+./tmp/style.css:.phdr{padding:7px 12px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0}
+./tmp/style.css:.pbody{padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+./tmp/style.css:.file-row label{font-size:11px;color:var(--text2);width:40px;flex-shrink:0;font-family:var(--mono)}./tmp/style.css:.file-btn{flex:1;background:var(--bg3);border:1px dashed var(--border2);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-size:11px;padding:4px 8px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:all .15s}
+./tmp/style.css:.file-btn:hover{border-color:var(--accent);color:var(--accent)}
+./tmp/style.css:.file-btn.loaded{border-style:solid;border-color:var(--green);color:var(--green)}
+./tmp/style.css:.capo-row label{font-size:11px;color:var(--text2);font-family:var(--mono)}
+./tmp/style.css:.capo-row input[type=number]{width:50px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;text-align:center}
+./tmp/style.css:.capo-row input:focus{outline:none;border-color:var(--accent)}
+./tmp/style.css:#pal-filter{width:100%;background:var(--bg3);border:1px solid var(--border);border-top-color:rgba(0,0,0,.18);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px;margin-bottom:8px;box-shadow:var(--inset-shadow)}
+./tmp/style.css:#pal-filter:focus{outline:none;border-color:var(--accent)}
+./tmp/style.css:#pal-filter::placeholder{color:var(--text3)}
+./tmp/style.css:.pal-chord{background:var(--chord-bg);border:1px solid var(--chord-border);border-radius:4px;color:var(--chord-text);cursor:pointer;font-family:var(--mono);font-size:11px;padding:3px 7px;transition:all .12s;user-select:none}
+./tmp/style.css:.pal-chord:hover{background:var(--accent2);border-color:var(--accent);color:#fff;transform:translateY(-1px)}
+./tmp/style.css:#custom-row{display:flex;gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+./tmp/style.css:#custom-in{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:4px 8px}
+./tmp/style.css:#custom-in:focus{outline:none;border-color:var(--accent)}
+./tmp/style.css:#custom-in::placeholder{color:var(--text3)}
+./tmp/style.css:#custom-add{background:var(--bg3);border:1px solid var(--accent);border-radius:var(--radius);color:var(--accent);cursor:pointer;font-family:var(--mono);font-size:11px;padding:4px 8px;transition:all .15s;white-space:nowrap}
+./tmp/style.css:#custom-add:hover{background:var(--accent2);color:#fff}
+./tmp/style.css:#panel-center{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-height:0;grid-row:1}
+./tmp/style.css:#audio-bar{background:var(--grad-header);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;flex-direction:column;gap:8px;flex-shrink:0;box-shadow:var(--shadow-outer-sm)}
+./tmp/style.css:.play-btn{width:36px;height:36px;background:linear-gradient(180deg,var(--accent) 0%,var(--accent2) 100%);border:none;border-radius:50%;color:#fff;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;box-shadow:0 2px 8px rgba(0,0,0,.3),0 1px 0 rgba(255,255,255,.15) inset}
+./tmp/style.css:#time-dis{font-family:var(--mono);font-size:12px;color:var(--text2);min-width:82px;text-align:center;letter-spacing:.5px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:3px 6px;box-shadow:var(--inset-shadow)}
+./tmp/style.css:#seek-track{width:100%;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;box-shadow:var(--inset-shadow)}
+./tmp/style.css:#seek-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:3px;width:0%;transition:width .1s linear}
+./tmp/style.css:.trans-btn{background:var(--grad-btn);border:1px solid var(--border);border-top-color:var(--border2);border-bottom-color:rgba(0,0,0,.2);border-radius:var(--radius);color:var(--btn-text);cursor:pointer;font-size:11px;font-family:var(--mono);padding:4px 8px;transition:all .15s;white-space:nowrap;box-shadow:var(--emboss-shadow)}
+./tmp/style.css:.trans-btn:hover{border-color:var(--accent);color:var(--accent)}
+./tmp/style.css:.trans-btn:active{background:var(--grad-btn-active);box-shadow:var(--inset-shadow);transform:translateY(1px)}
+./tmp/style.css:#speed-sel{-webkit-appearance:none;appearance:none;width:70px;height:6px;border-radius:3px;background:var(--bg3);outline:none;cursor:pointer;box-shadow:var(--inset-shadow)}
+./tmp/style.css:#speed-sel::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--grad-knob);border:1px solid var(--border2);cursor:pointer;box-shadow:var(--knob-shadow),0 1px 0 rgba(255,255,255,.1) inset}
+./tmp/style.css:#tap-btn{background:var(--grad-btn);border:1px solid var(--border2);border-top-color:var(--border2);border-bottom-color:rgba(0,0,0,.2);border-radius:var(--radius2);color:var(--btn-text);cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;padding:5px 16px;letter-spacing:1px;transition:all .15s;user-select:none;box-shadow:var(--emboss-shadow)}
+./tmp/style.css:#tap-btn:hover{border-color:var(--green);color:var(--green)}
+./tmp/style.css:#tap-btn:active{background:var(--grad-btn-active);box-shadow:var(--inset-shadow);transform:translateY(1px)}
+./tmp/style.css:#cur-chord{font-family:var(--mono);font-size:12px;color:var(--chord-text);font-weight:600;min-width:40px}
+./tmp/style.css:#vol-slider{-webkit-appearance:none;appearance:none;width:72px;height:6px;border-radius:3px;background:var(--bg3);outline:none;cursor:pointer;box-shadow:var(--inset-shadow)}
+./tmp/style.css:#vol-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--grad-knob);border:1px solid var(--border2);cursor:pointer;box-shadow:var(--knob-shadow),0 1px 0 rgba(255,255,255,.12) inset}
+./tmp/style.css:#vol-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--bg2);border:1px solid var(--border2);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+./tmp/style.css:#lyric-import{background:var(--bg2);border:1px dashed var(--border2);border-radius:var(--radius2);padding:10px;margin-bottom:10px}
+./tmp/style.css:#lyric-import h4{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+./tmp/style.css:#lyric-ta{width:100%;min-height:70px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.7;padding:7px 9px;resize:vertical}
+./tmp/style.css:#lyric-ta:focus{outline:none;border-color:var(--accent)}
+./tmp/style.css:#lyric-ta::placeholder{color:var(--text3)}
+./tmp/style.css:.sm-btn{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:11px;padding:4px 10px;transition:all .15s}
+./tmp/style.css:.sm-btn:hover{border-color:var(--accent);color:var(--accent)}
+./tmp/style.css:.sm-btn.green{border-color:var(--green);color:var(--green)}
+./tmp/style.css:.sm-btn.green:hover{background:var(--green);color:#000}
+./tmp/style.css:.line-row{display:grid;grid-template-columns:28px 76px 1fr;margin-bottom:2px;border-radius:var(--radius);transition:background .1s;position:relative;min-width:0}
+./tmp/style.css:.line-row:hover{background:var(--bg2)}
+./tmp/style.css:.line-num{font-family:var(--mono);font-size:10px;color:var(--text3);padding:10px 3px 6px 5px;text-align:right;align-self:start;user-select:none}
+./tmp/style.css:.line-time{font-family:var(--mono);font-size:11px;color:var(--text3);padding:10px 5px 6px;cursor:pointer;align-self:start;white-space:nowrap;transition:color .15s;background:none;border:none}
+./tmp/style.css:.line-time:hover{color:var(--accent)}
+./tmp/style.css:.line-time.has-t{color:var(--amber)}
+./tmp/style.css:  font-family:var(--mono);
+./tmp/style.css:.del-x:hover{color:#fff;background:var(--red)}
+./tmp/style.css:.repeat-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(255,184,64,.1);border:1px solid rgba(255,184,64,.4);border-radius:4px;color:var(--amber);font-family:var(--mono);font-size:12px;font-weight:600;padding:4px 8px;cursor:pointer;transition:all .12s;user-select:none;white-space:nowrap}
+./tmp/style.css:.rb-del:hover{color:var(--red);background:rgba(255,92,92,.15)}
+./tmp/style.css:.lyric-input{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;padding:2px 8px 2px 10px;width:100%;transition:border-color .15s}
+./tmp/style.css:.lyric-input:focus{outline:none;border-bottom-color:var(--border2)}
+./tmp/style.css:.lyric-input::placeholder{color:var(--text3)}
+./tmp/style.css:.add-chord-btn{background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:10px;padding:2px 7px;transition:all .15s}
+./tmp/style.css:.add-chord-btn:hover{border-color:var(--accent);color:var(--accent)}
+./tmp/style.css:.la{background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text3);cursor:pointer;font-size:10px;padding:2px 5px;font-family:var(--mono);transition:all .12s;white-space:nowrap}
+./tmp/style.css:.la:hover{color:var(--text);border-color:var(--border2)}
+./tmp/style.css:.la.del:hover{color:var(--red);border-color:var(--red)}
+./tmp/style.css:.la.am:hover{color:var(--amber);border-color:var(--amber)}
+./tmp/style.css:.la.gn:hover{color:var(--green);border-color:var(--green)}
+./tmp/style.css:#add-line-btn{background:var(--bg2);border:1px dashed var(--border);border-radius:var(--radius);color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:11px;padding:8px;text-align:center;width:100%;margin-top:6px;transition:all .15s}
+./tmp/style.css:#add-line-btn:hover{border-color:var(--accent);color:var(--accent)}
+./tmp/style.css:#diag-search{padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:5px}
+./tmp/style.css:#diag-in{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:14px;padding:6px 10px;text-align:center;letter-spacing:1px}
+./tmp/style.css:#diag-in:focus{outline:none;border-color:var(--accent)}
+./tmp/style.css:#diag-in::placeholder{color:var(--text3);font-size:11px;letter-spacing:0}
+./tmp/style.css:#btn-add-diag{background:var(--bg3);border:1px dashed var(--border2);border-radius:var(--radius);color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:10px;padding:4px 8px;text-align:center;transition:all .15s}
+./tmp/style.css:#btn-add-diag:hover{border-color:var(--amber);color:var(--amber)}
+./tmp/style.css:#diag-title{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--text);text-align:center;margin-bottom:10px;min-height:26px}
+./tmp/style.css:.dv{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:10px}./tmp/style.css:.dv-label{font-family:var(--mono);font-size:10px;color:#ffffff;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;text-align:center}
+./tmp/style.css:.diag-empty{text-align:center;color:var(--text3);font-family:var(--mono);font-size:11px;padding:28px 0;line-height:2.2}
+./tmp/style.css:#modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius2);padding:20px;min-width:300px;max-width:480px;max-height:82vh;overflow-y:auto;box-shadow:var(--shadow)}
+./tmp/style.css:#modal-box h3{font-family:var(--mono);font-size:13px;color:var(--text);margin-bottom:12px}
+./tmp/style.css:.mbtn{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:12px;padding:6px 14px;transition:all .15s}
+./tmp/style.css:.mbtn:hover{border-color:var(--accent);color:var(--accent)}
+./tmp/style.css:.mbtn.ok{background:var(--accent2);border-color:var(--accent);color:#fff}
+./tmp/style.css:.mbtn.ok:hover{background:var(--accent)}
+./tmp/style.css:.mbtn.del{border-color:var(--red);color:var(--red)}
+./tmp/style.css:.mbtn.del:hover{background:var(--red);color:#fff}
+./tmp/style.css:.mbtn.am{border-color:var(--amber);color:var(--amber)}
+./tmp/style.css:.mbtn.am:hover{background:var(--amber);color:#000}
+./tmp/style.css:.mi{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);padding:7px 10px;text-align:center}
+./tmp/style.css:.mi:focus{outline:none;border-color:var(--accent)}
+./tmp/style.css:.mi-sm{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px}
+./tmp/style.css:.mi-sm:focus{outline:none;border-color:var(--accent)}
+./tmp/style.css:#popup{position:fixed;display:none;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius2);padding:10px;z-index:300;box-shadow:var(--shadow);pointer-events:none}
+./tmp/style.css:#pop-name{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);text-align:center;margin-bottom:6px}
+./tmp/style.css:#diag-toggle{background:var(--grad-btn);border:1px solid var(--border);border-top-color:var(--border2);border-bottom-color:rgba(0,0,0,.2);border-radius:var(--radius);color:#fff;cursor:pointer;font-family:var(--mono);font-size:11px;padding:5px 10px;white-space:nowrap;transition:all .15s;box-shadow:var(--emboss-shadow)}
+./tmp/style.css:#diag-toggle:active{background:var(--grad-btn-active);box-shadow:var(--inset-shadow);transform:translateY(1px)}
+./tmp/style.css:#btn-tapmode,#btn-perform-mode{background:var(--grad-btn);border:1px solid var(--border);border-top-color:var(--border2);border-bottom-color:rgba(0,0,0,.2);border-radius:var(--radius);color:#fff;cursor:pointer;font-family:var(--mono);font-size:11px;padding:5px 10px;white-space:nowrap;transition:all .15s;box-shadow:var(--emboss-shadow)}
+./tmp/style.css:#btn-tapmode:hover,#btn-perform-mode:hover{border-color:var(--accent)}
+./tmp/style.css:#btn-tapmode:active,#btn-perform-mode:active{background:var(--grad-btn-active);box-shadow:var(--inset-shadow);transform:translateY(1px)}
+./tmp/style.css:.line-row.active-line{background:rgba(79,158,255,.1);border-left:2px solid var(--accent)}
+./tmp/style.css:.chord-sep:hover{color:var(--red);text-decoration:line-through}
+./tmp/style.css:.add-sep-btn:hover{border-color:var(--text2);color:var(--text2)}
+./tmp/style.css:  background:var(--bg3);border:1px solid var(--border);border-radius:0 3px 3px 0;
+./tmp/style.css:  color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:10px;
+./tmp/style.css:.insert-sep-btn:hover{color:var(--text);border-color:var(--border2);background:var(--bg2);}
+./tmp/style.css:  color:var(--text3);font-family:var(--mono);font-size:16px;font-weight:300;
+./tmp/style.css:.chord-sep:hover{color:var(--red)}
+./tmp/style.css:  background:none;border:1px dashed var(--border);border-radius:3px;
+./tmp/style.css:  color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:10px;
+./tmp/style.css:.add-sep-btn:hover{border-color:var(--text2);color:var(--text2)}
+./tmp/style.css:  display:none;background:var(--bg2);border-bottom:2px solid var(--accent2);
+./tmp/style.css:  font-family:var(--mono);font-size:12px;
+./tmp/style.css:  background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);
+./tmp/style.css:  color:var(--text);font-family:var(--mono);font-size:13px;
+./tmp/style.css:.rb-in:focus{outline:none;border-color:var(--accent)}
+./tmp/style.css:  background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);
+./tmp/style.css:  color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:11px;
+./tmp/style.css:.rb-btn:hover{border-color:var(--accent);color:var(--accent)}
+./tmp/style.css:.rb-btn.ok{background:var(--accent2);border-color:var(--accent);color:#fff}
+./tmp/style.css:.rb-btn.ok:hover{background:var(--accent)}
+./tmp/style.css:#rb-count{color:var(--amber);font-size:11px;min-width:50px}
+./tmp/style.css:.chord-tag.rb-hit{border-color:var(--amber)!important;background:rgba(255,184,64,.18)!important;color:#ffe08a!important}
+./tmp/style.css:.chord-tag.rb-curr{border-color:#fff!important;background:rgba(79,158,255,.25)!important;color:#fff!important;box-shadow:0 0 0 2px var(--amber)}
+./tmp/style.css:  background:var(--bg2);border-left:1px solid var(--border);
+./tmp/style.css:  padding:8px 10px;border-top:1px solid var(--border);flex-shrink:0;
+./tmp/style.css:  width:100%;background:var(--bg3);border:1px dashed var(--amber);
+./tmp/style.css:  border-radius:var(--radius);color:var(--amber);cursor:pointer;
+./tmp/style.css:  font-family:var(--mono);font-size:10px;padding:6px 8px;
+./tmp/style.css:#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 18px;z-index:1000;pointer-events:none;transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .25s;opacity:0}
+./tmp/style.css:#status{background:var(--bg2);border-top:1px solid var(--border);padding:3px 14px;font-family:var(--mono);font-size:10px;color:var(--text3);display:flex;gap:14px;align-items:center;flex-shrink:0;grid-column:1/-1}
+./tmp/style.css:#status span{color:var(--text2)}
+./tmp/style.css:  background:var(--bg2);border-bottom:1px solid var(--border);
+./tmp/style.css:#tap-ov-title{font-family:var(--mono);font-size:13px;color:var(--text2);flex:1}
+./tmp/style.css:#tap-ov-time{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--text);letter-spacing:2px;min-width:100px;text-align:center}
+./tmp/style.css:#tap-ov-chord{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--chord-text);min-width:60px;text-align:center}
+./tmp/style.css:  background:var(--bg2);border-bottom:2px solid var(--border2);
+./tmp/style.css:#tap-ov-seek-track{width:100%;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+./tmp/style.css:#tap-ov-seek-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;transition:width .1s linear}
+./tmp/style.css:.tap-ov-line:hover{background:var(--bg2);border-color:var(--border)}
+./tmp/style.css:  border-color:var(--accent);
+./tmp/style.css:  border-color:var(--green);
+./tmp/style.css:  border-color:var(--green);
+./tmp/style.css:  border-color:var(--green);
+./tmp/style.css:  font-family:var(--mono);font-size:11px;
+./tmp/style.css:  color:var(--amber);min-width:58px;flex-shrink:0;
+./tmp/style.css:.tov-time.no-t{color:var(--text3)}
+./tmp/style.css:.tov-time:hover{color:var(--accent)}
+./tmp/style.css:  color:#c8e4ff;font-family:var(--mono);font-size:13px;font-weight:700;
+./tmp/style.css:  font-family:var(--mono);font-size:11px;font-weight:600;
+./tmp/style.css:  color:var(--amber);padding:2px 6px;
+./tmp/style.css:.tov-lyric{font-size:18px;color:var(--text);line-height:1.5;flex:1}
+./tmp/style.css:  background:var(--bg3);
+./tmp/style.css:  border:3px solid var(--border2);
+./tmp/style.css:  color:var(--text2);cursor:pointer;
+./tmp/style.css:  font-family:var(--mono);font-size:13px;font-weight:700;
+./tmp/style.css:#tap-ov-tapbtn:hover{border-color:var(--green);color:var(--green)}
+./tmp/style.css:  background:var(--green);border-color:var(--green);color:#000;
+./tmp/style.css:  background:var(--bg2);border-top:1px solid var(--border);
+./tmp/style.css:  font-family:var(--mono);font-size:11px;color:var(--text3);
+./tmp/style.css:#tap-ov-footer span{color:var(--amber)}
+./tmp/style.css:.tov-hint{color:var(--text3);font-size:10px}
+./tmp/style.css:  border:1px solid var(--green);
+./tmp/style.css:  border-radius:var(--radius);color:var(--green);
+./tmp/style.css:  cursor:pointer;font-family:var(--mono);font-size:11px;
+./tmp/style.css:  background: var(--bg);
+./tmp/style.css:  background: var(--bg2);
+./tmp/style.css:  border-bottom: 1px solid var(--border);
+./tmp/style.css:  color: var(--text);
+./tmp/style.css:  background: var(--bg4);
+./tmp/style.css:  color: var(--text);
+./tmp/style.css:  background: var(--bg2);
+./tmp/style.css:  border-bottom: 1px solid var(--border);
+./tmp/style.css:  background: var(--bg3);
+./tmp/style.css:  background: var(--accent);
+./tmp/style.css:  font-family: var(--mono);
+./tmp/style.css:  color: var(--text2);
+./tmp/style.css:  background: var(--bg3);
+./tmp/style.css:  color: var(--text3);
+./tmp/style.css:  font-family: var(--mono);
+./tmp/style.css:  color: var(--accent);
+./tmp/style.css:  color: var(--amber);
+./tmp/style.css:  font-family: var(--mono);
+./tmp/style.css:  color: var(--accent);
+./tmp/style.css:  font-size: calc(15px * var(--perform-font-scale));
+./tmp/style.css:  color: var(--text);
+./tmp/style.css:#settings-panel{position:fixed;top:0;right:0;width:260px;height:100vh;background:var(--settings-bg);border-left:1px solid var(--border);z-index:201;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease;box-shadow:var(--shadow)}
+./tmp/style.css:#settings-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+./tmp/style.css:#settings-title{font-family:var(--mono);font-size:12px;color:var(--text2);letter-spacing:1px;text-transform:uppercase}
+./tmp/style.css:#settings-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:var(--radius);transition:color .15s}
+./tmp/style.css:#settings-close:hover{color:var(--text)}
+./tmp/style.css:.settings-section-title{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:10px}
+./tmp/style.css:.theme-btn{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:12px;padding:8px 12px;display:flex;align-items:center;gap:10px;transition:all .15s;text-align:left}
+./tmp/style.css:.theme-btn:hover{border-color:var(--accent);color:var(--text)}
+./tmp/style.css:.theme-btn.active{border-color:var(--accent);color:var(--accent);background:var(--bg2)}
+./tmp/style.css:  border-radius: var(--radius) var(--radius) 0 0;
+./tmp/style.css:  box-shadow: var(--inset-shadow) !important;
+./tmp/style.css:  border-top: 1px solid var(--border-shadow);
+./tmp/style.css:  border-bottom: 1px solid var(--border-highlight);
+./tmp/style.css:  box-shadow: var(--input-shadow);
+./tmp/style.css:  color: var(--text);
+./tmp/style.css:  border-top: 1px solid var(--border-shadow);
+./tmp/style.css:  border-bottom: 1px solid var(--border-highlight);
+./tmp/style.css:  box-shadow: var(--input-shadow);
+./tmp/style.css:  color: var(--text);
+./tmp/style.css:  color: var(--text);
+./tmp/style.css:  box-shadow: var(--input-shadow);
+./tmp/style.css:  background: var(--grad-track);
+./tmp/style.css:  box-shadow: var(--input-shadow);
+./tmp/style.css:  background: var(--grad-track);
+./tmp/style.css:  box-shadow: var(--input-shadow);
+./tmp/style.css:  background: var(--grad-knob);
+./tmp/style.css:body[data-theme="silver"] .line-time.has-t { color: var(--amber); }
+./tmp/style.css:body[data-theme="silver"] #status span { color: var(--text2); }
+./tmp/style.css:  border-color: var(--green);
+./tmp/style.css:  color: var(--green);
+./tmp/style.css:  background: var(--grad-header);
+./tmp/style.css:    var(--shadow-outer-sm),
+./定義済み.txt:  --grad-knob:   linear-gradient(180deg,var(--border-ui-strong) 0%,var(--surface-raised) 100%);
+./定義済み.txt:  --shadow-play-btn:        0 1px 0 rgba(255,255,255,.12), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.08);
+./定義済み.txt:  --shadow-panel-center:        var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.04);
+./定義済み.txt:  --shadow-audio-bar:        0 1px 0 rgba(255,255,255,.04), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.06);
+./定義済み.txt:  --shadow-btn:       inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.15), var(--shadow-sm);
+./定義済み.txt:  --bg-left-tabs:         var(--surface-raised);
+./定義済み.txt:  --bg-left-tab:          var(--surface-raised);
+./定義済み.txt:  --bg-left-tab-active:   var(--surface-overlay);
+./定義済み.txt:  --border-left-tab-active-bottom: var(--surface-overlay);
+./定義済み.txt:  --shadow-play-btn:        0 1px 0 rgba(255,255,255,.6), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.3);
+./定義済み.txt:  --shadow-add-diag-btn:        inset 0 1px 0 rgba(255,255,255,.25), var(--shadow-sm);
+./定義済み.txt:  --shadow-panel-center:        var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.65);
+./定義済み.txt:  --shadow-audio-bar:        0 1px 0 rgba(255,255,255,.5), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.35);
+./定義済み.txt:  --shadow-btn:        inset 0 1px 0 rgba(255,255,255,.6), inset 0 -1px 0 rgba(0,0,0,.12), var(--shadow-sm);
+./定義済み.txt:  --bg-left-tabs:           var(--grad-tabs);
+./定義済み.txt:  --bg-left-tab:            var(--grad-tabs);
+./定義済み.txt:  --bg-left-tab-active:     var(--grad-tab-active);
+./定義済み.txt:  --grad-panel-right:    var(--grad-surface);
+./定義済み.txt:  --grad-status:         var(--grad-surface);
+./定義済み.txt:  --grad-knob:   linear-gradient(180deg,var(--border-ui-strong) 0%,var(--surface-raised) 100%);
+./定義済み.txt:  --shadow-play-btn:        0 1px 0 rgba(255,255,255,.2), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.1);
+./定義済み.txt:  --shadow-add-diag-btn:        inset 0 1px 0 rgba(255,255,255,.25), var(--shadow-sm);
+./定義済み.txt:  --shadow-phdr:         inset 0 1px 0 rgba(200,230,255,.35), var(--shadow-sm);
+./定義済み.txt:  --shadow-dv:        inset 0 1px 0 rgba(210,235,255,.28), inset 0 -2px 4px rgba(12,40,76,.26), var(--shadow-sm);
+./定義済み.txt:  --shadow-panel-center:        var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.35);
+./定義済み.txt:  --shadow-audio-bar:        0 1px 0 rgba(255,255,255,.25), var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.15);
+./定義済み.txt:  --shadow-btn:        inset 0 1px 0 rgba(200,235,255,.4), inset 0 -1px 0 rgba(0,20,60,.2), var(--shadow-sm);
+./定義済み.txt:  --bg-left-tabs:           var(--surface-overlay);
+./定義済み.txt:  --border-left-tabs:       var(--border-ui);
+./定義済み.txt:  --bg-left-tab:            var(--surface-overlay);
+./定義済み.txt:  --border-left-tab:        var(--border-ui);
+./定義済み.txt:  --bg-left-tab-active:     var(--surface-raised);
+./定義済み.txt:  --border-left-tab-active: var(--border-ui-strong);
+./定義済み.txt:  --border-left-tab-active-bottom: var(--surface-raised);
+./定義済み.txt:  background: var(--surface-base);
+./定義済み.txt:  color: var(--text-primary);
+./定義済み.txt:  font-family: var(--font-sans);
+./定義済み.txt:::-webkit-scrollbar-track { background: var(--surface-raised); }
+./定義済み.txt:::-webkit-scrollbar-thumb { background: var(--border-ui-strong); border-radius: 3px; }
+./定義済み.txt:  background: var(--grad-surface);
+./定義済み.txt:  background: var(--grad-panel-right);
+./定義済み.txt:  color: var(--text-logo);
+./定義済み.txt:  text-shadow: var(--shadow-logo);
+./定義済み.txt:body[data-theme="silver"] .logo span { color: var(--text-logo-span); }
+./定義済み.txt:  background: var(--grad-control);
+./定義済み.txt:  border-radius: var(--r-sm) !important;
+./定義済み.txt:  border-top:    1px solid var(--border-btn-top) !important;
+./定義済み.txt:  border-left:   1px solid var(--border-btn-left) !important;
+./定義済み.txt:  border-right:  1px solid var(--border-btn-right) !important;
+./定義済み.txt:  border-bottom: 1px solid var(--border-btn-bottom) !important;
+./定義済み.txt:  color: var(--text-primary) !important;
+./定義済み.txt:  text-shadow: var(--text-shadow-btn) !important;
+./定義済み.txt:  box-shadow: var(--shadow-btn) !important;
+./定義済み.txt:  background: var(--grad-btn-gloss);
+./定義済み.txt:  border-radius: var(--r-sm) var(--r-sm) 0 0;
+./定義済み.txt:  background: var(--grad-control-active) !important;
+./定義済み.txt:  box-shadow: var(--shadow-inset) !important;
+./定義済み.txt:  background: var(--grad-input);
+./定義済み.txt:  border-top:    1px solid var(--border-ui-dark);
+./定義済み.txt:  border-left:   1px solid var(--border-ui-dark-soft);
+./定義済み.txt:  border-bottom: 1px solid var(--border-ui-light);
+./定義済み.txt:  border-right:  1px solid var(--border-ui-light-soft);
+./定義済み.txt:  box-shadow: var(--shadow-inset);
+./定義済み.txt:  border-radius: var(--r-lg);
+./定義済み.txt:  color: var(--text-primary);
+./定義済み.txt:  background: var(--grad-input-panel) !important;
+./定義済み.txt:  border:              1px solid var(--border-ui-light-soft) !important;
+./定義済み.txt:  border-top-color:    var(--border-ui-dark-soft) !important;
+./定義済み.txt:  border-left-color:   var(--border-ui-dark-soft) !important;
+./定義済み.txt:  border-bottom-color: var(--border-ui-light-mid) !important;
+./定義済み.txt:  border-right-color:  var(--border-ui-light-mid) !important;
+./定義済み.txt:  box-shadow: var(--shadow-inset) !important;
+./定義済み.txt:  border-radius: var(--r-lg) var(--r-lg) 0 0;
+./定義済み.txt:  background: var(--bg-left-tabs);
+./定義済み.txt:  border: 1px solid var(--border-left-tabs);
+./定義済み.txt:  box-shadow: var(--shadow-left-tabs);
+./定義済み.txt:  border: 1px solid var(--border-left-tab);
+./定義済み.txt:  background: var(--bg-left-tab);
+./定義済み.txt:  color: var(--text-secondary);
+./定義済み.txt:  border-color: var(--border-left-tab-active);
+./定義済み.txt:  border-bottom: 1px solid var(--border-left-tab-active-bottom);
+./定義済み.txt:  background: var(--bg-left-tab-active);
+./定義済み.txt:  color: var(--text-muted);
+./定義済み.txt:  background: var(--grad-phdr);
+./定義済み.txt:  color: var(--text-phdr);
+./定義済み.txt:  text-shadow: var(--shadow-text-phdr);
+./定義済み.txt:  border: 1px solid var(--border-phdr);
+./定義済み.txt:  border-top-color: var(--border-phdr-top);
+./定義済み.txt:  border-radius: var(--r-md);
+./定義済み.txt:  box-shadow: var(--shadow-phdr);
+./定義済み.txt:body[data-theme="silver"] #panel-left  { background: var(--grad-surface); }
+./定義済み.txt:body[data-theme="silver"] #panel-right { background: var(--grad-panel-right); }
+./定義済み.txt:  border-radius: var(--r-lg);
+./定義済み.txt:  border: 1px solid var(--border-panel-center);
+./定義済み.txt:  border-bottom-color: var(--border-panel-center-bottom);
+./定義済み.txt:  background: var(--grad-panel-center);
+./定義済み.txt:  box-shadow: var(--shadow-panel-center);
+./定義済み.txt:  background: var(--grad-header);
+./定義済み.txt:  border-bottom: 1px solid var(--border-audio-bar-bottom);
+./定義済み.txt:  box-shadow: var(--shadow-audio-bar);
+./定義済み.txt:  background: var(--grad-status);
+./定義済み.txt:  border-top: 1px solid var(--border-status-top);
+./定義済み.txt:  box-shadow: var(--shadow-status);
+./定義済み.txt:body[data-theme="silver"] #status span { color: var(--text-secondary); }
+./定義済み.txt:  background: var(--grad-chord-tag);
+./定義済み.txt:  border: 1px solid var(--border-chord-tag);
+./定義済み.txt:  border-top-color: var(--border-chord-tag-top);
+./定義済み.txt:  border-bottom-color: var(--border-chord-tag-bottom);
+./定義済み.txt:  box-shadow: var(--shadow-chord-tag);
+./定義済み.txt:  color: var(--text-chord-tag);
+./定義済み.txt:  text-shadow: var(--shadow-text-chord-tag);
+./定義済み.txt:  background: var(--grad-chord-tag-hover);
+./定義済み.txt:  background: var(--grad-pal-chord);
+./定義済み.txt:  border-top: 1px solid var(--border-ui-light);
+./定義済み.txt:  border-bottom: 1px solid var(--border-ui-dark-mid);
+./定義済み.txt:  color: var(--text-pal-chord);
+./定義済み.txt:  text-shadow: var(--shadow-text-pal-chord);
+./定義済み.txt:  box-shadow: var(--shadow-pal-chord);
+./定義済み.txt:  background: var(--grad-pal-chord-hover);
+./定義済み.txt:  color: var(--text-pal-chord-hover);
+./定義済み.txt:  text-shadow: var(--shadow-text-pal-chord-hover);
+./定義済み.txt:  border-color: var(--border-pal-chord-hover);
+./定義済み.txt:  border-radius: var(--r-lg);
+./定義済み.txt:  background: var(--grad-dv-surface);
+./定義済み.txt:  border: 1px solid var(--border-dv-top);
+./定義済み.txt:  border-bottom-color: var(--border-dv-bottom);
+./定義済み.txt:  border-right-color: var(--border-dv-right);
+./定義済み.txt:  box-shadow: var(--shadow-dv);
+./定義済み.txt:  color: var(--text-secondary);
+./定義済み.txt:  text-shadow: var(--shadow-text-dv-label);
+./定義済み.txt:  color: var(--text-primary);
+./定義済み.txt:  text-shadow: var(--shadow-text-diag-title);
+./定義済み.txt:body[data-theme="silver"] .dv svg rect  { stroke: var(--dv-svg-stroke) !important; stroke-width: 1.5 !important; }
+./定義済み.txt:body[data-theme="silver"] .dv svg text  { fill: var(--dv-svg-text) !important; font-weight: 700 !important; font-size: 11px !important; }
+./定義済み.txt:body[data-theme="silver"] .dv svg circle { stroke: var(--dv-svg-stroke) !important; stroke-width: 1.5 !important; }  background: var(--grad-play-btn);
+./定義済み.txt:  border: 1px solid var(--border-play-btn);
+./定義済み.txt:  border-top-color: var(--border-play-btn-top);
+./定義済み.txt:  border-bottom-color: var(--border-play-btn-bottom);
+./定義済み.txt:  box-shadow: var(--shadow-play-btn);
+./定義済み.txt:  background: var(--grad-seek-track);
+./定義済み.txt:  border-top: 1px solid var(--border-seek-top);
+./定義済み.txt:  border-bottom: 1px solid var(--border-seek-bottom);
+./定義済み.txt:  box-shadow: var(--shadow-inset);
+./定義済み.txt:  background: var(--grad-seek-fill);
+./定義済み.txt:  box-shadow: var(--shadow-seek-fill);
+./定義済み.txt:  background: var(--grad-slider);
+./定義済み.txt:  border-top: 1px solid var(--border-slider-top);
+./定義済み.txt:  border-bottom: 1px solid var(--border-slider-bottom);
+./定義済み.txt:  box-shadow: var(--shadow-inset);
+./定義済み.txt:  background: var(--grad-knob);
+./定義済み.txt:  border-top:    1px solid var(--knob-border-top);
+./定義済み.txt:  border-bottom: 1px solid var(--knob-border-bottom);
+./定義済み.txt:  border-left:   1px solid var(--knob-border-left);
+./定義済み.txt:  border-right:  1px solid var(--knob-border-right);
+./定義済み.txt:  box-shadow: var(--knob-shadow);
+./定義済み.txt:body[data-theme="silver"] .line-time.has-t    { color: var(--color-amber); }
+./定義済み.txt:body[data-theme="silver"] .file-btn.loaded    { border-color: var(--color-green); color: var(--color-green); }
+./定義済み.txt:  background: var(--grad-add-diag-btn);
+./定義済み.txt:  border: 1px solid var(--border-add-diag-btn);
+./定義済み.txt:  border-top-color: var(--border-add-diag-btn-top);
+./定義済み.txt:  color: var(--text-add-diag-btn);
+./定義済み.txt:  text-shadow: var(--shadow-text-add-diag-btn);
+./定義済み.txt:  box-shadow: var(--shadow-add-diag-btn);
+./定義済み.txt:  color: var(--text-logo);
+./定義済み.txt:  text-shadow: var(--shadow-logo);
+./定義済み.txt:body[data-theme="blue"] .logo span { color: var(--text-logo-span); }
+./定義済み.txt:  background: var(--grad-control);
+./定義済み.txt:  border-radius: var(--r-sm) !important;
+./定義済み.txt:  border-top:    1px solid var(--border-btn-top) !important;
+./定義済み.txt:  border-left:   1px solid var(--border-btn-left) !important;
+./定義済み.txt:  border-right:  1px solid var(--border-btn-right) !important;
+./定義済み.txt:  border-bottom: 1px solid var(--border-btn-bottom) !important;
+./定義済み.txt:  color: var(--text-btn) !important;
+./定義済み.txt:  text-shadow: var(--text-shadow-btn) !important;
+./定義済み.txt:  box-shadow: var(--shadow-btn) !important;
+./定義済み.txt:  background: var(--grad-btn-gloss);
+./定義済み.txt:  border-radius: var(--r-sm) var(--r-sm) 0 0;
+./定義済み.txt:  background: var(--grad-control-active) !important;
+./定義済み.txt:  box-shadow: var(--shadow-inset) !important;
+./定義済み.txt:  background: var(--grad-input) !important;
+./定義済み.txt:  border-top:    1px solid var(--border-ui-dark) !important;
+./定義済み.txt:  border-left:   1px solid var(--border-ui-strong) !important;
+./定義済み.txt:  border-bottom: 1px solid var(--border-ui-light) !important;
+./定義済み.txt:  border-right:  1px solid var(--border-ui-light-soft) !important;
+./定義済み.txt:  box-shadow: var(--shadow-inset) !important;
+./定義済み.txt:  color: var(--text-primary) !important;
+./定義済み.txt:body[data-theme="blue"] .line-row .lyric-input { color: var(--text-primary) !important; }
+./定義済み.txt:body[data-theme="blue"] .lyric-input::placeholder { color: var(--color-placeholder) !important; }
+./定義済み.txt:body[data-theme="blue"] .left-tab       { color: var(--text-secondary); }
+./定義済み.txt:body[data-theme="blue"] .left-tab:hover { color: var(--text-primary); }
+./定義済み.txt:  color: var(--text-accent);
+./定義済み.txt:  border-bottom-color: var(--text-accent);
+./定義済み.txt:body[data-theme="blue"] .line-num   { color: var(--text-muted); }
+./定義済み.txt:body[data-theme="blue"] .line-time  { color: var(--color-amber); }
+./定義済み.txt:  color: var(--text-secondary);
+./定義済み.txt:  border-color: var(--border-ui);
+./定義済み.txt:  background: var(--bg-add-chord-btn);
+./定義済み.txt:  border-radius: var(--r-md);
+./定義済み.txt:  background: var(--grad-phdr);
+./定義済み.txt:  color: var(--text-phdr);
+./定義済み.txt:  text-shadow: var(--shadow-text-phdr);
+./定義済み.txt:  border-top:    1px solid var(--border-phdr-top);
+./定義済み.txt:  border-left:   1px solid var(--border-phdr-left);
+./定義済み.txt:  border-right:  1px solid var(--border-phdr);
+./定義済み.txt:  border-bottom: 1px solid var(--border-phdr-bottom);
+./定義済み.txt:  box-shadow: var(--shadow-phdr);
+./定義済み.txt:body[data-theme="blue"] #panel-right  { background: var(--grad-surface); }
+./定義済み.txt:body[data-theme="blue"] #panel-center { background: var(--grad-panel-center); }
+./定義済み.txt:body[data-theme="blue"] #status       { color: var(--text-secondary); }
+./定義済み.txt:body[data-theme="blue"] #status span  { color: var(--text-primary); }
+./定義済み.txt:  border-radius: var(--r-lg);
+./定義済み.txt:  background: var(--grad-dv-surface);
+./定義済み.txt:  border-top:    1px solid var(--border-dv-top);
+./定義済み.txt:  border-left:   1px solid var(--border-dv-left);
+./定義済み.txt:  border-right:  1px solid var(--border-dv-right);
+./定義済み.txt:  border-bottom: 1px solid var(--border-dv-bottom);
+./定義済み.txt:  box-shadow: var(--shadow-dv);
+./定義済み.txt:body[data-theme="blue"]   .perform-line .chords { color: var(--text-perform-chords); }
+./定義済み.txt:  color: var(--text-perform);
+./定義済み.txt:  text-shadow: var(--shadow-perform-chord);
+./定義済み.txt:  color: var(--text-perform-focused);
+./定義済み.txt:  text-shadow: var(--shadow-perform-chord-focused);
+./定義済み.txt:  color: var(--text-perform-lyric);
+./定義済み.txt:  text-shadow: var(--shadow-perform-lyric);
+./定義済み.txt:  color: var(--text-perform-lyric-focused);
+./定義済み.txt:  text-shadow: var(--shadow-perform-lyric-focused);
+./定義済み.txt:  background: var(--grad-perform-overlay);
+./定義済み.txt:  background: var(--grad-perform-header);
+./定義済み.txt:  background: var(--grad-perform-overlay);
+./定義済み.txt:  background: var(--grad-perform-header);
+./定義済み.txt:  background-color: var(--surface-base);
+./定義済み.txt:  background-image: var(--bg-texture-metal);

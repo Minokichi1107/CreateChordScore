@@ -1,0 +1,4 @@
+「ChordScoreを起動.bat」をダブルクリック
+または
+py -3.11 server.py
+→ http://localhost:8766/chord_score.html

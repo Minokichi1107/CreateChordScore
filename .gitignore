@@ -1,4 +1,4 @@
-# OS
+﻿# OS
 .DS_Store
 Thumbs.db
 
@@ -10,33 +10,20 @@ Thumbs.db
 *.tmp
 tmp/
 
+# 生成デバッグデータ
+testdata/debug/
 
-# スクリーンショット・素材
-screenshots/
-/resource/lyric/*
-/resource/sample/*
-*.lrc
-*.txt
-
-# バックアップ
-backup/
-old/
-archive/
-
-# テストプロジェクト
-/resource/*_project*.json
-
-# OS
-.DS_Store
-Thumbs.db
-
-# ドキュメント
-/docs/test/
-/docs/draft/
-/docs/finished/
-
-#　オーディオファイル
+# 著作権保護 - 音声ファイル
 *.mp3
 *.flac
 *.wav
 *.m4a
+*.aac
+*.ogg
+
+# Python cache
+__pycache__/
+*.pyc
+
+# ドキュメント草稿
+/docs/draft/
