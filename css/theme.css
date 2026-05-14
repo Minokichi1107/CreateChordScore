@@ -48,7 +48,7 @@
   /* fixed status colors (全テーマ共通) */
   --color-green: #3ddc84;
   --color-amber: #ffb840;
-  --color-red:   #ff5c5c;
+  --color-red:   #ff7c7c;
 }
 
 
@@ -292,7 +292,7 @@ body[data-theme="silver"] {
   /* --- status colors --- */
   --color-green: #167a3e;
   --color-amber: #a86400;
-  --color-red:   #b81818;
+  --color-red:   #ff7c7c;
 
   /* --- perform text --- */
   --text-perform:               #e9f5ff;
@@ -485,6 +485,7 @@ body[data-theme="blue"] {
 
   /* --- status colors --- */
   --color-amber: #a06000;
+  --color-red:   #ff7c7c;
 
   /* --- perform text --- */
   --text-perform:               #e9f5ff;
@@ -1101,6 +1102,17 @@ body[data-theme="blue"] #perform-controls,
 body[data-theme="blue"] #tap-ov-header,
 body[data-theme="blue"] #tap-ov-ctrl {
   background: var(--grad-perform-header);
+}
+
+/* perform-capo-display */
+#perform-capo-display {
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--color-red);
+  align-self: flex-end;
+  padding-bottom: 0.15em;
+  margin-left: 8px;
 }
 
 /* silver body texture */
