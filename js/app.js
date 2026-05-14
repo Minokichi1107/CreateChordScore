@@ -1708,6 +1708,39 @@ function setupEventHandlers() {
     importCustomDiagrams(e.target.files[0]);
     e.target.value = '';
   });
+
+  // ============================================
+  // Header Menu Events (Phase29)
+  // ============================================
+  (function initHeaderMenus() {
+    const triggers = document.querySelectorAll('.menu-trigger');
+
+    // トリガークリック：排他open
+    triggers.forEach(trigger => {
+      trigger.addEventListener('click', e => {
+        e.stopPropagation();
+        const group  = trigger.closest('.menu-group');
+        const isOpen = group.classList.contains('open');
+        closeAllMenus();
+        if (!isOpen) group.classList.add('open');
+      });
+    });
+
+    // 外クリックで全閉じ
+    document.addEventListener('click', () => closeAllMenus());
+
+    // ドロップダウン内クリックで自動close
+    document.querySelectorAll('.dropdown').forEach(dd => {
+      dd.addEventListener('click', () => closeAllMenus());
+    });
+
+    function closeAllMenus() {
+      document.querySelectorAll('.menu-group.open')
+        .forEach(g => g.classList.remove('open'));
+    }
+
+
+  })();  
 }
 
 // ----------------------------
