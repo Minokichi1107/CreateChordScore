@@ -264,12 +264,11 @@ body.diag-off .chord-tag:hover{cursor:default}
 
 body.diag-off .chord-tag{cursor:default}
 
-
-#diag-toggle{background:var(--grad-control);border-style:solid;border-width:1px;border-top-color:rgba(255,255,255,.55);border-left-color:rgba(255,255,255,.35);border-right-color:rgba(0,0,0,.25);border-bottom-color:rgba(0,0,0,.4);border-radius:4px;color:#fff;cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:5px 10px;white-space:nowrap;transition:all .15s;box-shadow:0 1px 0 rgba(255,255,255,.15) inset,0 2px 4px rgba(0,0,0,.35);width:135px;text-align:left;justify-content:left}
-#diag-toggle span{display:inline-block;min-width:2em}
-#diag-toggle.off{opacity:.65}
-#diag-toggle:hover{opacity:.88}
-#diag-toggle:active{background:var(--grad-control-active);box-shadow:var(--shadow-inset);transform:translateY(1px)}
+#diag-toggle { justify-content: space-between; }
+#diag-toggle span { color: var(--text-muted); font-size: 10px; margin-left: 8px; }
+#diag-toggle.off { color: var(--text-muted); }
+#diag-toggle:hover { background: none; }
+#diag-toggle:active { background: none; box-shadow: none; transform: none; }
 #btn-tapmode,#btn-perform-mode{background:var(--grad-control);border-style:solid;border-width:1px;border-top-color:rgba(255,255,255,.55);border-left-color:rgba(255,255,255,.35);border-right-color:rgba(0,0,0,.25);border-bottom-color:rgba(0,0,0,.4);border-radius:4px;color:#fff;cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:5px 10px;white-space:nowrap;transition:all .15s;box-shadow:0 1px 0 rgba(255,255,255,.15) inset,0 2px 4px rgba(0,0,0,.35)}
 #btn-tapmode:hover,#btn-perform-mode:hover{border-color:var(--text-accent)}
 #btn-tapmode:active,#btn-perform-mode:active{background:var(--grad-control-active);box-shadow:var(--shadow-inset);transform:translateY(1px)}
@@ -506,4 +505,24 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
   min-width: 140px;
   max-width: 320px;
   /* 他のプロパティは既存のまま */
+}
+
+.dd-item:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.5;
+}
+.dd-item:disabled:hover {
+  background: none;
+  color: var(--text-muted);
+}
+/* diag-toggle: dd-item内でのON/OFF表示調整 */
+#diag-toggle span {
+  margin-left: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+#diag-toggle.off {
+  opacity: 1; /* dd-item内では薄くしない */
+  color: var(--text-muted);
 }

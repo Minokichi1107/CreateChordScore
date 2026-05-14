@@ -1467,7 +1467,7 @@ function setupEventHandlers() {
   const diagToggleBtn = document.getElementById('diag-toggle');
   diagToggleBtn.addEventListener('click', () => {
     diagOn = !diagOn;
-    diagToggleBtn.innerHTML = '🎸 ダイアグラム <span>' + (diagOn ? 'ON' : 'OFF') + '</span>';
+    diagToggleBtn.innerHTML = '🎸 ダイアグラム' + (diagOn ? ' <span>✓</span>' : '');
     diagToggleBtn.classList.toggle('off', !diagOn);
     if (!diagOn) { const p=document.getElementById('popup');if(p)p.classList.remove('show'); }
     localStorage.setItem('cs_diagOn', diagOn ? '1' : '0');
@@ -1851,7 +1851,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   const savedDiagOn = localStorage.getItem('cs_diagOn');
   if (savedDiagOn === '0') {
     diagOn = false;
-    diagToggleBtn.innerHTML = '🎸 ダイアグラム <span>OFF</span>';
+    diagToggleBtn.innerHTML = '🎸 ダイアグラム';
     diagToggleBtn.classList.add('off');
   }
   
