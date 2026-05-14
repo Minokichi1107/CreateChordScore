@@ -88,10 +88,9 @@
 #tap-ov-tapbtn{
   flex-shrink:0;
   width:80px;height:80px;
-  background:var(--surface-overlay);
   border:3px solid var(--border-ui-strong);
   border-radius:50%;
-  color:var(--text-secondary);cursor:pointer;
+  cursor:pointer;
   font-family:var(--font-mono);font-size:13px;font-weight:700;
   letter-spacing:1px;
   transition:all .1s;user-select:none;
@@ -116,7 +115,7 @@
 
 
 /* TAP OVERLAY: footer buttons / speed label */
-#btn-tapmode-close{background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:5px 12px}
+#btn-tapmode-close{border:1px solid var(--border-ui);border-radius:var(--r-md);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:5px 12px}
 #tov-speed-label{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);min-width:36px}
 #tov-clear-all,#tov-clear-selected{font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--color-red);cursor:pointer;font-family:var(--font-mono)}
 #tov-deselect{font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono)}

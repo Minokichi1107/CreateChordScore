@@ -31,8 +31,6 @@ html {
 
 /* app root */
 body {
-  background: var(--surface-base);
-  color: var(--text-primary);
   font-family: var(--font-sans);
   font-weight: 500;
   min-height: 100vh;
@@ -40,3 +38,8 @@ body {
   flex-direction: column;
   overflow-x: hidden;
 }
+
+/* scrollbar structure (color → theme.css) */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { }
+::-webkit-scrollbar-thumb  { border-radius: 3px; }

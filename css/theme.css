@@ -220,6 +220,26 @@
   --border-left-tab-active-bottom: var(--surface-overlay);
 }
 
+body[data-theme="dark"] {
+  background: var(--surface-base);
+  color: var(--text-primary);
+}
+
+body[data-theme="dark"] #tap-ov-tapbtn,
+body[data-theme="dark"] #btn-tapmode-close {
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+}
+
+body[data-theme="silver"] #tap-ov-tapbtn {
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+}
+body[data-theme="blue"] #tap-ov-tapbtn {
+  background: #2b54af;
+  color: var(--text-chord);
+}
+
 
 /* ================================================
    SEMANTIC LAYER — SILVER テーマ
@@ -609,9 +629,8 @@ body[data-theme="blue"] {
 }
 
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--surface-raised); }
-::-webkit-scrollbar-thumb { background: var(--border-ui-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border-ui-strong); }
 
 
 /* ================================================
@@ -655,7 +674,8 @@ body[data-theme="silver"] .hdr-btn,
 body[data-theme="silver"] .trans-btn,
 body[data-theme="silver"] #tap-btn,
 body[data-theme="silver"] #btn-tapmode,
-body[data-theme="silver"] #btn-perform-mode {
+body[data-theme="silver"] #btn-perform-mode,
+body[data-theme="silver"] #btn-tapmode-close {
   position: relative;
   overflow: hidden;
   background: var(--grad-control);
@@ -922,7 +942,8 @@ body[data-theme="blue"] .hdr-btn,
 body[data-theme="blue"] .trans-btn,
 body[data-theme="blue"] #tap-btn,
 body[data-theme="blue"] #btn-tapmode,
-body[data-theme="blue"] #btn-perform-mode {
+body[data-theme="blue"] #btn-perform-mode,
+body[data-theme="blue"] #btn-tapmode-close {
   position: relative;
   overflow: hidden;
   background: var(--grad-control);
