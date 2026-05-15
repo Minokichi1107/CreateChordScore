@@ -143,6 +143,7 @@ import {
   prevPerformPage,
   performState
 } from './perform.js';
+import { initDB, saveAsset, loadAsset } from './idb.js';
 
 
 // ════════════════════════════════════════
@@ -166,7 +167,7 @@ import {
  */
 
 // プロジェクトデータ
-let project = {title:'',audio:'',capo:0,lines:[],chord_source:''};
+let project = {id:crypto.randomUUID(),title:'',audio:'',capo:0,lines:[],chord_source:''};
 let palette = [];
 let paletteTranspose = 0; // session only、-6〜+6、循環
 let focLine = -1;
@@ -1118,6 +1119,7 @@ function showReloadBanner(audioName, chordName){
 function resetProject() {
   // Project Data
   project = {
+    id: crypto.randomUUID(),
     title: '',
     audio: '',
     capo: 0,
@@ -1193,6 +1195,7 @@ function loadProj(data){
   _prevCapo = uiState.capo;
   
   // Apply project data
+  project.id = newProject.id;
   project.audio = newProject.audio;
   project.capo = uiState.capo;  // ← 追加
   project.chord_source = newProject.chord_source;
@@ -1219,6 +1222,50 @@ function loadProj(data){
   if (curDiagChord) {
     showDiagramPanel(curDiagChord, getCapo(), getDiagCallbacks());
   }
+
+  // IndexedDBからasset復元
+  (async () => {
+    let audioRestored = false;
+    let chordRestored = false;
+
+    // audio復元
+    const audioAsset = await loadAsset(project.id, 'audio').catch(() => null);
+    if (audioAsset) {
+      if (_aURL) URL.revokeObjectURL(_aURL);
+      _aURL = URL.createObjectURL(audioAsset.data);
+      aEl.src = _aURL;
+      aEl.volume = parseFloat(document.getElementById('vol-slider')?.value || 80) / 100;
+      const tapBtn = document.getElementById('tap-btn');
+      if (tapBtn) tapBtn.disabled = false;
+      audioRestored = true;
+    }
+
+    // chord復元
+    const chordAsset = await loadAsset(project.id, 'chord').catch(() => null);
+    if (chordAsset) {
+      let data;
+      if (chordAsset.filename.endsWith('.csv')) {
+        data = parseCSV(chordAsset.data, normalizeChordName);
+      } else {
+        data = parseJSON(chordAsset.data);
+      }
+      if (data) {
+        loadChordData(data, chordAsset.filename);
+        chordRestored = true;
+      }
+    }
+
+    // 復元できなかったassetがあればバナー表示
+    const needBanner =
+      (!audioRestored && !!project.audio) ||
+      (!chordRestored && !!project.chord_source);
+    if (needBanner) {
+      showReloadBanner(
+        audioRestored ? null : project.audio,
+        chordRestored ? null : project.chord_source
+      );
+    }
+  })();
 }
 
 // ════════════════════════════════════════
@@ -1347,6 +1394,7 @@ function setupEventHandlers() {
         }
       }
       loadChordData(data,f.name);
+      saveAsset(project.id, 'chord', { data: ev.target.result, filename: f.name });
     };
     r.readAsText(f,'utf-8');
   });
@@ -1362,6 +1410,7 @@ function setupEventHandlers() {
     aEl.volume=parseFloat(document.getElementById('vol-slider')?.value||80)/100;
     toast(`音声: ${f.name}`);
     checkReloadBannerDone();
+    saveAsset(project.id, 'audio', { data: f, filename: f.name });
   });
 
   // ============================================
@@ -1445,7 +1494,6 @@ function setupEventHandlers() {
         const data=JSON.parse(ev.target.result);
         loadProj(data);
         toast(`読み込み: ${f.name}`);
-        if(data.audio||data.chord_source) showReloadBanner(data.audio, data.chord_source);
       }catch{toast('JSONエラー');}
       e.target.value = '';
     };

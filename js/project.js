@@ -8,6 +8,7 @@
 // ────────────────────────────────────────
 export function serializeProject(project, uiState) {
   return {
+    id: project.id,
     title: uiState.title,
     audio: project.audio,
     capo: uiState.capo,
@@ -26,6 +27,7 @@ export function deserializeProject(jsonData) {
   
   return {
     project: {
+      id: data.id || crypto.randomUUID(),
       audio: data.audio || '',
       chord_source: data.chord_source || '',
       lines: data.lines || [],
