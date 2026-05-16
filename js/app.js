@@ -34,6 +34,12 @@
  * csvImporter.js
  *  - CSV/JSONパース
  * 
+ * modals.js
+ *  - モーダルのUI lifecycle と interaction lifecycle を担当
+ *  - state mutation は行わず、onConfirm / onDelete / onCopy で app.js へ通知する
+ *  - モーダル土台（mOv/mTit/mBody/mBtns）は app.js が持ち、initModals() で注入する
+ *
+ * 
  * 【データフロー】
  * 
  * 1. ユーザー操作
@@ -143,8 +149,15 @@ import {
   prevPerformPage,
   performState
 } from './perform.js';
+
 import { initDB, saveAsset, loadAsset } from './idb.js';
 
+import {
+  initModals,
+  openTimeModal,
+  openRepeatModal,
+  openCopyModal,
+} from './modals.js';
 
 // ════════════════════════════════════════
 // GLOBAL STATE
@@ -374,20 +387,50 @@ function renderPalette(){
  * 【データフロー】
  * ユーザー操作 → Callback → State更新 → refreshEditor → renderLines → UI
  */
+/**
+ * createEditorCallbacks 内の変更箇所
+ *
+ * 【変更の理由】
+ *   旧: openTimeModal(idx) のように idx だけ渡していた
+ *       → 関数内部で project.lines[idx] を直接触っていた（state mutation が modal 内に漏れていた）
+ *
+ *   新: line（読み取り専用）と onConfirm / onDelete を渡す
+ *       → modal は「値を受け取って通知するだけ」
+ *       → state mutation は callback 内（app.js側）で行う
+ *
+ * 【フロー図（新）】
+ *   ユーザーが「セット」を押す
+ *       ↓
+ *   modals.js が onConfirm(time) を呼ぶ
+ *       ↓
+ *   app.js（この callback）が state を更新して refreshEditor()
+ */
 
 function createEditorCallbacks() {
   return {
+    // ── onTimeClick（時刻なし → モーダルを開く）──
     onTimeClick: (idx, time) => {
       if (time != null) {
         aEl.currentTime = time;
         if (aEl.paused) aEl.play();
         toast(`▶ ${fmt(time, true)} にシーク`);
       } else {
-        openTimeModal(idx);
+        openTimeModal({
+          idx,
+          line: project.lines[idx],
+          onConfirm: (time) => { project.lines[idx].time = time; refreshEditor(); },
+          onDelete:  ()     => { project.lines[idx].time = null; refreshEditor(); },
+        });
       }
     },
+    // ── onTimeContextMenu（右クリック → 常にモーダルを開く）──
     onTimeContextMenu: (idx) => {
-      openTimeModal(idx);
+      openTimeModal({
+        idx,
+        line: project.lines[idx],
+        onConfirm: (time) => { project.lines[idx].time = time; refreshEditor(); },
+        onDelete:  ()     => { project.lines[idx].time = null; refreshEditor(); },
+      });
     },
     onChordEdit: (idx, ci) => {
       openChordEdit(idx, ci);
@@ -395,8 +438,14 @@ function createEditorCallbacks() {
     onAddChord: (idx) => {
       openAddChord(idx);
     },
+    // ── onRepeatClick ──
     onRepeatClick: (idx) => {
-      openRepeatModal(idx);
+      openRepeatModal({
+        idx,
+        line: project.lines[idx],
+        onConfirm: (count) => { project.lines[idx].repeat = { count }; refreshEditor(); },
+        onDelete:  ()      => { project.lines[idx].repeat = null;       refreshEditor(); },
+      });
     },
     onRepeatDelete: (idx) => {
       project.lines[idx].repeat = null;
@@ -466,8 +515,29 @@ function createEditorCallbacks() {
       tapIdx = idx;
       toast(`次のTAPで行${idx + 1}に時刻セット`);
     },
+    // ── onCopyClick ──
+    // onCopy の payload: { targets, replace, copyRepeat }
+    //   targets    : コピー先の行インデックス配列
+    //   replace    : true=上書き / false=追記
+    //   copyRepeat : リピート記号もコピーするか
     onCopyClick: (idx) => {
-      openCopyModal(idx);
+      openCopyModal({
+        fromIdx: idx,
+        line:    project.lines[idx],
+        lines:   project.lines,
+        onCopy: ({ targets, replace, copyRepeat }) => {
+          const src = project.lines[idx].chords.map(c => ({ ...c }));
+          targets.forEach(ti => {
+            project.lines[ti].chords = replace
+              ? src.map(c => ({ ...c }))
+              : [...project.lines[ti].chords, ...src.map(c => ({ ...c }))];
+            if (copyRepeat && project.lines[idx].repeat) {
+              project.lines[ti].repeat = { ...project.lines[idx].repeat };
+            }
+          });
+          refreshEditor();
+        },
+      });
     },
     setDiagRight: (chord, capo) => {
       setDiagRight(chord, capo, getDiagCallbacks());
@@ -540,32 +610,53 @@ function closeMod(){mOv.classList.remove('open');mBody.innerHTML='';mBtns.innerH
 mOv.addEventListener('click',e=>{if(e.target===mOv)closeMod();});
 function mkMBtn(txt,cls,fn){const b=document.createElement('button');b.className=`mbtn ${cls||''}`;b.textContent=txt;b.addEventListener('click',fn);return b;}
 
-// 時刻モーダル
-function openTimeModal(idx){
-  const line=project.lines[idx];
-  mTit.textContent=`行${idx+1}の時刻を設定`;
-  mBody.innerHTML=`
-    <div class="modal-caption modal-section">「${line.lyric||'(空)'}」</div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <input type="number" id="mi-t" class="mi" value="${line.time!=null?line.time.toFixed(3):''}" step="0.1" min="0" placeholder="秒 (例: 12.500)" style="font-size:13px">
-      <button id="mi-t-current" class="sm-btn" style="white-space:nowrap">▶ 現在位置</button>
-    </div>`;
-  
-  // 現在位置ボタンのイベント登録
-  setTimeout(() => {
-    const currentBtn = document.getElementById('mi-t-current');
-    if (currentBtn) {
-      currentBtn.addEventListener('click', () => {
-        document.getElementById('mi-t').value = aEl.currentTime.toFixed(3);
-      });
-    }
-  }, 0);
-  
-  mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  mBtns.appendChild(mkMBtn('時刻を削除','del',()=>{project.lines[idx].time=null;refreshEditor();closeMod();}));
-  mBtns.appendChild(mkMBtn('セット','ok',()=>{const v=parseFloat(document.getElementById('mi-t').value);if(!isNaN(v)){project.lines[idx].time=v;refreshEditor();}closeMod();}));
+/**
+ * openModal — modals.js へ注入するモーダル開閉ラッパー
+ *
+ * 【なぜこの関数が必要か】
+ *   modals.js はモーダル土台のDOM（mOv/mTit/mBody/mBtns）を直接知らない。
+ *   この関数が「土台への書き込み」と「modals.js からの呼び出し」を橋渡しする。
+ *
+ * 【フロー図】
+ *   modals.js
+ *     └ openModal({ title, body, onOpen, buttons }) を呼ぶ
+ *           ↓
+ *   app.js（この関数）
+ *     └ mTit / mBody / mBtns に書き込む
+ *     └ buttons(close) でボタン一覧を受け取り mBtns に追加
+ *     └ mOv.classList.add('open') で表示
+ *           ↓
+ *   setTimeout → onOpen() でフォーカス等の後処理
+ *
+ * 【ownership】
+ *   土台DOM の読み書き: app.js（この関数）が持つ
+ *   中身の生成:         modals.js が持つ
+ *   close の実行:       modals.js 内の各ボタンが close() を呼ぶ
+ *                       close() の実体は closeMod()
+ *
+ * @param {object}   opts
+ * @param {string}   opts.title   - モーダルのタイトル
+ * @param {string}   opts.body    - 本文HTML
+ * @param {Function} opts.onOpen  - DOM描画後に呼ばれる（フォーカス等）
+ * @param {Function} opts.buttons - (close) => HTMLElement[] ボタン一覧を返す関数
+ */
+function openModal({ title, body, onOpen, buttons }) {
+  mTit.textContent = title;
+  mBody.innerHTML  = body;
+  mBtns.innerHTML  = '';
+
+  // close の実体は closeMod()
+  // modals.js 側は close() として受け取り、土台DOMを知らずに閉じられる
+  const close = () => closeMod();
+
+  const btns = typeof buttons === 'function' ? buttons(close) : [];
+  btns.forEach(btn => mBtns.appendChild(btn));
+
   mOv.classList.add('open');
-  setTimeout(()=>{const el=document.getElementById('mi-t');if(el)el.focus();},80);
+
+  // DOMが描画された後にonOpenを実行
+  // （フォーカス・イベント登録などはDOM生成後でないと動かないため）
+  setTimeout(() => onOpen?.(), 80);
 }
 
 function addToPaletteIfNew(chord){
@@ -739,77 +830,6 @@ function openChordEdit(idx,ci){
   }));
   mOv.classList.add('open');
   setTimeout(()=>{const el=document.getElementById('mi-c');if(el){el.focus();el.select();el.addEventListener('keydown',e=>{if(e.key==='Enter')mBtns.querySelector('.ok').click();});el.addEventListener('input',()=>setDiagRight(el.value, getCapo()));}},80);
-}
-
-// リピートモーダル
-function openRepeatModal(idx){
-  const line=project.lines[idx];
-  let cnt=line.repeat?line.repeat.count:2;
-  mTit.textContent=`行${idx+1}のリピート設定`;
-  mBody.innerHTML=`
-    <div class="modal-caption modal-section">イントロ・リフなどの繰り返し回数を設定します</div>
-    <div class="repeat-stepper modal-section">
-      <button id="r-minus" class="sm-btn repeat-stepper-btn">−</button>
-      <div style="text-align:center">
-        <div id="r-cnt" class="repeat-stepper-value">${cnt}</div>
-        <div class="repeat-stepper-label">回繰り返し</div>
-      </div>
-      <button id="r-plus" class="sm-btn repeat-stepper-btn">＋</button>
-    </div>
-    <div class="repeat-quickpick">
-      ${[2,3,4,8,16].map(n=>`<button class="pal-chord" style="font-size:13px" onclick="_sr(${n})">${n}回</button>`).join('')}
-    </div>`;
-  window._sr=(n)=>{cnt=n;document.getElementById('r-cnt').textContent=n;};
-  document.getElementById('r-minus').addEventListener('click',()=>{cnt=Math.max(2,cnt-1);document.getElementById('r-cnt').textContent=cnt;});
-  document.getElementById('r-plus').addEventListener('click',()=>{cnt++;document.getElementById('r-cnt').textContent=cnt;});
-  mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  if(line.repeat)mBtns.appendChild(mkMBtn('リピート削除','del',()=>{project.lines[idx].repeat=null;refreshEditor();closeMod();}));
-  mBtns.appendChild(mkMBtn('セット','ok',()=>{project.lines[idx].repeat={count:cnt};refreshEditor();closeMod();}));
-  mOv.classList.add('open');
-}
-
-// コードコピーモーダル
-function openCopyModal(fromIdx){
-  const line=project.lines[fromIdx];
-  if(!line.chords.length){toast('コードがありません');return;}
-  mTit.textContent=`行${fromIdx+1}のコードをコピー`;
-  const prev=line.chords.map(c=>`<span class="chord-tag" style="pointer-events:none"><span>${c.chord}</span></span>`).join('');
-  const rows=project.lines.map((l,i)=>i===fromIdx?'':
-    `<label class="copy-list-item">
-      <input type="checkbox" data-to="${i}" style="width:15px;height:15px;accent-color:var(--text-accent)">
-      <span class="modal-section-label" style="flex-shrink:0">行${i+1}</span>
-      <span class="copy-list-item-lyric">${l.lyric||'(空)'}</span>
-      ${l.chords.length?`<span class="copy-list-item-chords">[${l.chords.map(c=>c.chord).join(' ')}]</span>`:''}
-    </label>`
-  ).join('');
-mBody.innerHTML=`
-    <div class="modal-section-label modal-section">コピー元:</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:7px;background:var(--surface-overlay);border-radius:6px;margin-bottom:8px">${prev}${line.repeat?`<span class="repeat-badge" style="pointer-events:none">× ${line.repeat.count}回</span>`:''}</div>
-    <div class="modal-section-label modal-section">コピー先（複数選択可）:</div>
-    <div class="copy-list modal-section" id="copy-list">${rows}</div>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;padding:5px 0;border-top:1px solid var(--border-ui)">
-      <input type="checkbox" id="copy-repeat" ${line.repeat?'checked':''} style="width:14px;height:14px;accent-color:var(--color-amber)">
-      <span style="font-size:11px;font-family:var(--font-mono);color:var(--color-amber)">リピート記号もコピーする</span>
-      <span style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${line.repeat?`(× ${line.repeat.count}回)`:'(元行にリピートなし)'}</span>
-    </label>
-    <div style="margin-top:4px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">「追記」= コードを既存の後ろに追加　「上書き」= コード・リピートを置き換え</div>`;
-  const doCopy=replace=>{
-    const cbs=document.querySelectorAll('#copy-list input:checked');
-    if(!cbs.length){toast('コピー先を選択してください');return;}
-    const src=line.chords.map(c=>({...c}));
-    const copyRepeat=document.getElementById('copy-repeat').checked;
-    cbs.forEach(cb=>{
-      const ti=parseInt(cb.dataset.to);
-      project.lines[ti].chords=replace?src.map(c=>({...c})):[...project.lines[ti].chords,...src.map(c=>({...c}))];
-      if(copyRepeat&&line.repeat){project.lines[ti].repeat={...line.repeat};}
-      else if(replace&&!copyRepeat){/* 上書き時はリピートを変えない */}
-    });
-    refreshEditor();closeMod();toast(`${cbs.length}行に${replace?'上書き':'追記'}${copyRepeat&&line.repeat?' (リピート込み)':''}しました`);
-  };
-  mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  mBtns.appendChild(mkMBtn('上書き','am',()=>doCopy(true)));
-  mBtns.appendChild(mkMBtn('追記','ok',()=>doCopy(false)));
-  mOv.classList.add('open');
 }
 
 // ダイアグラム手動登録モーダル
@@ -1888,6 +1908,37 @@ window.addEventListener('DOMContentLoaded',()=>{
       toast:             toast
     }
   );
+
+  // ⑥ Modals 初期化
+  /**
+   * modals.js に「土台」と「ユーティリティ」を注入する
+   *
+   * 【注入するものと理由】
+   *
+   *   openModal    : modals.js がモーダルを開くための橋渡し関数
+   *                  （土台DOMを直接触らせないため）
+   *
+   *   closeModal   : closeMod() のエイリアス
+   *                  modals.js が close を呼べるようにする
+   *
+   *   mkMBtn       : フッターボタンの生成ヘルパー
+   *                  ボタンスタイルを app.js 側に統一するため
+   *
+   *   toast        : トースト通知
+   *                  modals.js 内でユーザーへのフィードバックに使う
+   *
+   *   getAudioTime : () => aEl.currentTime
+   *                  openTimeModal の「▶ 現在位置」ボタン用
+   *                  aEl（Audio要素）を直接渡さず、必要な値だけを渡す
+   */
+  
+  initModals({
+    openModal,
+    closeModal: closeMod,
+    mkMBtn,
+    toast,
+    getAudioTime: () => aEl.currentTime,
+  });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
   loadCustomDiagrams();
