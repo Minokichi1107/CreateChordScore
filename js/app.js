@@ -157,8 +157,9 @@ import {
   openTimeModal,
   openRepeatModal,
   openCopyModal,
-  openAddDiagramModal,  // 追加
-  openEditDiagramModal, // 追加
+  openAddDiagramModal,
+  openEditDiagramModal,
+  openChordEdit,
 } from './modals.js';
 
 // ════════════════════════════════════════
@@ -435,7 +436,18 @@ function createEditorCallbacks() {
       });
     },
     onChordEdit: (idx, ci) => {
-      openChordEdit(idx, ci);
+      openChordEdit({
+        chord: project.lines[idx].chords[ci].chord,
+        onConfirm: (v) => {
+          addToPaletteIfNew(v);
+          project.lines[idx].chords[ci].chord = v;
+          refreshEditor();
+        },
+        onDelete: () => {
+          project.lines[idx].chords.splice(ci, 1);
+          refreshEditor();
+        },
+      });
     },
     onAddChord: (idx) => {
       openAddChord(idx);
@@ -818,21 +830,6 @@ function openAddChord(idx){
   },80);
 }
 
-// コード編集モーダル
-function openChordEdit(idx,ci){
-  const c=project.lines[idx].chords[ci];
-  mTit.textContent='コードを編集';
-  mBody.innerHTML=`<input type="text" id="mi-c" class="mi" value="${c.chord}" style="font-size:18px;letter-spacing:2px" autocomplete="off">`;
-  mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  mBtns.appendChild(mkMBtn('削除','del',()=>{project.lines[idx].chords.splice(ci,1);refreshEditor();closeMod();}));
-  mBtns.appendChild(mkMBtn('更新','ok',()=>{
-    const v=document.getElementById('mi-c').value.trim();
-    if(v){addToPaletteIfNew(v);project.lines[idx].chords[ci].chord=v;refreshEditor();}
-    closeMod();
-  }));
-  mOv.classList.add('open');
-  setTimeout(()=>{const el=document.getElementById('mi-c');if(el){el.focus();el.select();el.addEventListener('keydown',e=>{if(e.key==='Enter')mBtns.querySelector('.ok').click();});el.addEventListener('input',()=>setDiagRight(el.value, getCapo()));}},80);
-}
 
 // ダイアグラム編集・削除
 function refreshDiagrams(){
@@ -1842,72 +1839,24 @@ window.addEventListener('DOMContentLoaded',()=>{
     mkMBtn,
     toast,
     getAudioTime: () => aEl.currentTime,
-
-    // 33-2: diagram modal用
-    /**
-     * getPreviewSvg
-     *   modals.js はSVG生成方法を知らない。
-     *   「フレット値を渡したらSVG文字列が返ってくる」だけを知っている。
-     *   chords.js の drawDiagram は app.js 経由で呼ぶ（直接importは禁止）。
-     *
-     * payload object化の理由：
-     *   将来 capo / compact / theme 等が増えても呼び出し側を変えなくて済む。
-     */
     getPreviewSvg: ({ frets, barre }) => drawDiagram(frets, barre),
-
-    /**
-     * getCapo
-     *   カポ番号の取得。modals.js に project を丸渡ししない。
-     *   必要な値だけを accessor として渡す。
-     */
     getCapo: () => project.capo ?? 0,
-
-    /**
-     * generateId
-     *   variant ID の生成。ID policy は orchestration責務なので modal側に持たせない。
-     */
     generateId: () => crypto.randomUUID(),
-
-    /**
-     * onAddDiagram
-     *   登録ボタン確定後の mutation を app.js が担当。
-     *
-     *   【フロー】
-     *     modals.js が onAddDiagram(name, variant) を呼ぶ
-     *       ↓
-     *     app.js が chords.js API を呼ぶ
-     *       ↓
-     *     refreshDiagrams() で画面を更新
-     */
     onAddDiagram: (name, variant) => {
       addCustomDiagram(name, variant);
       saveCustomDiagrams();
       refreshDiagrams();
     },
-
-    /**
-     * onUpdateDiagram
-     *   編集確定後の mutation を app.js が担当。
-     *   undo用の diagPushUndo() もここで呼ぶ。
-     *
-     *   【フロー】
-     *     modals.js が onUpdateDiagram(chord, id, patch) を呼ぶ
-     *       ↓
-     *     app.js が undo push → mutation → save → refresh を担当
-     */
     onUpdateDiagram: (chord, id, patch) => {
       diagPushUndo();
       updateCustomDiagram(chord, id, patch);
       saveCustomDiagrams();
       refreshDiagrams();
     },
-
-    /**
-     * getDiagCallbacks
-     *   diagram一覧の各ボタン（編集・削除）のcallback群を返す。
-     *   modals.js は各ボタンの中身を知らない。
-     */
     getDiagCallbacks: () => getDiagCallbacks(),
+
+    // 33-3:
+    onPreviewChord: (chord) => setDiagRight(chord, getCapo()),
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）

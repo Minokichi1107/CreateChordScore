@@ -1,18 +1,28 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase32完了時点
+> 最終更新: Phase33完了時点
 
 ---
 
 ## 1. バックログ（優先順）
 
 ### ドキュメント整備
-状態: 進行中
-内容: architecture.md / ui-rules.md / phase-status.md / current-issues.md 作成
+状態: 完了
+内容: architecture.md / ui-rules.md / phase-status.md / current-issues.md 作成済み
 
-### プロジェクトDBライブラリタブ追加
+### ダイアグラム固定操作
 状態: 未着手
-内容: 保存済みプロジェクトをブラウザ内DBで管理・一覧表示するUIの追加（右パネル）
+内容: ポインタ移動で表示が変わってしまうため、編集時に右パネルに固定する操作を追加したい。
+方向性:
+- ダブルクリック等で固定（`diagLocked` 状態を導入）
+- hover preview と locked preview を状態として分離
+- `uiState` に `diagLocked: false` を追加する方向
+
+### 左パネル自動折りたたみ
+状態: 未着手
+内容: ウィンドウ縮小時に左パネルを自動collapse。
+注意: 現状の `leftCollapsed`（ユーザー意思）と自動collapse（responsive状態）は別管理が必要。
+将来的に `manualCollapsed` / `autoCollapsed` として分離することを検討。
 
 ### TAPボタン色設計
 状態: 未着手
@@ -39,25 +49,68 @@
 
 ---
 
-## 2. 将来検討（未着手・Phase化未確定）
+## 2. 将来検討（subsystem別整理）
 
-### コード名正規化
+### chord editor / line editing 系
+将来的に `chordEntry.js` および `editor.js` 拡張と関係する。
+
+#### openAddChord subsystem化（chordEntry.js）
+状態: 意図的保留
+内容: openAddChord はライブ編集型であり、軽量modal群とは性質が異なるため Phase33 では app.js に残留。
+将来的に以下を含む独立subsystemとして切り出す：
+- insertAt state管理
+- preview rendering
+- keyboard handling（キー入力主体操作）
+- 他行コード転送
+- 記号入力
+- live editing flow
+
+#### 挿入ボタン上下両方向対応
+状態: 未着手
+内容: 現在の `insertAt` が片方向のみ。cursor的な insertion control へ拡張。
+openAddChord subsystem化とセットで設計すること。
+
+#### 行またぎコード移動
+状態: 未着手
+内容: 先頭コード→前行末尾 / 末尾コード→次行先頭への移動。
+通常画面（inline editing）側での実装が望ましい。
+`project.lines` 編集APIが必要。openAddChord subsystem化とセットで設計すること。
+※ modal内の小機能として実装すると line mutation が modal subsystem に漏れるため注意。
+
+### responsive UI 系
+
+#### 狭幅時フロートUI
+状態: 未着手
+内容: `+コード` `+/` 等のフロートが狭幅時に編集を阻害。
+focus行以外の位置（行外ガター等）への移動を検討。
+
+### import normalization 系
+
+#### 非正規コード置換
+状態: 未着手
+内容: chordminiからのJSONインポート時の非正規コード名を解読・置換。
+canonical chord / alias resolution の延長線上にある。
+import normalization pipeline として設計。
+
+### その他将来検討
+
+#### コード名正規化
 状態: 検討中
 目的: 全角→半角変換・表記揺れ統一・lookup安定化
 
-### CHORD_DB再構造化
+#### CHORD_DB再構造化
 状態: 検討中
 目的: コードDBの構造見直し・検索効率改善
 
-### 転回形ダイアグラム自動生成
+#### 転回形ダイアグラム自動生成
 状態: 検討中
 目的: 転回形コードのダイアグラムを自動生成する仕組みの導入
 
-### 外部リソース再接続設計
-状態: 検討中
-目的: chordmini.me 等の外部リソースとの接続方式の再整理
+#### プロジェクトDBライブラリタブ追加
+状態: 未着手
+内容: 保存済みプロジェクトをブラウザ内DBで管理・一覧表示するUIの追加（右パネル）
 
-### LAN配信モード（PCサーバー → スマホブラウザ）
+#### LAN配信モード（PCサーバー → スマホブラウザ）
 状態: 検討中
 目的: server.py をLAN開放し、同一Wi-Fi上のスマホからアクセスできるようにする
 
@@ -76,11 +129,8 @@
 
 備考: Phase化する場合は server.py 改修・音声配信・UI対応の3段階に分割予定
 
-### 音楽理論・学習支援基盤（theory.js）
-
-ギター学習支援機能追加に向け、
-コード理論情報を扱う theory.js layer の導入を検討。
-
+#### 音楽理論・学習支援基盤（theory.js）
+状態: 検討中
 目的:
 - コード構成音表示
 - キー/度数解析
@@ -100,6 +150,8 @@ tones / intervals / harmonic relation を持たない。
   tones: ["C","E","G","B"],
   intervals: [1,3,5,7]
 }
+```
+
 ---
 
 ## 3. UI/UX課題
@@ -120,9 +172,9 @@ tones / intervals / harmonic relation を持たない。
 状態: 再現性確認中
 内容: 既存プロジェクトファイルを開いた状態で上書き保存しても、ファイル選択ダイアログが開くことがある。再現条件の特定が必要
 
-### http://localhost:8767/index.html を開こうとするとずっと読み込み中になり開かないことがある
+### localhost:8767 が読み込み中のまま開かないことがある
 状態: 再現性確認中
-内容: http://localhost:8767/index.html を開こうとするとずっと読み込み中になり開かないことがある。読み込みを中止して再度読み込むと比較的早く開く。再現条件の特定が必要
+内容: 読み込みを中止して再度読み込むと比較的早く開く。再現条件の特定が必要
 
 ---
 
@@ -132,3 +184,4 @@ tones / intervals / harmonic relation を持たない。
 - `idb.js` は最低構成（GC・schema migration・compression なし）
   - asset種類追加: key形式 `${projectId}:${type}` に新typeを追加
   - schema変更: `DB_VERSION` をインクリメントして `onupgradeneeded` を更新
+- `openAddChord` が app.js に残留（意図的・将来 chordEntry.js 化を想定）

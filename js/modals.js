@@ -53,6 +53,9 @@ let _onAddDiagram     = null;  // (name, variant) => void
 let _onUpdateDiagram  = null;  // (chord, id, patch) => void
 let _getDiagCallbacks = null;  // () => { onEdit, onDelete }
 
+// 33-3: chord modal用
+let _onPreviewChord = null;  // (chord: string) => void
+
 
 // ────────────────────────────────────────
 // INIT
@@ -76,6 +79,7 @@ export function initModals({
   // 33-2: diagram modal用
   getPreviewSvg, getCapo, generateId,
   onAddDiagram, onUpdateDiagram, getDiagCallbacks,
+  onPreviewChord,
 }) {
   _openModal    = openModal;
   _closeModal   = closeModal;
@@ -89,6 +93,7 @@ export function initModals({
   _onAddDiagram     = onAddDiagram     ?? null;
   _onUpdateDiagram  = onUpdateDiagram  ?? null;
   _getDiagCallbacks = getDiagCallbacks ?? null;
+  _onPreviewChord = onPreviewChord ?? null;
 }
 
 
@@ -554,6 +559,75 @@ export function openEditDiagramModal({ chord, id, variant }) {
         _onUpdateDiagram(chord, id, patch);  // app.js が undo + mutation + refresh を担当
         close();
         _toast('✅ 編集しました');
+      }),
+    ],
+  });
+}
+
+// ────────────────────────────────────────
+// openChordEdit
+// ────────────────────────────────────────
+/**
+ * コードを編集するモーダル
+ *
+ * 【ownership図】
+ *   app.js
+ *     └ chord（現在値・読み取り専用）・onConfirm・onDelete を渡す
+ *           ↓
+ *   modals.js（このファイル）
+ *     └ 入力UI生成
+ *     └ input変更 → onPreviewChord(chord) で右パネル更新を依頼
+ *     └ onConfirm(newChord) で app.js へ通知
+ *     └ onDelete() で app.js へ通知
+ *     └ close は内部で呼ぶ
+ *
+ *   app.js（onConfirm の中）
+ *     └ addToPaletteIfNew()
+ *     └ chords[ci].chord = v
+ *     └ refreshEditor()
+ *
+ *   app.js（onDelete の中）
+ *     └ chords.splice(ci, 1)
+ *     └ refreshEditor()
+ *
+ * @param {object} opts
+ * @param {string}   opts.chord     - 現在のコード名（初期値として使用）
+ * @param {Function} opts.onConfirm - (newChord: string) => void
+ * @param {Function} opts.onDelete  - () => void
+ */
+export function openChordEdit({ chord, onConfirm, onDelete }) {
+  _openModal({
+    title: 'コードを編集',
+      body: `<input type="text" id="mi-c" class="mi"
+              style="font-size:18px;letter-spacing:2px"
+              autocomplete="off">`,
+      onOpen: () => {
+        const el = document.getElementById('mi-c');
+        if (!el) return;
+        el.value = chord;   // ← onOpen内でセット
+        el.focus();
+        el.select();
+        el.addEventListener('input', () => {
+        _onPreviewChord?.(el.value.trim());
+      });
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          const v = el.value.trim();
+          if (v) onConfirm(v);
+          _closeModal();
+        }
+      });
+    },
+    buttons: (close) => [
+      _mkMBtn('キャンセル', '', close),
+      _mkMBtn('削除', 'del', () => {
+        onDelete();
+        close();
+      }),
+      _mkMBtn('更新', 'ok', () => {
+        const v = document.getElementById('mi-c')?.value.trim();
+        if (v) onConfirm(v);
+        close();
       }),
     ],
   });

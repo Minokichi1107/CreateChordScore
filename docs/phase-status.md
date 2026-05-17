@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase32完了時点
+> 最終更新: Phase33完了時点
 
 ---
 
@@ -99,17 +99,23 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - semantic token整理・theme.css 大規模整理
 - perform text token整理・theme architecture 安定化
 
-### Phase32
+### Phase32 — IndexedDB導入・演奏モード改善
 - 演奏モードヘッダーへのカポ番号表示
 - IndexedDB導入（idb.js）・audio/chord_source 自動復元（Issue #29）
 - docs整備開始
+
+### Phase33 — modals.js切り出し・dependency injection確立
+- modals.js 新設（time / repeat / copy / diagram / chordEdit）
+- dependency injection パターン確立（initModals）
+- openChordEdit: onPreviewChord による抽象callback導入
+- openAddChord: ライブ編集型のため app.js に意図的残留（将来 chordEntry.js 化を想定）
 
 ---
 
 ## 現在地
 
-- Phase32完了・mainブランチ
-- ドキュメント整備中（docs/architecture/）
+- Phase33完了・mainブランチ
+- modals.js 導入済み（dependency injection パターン確立）
 - CSS責務分離完了（base / theme / layout / components / state / perform）
 - IndexedDB基盤導入済み
 
@@ -119,6 +125,14 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 
 詳細は `current-issues.md` のバックログを参照。
 
-- プロジェクトDBライブラリタブ追加（右パネル）
+優先度高：
+- ダイアグラム固定操作（diagLocked状態導入）
+- 左パネル自動折りたたみ（responsive対応）
+
+優先度中：
 - TAPボタン色設計
 - components.css整理
+
+将来（設計議論が必要）：
+- openAddChord subsystem化（chordEntry.js）
+- 行またぎコード移動
