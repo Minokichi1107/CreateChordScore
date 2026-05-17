@@ -302,7 +302,23 @@ def main():
 
     # 変換・保存
     result = convert_to_player_json(chord_resp, beat_resp, os.path.basename(args.audio))
-    out = args.output or os.path.splitext(args.audio)[0] + "_chords.json"
+    # プロジェクトルート
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # resource/chords
+    OUTPUT_DIR = os.path.join(PROJECT_ROOT, "resource", "chords")
+
+    # フォルダが無ければ作成
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    # 曲名だけ取得
+    base_name = os.path.splitext(os.path.basename(args.audio))[0]
+
+    # デフォルト出力先
+    default_out = os.path.join(OUTPUT_DIR, base_name + "_chords.json")
+
+    # --output が指定された場合はそちら優先
+    out = args.output or default_out
 
     with open(out, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
