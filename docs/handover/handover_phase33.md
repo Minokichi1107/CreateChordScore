@@ -2,7 +2,7 @@
 
 ## 作業状態
 - ブランチ: main
-- 直前作業: Phase33-1完了（modals.js切り出し）
+- 直前作業: Phase33-2完了（diagram modal群切り出し）
 
 ---
 
@@ -41,16 +41,45 @@ app.js の責務
 
 ---
 
+### Phase33-2完了: diagram modal群の切り出し
+
+#### modals.js への追加
+- `openAddDiagramModal({ defaultChord })`
+- `openEditDiagramModal({ chord, id, variant })`
+- 内部helper: `buildDiagramForm()` / `updatePreview()`
+
+#### 設計ポイント
+- `chords.js` への直接依存を排除（app.js経由に統一）
+- `getPreviewSvg({ frets, barre })` : SVG文字列を受け取るだけ（payload object化）
+- `onAddDiagram` / `onUpdateDiagram` : app.js が mutation + refresh を担当
+- preview更新はmodal内部で完結（local UI state）
+
+#### initModals追加注入
+```
+getPreviewSvg:    ({ frets, barre }) => drawDiagram(frets, barre),
+getCapo:          () => project.capo ?? 0,
+generateId:       () => crypto.randomUUID(),
+onAddDiagram:     (name, variant) => { ... },
+onUpdateDiagram:  (chord, id, patch) => { ... },
+getDiagCallbacks: () => getDiagCallbacks(),
+```
+
+#### 注意点（getDiagCallbacks内のonEdit）
+- `findChord()` ではなく `getChordEntry()` + `.data.v` を使う
+
+---
+
 ## 次のステップ
 
-### Phase33-2（次回）: diagram modal群の切り出し
-- `openAddDiagramModal`
-- `openEditDiagramModal`
-- 同じ依存注入パターンで modals.js に追加
+### Phase33-3（次回）: chord modal群（依存が重い・要設計議論）
 
-### Phase33-3（その後）: chord modal群（依存が重い・最後）
-- `openAddChord`
-- `openChordEdit`
+**`openChordEdit`** — 軽い（約15行）
+- 33-1/33-2と同じパターンで切り出せる
+
+**`openAddChord`** — 重い（約145行）・要注意
+- modal開放中も `project.lines` をリアルタイム直接書き換え
+- 「確定時にcallbackで通知」設計とは根本的に異なる
+- 次回セッションで設計方針から議論する
 
 ---
 
@@ -85,8 +114,8 @@ app.js の責務
 
 ## バックログ（Phase33以降の優先順）
 
-1. **Phase33-2**: diagram modal群の切り出し（openAddDiagramModal / openEditDiagramModal）
-2. **Phase33-3**: chord modal群の切り出し（openAddChord / openChordEdit）
+1. **Phase33-3**: chord modal群の切り出し（openAddChord / openChordEdit）※要設計議論
+2. **編集効率化・UI修正**: 編集体験の改善系（詳細は current-issues.md 参照）
 3. **編集効率化・UI修正**: 編集体験の改善系（詳細は current-issues.md 参照）
 4. **TAPボタン色設計**: ボタン体系統一・semantic color再設計（`#2b54af` 直指定の解消）
 5. **components.css整理**: テーマ依存色の残存箇所をtheme.cssへ移管
