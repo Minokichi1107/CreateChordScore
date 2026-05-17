@@ -31,3 +31,7 @@ __pycache__/
 
 # ドキュメント草稿
 /docs/draft/
+
+# 個人作業データ
+resource/projects/*.json
+resource/chords/*.json
