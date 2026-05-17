@@ -157,6 +157,8 @@ import {
   openTimeModal,
   openRepeatModal,
   openCopyModal,
+  openAddDiagramModal,  // 追加
+  openEditDiagramModal, // 追加
 } from './modals.js';
 
 // ════════════════════════════════════════
@@ -832,65 +834,6 @@ function openChordEdit(idx,ci){
   setTimeout(()=>{const el=document.getElementById('mi-c');if(el){el.focus();el.select();el.addEventListener('keydown',e=>{if(e.key==='Enter')mBtns.querySelector('.ok').click();});el.addEventListener('input',()=>setDiagRight(el.value, getCapo()));}},80);
 }
 
-// ダイアグラム手動登録モーダル
-function openAddDiagramModal(defaultChord=''){
-  mTit.textContent='ギターダイアグラムを手動登録';
-  mBody.innerHTML=`
-    <div class="diagram-string-grid modal-section">
-      <div>
-        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">コード名</div>
-        <input type="text" id="dd-n" class="mi-sm" value="${defaultChord}" placeholder="例: Cadd9" style="text-align:center;font-size:14px;letter-spacing:1px">
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">ポジション名</div>
-        <input type="text" id="dd-v" class="mi-sm" value="カスタム" placeholder="ロー/バレー等">
-      </div>
-    </div>
-    <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px">各弦のフレット番号（6弦=低音側 → 1弦=高音側）<br><span style="color:var(--color-amber)">−1=ミュート　0=開放　1〜22=フレット番号</span></div>
-    <div class="diagram-string-grid modal-section">
-      ${['6弦','5弦','4弦','3弦','2弦','1弦'].map((s,i)=>`
-        <div class="diagram-string-field">
-          <div class="modal-field-label" style="margin-bottom:3px">${s}</div>
-          <input type="number" id="dd-f${i}" value="0" min="-1" max="22" oninput="_pd()">
-        </div>`).join('')}
-    </div>
-    <div style="display:flex;gap:14px;align-items:start">
-      <div>
-        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">セーハ（0=なし）</div>
-        <input type="number" id="dd-b" value="0" min="0" max="22"
-          style="width:68px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:14px;padding:5px;text-align:center"
-          oninput="_pd()">
-      </div>
-      <div style="flex:1;text-align:center">
-        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">プレビュー</div>
-        <div id="dd-prev" style="display:flex;justify-content:center"></div>
-      </div>
-    </div>
-    <div style="margin-top:8px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">※ 登録はブラウザのサイトデータを削除するまで保持されます</div>`;
-  window._pd=()=>{
-    const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`dd-f${i}`)?.value)||0);
-    const br=parseInt(document.getElementById('dd-b')?.value)||0;
-    const el=document.getElementById('dd-prev');if(el)el.innerHTML=drawDiagram(fr,br||null);
-  };
-  setTimeout(window._pd,50);
-  mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  mBtns.appendChild(mkMBtn('登録','ok',()=>{
-    const name=document.getElementById('dd-n').value.trim();
-    const vname=document.getElementById('dd-v').value.trim()||'カスタム';
-    if(!name){toast('コード名を入力してください');return;}
-    const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`dd-f${i}`).value)||0);
-    const br=parseInt(document.getElementById('dd-b').value)||0;
-    // 追加モーダルは常に新規idで追加（編集はopenEditDiagramModal側で処理）
-    const variant={n:vname,f:fr,b:br||undefined,_custom:true,_id:generateId()};
-    addCustomDiagram(name, variant);
-    saveCustomDiagrams();
-    showDiagramPanel(name, getCapo(), getDiagCallbacks());document.getElementById('diag-in').value=name;
-    closeMod();toast(`✅ "${name}" (${vname}) を登録・保存しました`);
-  }));
-  mOv.classList.add('open');
-  setTimeout(()=>{const el=document.getElementById('dd-n');if(el){el.focus();el.select();}},80);
-}
-
 // ダイアグラム編集・削除
 function refreshDiagrams(){
   loadCustomDiagrams();
@@ -902,7 +845,19 @@ function refreshDiagrams(){
 
 function getDiagCallbacks(){
   return {
-    onEdit:   (chord, id) => openEditDiagramModal(chord, id),
+     /**
+     * onEdit callback
+     *   diagram一覧の「編集」ボタンから呼ばれる。
+     *   chord / id を受け取り、variant を lookup して modal に渡す。
+     *   variant の取得は app.js が行う（modals.js に lookup させない）。
+     */
+    onEdit: (chord, id) => {
+      const entry   = getChordEntry(chord);
+      if (!entry) { toast('ダイアグラムが見つかりません'); return; }
+      const variant = entry.data.v.find(v => v._id === id);
+      if (!variant) { toast('ダイアグラムが見つかりません'); return; }
+      openEditDiagramModal({ chord, id, variant });
+    },
     onDelete: (chord, id) => deleteDiagramVariant(chord, id),
   };
 }
@@ -914,63 +869,6 @@ function deleteDiagramVariant(chord, id){
   saveCustomDiagrams();
   refreshDiagrams();
   toast('削除しました');
-}
-
-function openEditDiagramModal(chord, id){
-  const _entry = getChordEntry(chord);
-  if(!_entry) return;
-  const vr = _entry.data.v.find(v => v._id === id);
-  if(!vr) return;
-  mTit.textContent='ギターダイアグラムを編集';
-  mBody.innerHTML=`
-    <div class="diagram-string-grid modal-section">
-      <div>
-        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">コード名</div>
-        <input type="text" id="de-n" class="mi-sm" value="${chord}" disabled style="text-align:center;font-size:14px;letter-spacing:1px;opacity:0.6">
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">ポジション名</div>
-        <input type="text" id="de-v" class="mi-sm" value="${vr.n}" placeholder="ロー/バレー等">
-      </div>
-    </div>
-    <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px">各弦のフレット番号（6弦=低音側 → 1弦=高音側）<br><span style="color:var(--color-amber)">−1=ミュート　0=開放　1〜22=フレット番号</span></div>
-    <div class="diagram-string-grid modal-section">
-      ${[6,5,4,3,2,1].map((s,i)=>`
-        <div class="diagram-string-field">
-          <div class="modal-field-label" style="margin-bottom:3px">${s}弦</div>
-          <input type="number" id="de-f${i}" value="${vr.f[i]}" min="-1" max="22" oninput="_ped()">
-        </div>`).join('')}
-    </div>
-    <div style="display:flex;gap:14px;align-items:start">
-      <div>
-        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">セーハ（0=なし）</div>
-        <input type="number" id="de-b" value="${vr.b||0}" min="0" max="22"
-          style="width:68px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);font-size:14px;padding:5px;text-align:center"
-          oninput="_ped()">
-      </div>
-      <div style="flex:1;text-align:center">
-        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">プレビュー</div>
-        <div id="de-prev" style="display:flex;justify-content:center"></div>
-      </div>
-    </div>`;
-  window._ped=()=>{
-    const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`de-f${i}`)?.value)||0);
-    const br=parseInt(document.getElementById('de-b')?.value)||0;
-    const el=document.getElementById('de-prev');if(el)el.innerHTML=drawDiagram(fr,br||null);
-  };
-  setTimeout(window._ped,50);
-  mBtns.appendChild(mkMBtn('キャンセル','',closeMod));
-  mBtns.appendChild(mkMBtn('保存','ok',()=>{
-    const vname=document.getElementById('de-v').value.trim()||'カスタム';
-    const fr=Array.from({length:6},(_,i)=>parseInt(document.getElementById(`de-f${i}`).value)||0);
-    const br=parseInt(document.getElementById('de-b').value)||0;
-    diagPushUndo();
-    updateCustomDiagram(chord, id, { n:vname, f:fr, b:br||undefined });
-    saveCustomDiagrams();
-    refreshDiagrams();
-    closeMod();toast(`✅ 編集しました`);
-  }));
-  mOv.classList.add('open');
 }
 
 // ════════════════════════════════════════
@@ -1546,7 +1444,11 @@ function setupEventHandlers() {
 
   // UI: ダイアグラム追加ボタン
   const _diagBtn=document.getElementById('btn-add-diag');
-  if(_diagBtn)_diagBtn.addEventListener('click',()=>openAddDiagramModal(document.getElementById('diag-in').value.trim()));
+  if(_diagBtn) _diagBtn.addEventListener('click', () =>
+    openAddDiagramModal({
+      defaultChord: document.getElementById('diag-in').value.trim()
+    })
+  );
 
   // ============================================
   // Capo Events
@@ -1761,9 +1663,10 @@ function setupEventHandlers() {
   // Bottom Diagram Button
   // ============================================
   const btnAddDiagBottom=document.getElementById('btn-add-diag-bottom');
-  if(btnAddDiagBottom) btnAddDiagBottom.addEventListener('click',()=>{
-    const chord=document.getElementById('diag-in').value.trim();
-    openAddDiagramModal(chord);
+  if(btnAddDiagBottom) btnAddDiagBottom.addEventListener('click', () => {
+    openAddDiagramModal({
+      defaultChord: document.getElementById('diag-in').value.trim()
+    });
   });
 
   document.getElementById('btn-diag-undo')?.addEventListener('click', () => {
@@ -1933,11 +1836,78 @@ window.addEventListener('DOMContentLoaded',()=>{
    */
   
   initModals({
+    // 33-1:
     openModal,
     closeModal: closeMod,
     mkMBtn,
     toast,
     getAudioTime: () => aEl.currentTime,
+
+    // 33-2: diagram modal用
+    /**
+     * getPreviewSvg
+     *   modals.js はSVG生成方法を知らない。
+     *   「フレット値を渡したらSVG文字列が返ってくる」だけを知っている。
+     *   chords.js の drawDiagram は app.js 経由で呼ぶ（直接importは禁止）。
+     *
+     * payload object化の理由：
+     *   将来 capo / compact / theme 等が増えても呼び出し側を変えなくて済む。
+     */
+    getPreviewSvg: ({ frets, barre }) => drawDiagram(frets, barre),
+
+    /**
+     * getCapo
+     *   カポ番号の取得。modals.js に project を丸渡ししない。
+     *   必要な値だけを accessor として渡す。
+     */
+    getCapo: () => project.capo ?? 0,
+
+    /**
+     * generateId
+     *   variant ID の生成。ID policy は orchestration責務なので modal側に持たせない。
+     */
+    generateId: () => crypto.randomUUID(),
+
+    /**
+     * onAddDiagram
+     *   登録ボタン確定後の mutation を app.js が担当。
+     *
+     *   【フロー】
+     *     modals.js が onAddDiagram(name, variant) を呼ぶ
+     *       ↓
+     *     app.js が chords.js API を呼ぶ
+     *       ↓
+     *     refreshDiagrams() で画面を更新
+     */
+    onAddDiagram: (name, variant) => {
+      addCustomDiagram(name, variant);
+      saveCustomDiagrams();
+      refreshDiagrams();
+    },
+
+    /**
+     * onUpdateDiagram
+     *   編集確定後の mutation を app.js が担当。
+     *   undo用の diagPushUndo() もここで呼ぶ。
+     *
+     *   【フロー】
+     *     modals.js が onUpdateDiagram(chord, id, patch) を呼ぶ
+     *       ↓
+     *     app.js が undo push → mutation → save → refresh を担当
+     */
+    onUpdateDiagram: (chord, id, patch) => {
+      diagPushUndo();
+      updateCustomDiagram(chord, id, patch);
+      saveCustomDiagrams();
+      refreshDiagrams();
+    },
+
+    /**
+     * getDiagCallbacks
+     *   diagram一覧の各ボタン（編集・削除）のcallback群を返す。
+     *   modals.js は各ボタンの中身を知らない。
+     */
+    getDiagCallbacks: () => getDiagCallbacks(),
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）

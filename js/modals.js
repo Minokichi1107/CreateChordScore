@@ -38,11 +38,20 @@
 // MODULE STATE
 // initModals() で設定される注入済み依存
 // ────────────────────────────────────────
-let _openModal   = null;  // () => void : モーダルを開く
-let _closeModal  = null;  // () => void : モーダルを閉じる
-let _mkMBtn      = null;  // (txt, cls, fn) => HTMLElement : ボタン生成
-let _toast       = null;  // (msg) => void : トースト通知
-let _getAudioTime = null; // () => number : 現在再生位置（秒）
+// 33-1: 共通土台
+let _openModal    = null;  // ({ title, body, onOpen, buttons }) => void
+let _closeModal   = null;  // () => void
+let _mkMBtn       = null;  // (txt, cls, fn) => HTMLElement
+let _toast        = null;  // (msg) => void
+let _getAudioTime = null;  // () => number : 現在再生位置（秒）
+
+// 33-2: diagram modal用
+let _getPreviewSvg    = null;  // ({ frets, barre }) => string : SVG文字列
+let _getCapo          = null;  // () => number
+let _generateId       = null;  // () => string
+let _onAddDiagram     = null;  // (name, variant) => void
+let _onUpdateDiagram  = null;  // (chord, id, patch) => void
+let _getDiagCallbacks = null;  // () => { onEdit, onDelete }
 
 
 // ────────────────────────────────────────
@@ -61,12 +70,25 @@ let _getAudioTime = null; // () => number : 現在再生位置（秒）
  * @param {Function} deps.toast        - トースト通知
  * @param {Function} deps.getAudioTime - 現在の再生位置（秒）を返す
  */
-export function initModals({ openModal, closeModal, mkMBtn, toast, getAudioTime }) {
+export function initModals({
+  // 33-1: 共通土台
+  openModal, closeModal, mkMBtn, toast, getAudioTime,
+  // 33-2: diagram modal用
+  getPreviewSvg, getCapo, generateId,
+  onAddDiagram, onUpdateDiagram, getDiagCallbacks,
+}) {
   _openModal    = openModal;
   _closeModal   = closeModal;
   _mkMBtn       = mkMBtn;
   _toast        = toast;
   _getAudioTime = getAudioTime;
+
+  _getPreviewSvg    = getPreviewSvg    ?? null;
+  _getCapo          = getCapo          ?? null;
+  _generateId       = generateId       ?? null;
+  _onAddDiagram     = onAddDiagram     ?? null;
+  _onUpdateDiagram  = onUpdateDiagram  ?? null;
+  _getDiagCallbacks = getDiagCallbacks ?? null;
 }
 
 
@@ -297,5 +319,242 @@ export function openCopyModal({ fromIdx, line, lines, onCopy }) {
         _mkMBtn('追記',   'ok', () => doCopy(false)),
       ];
     },
+  });
+}
+
+
+// ────────────────────────────────────────
+// 内部ヘルパー — buildDiagramForm
+// ────────────────────────────────────────
+/**
+ * Add/Edit 両モーダルで共通のフォームHTML を生成する
+ *
+ * 【なぜ共通化するか】
+ *   openAddDiagramModal と openEditDiagramModal は
+ *   フレット入力UI・プレビューエリア・説明文がほぼ同一。
+ *   重複を内部helperに寄せておくことで、
+ *   将来の仕様変更（弦数・範囲変更等）を1箇所で対応できる。
+ *
+ * 【local UI state の閉じ込め】
+ *   この関数が返すHTMLは「描画用の文字列」のみ。
+ *   フレット値の読み取りはonOpen内のイベントで行い、
+ *   stateとして保持しない（DOM値を直接読む方式）。
+ *
+ * @param {object} opts
+ * @param {string}   opts.prefix   - 入力要素IDのプレフィックス（'dd' or 'de'）
+ * @param {number[]} opts.frets    - 初期フレット値（6弦分）
+ * @param {number}   opts.barre    - 初期セーハ値
+ */
+function buildDiagramForm({ prefix, frets, barre }) {
+  return `
+    <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px">
+      各弦のフレット番号（6弦=低音側 → 1弦=高音側）<br>
+      <span style="color:var(--color-amber)">−1=ミュート　0=開放　1〜22=フレット番号</span>
+    </div>
+    <div class="diagram-string-grid modal-section">
+      ${['6弦','5弦','4弦','3弦','2弦','1弦'].map((s, i) => `
+        <div class="diagram-string-field">
+          <div class="modal-field-label" style="margin-bottom:3px">${s}</div>
+          <input type="number" id="${prefix}-f${i}"
+            value="${frets[i] ?? 0}" min="-1" max="22"
+            data-preview="${prefix}">
+        </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:14px;align-items:start">
+      <div>
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">
+          セーハ（0=なし）</div>
+        <input type="number" id="${prefix}-b" value="${barre ?? 0}" min="0" max="22"
+          style="width:68px;background:var(--surface-overlay);border:1px solid var(--border-ui);
+            border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);
+            font-size:14px;padding:5px;text-align:center"
+          data-preview="${prefix}">
+      </div>
+      <div style="flex:1;text-align:center">
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">
+          プレビュー</div>
+        <div id="${prefix}-prev" style="display:flex;justify-content:center"></div>
+      </div>
+    </div>`;
+}
+
+/**
+ * プレビューを更新する内部ヘルパー
+ *
+ * 【local UI state】
+ *   フレット値はDOMから直接読む。
+ *   modals.js内のローカル処理なので state mutation ではない。
+ *
+ * 【getPreviewSvg の役割】
+ *   SVG生成は chords.js の責務。
+ *   modals.js は「SVG文字列を受け取って表示するだけ」。
+ *
+ * @param {string} prefix - 'dd' or 'de'
+ */
+function updatePreview(prefix) {
+  const frets = Array.from({ length: 6 }, (_, i) =>
+    parseInt(document.getElementById(`${prefix}-f${i}`)?.value) || 0
+  );
+  const barre = parseInt(document.getElementById(`${prefix}-b`)?.value) || 0;
+  const el = document.getElementById(`${prefix}-prev`);
+  if (el) el.innerHTML = _getPreviewSvg({ frets, barre: barre || null });
+}
+
+
+// ────────────────────────────────────────
+// openAddDiagramModal
+// ────────────────────────────────────────
+/**
+ * ギターダイアグラムを新規登録するモーダル
+ *
+ * 【ownership図】
+ *
+ *   app.js
+ *     └ defaultChord（初期値）・onAddDiagram を渡す
+ *           ↓
+ *   modals.js（このファイル）
+ *     └ フォームUI生成（buildDiagramForm）
+ *     └ フレット変更 → updatePreview()（local UI state）
+ *     └ 「登録」→ onAddDiagram(name, variant) で app.js へ通知
+ *     └ close は内部で呼ぶ
+ *
+ *   app.js（onAddDiagram の中）
+ *     └ addCustomDiagram()   ← chords.js API
+ *     └ saveCustomDiagrams() ← chords.js API
+ *     └ refreshDiagrams()    ← app.js
+ *
+ * @param {object} opts
+ * @param {string} opts.defaultChord - コード名の初期値（省略可）
+ */
+export function openAddDiagramModal({ defaultChord = '' } = {}) {
+  _openModal({
+    title: 'ギターダイアグラムを手動登録',
+    body: `
+      <div class="diagram-string-grid modal-section">
+        <div>
+          <div class="modal-field-label">コード名</div>
+          <input type="text" id="dd-n" class="mi-sm"
+            value="${defaultChord}" placeholder="例: Cadd9"
+            style="text-align:center;font-size:14px;letter-spacing:1px">
+        </div>
+        <div>
+          <div class="modal-field-label">ポジション名</div>
+          <input type="text" id="dd-v" class="mi-sm"
+            value="カスタム" placeholder="ロー/バレー等">
+        </div>
+      </div>
+      ${buildDiagramForm({ prefix: 'dd', frets: [0,0,0,0,0,0], barre: 0 })}
+      <div style="margin-top:8px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">
+        ※ 登録はブラウザのサイトデータを削除するまで保持されます</div>`,
+    onOpen: () => {
+      // フレット/セーハ変更 → プレビュー更新（local UI stateの閉じ込め）
+      document.querySelectorAll('[data-preview="dd"]').forEach(el => {
+        el.addEventListener('input', () => updatePreview('dd'));
+      });
+      // 初期プレビュー
+      updatePreview('dd');
+      // フォーカス
+      const el = document.getElementById('dd-n');
+      if (el) { el.focus(); el.select(); }
+    },
+    buttons: (close) => [
+      _mkMBtn('キャンセル', '', close),
+      _mkMBtn('登録', 'ok', () => {
+        const name  = document.getElementById('dd-n').value.trim();
+        const vname = document.getElementById('dd-v').value.trim() || 'カスタム';
+        if (!name) { _toast('コード名を入力してください'); return; }
+        const frets = Array.from({ length: 6 }, (_, i) =>
+          parseInt(document.getElementById(`dd-f${i}`).value) || 0
+        );
+        const barre = parseInt(document.getElementById('dd-b').value) || 0;
+        // variant生成・ID付与は app.js 側の generateId を使う
+        // （ID policy は orchestration責務のため modal側で持たない）
+        const variant = {
+          n: vname,
+          f: frets,
+          b: barre || undefined,
+          _custom: true,
+          _id: _generateId(),
+        };
+        _onAddDiagram(name, variant);  // app.js が mutation + refresh を担当
+        close();
+        _toast(`✅ "${name}" (${vname}) を登録・保存しました`);
+      }),
+    ],
+  });
+}
+
+
+// ────────────────────────────────────────
+// openEditDiagramModal
+// ────────────────────────────────────────
+/**
+ * 既存のカスタムダイアグラムを編集するモーダル
+ *
+ * 【ownership図】
+ *
+ *   app.js（getDiagCallbacks経由で呼ばれる）
+ *     └ chord（コード名）・id（variant ID）・variant（初期値）を渡す
+ *           ↓
+ *   modals.js（このファイル）
+ *     └ フォームUI生成（buildDiagramForm・初期値あり）
+ *     └ フレット変更 → updatePreview()（local UI state）
+ *     └ 「保存」→ onUpdateDiagram(chord, id, patch) で app.js へ通知
+ *     └ close は内部で呼ぶ
+ *
+ *   app.js（onUpdateDiagram の中）
+ *     └ diagPushUndo()         ← chords.js API
+ *     └ updateCustomDiagram()  ← chords.js API
+ *     └ saveCustomDiagrams()   ← chords.js API
+ *     └ refreshDiagrams()      ← app.js
+ *
+ * 【addとの違い】
+ *   - コード名は変更不可（disabled）
+ *   - 初期値として既存 variant の値を使う
+ *   - 登録ではなく「更新」なので _generateId は不要
+ *
+ * @param {object} opts
+ * @param {string}   opts.chord   - コード名（表示・更新キー）
+ * @param {string}   opts.id      - variant ID
+ * @param {object}   opts.variant - 既存variant（{ n, f, b }）
+ */
+export function openEditDiagramModal({ chord, id, variant }) {
+  _openModal({
+    title: 'ギターダイアグラムを編集',
+    body: `
+      <div class="diagram-string-grid modal-section">
+        <div>
+          <div class="modal-field-label">コード名</div>
+          <input type="text" id="de-n" class="mi-sm"
+            value="${chord}" disabled
+            style="text-align:center;font-size:14px;letter-spacing:1px;opacity:0.6">
+        </div>
+        <div>
+          <div class="modal-field-label">ポジション名</div>
+          <input type="text" id="de-v" class="mi-sm"
+            value="${variant.n}" placeholder="ロー/バレー等">
+        </div>
+      </div>
+      ${buildDiagramForm({ prefix: 'de', frets: variant.f, barre: variant.b ?? 0 })}`,
+    onOpen: () => {
+      document.querySelectorAll('[data-preview="de"]').forEach(el => {
+        el.addEventListener('input', () => updatePreview('de'));
+      });
+      updatePreview('de');
+    },
+    buttons: (close) => [
+      _mkMBtn('キャンセル', '', close),
+      _mkMBtn('保存', 'ok', () => {
+        const vname = document.getElementById('de-v').value.trim() || 'カスタム';
+        const frets = Array.from({ length: 6 }, (_, i) =>
+          parseInt(document.getElementById(`de-f${i}`).value) || 0
+        );
+        const barre = parseInt(document.getElementById('de-b').value) || 0;
+        const patch = { n: vname, f: frets, b: barre || undefined };
+        _onUpdateDiagram(chord, id, patch);  // app.js が undo + mutation + refresh を担当
+        close();
+        _toast('✅ 編集しました');
+      }),
+    ],
   });
 }
