@@ -110,6 +110,22 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - openChordEdit: onPreviewChord による抽象callback導入
 - openAddChord: ライブ編集型のため app.js に意図的残留（将来 chordEntry.js 化を想定）
 
+### Phase34 — diagLocked（右パネル固定）
+
+#### Phase34-1a: state導入・hover抑止
+- `diagLocked` / `diagLockedChord` / `currentDiagChord` 追加（独立let変数）
+- `lockDiag` / `unlockDiag` / `canUpdateDiagFromHover` / `updateDiagRight` API追加
+- `updateDiagRight` を右パネル更新の正式APIとして確立（app.js内でsetDiagRight直接呼び出しをゼロ化）
+- hover guard 2箇所（renderPalette / createEditorCallbacks）
+
+#### Phase34-1b: UI・キー操作実装
+- Lキー: diagLock toggle（INPUT/TEXTAREA・演奏モード中はguard）
+- Escキー: modal close優先 → diagLock解除
+- ヘッダービジュアル: `CHORD DIAGRAM 🔒`（amber色、visibility切替方式）
+- `onChordHover` callback追加（editor.js）: setDiagRight + showPopup を一元管理・guard適用
+- dblclick: 保留（click/modal競合による複合問題。hover overlay redesignと合わせて将来対応）
+- `docs/keybindings.md` 新設（Lキー・Escキー含む全キーバインド管理台帳）
+
 ---
 
 ## 現在地

@@ -18,11 +18,9 @@
 - hover preview と locked preview を状態として分離
 - `uiState` に `diagLocked: false` を追加する方向
 
-### 左パネル自動折りたたみ
-状態: 未着手
-内容: ウィンドウ縮小時に左パネルを自動collapse。
-注意: 現状の `leftCollapsed`（ユーザー意思）と自動collapse（responsive状態）は別管理が必要。
-将来的に `manualCollapsed` / `autoCollapsed` として分離することを検討。
+#### 左パネル自動折りたたみ
+状態: **完了（Phase34-2）**
+ブレークポイント: 960px
 
 ### TAPボタン色設計
 状態: 未着手
@@ -151,6 +149,13 @@ tones / intervals / harmonic relation を持たない。
   intervals: [1,3,5,7]
 }
 ```
+### diagLocked — 将来拡張候補
+状態: 検討
+内容: Phase34-1で確立した diagLocked に将来追加できる操作。
+- dblclick = lock（hover overlay redesign後）
+- long press = lock（タッチ対応時）
+- context menu からのlock
+
 
 ---
 
@@ -176,6 +181,23 @@ tones / intervals / harmonic relation を持たない。
 状態: 再現性確認中
 内容: 読み込みを中止して再度読み込むと比較的早く開く。再現条件の特定が必要
 
+### hover overlay interaction redesign
+状態: 未着手
+内容: chord-tag上のhover popupが操作を阻害している問題の総合対応。
+
+問題の全体像:
+- popup が chord-tag を覆い、その上のクリック操作を奪う
+- dblclick が成立しない（click → modal open → DOM状態変化 → dblclick崩壊の複合）
+- pointer-events / offset / z-index の再設計が必要
+
+対応候補:
+- popup に `pointer-events: none` を追加（popup内にインタラクションがないことを確認の上）
+- popup の表示位置を chord-tag から右方向にオフセット
+- dblclick = lock の実装（popup問題解消後に再挑戦）
+
+注意: dblclick単独の修正ではなく、hover UX全体の設計として扱うこと。
+
+
 ---
 
 ## 4. 既知の技術的負債
@@ -185,3 +207,5 @@ tones / intervals / harmonic relation を持たない。
   - asset種類追加: key形式 `${projectId}:${type}` に新typeを追加
   - schema変更: `DB_VERSION` をインクリメントして `onupgradeneeded` を更新
 - `openAddChord` が app.js に残留（意図的・将来 chordEntry.js 化を想定）
+
+
