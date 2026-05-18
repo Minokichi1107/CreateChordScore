@@ -372,3 +372,53 @@
   color: var(--text-primary);
   border-color: var(--border-focus);
 }
+
+#diag-lock-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-amber);
+  cursor: pointer;
+}
+/* ── diagLock UI ─────────────────────────────
+   .phdr.diag-locked: ロック中のヘッダー色変化
+   theme.css の --color-amber を使用（全テーマ共通）
+   ─────────────────────────────────────────── */
+.phdr.diag-locked {
+  color: var(--color-amber);
+}
+
+#diag-lock-badge {
+  margin-left: 6px;
+  font-size: 13px;
+}
+/* ── diagLock UI ─────────────────────────────
+   右パネルヘッダーのロック状態表示
+   - visibility切替で layout固定（hidden属性不使用）
+   - --color-amber は全テーマで定義済みのため追加変数不要
+   ─────────────────────────────────────────── */
+#panel-right .phdr {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+#diag-lock-badge {
+  width: 1em;
+  font-size: 13px;
+  visibility: hidden;
+}
+
+.phdr.diag-locked {
+  color: var(--color-amber);
+}
+
+.diag-locked #diag-lock-badge {
+  visibility: visible;
+}

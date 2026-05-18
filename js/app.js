@@ -204,6 +204,21 @@ function generateId(){
 let diagOn = true;
 let _prevCapo = 0;
 
+// diagLocked state（将来 uiState 統合時に移行予定）
+let diagLocked = false;
+let diagLockedChord = null;
+
+// 右パネル現在表示中コード（Lキー用 source of truth）
+let currentDiagChord = null;
+
+// 左パネル折りたたみ state
+// leftCollapsedManual: <<ボタン操作（localStorage永続）
+// leftCollapsedAuto:   1440px未満でauto collapse（runtime only）
+// leftExpandedOverride: narrow時にユーザーが手動展開中（runtime only）
+let leftCollapsedManual = false;
+let leftCollapsedAuto = false;
+let leftExpandedOverride = false;
+
 // ファイル保存
 let _fileHandle = null;
 
@@ -230,6 +245,56 @@ let toastT = null;
 // HELPER FUNCTIONS
 // ----------------------------
 function getCapo(){return parseInt(document.getElementById('capo').value)||0;}
+
+// ── 左パネル折りたたみ API ────────────────
+function applyLeftCollapsed() {
+  const collapsed = (leftCollapsedManual || leftCollapsedAuto)
+                    && !leftExpandedOverride;
+  document.body.classList.toggle('left-collapsed', collapsed);
+}
+
+window.addEventListener('resize', () => {
+  const shouldAuto = window.innerWidth < 960;
+  if (shouldAuto === leftCollapsedAuto) return; // 変化なし
+  leftCollapsedAuto = shouldAuto;
+  if (!shouldAuto) leftExpandedOverride = false; // 960以上でoverride reset
+  applyLeftCollapsed();
+});
+
+// ── diagLock API ──────────────────────────
+// diagLocked: hover更新を抑止し右パネルを固定する
+// 将来 uiState 統合時: diagLocked / diagLockedChord を uiState へ移行
+
+// 右パネル更新の正式API（app.js内でsetDiagRightを直接呼ばない）
+// currentDiagChord を常に同期する責務を持つ
+function updateDiagRight(chord, capo = getCapo()) {
+  currentDiagChord = chord;
+  setDiagRight(chord, capo, getDiagCallbacks());
+}
+
+function lockDiag(chord) {
+  if (!chord) return;
+  diagLocked = true;
+  diagLockedChord = chord;
+  updateDiagLockUI();
+}
+function unlockDiag() {
+  diagLocked = false;
+  diagLockedChord = null;
+  updateDiagLockUI();
+}
+function canUpdateDiagFromHover() {
+  return !diagLocked;
+}
+function updateDiagLockUI() {
+  const phdr = document.querySelector('#panel-right .phdr');
+  if (!phdr) return;
+  if (diagLocked) {
+    phdr.classList.add('diag-locked');
+  } else {
+    phdr.classList.remove('diag-locked');
+  }
+}
 
 // ════════════════════════════════════════
 // AUDIO ENGINE（初期化はDOMContentLoadedで実行）
@@ -366,7 +431,10 @@ function renderPalette(){
     const displayChord=transposeChord(chord,paletteTranspose);
     const btn=document.createElement('button');btn.className='pal-chord';btn.textContent=displayChord;
     btn.addEventListener('click',()=>handleAddChordToLine(displayChord));
-    btn.addEventListener('mouseenter',()=>setDiagRight(displayChord, getCapo(), getDiagCallbacks()));
+    btn.addEventListener('mouseenter',()=>{
+      if (!canUpdateDiagFromHover()) return;
+      updateDiagRight(displayChord);
+    });
     c.appendChild(btn);
   });
 }
@@ -448,6 +516,11 @@ function createEditorCallbacks() {
           refreshEditor();
         },
       });
+    },
+    onChordDblClick: (idx, ci, chord) => {
+      closeMod();
+      updateDiagRight(chord);
+      lockDiag(chord);
     },
     onAddChord: (idx) => {
       openAddChord(idx);
@@ -554,7 +627,13 @@ function createEditorCallbacks() {
       });
     },
     setDiagRight: (chord, capo) => {
-      setDiagRight(chord, capo, getDiagCallbacks());
+      if (!canUpdateDiagFromHover()) return;
+      updateDiagRight(chord, capo);
+    },
+    onChordHover: (chord, element) => {
+      if (!canUpdateDiagFromHover()) return;
+      updateDiagRight(chord);
+      showPopup(chord, element);
     },
     showPopup: (chord, element) => {
       showPopup(chord, element);
@@ -824,7 +903,7 @@ function openAddChord(idx){
       });
       inp.addEventListener('input',()=>{
         const v=inp.value.trim();
-        if(v) setDiagRight(v, getCapo());
+        if(v) updateDiagRight(v);
       });
     }
   },80);
@@ -1518,6 +1597,31 @@ function setupEventHandlers() {
         toast('↩ コード自動登録を元に戻しました');
       }
     }
+
+    // L: diagLock トグル（テキスト入力中・演奏モード中は無視）
+    if (e.key === 'l' || e.key === 'L') {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (document.getElementById('perform-overlay')?.hidden === false) return;
+      if (diagLocked) {
+        unlockDiag();
+      } else {
+        if (currentDiagChord) lockDiag(currentDiagChord);
+      }
+    }
+
+    // Escape: modal close を優先、次に diagLock 解除
+    // INPUT/TEXTAREA フォーカス中でも diagLock 解除は動作させる
+    if (e.key === 'Escape') {
+      if (document.getElementById('modal-ov').classList.contains('open')) {
+        closeMod();
+        return;
+      }
+      if (diagLocked) {
+        unlockDiag();
+        return;
+      }
+    }
   });
 
   // ============================================
@@ -1717,11 +1821,25 @@ function setupEventHandlers() {
 window.addEventListener('DOMContentLoaded',()=>{
   // 左パネル折りたたみ
   const btnCollapse = document.getElementById('btn-left-collapse');
+  // 初期化: localStorage → manual / viewport → auto
+  leftCollapsedManual = localStorage.getItem('leftCollapsed') === '1';
+  leftCollapsedAuto = window.innerWidth < 960;
+  applyLeftCollapsed();
+
   if (btnCollapse) {
-    if (localStorage.getItem('leftCollapsed') === '1') document.body.classList.add('left-collapsed');
     btnCollapse.addEventListener('click', () => {
-      const collapsed = document.body.classList.toggle('left-collapsed');
-      localStorage.setItem('leftCollapsed', collapsed ? '1' : '0');
+      const currentlyCollapsed = document.body.classList.contains('left-collapsed');
+      if (currentlyCollapsed) {
+        // 展開方向: override をセット（narrow時の一時展開）
+        leftExpandedOverride = true;
+        leftCollapsedManual = false;
+      } else {
+        // 折りたたみ方向: override をリセット
+        leftExpandedOverride = false;
+        leftCollapsedManual = true;
+      }
+      applyLeftCollapsed();
+      localStorage.setItem('leftCollapsed', leftCollapsedManual ? '1' : '0');
     });
   }
 
@@ -1856,7 +1974,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     getDiagCallbacks: () => getDiagCallbacks(),
 
     // 33-3:
-    onPreviewChord: (chord) => setDiagRight(chord, getCapo()),
+    onPreviewChord: (chord) => updateDiagRight(chord),
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）

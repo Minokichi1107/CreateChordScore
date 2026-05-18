@@ -202,9 +202,14 @@ export function renderLines(lines, uiState, callbacks) {
         if (e.target.classList.contains('del-x')) return;
         onChordEdit(idx, ci);
       });
+      tag.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        if (callbacks.onChordDblClick) callbacks.onChordDblClick(idx, ci, c.chord);
+      });
       tag.addEventListener('mouseenter', () => {
-        setDiagRight(c.chord, capo);
-        showPopup(c.chord, tag);
+        if (callbacks.onChordHover) {
+          callbacks.onChordHover(c.chord, tag);
+        }
       });
       tag.addEventListener('mouseleave', hidePopup);
       const dx = document.createElement('span');
