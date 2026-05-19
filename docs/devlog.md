@@ -373,15 +373,15 @@ regression確認
 
 ### やったこと
 phase35-Theme Layer Cleanup
-components.css の残存直指定を洗い出し（Claude が列挙）
-不足 semantic token を設計（Claude が案を提示 → 確認後確定）
-theme.css への移管実装
-regression確認
+phase36-ホバーオーバーレイ機能をなくす
+右パネルダイアグラム固定表示と解除をlongpressで可能に
 
 ### 気づき
 phase-status.md current-issues.mdの更新がhandover一つで管理していた時より煩雑なので運用変更
 自分で気づいた点はどんどん論点にしていったほうが良い
+私が気づかないとAIが作業を残したまま完了させたり進めようとすることがある（今回は表示メニューの削除）。要注意
 
 ### 次
-
+Phase37-1 — popup DOM・CSS・関数本体の削除
+Phase37-2 — TAP閉じるボタン hover feedback
 

@@ -111,8 +111,6 @@ export function renderLines(lines, uiState, callbacks) {
     onTapSet,
     onCopyClick,
     setDiagRight,
-    showPopup,
-    hidePopup,
     updateStatus,
     toast
   } = callbacks;
@@ -198,20 +196,33 @@ export function renderLines(lines, uiState, callbacks) {
       ns.className = 'chord-name';
       ns.textContent = c.chord;
       tag.appendChild(ns);
+      let pressTimer = null;
+
+      tag.addEventListener('mousedown', e => {
+        if (e.target.classList.contains('del-x')) return;
+        pressTimer = setTimeout(() => {
+          pressTimer = null;
+          if (callbacks.onChordDblClick) callbacks.onChordDblClick(idx, ci, c.chord);
+        }, 400);
+      });
+      tag.addEventListener('mouseup', () => {
+        clearTimeout(pressTimer);
+      });
+      tag.addEventListener('mouseleave', () => {
+        clearTimeout(pressTimer);
+      });
       tag.addEventListener('click', e => {
         if (e.target.classList.contains('del-x')) return;
+        if (pressTimer === null) return;
+        clearTimeout(pressTimer);
+        pressTimer = null;
         onChordEdit(idx, ci);
-      });
-      tag.addEventListener('dblclick', e => {
-        e.stopPropagation();
-        if (callbacks.onChordDblClick) callbacks.onChordDblClick(idx, ci, c.chord);
       });
       tag.addEventListener('mouseenter', () => {
         if (callbacks.onChordHover) {
           callbacks.onChordHover(c.chord, tag);
         }
       });
-      tag.addEventListener('mouseleave', hidePopup);
       const dx = document.createElement('span');
       dx.className = 'del-x';
       dx.textContent = '✕';

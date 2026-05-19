@@ -201,7 +201,6 @@ function generateId(){
 }
 
 // UI状態
-let diagOn = true;
 let _prevCapo = 0;
 
 // diagLocked state（将来 uiState 統合時に移行予定）
@@ -630,16 +629,9 @@ function createEditorCallbacks() {
       if (!canUpdateDiagFromHover()) return;
       updateDiagRight(chord, capo);
     },
-    onChordHover: (chord, element) => {
+    onChordHover: (chord) => {
       if (!canUpdateDiagFromHover()) return;
       updateDiagRight(chord);
-      showPopup(chord, element);
-    },
-    showPopup: (chord, element) => {
-      showPopup(chord, element);
-    },
-    hidePopup: () => {
-      hidePopup();
     },
     updateStatus: () => {
       updateStatus();
@@ -655,7 +647,6 @@ function getEditorUIState() {
   return {
     focLine,
     tapIdx,
-    diagOn,
     capo: getCapo(),
     fmt
   };
@@ -1360,8 +1351,6 @@ function setupEventHandlers() {
   // ============================================
   // File Events
   // ============================================
-  // File Events
-  // ============================================
   // Audio file select button
   document.getElementById('audio-btn').addEventListener('click', () => {
     document.getElementById('file-audio').click();
@@ -1503,16 +1492,6 @@ function setupEventHandlers() {
     showDiagramPanel('', getCapo());
     clearLocalStorage();
     document.getElementById('st-save').textContent='-';
-  });
-
-  // UI: ダイアグラムON/OFF
-  const diagToggleBtn = document.getElementById('diag-toggle');
-  diagToggleBtn.addEventListener('click', () => {
-    diagOn = !diagOn;
-    diagToggleBtn.innerHTML = '🎸 ダイアグラム' + (diagOn ? ' <span>✓</span>' : '');
-    diagToggleBtn.classList.toggle('off', !diagOn);
-    if (!diagOn) { const p=document.getElementById('popup');if(p)p.classList.remove('show'); }
-    localStorage.setItem('cs_diagOn', diagOn ? '1' : '0');
   });
 
   // UI: ダイアグラム入力
@@ -1781,6 +1760,25 @@ function setupEventHandlers() {
     e.target.value = '';
   });
 
+  // ダイアグラムロックの長押し解除
+  const phdr = document.querySelector('#panel-right .phdr');
+  let phdrPressTimer = null;
+
+  phdr.addEventListener('mousedown', () => {
+    if (!diagLocked) return;
+    phdrPressTimer = setTimeout(() => {
+      phdrPressTimer = null;
+      if (!diagLocked) return;
+      unlockDiag();
+    }, 400);
+  });
+  phdr.addEventListener('mouseup', () => {
+    clearTimeout(phdrPressTimer);
+  });
+  phdr.addEventListener('mouseleave', () => {
+    clearTimeout(phdrPressTimer);
+  });
+
   // ============================================
   // Header Menu Events (Phase29)
   // ============================================
@@ -1810,6 +1808,7 @@ function setupEventHandlers() {
       document.querySelectorAll('.menu-group.open')
         .forEach(g => g.classList.remove('open'));
     }
+    
 
 
   })();  
@@ -1982,14 +1981,6 @@ window.addEventListener('DOMContentLoaded',()=>{
   const curDiagChord = document.getElementById('diag-in').value.trim();
   if(curDiagChord) showDiagramPanel(curDiagChord, getCapo(), getDiagCallbacks());
 
-  // ③ ダイアグラムON/OFF状態復元
-  const diagToggleBtn = document.getElementById('diag-toggle');
-  const savedDiagOn = localStorage.getItem('cs_diagOn');
-  if (savedDiagOn === '0') {
-    diagOn = false;
-    diagToggleBtn.innerHTML = '🎸 ダイアグラム';
-    diagToggleBtn.classList.add('off');
-  }
   
   // 自動保存データの復元
   const saved = loadFromLocalStorage();
