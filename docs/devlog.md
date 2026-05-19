@@ -375,13 +375,22 @@ regression確認
 phase35-Theme Layer Cleanup
 phase36-ホバーオーバーレイ機能をなくす
 右パネルダイアグラム固定表示と解除をlongpressで可能に
-
+Phase37-1 — popup DOM・CSS・関数本体の削除
 ### 気づき
 phase-status.md current-issues.mdの更新がhandover一つで管理していた時より煩雑なので運用変更
 自分で気づいた点はどんどん論点にしていったほうが良い
 私が気づかないとAIが作業を残したまま完了させたり進めようとすることがある（今回は表示メニューの削除）。要注意
 
 ### 次
-Phase37-1 — popup DOM・CSS・関数本体の削除
 Phase37-2 — TAP閉じるボタン hover feedback
+
+## 2026-05-20
+
+### やったこと
+Phase37-2 — TAP閉じるボタン hover feedback
+
+### 気づき
+
+### 次
+
 

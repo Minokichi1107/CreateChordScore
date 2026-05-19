@@ -91,7 +91,7 @@ export function scrollEditorToRow(rowEl, force = false) {
 // 譜面全体描画
 // ────────────────────────────────────────
 export function renderLines(lines, uiState, callbacks) {
-  const { focLine, tapIdx, diagOn, capo, fmt } = uiState;
+  const { focLine, tapIdx, capo, fmt } = uiState;
   const {
     onTimeClick,
     onTimeContextMenu,

@@ -256,11 +256,6 @@ body.diag-off .chord-tag:hover{cursor:default}
 .mi-sm:focus{outline:none;border-color:var(--text-accent)}
 
 
-#popup{position:fixed;display:none;background:var(--grad-dv-surface);border:1px solid var(--border-ui-strong);border-radius:var(--r-lg);padding:10px;z-index:300;box-shadow:var(--shadow-md);pointer-events:none}
-#popup.show{display:block}
-#pop-name{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--text-primary);text-align:center;margin-bottom:6px}
-#pop-vars{display:flex;gap:10px}
-
 
 body.diag-off .chord-tag{cursor:default}
 

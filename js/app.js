@@ -227,10 +227,6 @@ const mTit = document.getElementById('m-title');
 const mBody = document.getElementById('m-body');
 const mBtns = document.getElementById('m-btns');
 
-// ポップアップ
-const popEl = document.getElementById('popup');
-let popT = null;
-
 // TAPモードオーバーレイ
 // tap mode state → tapmode.js に移動
 
@@ -991,30 +987,7 @@ function importCustomDiagrams(file){
   reader.readAsText(file);
 }
 
-// HOVER POPUP
-// ════════════════════════════════════════
-function showPopup(chord,anchor){
-  if(!diagOn)return;
-  clearTimeout(popT);
-  const r=findChord(chord);if(!r)return;
-  document.getElementById('pop-name').textContent=chord;
-  const pv=document.getElementById('pop-vars');pv.innerHTML='';
-  r.data.v.slice(0,3).forEach(vr=>{
-    const d=document.createElement('div');d.style.textAlign='center';
-    d.innerHTML=`<div style="font-size:9px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:3px">${vr.n}</div>${drawDiagram(vr.f,vr.b||null)}`;
-    pv.appendChild(d);
-  });
-  const rect=anchor.getBoundingClientRect();
-  popEl.style.left=rect.left+'px';popEl.style.top=(rect.top-10)+'px';
-  popEl.classList.add('show');
-  requestAnimationFrame(()=>{
-    const pr=popEl.getBoundingClientRect();
-    if(pr.top<8)popEl.style.top=(rect.bottom+8)+'px';
-    if(pr.right>window.innerWidth-8)popEl.style.left=(window.innerWidth-pr.width-8)+'px';
-    if(pr.left<8)popEl.style.left='8px';
-  });
-}
-function hidePopup(){popT=setTimeout(()=>popEl.classList.remove('show'),150);}
+
 
 // ════════════════════════════════════════
 // SAVE / LOAD（File System Access API対応）
