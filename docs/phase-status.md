@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase33完了時点
+> 最終更新: Phase35完了時点
 
 ---
 
@@ -118,6 +118,16 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - `updateDiagRight` を右パネル更新の正式APIとして確立（app.js内でsetDiagRight直接呼び出しをゼロ化）
 - hover guard 2箇所（renderPalette / createEditorCallbacks）
 
+#### Phase34-2: 左パネル自動折りたたみ
+- ブレークポイント: 960px未満でauto collapse
+- 状態変数3つを導入（独立let変数）:
+  - `leftCollapsedManual`: <<ボタン操作（localStorage永続）
+  - `leftCollapsedAuto`: resize自動（runtime only）
+  - `leftExpandedOverride`: narrow時の一時展開（runtime only）
+- `applyLeftCollapsed()` API追加
+- resizeイベントハンドラ追加
+- manual状態はlocalStorage永続・auto状態は毎回viewport判定
+
 #### Phase34-1b: UI・キー操作実装
 - Lキー: diagLock toggle（INPUT/TEXTAREA・演奏モード中はguard）
 - Escキー: modal close優先 → diagLock解除
@@ -126,14 +136,29 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - dblclick: 保留（click/modal競合による複合問題。hover overlay redesignと合わせて将来対応）
 - `docs/keybindings.md` 新設（Lキー・Escキー含む全キーバインド管理台帳）
 
+### Phase35 — Theme Layer Cleanup
+
+#### 作業内容
+- ui-rules.md に token階層ルール（§5〜§7）追記
+- Primitive層にRGB値変数追加（`--color-green-rgb` 等）
+- Semantic層に interaction state token追加（`--surface-selected` / `--surface-hover` / `--surface-playing` / `--border-selected` / `--border-focus`）
+- Component alias層にTAP専用token追加（`--tap-surface-tapped` / `--tap-surface-current` / `--tap-btn-surface` / `--tap-chord-tag-*` 3個）
+- `components.css` のテーマ依存直指定を role確認の上 token参照へ整理（`.mac-insert-btn.active` 系は意図的保留）
+- `#2b54af`（blue theme TAP btn）を `--tap-btn-surface` として token 化
+
+#### 性質
+- UI変更なし・ロジック変更なし
+- CSS ownership整理フェーズ
+- silver含む全テーマでregression確認済み
+
 ---
 
 ## 現在地
 
-- Phase33完了・mainブランチ
-- modals.js 導入済み（dependency injection パターン確立）
-- CSS責務分離完了（base / theme / layout / components / state / perform）
-- IndexedDB基盤導入済み
+- Phase35完了・mainブランチ
+- theme token階層設計確立済み（Primitive / Semantic / Component alias）
+- CSS責務分離完了・components.css のテーマ依存直指定を整理済み
+- diagLocked・左パネル自動折りたたみ実装済み
 
 ---
 
@@ -141,14 +166,11 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 
 詳細は `current-issues.md` のバックログを参照。
 
-優先度高：
-- ダイアグラム固定操作（diagLocked状態導入）
-- 左パネル自動折りたたみ（responsive対応）
-
 優先度中：
-- TAPボタン色設計
-- components.css整理
+- TAP閉じるボタン hover feedback（`--surface-hover` 適用）
+- pause icon alignment
 
 将来（設計議論が必要）：
+- hover overlay interaction redesign（Phase36）
 - openAddChord subsystem化（chordEntry.js）
 - 行またぎコード移動

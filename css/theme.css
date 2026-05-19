@@ -49,6 +49,11 @@
   --color-green: #3ddc84;
   --color-amber: #ffb840;
   --color-red:   #ff7c7c;
+
+  /* RGB values for alpha composition [SAFE] alpha調整用。直接使用禁止 */
+  --color-green-rgb: 61,220,132;
+  --color-amber-rgb: 255,184,64;
+  --color-blue-rgb:  79,158,255;
 }
 
 
@@ -218,6 +223,21 @@
   --bg-left-tab-active:   var(--surface-overlay);
   --border-left-tab-active:rgba(255,255,255,.08);
   --border-left-tab-active-bottom: var(--surface-overlay);
+
+  /* --- interaction state (Semantic) --- */
+  --surface-selected: rgba(var(--color-amber-rgb), .10);
+  --surface-hover:    rgba(255,255,255,.04);
+  --surface-playing:  rgba(var(--color-blue-rgb), .12);
+  --border-selected:  rgba(var(--color-amber-rgb), .50);
+  --border-focus:     var(--border-ui-strong);
+
+  /* --- TAP subsystem alias --- */
+  --tap-surface-tapped:     rgba(var(--color-green-rgb), .15);
+  --tap-surface-current:    rgba(var(--color-green-rgb), .08);
+  --tap-btn-surface:        var(--surface-overlay);
+  --tap-chord-tag-surface:  linear-gradient(135deg,#1e3a6e,#162a52);
+  --tap-chord-tag-border:   #4a7fd4;
+  --tap-chord-tag-text:     #c8e4ff;
 }
 
 body[data-theme="dark"] {
@@ -236,7 +256,7 @@ body[data-theme="silver"] #tap-ov-tapbtn {
   color: var(--text-secondary);
 }
 body[data-theme="blue"] #tap-ov-tapbtn {
-  background: #2b54af;
+  background: var(--tap-btn-surface);
   color: var(--text-chord);
 }
 
@@ -444,6 +464,18 @@ body[data-theme="silver"] {
   /* --- dv svg (component-specific, theme-dependent) --- */
   --dv-svg-stroke: #1a2030;
   --dv-svg-text:   #18202e;
+
+  /* --- interaction state (Semantic) --- */
+  --surface-selected: rgba(var(--color-amber-rgb), .18);
+  --surface-hover:    rgba(0,0,0,.06);
+  --surface-playing:  rgba(var(--color-blue-rgb), .20);
+  --border-selected:  rgba(var(--color-amber-rgb), .65);
+  --border-focus:     var(--border-ui-strong);
+
+  /* --- TAP subsystem alias --- */
+  --tap-surface-tapped:     rgba(var(--color-green-rgb), .22);
+  --tap-surface-current:    rgba(var(--color-green-rgb), .14);
+  --tap-btn-surface:        var(--surface-overlay);
 }
 
 
@@ -627,6 +659,18 @@ body[data-theme="blue"] {
   --bg-left-tab-active:     var(--surface-raised);
   --border-left-tab-active: var(--border-ui-strong);
   --border-left-tab-active-bottom: var(--surface-raised);
+
+  /* --- interaction state (Semantic) --- */
+  --surface-selected: rgba(var(--color-amber-rgb), .12);
+  --surface-hover:    rgba(255,255,255,.08);
+  --surface-playing:  rgba(var(--color-blue-rgb), .15);
+  --border-selected:  rgba(var(--color-amber-rgb), .55);
+  --border-focus:     var(--border-ui-strong);
+
+  /* --- TAP subsystem alias --- */
+  --tap-surface-tapped:     rgba(var(--color-green-rgb), .18);
+  --tap-surface-current:    rgba(var(--color-green-rgb), .10);
+  --tap-btn-surface:        #2b54af;
 }
 
 

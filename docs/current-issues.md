@@ -1,34 +1,30 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase33完了時点
+> 最終更新: Phase35完了時点
 
 ---
 
 ## 1. バックログ（優先順）
 
-### ドキュメント整備
-状態: 完了
-内容: architecture.md / ui-rules.md / phase-status.md / current-issues.md 作成済み
-
 ### ダイアグラム固定操作
-状態: 未着手
+状態: ほぼ完了（あとはマウス操作追加）
 内容: ポインタ移動で表示が変わってしまうため、編集時に右パネルに固定する操作を追加したい。
 方向性:
 - ダブルクリック等で固定（`diagLocked` 状態を導入）
 - hover preview と locked preview を状態として分離
 - `uiState` に `diagLocked: false` を追加する方向
 
-#### 左パネル自動折りたたみ
-状態: **完了（Phase34-2）**
-ブレークポイント: 960px
-
-### TAPボタン色設計
+### TAP閉じるボタン hover feedback欠落
 状態: 未着手
-内容: ボタン体系統一・semantic color再設計（`#2b54af` 系直指定の解消）
+内容: TAPモードの閉じるボタンにhover時の視覚変化がない。
+方向性: `--surface-hover` を適用する。Phase35で追加したtokenへ寄せられる候補。
 
-### components.css整理
+### pause icon alignment
 状態: 未着手
-内容: テーマ依存色の残存箇所（`.tov-chord-tag` 等）を theme.css へ移管
+内容: 一時停止アイコン（⏸️）が再生ボタン内で中央からズレる。
+原因候補: Unicode glyph metrics / font rendering差異。
+方向性: 将来的にSVG icon化またはinline-flex + fixed width対応を検討。
+単純なpadding調整は環境差で逆効果になる可能性あり。
 
 ### Issue #27 — メタリックテーマ描画方式の見直し
 状態: 検討中
@@ -202,7 +198,7 @@ tones / intervals / harmonic relation を持たない。
 
 ## 4. 既知の技術的負債
 
-- `components.css` にテーマ依存色が残存（`.tov-chord-tag`）
+- `components.css` の `.mac-insert-btn.active` 系（`--color-accent` 未定義問題と紐付き・意図的保留）
 - `idb.js` は最低構成（GC・schema migration・compression なし）
   - asset種類追加: key形式 `${projectId}:${type}` に新typeを追加
   - schema変更: `DB_VERSION` をインクリメントして `onupgradeneeded` を更新

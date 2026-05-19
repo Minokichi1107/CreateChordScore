@@ -350,4 +350,38 @@ phase33 app.jsのmodal機能をmodals.jsに切り分け
 ❌ 誤解：= や push がある → 危険
 ✅ 正解：外部の state（project.lines）を直接書き換える → 危険
 ### 次
+phase34
+
+## 2026-05-18
+
+### やったこと
+右パネルのダイアグラムのロック機能
+ウィンドウ縮小時の左パネルの自動折りたたみ機能
+
+### 気づき
+ダイアグラムのホバー表示のせいで機能が予定通りに操作出来なかったり余計なテストが出る。
+機能としての意味も今ではあまりないので早めの機能削除を行いたい。
+
+### 次
+phase35-Theme Layer Cleanup
+components.css の残存直指定を洗い出し（Claude が列挙）
+不足 semantic token を設計（Claude が案を提示 → 確認後確定）
+theme.css への移管実装
+regression確認
+
+## 2026-05-19
+
+### やったこと
+phase35-Theme Layer Cleanup
+components.css の残存直指定を洗い出し（Claude が列挙）
+不足 semantic token を設計（Claude が案を提示 → 確認後確定）
+theme.css への移管実装
+regression確認
+
+### 気づき
+phase-status.md current-issues.mdの更新がhandover一つで管理していた時より煩雑なので運用変更
+自分で気づいた点はどんどん論点にしていったほうが良い
+
+### 次
+
 

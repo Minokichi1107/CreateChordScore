@@ -1,6 +1,6 @@
 # アーキテクチャ概要
 
-> 最終更新: Phase33完了時点
+> 最終更新: Phase35完了時点
 
 ---
 
@@ -117,11 +117,15 @@ uiState = {
   tapIdx,    // TAPモードインデックス
   diagOn,    // ダイアグラム表示フラグ
   rbHits,    // 置換回数
-  // 将来追加予定:
-  // diagLocked,     // ダイアグラム固定フラグ（hover → locked分離）
-  // manualCollapsed,// 左パネル手動折りたたみ
-  // autoCollapsed,  // 左パネル自動折りたたみ（responsive）
 }
+
+// 独立let変数（将来 uiState 統合予定）
+let diagLocked        // ダイアグラム固定フラグ
+let diagLockedChord   // ロック中のコード
+let currentDiagChord  // 右パネル現在表示コード（source of truth）
+let leftCollapsedManual  // <<ボタン操作（localStorage永続）
+let leftCollapsedAuto    // resize自動（runtime only）
+let leftExpandedOverride // narrow時の一時展開（runtime only）
 ```
 
 ### audioState
