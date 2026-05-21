@@ -376,21 +376,31 @@ phase35-Theme Layer Cleanup
 phase36-ホバーオーバーレイ機能をなくす
 右パネルダイアグラム固定表示と解除をlongpressで可能に
 Phase37-1 — popup DOM・CSS・関数本体の削除
+Phase37-2 — TAP閉じるボタン hover feedback
 ### 気づき
 phase-status.md current-issues.mdの更新がhandover一つで管理していた時より煩雑なので運用変更
 自分で気づいた点はどんどん論点にしていったほうが良い
 私が気づかないとAIが作業を残したまま完了させたり進めようとすることがある（今回は表示メニューの削除）。要注意
 
 ### 次
-Phase37-2 — TAP閉じるボタン hover feedback
+Phase38設計
 
 ## 2026-05-20
 
 ### やったこと
-Phase37-2 — TAP閉じるボタン hover feedback
-
+Phase38-39
+- openAddChord subsystem化（chordEntry.js）
 ### 気づき
-
+今まで何曲もつくってきたproject.jsonファイルのほとんどが消失した。.gitigonoreで管理対象からも外していたためかなり焦ったがChatGPTと相談して過去のgitに残っていたcommitから復旧出来た。
+.gitignoreから再度外してクラウドストレージのバックアップ対象に加えた。
+- 発生状況（resource/projects 消失）
+- Recuva は無効だった
+- Git history から復旧できた
+- `stop tracking local resource json files` 前の commit が救済点になった
+- 今後は resource/projects を Git 管理へ戻す
+- audio のみ gitignore 維持
+- project JSON を「authoring asset」として扱う方針へ変更
+同一フェーズ内だからと長くなったChatを更新しなかったら作業途中で二度もトークンの切れになった
 ### 次
-
+Phase39-2 restoreDiagAfterTransientPreview
 

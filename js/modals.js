@@ -33,6 +33,7 @@
  *   - openAddChord / openChordEdit
  */
 
+import { isSepToken, tokenToText } from './tokens.js';
 
 // ────────────────────────────────────────
 // MODULE STATE
@@ -265,7 +266,9 @@ export function openCopyModal({ fromIdx, line, lines, onCopy }) {
   }
 
   const prev = line.chords.map(c =>
-    `<span class="chord-tag" style="pointer-events:none"><span>${c.chord}</span></span>`
+    isSepToken(c)
+      ? `<span class="chord-sep" style="pointer-events:none;padding:0 4px">/</span>`
+      : `<span class="chord-tag" style="pointer-events:none"><span>${tokenToText(c)}</span></span>`
   ).join('');
 
   const rows = lines.map((l, i) => i === fromIdx ? '' :
@@ -275,7 +278,7 @@ export function openCopyModal({ fromIdx, line, lines, onCopy }) {
       <span class="modal-section-label" style="flex-shrink:0">行${i + 1}</span>
       <span class="copy-list-item-lyric">${l.lyric || '(空)'}</span>
       ${l.chords.length
-        ? `<span class="copy-list-item-chords">[${l.chords.map(c => c.chord).join(' ')}]</span>`
+        ? `<span class="copy-list-item-chords">[${l.chords.map(c => tokenToText(c)).join(' ')}]</span>`
         : ''}
     </label>`
   ).join('');

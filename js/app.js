@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ════════════════════════════════════════
  * ChordScore Editor - Main Application
  * ════════════════════════════════════════
@@ -162,6 +162,8 @@ import {
   openChordEdit,
 } from './modals.js';
 
+import { initChordEntry, openAddChord } from './chordEntry.js';
+
 // ════════════════════════════════════════
 // GLOBAL STATE
 // ════════════════════════════════════════
@@ -289,6 +291,38 @@ function updateDiagLockUI() {
   } else {
     phdr.classList.remove('diag-locked');
   }
+}
+
+// ── preview layer API ──────────────────
+/**
+ * forcePreviewChord — diagLocked 中でも右パネルを一時更新する
+ *
+ * 【現在の使用状況】
+ *   現在は未使用。chordEntry.js は AddChord open 時に unlockDiag() を呼ぶため、
+ *   modal 内では diagLocked = false になっており updateDiagRight() で足りる。
+ *
+ * 【なぜ残しているか】
+ *   将来の preview layer 多層化に備えた予約 API。
+ *   具体的には以下を想定している：
+ *     - hover preview（chord-tag 上のホバー）
+ *     - keyboard preview（replace bar 入力中）
+ *     - playback preview（再生位置に連動した表示）
+ *   これらは diagLocked 中でも「一時的に別コードを表示したい」ケースがある。
+ *   その際に beginTransientPreview() / endTransientPreview() の内部実装として使う。
+ *
+ * 【updateDiagRight との違い】
+ *   updateDiagRight: currentDiagChord を更新する（lock状態に影響）
+ *   forcePreviewChord: currentDiagChord を更新しない（lock状態を保持）
+ *
+ * 【将来の発展形】
+ *   function beginTransientPreview(chord) { forcePreviewChord(chord); }
+ *   function endTransientPreview() { restoreDiagAfterTransientPreview(); }
+ *   function restoreDiagAfterTransientPreview() {
+ *     if (diagLocked && diagLockedChord) updateDiagRight(diagLockedChord);
+ *   }
+ */
+function forcePreviewChord(chord) {
+  setDiagRight(chord, getCapo(), getDiagCallbacks());
 }
 
 // ════════════════════════════════════════
@@ -745,155 +779,6 @@ function addToPaletteIfNew(chord){
     renderPalette();
     document.getElementById('pal-count').textContent=palette.length;
   }
-}
-
-// コード追加モーダル
-function openAddChord(idx){
-  mTit.textContent=`行${idx+1} コードをまとめて追加`;
-
-  // 挿入位置 (modal local state)
-  // null = 末尾, 数値 = splice位置
-  let insertAt=null;
-
-  function mkInsertBtn(pos){
-    const btn=document.createElement('button');
-    btn.className='mac-insert-btn';
-    btn.textContent='＋';
-    btn.title=pos===null?'末尾に挿入':`位置${pos+1}に挿入`;
-    btn.dataset.pos=pos===null?'end':String(pos);
-    btn.addEventListener('click',()=>{
-      insertAt=pos;
-      renderModalPreview();
-      const inp=document.getElementById('mac-input');
-      if(inp)inp.focus();
-    });
-    return btn;
-  }
-
-  function renderModalPreview(){
-    const line=project.lines[idx];
-    const previewEl=document.getElementById('mac-preview');
-    if(!previewEl)return;
-    previewEl.innerHTML='';
-
-    // 行頭の挿入ボタン
-    const headBtn=mkInsertBtn(0);
-    if(insertAt===0)headBtn.classList.add('active');
-    previewEl.appendChild(headBtn);
-
-    if(!line.chords.length){
-      const empty=document.createElement('span');
-      empty.style.cssText='color:var(--text-muted);font-family:var(--font-mono);font-size:11px;margin:0 4px';
-      empty.textContent='(コードなし)';
-      previewEl.appendChild(empty);
-    }
-
-    line.chords.forEach((c,ci)=>{
-      if(c.type==='sep'){
-        const s=document.createElement('span');
-        s.className='mac-sep-token';
-        s.textContent='/';s.title='クリックで削除';
-        s.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);if(insertAt!==null&&insertAt>ci)insertAt--;refreshEditor();renderModalPreview();});
-        previewEl.appendChild(s);
-      } else {
-        const tag=document.createElement('span');
-        tag.className='mac-preview-tag';
-        const nm=document.createElement('span');nm.textContent=c.chord;
-        const dx=document.createElement('span');
-        dx.textContent='✕';
-        dx.className='mac-preview-tag-del';
-        dx.addEventListener('mouseenter',()=>dx.style.background='var(--color-red)');
-        dx.addEventListener('mouseleave',()=>dx.style.background='');
-        dx.addEventListener('click',()=>{project.lines[idx].chords.splice(ci,1);if(insertAt!==null&&insertAt>ci)insertAt--;refreshEditor();renderModalPreview();});
-        tag.appendChild(nm);tag.appendChild(dx);
-        previewEl.appendChild(tag);
-      }
-
-      // 各要素の後ろの挿入ボタン
-      const pos=ci+1;
-      const isLast=ci===line.chords.length-1;
-      const isActive=isLast?(insertAt===null):(insertAt===pos);
-      const afterBtn=mkInsertBtn(isLast?null:pos);
-      if(isActive)afterBtn.classList.add('active');
-      previewEl.appendChild(afterBtn);
-    });
-  }
-
-  function addChord(ch){
-    if(!ch)return;
-    addToPaletteIfNew(ch);
-    const chords=project.lines[idx].chords;
-    if(insertAt===null){
-      chords.push({chord:ch,offset:0});
-    } else {
-      chords.splice(insertAt,0,{chord:ch,offset:0});
-      insertAt++;
-    }
-    refreshEditor();
-    renderModalPreview();
-    const inp=document.getElementById('mac-input');
-    if(inp){inp.value='';inp.focus();}
-  }
-
-  function addSep(){
-    const chords=project.lines[idx].chords;
-    if(insertAt===null){
-      chords.push({type:'sep'});
-    } else {
-      chords.splice(insertAt,0,{type:'sep'});
-      insertAt++;
-    }
-    refreshEditor();
-    renderModalPreview();
-  }
-
-  const palHtml=palette.length
-    ?`<div class="modal-section"><div class="modal-field-label">楽曲のコードから選択:</div>
-       <div class="mac-palette-list">
-         ${palette.map(c=>{const d=transposeChord(c,paletteTranspose);return`<button class="pal-chord" style="font-size:11px" onclick="_mac_add('${d.replace(/'/g,"\\'").replace(/\//g,'\\/')}')">${d}</button>`;}).join('')}
-       </div></div>`
-    :'';
-
-  mBody.innerHTML=`
-    <div class="modal-section">
-      <div class="modal-field-label">現在のコード:</div>
-      <div id="mac-preview" style="display:flex;flex-wrap:wrap;gap:4px;min-height:28px;padding:6px;background:var(--surface-overlay);border-radius:var(--r-md);align-items:center"></div>
-    </div>
-    <div class="modal-input-row modal-section" style="gap:6px">
-      <input type="text" id="mac-input" class="mi" placeholder="コード名 (例: Am7)" autocomplete="off"
-        style="font-size:15px;letter-spacing:1px;flex:1">
-      <button id="mac-add-btn" class="sm-btn green" style="white-space:nowrap;font-size:13px">追加</button>
-      <button id="mac-sep-btn" class="sm-btn" style="white-space:nowrap;font-size:13px" title="小節線を追加">／</button>
-    </div>
-    ${palHtml}
-  `;
-
-  window._mac_add=(ch)=>addChord(ch);
-
-  document.getElementById('mac-add-btn').addEventListener('click',()=>{
-    const v=document.getElementById('mac-input').value.trim();
-    addChord(v);
-  });
-  document.getElementById('mac-sep-btn').addEventListener('click',()=>addSep());
-
-  renderModalPreview();
-
-  mBtns.appendChild(mkMBtn('完了','ok',closeMod));
-  mOv.classList.add('open');
-  setTimeout(()=>{
-    const inp=document.getElementById('mac-input');
-    if(inp){
-      inp.focus();
-      inp.addEventListener('keydown',e=>{
-        if(e.key==='Enter'){e.preventDefault();addChord(inp.value.trim());}
-        if(e.key==='Escape'){closeMod();}
-      });
-      inp.addEventListener('input',()=>{
-        const v=inp.value.trim();
-        if(v) updateDiagRight(v);
-      });
-    }
-  },80);
 }
 
 
@@ -1550,10 +1435,10 @@ function setupEventHandlers() {
       }
     }
 
-    // L: diagLock トグル（テキスト入力中・演奏モード中は無視）
-    if (e.key === 'l' || e.key === 'L') {
-      const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    // Shift+L: diagLock トグル（演奏モード中は無視）
+    // 単独 L はテキスト入力と衝突するため Shift+L に設定。
+    // INPUT / TEXTAREA フォーカス中でも Shift+L は diagLock 操作として受け付ける。
+    if (e.shiftKey && (e.key === 'l' || e.key === 'L')) {
       if (document.getElementById('perform-overlay')?.hidden === false) return;
       if (diagLocked) {
         unlockDiag();
@@ -1947,6 +1832,25 @@ window.addEventListener('DOMContentLoaded',()=>{
 
     // 33-3:
     onPreviewChord: (chord) => updateDiagRight(chord),
+  });
+
+  // ⑦ ChordEntry 初期化
+  initChordEntry({
+    getLines:            () => project.lines,
+    getPalette:          () => palette,
+    getPaletteTranspose: () => paletteTranspose,
+    addToPaletteIfNew,
+    refreshEditor,
+    openModal,
+    closeModal:          closeMod,
+    mkMBtn,
+    toast,
+    // forcePreviewChord は渡さない。
+    // AddChord open 時に unlockDiag() を呼ぶため modal 内は diagLocked = false になり
+    // updateDiagRight で足りる。forcePreviewChord は将来の preview layer 拡張用に app.js に予約。
+    unlockDiag,
+    onPreviewChord: (chord) => updateDiagRight(chord),
+    transposeChord,
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
