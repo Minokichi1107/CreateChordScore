@@ -34,8 +34,10 @@
  *   - insertion cursor 化（+ → | 表示への変更）
  *   - hover-only 削除ボタン（× の表示制御）
  *   - simile token 挿入UI（Phase39-3）
- *   - token shorthand（`/` → sep、`ss` → simile 等・Phase39-4）
+ *   - token shorthand（`/` → barline、`ss` → simile 等・Phase39-4）
  */
+
+import { isSepToken } from './tokens.js';
 
 // ────────────────────────────────────────
 // MODULE STATE（注入済み依存）
@@ -191,7 +193,7 @@ export function openAddChord(idx) {
     }
 
     line.chords.forEach((c, ci) => {
-      if (c.type === 'sep') {
+      if (isSepToken(c)) {
         const s = document.createElement('span');
         s.className = 'mac-sep-token';
         s.textContent = '/';
@@ -257,9 +259,9 @@ export function openAddChord(idx) {
   function addSep() {
     const chords = _getLines()[idx].chords;
     if (insertAt === null) {
-      chords.push({ type: 'sep' });
+      chords.push({ type: 'barline' });
     } else {
-      chords.splice(insertAt, 0, { type: 'sep' });
+      chords.splice(insertAt, 0, { type: 'barline' });
       insertAt++;
     }
     _refreshEditor();

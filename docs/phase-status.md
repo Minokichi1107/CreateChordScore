@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase35完了時点
+> 最終更新: Phase39完了時点
 
 ---
 
@@ -115,50 +115,188 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 #### Phase34-1a: state導入・hover抑止
 - `diagLocked` / `diagLockedChord` / `currentDiagChord` 追加（独立let変数）
 - `lockDiag` / `unlockDiag` / `canUpdateDiagFromHover` / `updateDiagRight` API追加
-- `updateDiagRight` を右パネル更新の正式APIとして確立（app.js内でsetDiagRight直接呼び出しをゼロ化）
+- `updateDiagRight` を右パネル更新の正式APIとして確立
 - hover guard 2箇所（renderPalette / createEditorCallbacks）
 
 #### Phase34-2: 左パネル自動折りたたみ
 - ブレークポイント: 960px未満でauto collapse
-- 状態変数3つを導入（独立let変数）:
-  - `leftCollapsedManual`: <<ボタン操作（localStorage永続）
-  - `leftCollapsedAuto`: resize自動（runtime only）
-  - `leftExpandedOverride`: narrow時の一時展開（runtime only）
+- 状態変数3つを導入（leftCollapsedManual / leftCollapsedAuto / leftExpandedOverride）
 - `applyLeftCollapsed()` API追加
-- resizeイベントハンドラ追加
 - manual状態はlocalStorage永続・auto状態は毎回viewport判定
 
 #### Phase34-1b: UI・キー操作実装
-- Lキー: diagLock toggle（INPUT/TEXTAREA・演奏モード中はguard）
+- Lキー（→Phase39-2でShift+Lに変更）: diagLock toggle
 - Escキー: modal close優先 → diagLock解除
 - ヘッダービジュアル: `CHORD DIAGRAM 🔒`（amber色、visibility切替方式）
-- `onChordHover` callback追加（editor.js）: setDiagRight + showPopup を一元管理・guard適用
-- dblclick: 保留（click/modal競合による複合問題。hover overlay redesignと合わせて将来対応）
-- `docs/keybindings.md` 新設（Lキー・Escキー含む全キーバインド管理台帳）
+- `onChordHover` callback追加（editor.js）
+- `docs/keybindings.md` 新設
 
 ### Phase35 — Theme Layer Cleanup
+- ui-rules.md に token階層ルール（§5〜§7）追記
+- Primitive層にRGB値変数追加
+- Semantic層に interaction state token追加
+- Component alias層にTAP専用token追加
+- `components.css` のテーマ依存直指定を token参照へ整理
+- UI変更なし・CSS ownership整理フェーズ
+
+### Phase36 — Hover Overlay Interaction Redesign
+
+#### Phase36-1: hover popup停止
+- `onChordHover` から `showPopup` 呼び出しを削除
+- hover → 右パネル更新のみに縮退（二重preview解消）
+- `showPopup` / `hidePopup` callback・`mouseleave` ハンドラ削除
+- popup DOM・CSS・関数本体は意図的保留（次フェーズで削除）
+
+#### Phase36-2: click semantics再設計
+- dblclick → longpress（400ms）に変更
+- click即時実行に戻し modal open 遅延を解消
+- `onChordDblClick` callback名は維持（app.js変更なし）
+
+#### Phase36-3: diagLock解除 gesture追加
+- 右パネル `.phdr` 長押し（400ms）→ `unlockDiag()`
+- lock / unlock gesture の対称化
+- mousedown時・timer発火時の二重チェックで ESC race condition 対策
+
+#### Phase36-4: diag-toggle / diagOn 削除
+- `diag-toggle` ボタン（index.html）削除
+- `diagOn` state・復元処理・イベントハンドラ削除
+- `editor.js` destructuring から `diagOn` 削除
+
+### Phase37 — popup削除・TAP閉じるボタン hover feedback
+
+#### Phase37-1: popup削除
+- `showPopup` / `hidePopup` 関数本体削除（app.js）
+- `popEl` / `popT` 変数削除（app.js）
+- `#popup` DOM削除（index.html）
+- popup関連CSS削除（layout.css）
+- Phase36-1で「使わなくした」残り作業を完了
+
+#### Phase37-2: TAP閉じるボタン hover feedback
+- `#btn-tapmode-close:hover` を3テーマに追加（theme.css）
+- darkテーマの `--surface-hover` を `.04` → `.08` に調整（視認性改善）
+- セレクタ分離: `#tap-ov-tapbtn` と `#btn-tapmode-close` を独立ルールに
+
+### Phase38 — 設計フェーズ（chordEntry / token stream / simile）
+
+#### Phase38-1: chordEntry.js 責務境界・DI方針確定
+- chordEntry subsystem の境界・DI シグネチャ設計
+- preview layer 3層分離設計（hover / locked / modal transient）
+- `forcePreviewChord` / `restoreDiagAfterTransientPreview` 命名確定
+
+#### Phase38-2: 入力系UX統合設計
+- keyboard editing model 確定（Enter/Escape/IME guard）
+- simile token 設計（`{type:'simile', bars:1|2}`）
+- `editorSimileStyle` / `performSimileStyle` 分離設計
+- interaction hierarchy 再設計（primary=キーボード / secondary=cursor / tertiary=マウス）
+- token shorthand 方針（`/`→barline、`ss`→sim. 等・将来）
+
+#### Phase38-3: line mutation 拡張準備
+- `moveChordAcrossLines` を app.js 内関数として確定（A案）
+- `onChordKeyNav` callback 接続面設計
+
+### Phase39-0 — token abstraction cleanup
 
 #### 作業内容
-- ui-rules.md に token階層ルール（§5〜§7）追記
-- Primitive層にRGB値変数追加（`--color-green-rgb` 等）
-- Semantic層に interaction state token追加（`--surface-selected` / `--surface-hover` / `--surface-playing` / `--border-selected` / `--border-focus`）
-- Component alias層にTAP専用token追加（`--tap-surface-tapped` / `--tap-surface-current` / `--tap-btn-surface` / `--tap-chord-tag-*` 3個）
-- `components.css` のテーマ依存直指定を role確認の上 token参照へ整理（`.mac-insert-btn.active` 系は意図的保留）
-- `#2b54af`（blue theme TAP btn）を `--tap-btn-surface` として token 化
+- `tokens.js` 新設（musical token stream の domain-level utility）
+  - `isChordToken` / `isSepToken` / `isSimileToken` / `tokenToText`
+  - `isChordToken` はプロパティ存在判定（`'chord' in token`）
+  - `isSepToken` は旧形式 `c.chord === '/'` 互換維持
+- `modals.js` 修正（`c.chord` 直読み2箇所を `tokenToText` 経由に変更）
+- `undefined` 表示バグ修正確認済み
 
 #### 性質
 - UI変更なし・ロジック変更なし
-- CSS ownership整理フェーズ
-- silver含む全テーマでregression確認済み
+- token architecture migration の最初の実装
+- `c.chord` 直読み禁止文化の起点
+
+### Phase39-1 — chordEntry.js 切り出し
+
+#### 作業内容
+- `chordEntry.js` 新設（`openAddChord` の app.js からの切り出し）
+- DI化（`initChordEntry`）・アクセサ渡しパターン確立
+- `forcePreviewChord` をトップレベルに追加（preview layer API の起点）
+- IME guard 追加（`e.isComposing`）
+- `openAddChord` 内の transient preview を `forcePreviewChord` 経由に変更
+  （`currentDiagChord` / `diagLockedChord` を書き換えない設計）
+- app.js から約150行削減
+
+#### 性質
+- UI変更なし・ロジック変更なし（IME guardのみ新規挙動）
+- 構造変更フェーズ
+
+### Phase39-2 — unlock on open / isChordLikeInput / Shift+L
+
+#### Phase39-2a: unlock on open
+- AddChord modal open 時に `unlockDiag()` を呼ぶ（B案採用）
+- A案（restore方式）は不採用：modal close時に突然元コードへ戻る体験が不自然
+- `forcePreviewChord` は将来の preview layer 多層化向けに app.js トップレベルへ予約残置
+- DI更新: `forcePreviewChord` を外し `unlockDiag` / `onPreviewChord` を追加
+
+#### Phase39-2b: isChordLikeInput 導入
+- IMEイベント制御（isComposing / compositionend）から domain validation へ設計転換
+- `isChordLikeInput(v)` をモジュールスコープに新設
+- `addChord` / `onPreviewChord` の両方で共通利用
+- ♭（U+266D）/ ♯（U+266F）等の音楽記号は通過
+- 日本語・A-G以外で始まる文字列は遮断
+- 先頭のみ検証の暫定実装（末尾検証強化は current-issues.md へ積み残し）
+
+#### Phase39-2c: Lキー → Shift+L
+- 単独Lキーが lyric-input と常時衝突していたため Shift+L に変更
+- INPUT/TEXTAREA ガードを削除（Shift+L はテキスト入力と干渉しない）
+- 演奏モード中は引き続き無視
+
+### Phase39-3 — editor.js / perform.js への tokenToText / isSepToken 適用
+
+#### 作業内容
+- `editor.js` に `import { isSepToken, tokenToText }` 追加
+- sep判定を `isSepToken(c)` に統一（旧形式 `c.chord==='/'` 互換を吸収）
+- chord表示を `tokenToText(c)` 経由に変更（DOM表示のみ）
+- `perform.js` に同様の変更を適用
+- lookup key (`c.chord`) と display (`tokenToText(c)`) の責務分離確立
+- `const chordName = c.chord` / `const displayName = tokenToText(c)` で明示的に分離
+
+#### 性質
+- UI変更なし・ロジック変更なし
+- rendering abstraction 適用フェーズ
+
+### Phase39-4 — barline canonical 化
+
+#### 作業内容
+- `tokens.js`: `isSepToken()` に `type:'barline'` 条件追加
+- `tokens.js`: ヘッダーコメントに canonical / legacy / deprecated の3層を明記
+- `app.js` / `chordEntry.js`: 生成5箇所を `{ type:'barline' }` に変更
+- `app.js` / `chordEntry.js`: 判定3箇所を `isSepToken()` に変更
+- `app.js` に `import { isSepToken }` 追加、`chordEntry.js` に同追加
+- storage migration は今回行わない（旧データは `isSepToken()` で透過的に扱う）
+
+#### 性質
+- UI変更なし・ロジック変更なし（保存データの canonical 形式が変わる）
+- separator token の musical semantic 化
+- Issue #26（Beat/Grid）への将来の移行パスを確保
+
+### Phase39-5 — chordEntry subsystem 接続完成
+
+#### 作業内容
+- `app.js` に `import { initChordEntry, openAddChord }` 追加
+- `app.js`: `forcePreviewChord()` をトップレベルに追加（現在未使用・preview layer 予約）
+- `app.js`: 旧 `openAddChord` 本体を削除（約150行削減）
+- `app.js`: `initChordEntry({...})` を `initModals` 直後に追加
+- Phase39-1 の incomplete migration を修正・subsystem ownership 確定
+
+#### 性質
+- UI変更なし・ロジック変更なし（ownership 切替）
+- app.js が orchestration 層へ帰還
 
 ---
 
 ## 現在地
 
-- Phase35完了・mainブランチ
-- theme token階層設計確立済み（Primitive / Semantic / Component alias）
-- CSS責務分離完了・components.css のテーマ依存直指定を整理済み
-- diagLocked・左パネル自動折りたたみ実装済み
+- Phase39完了・phase38ブランチ
+- token stream architecture 整理フェーズ（39-0〜39-5）完了
+  - `tokens.js` 導入・rendering abstraction 全モジュール適用
+  - barline canonical 化・access layer 確立
+  - chordEntry subsystem ownership 確定（app.js から150行削減）
+- 次の大型設計フェーズ（Issue #26 / keyboard-first input）の基盤整備完了
 
 ---
 
@@ -166,11 +304,12 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 
 詳細は `current-issues.md` のバックログを参照。
 
-優先度中：
-- TAP閉じるボタン hover feedback（`--surface-hover` 適用）
-- pause icon alignment
+直近：
+- isChordLikeInput の末尾検証強化（または parseChordToken として tokens.js へ統合）
 
-将来（設計議論が必要）：
-- hover overlay interaction redesign（Phase36）
-- openAddChord subsystem化（chordEntry.js）
+将来（設計フェーズが必要）:
+- Issue #26: Beat/Grid 対応（bar / measure semantic 設計）
+- `isSepToken()` → `isBarlineToken()` rename（Issue #26 設計フェーズで判断）
+- keyboard-first chord entry（insertion model 再設計）
 - 行またぎコード移動
+- renderTokenNode 層（SVG simile 描画）

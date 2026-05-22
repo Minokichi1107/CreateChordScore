@@ -12,13 +12,19 @@
  *   domain-level token utility。
  *
  * 【token 種別】
- *   chord  : { chord: 'Am7' }  または { type:'chord', chord:'Am7' }
- *   sep    : { type:'sep' }    小節線（bar line）
- *   simile : { type:'simile', bars:1|2 }  繰り返し省略記号
+ *   chord   : { chord: 'Am7' }  または { type:'chord', chord:'Am7' }
+ *   barline : { type:'barline' }  小節線（canonical、Phase39-4以降）
+ *   simile  : { type:'simile', bars:1|2 }  繰り返し省略記号
+ *
+ * 【barline token の表現形式】
+ *   canonical : { type: 'barline' }          ← 新規生成はこれ
+ *   legacy    : { type: 'sep' }              ← deprecated（isSepToken で吸収）
+ *   legacy    : { chord: '/' }               ← deprecated（isSepToken で吸収）
+ *   storage migration はまだ行わない。旧データは isSepToken() で透過的に扱う。
  *
  * 【設計方針】
  *   - 値の truthy 判定ではなくプロパティ存在判定を使う
- *   - 旧形式互換（c.chord === '/'）は isSepToken で吸収し段階的に排除
+ *   - barline の判定は必ず isSepToken() を経由する（直参照禁止）
  *   - 新 token 追加時は isXxxToken を追加し tokenToText を拡張する
  */
 
@@ -37,12 +43,17 @@ export function isChordToken(token) {
 }
 
 /**
- * sep（小節線）token かどうか
- * - type:'sep'
- * - または chord:'/' の旧形式（互換維持・徐々に排除）
+ * barline（小節線）token かどうか
+ *
+ * canonical : type:'barline'（Phase39-4以降の新規生成）
+ * legacy    : type:'sep'（deprecated・storage互換維持）
+ * legacy    : chord:'/'（旧形式・storage互換維持）
+ *
+ * barline token の直参照は禁止。必ずこの関数を経由すること。
  */
 export function isSepToken(token) {
-  return token?.type === 'sep'
+  return token?.type === 'barline'
+      || token?.type === 'sep'
       || token?.chord === '/';
 }
 

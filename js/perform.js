@@ -27,6 +27,7 @@
 
 import { lookupChord, drawDiagram } from './chords.js';
 import { fmt } from './audio.js';
+import { isSepToken, tokenToText } from './tokens.js';
 
 // ════════════════════════════════════════
 // MODULE STATE
@@ -161,14 +162,15 @@ export function renderPerformLines() {
 
     if (line.chords.length > 0) {
       chordColumns = line.chords.map(c => {
-        // 小節線
-        if (c.type === 'sep' || c.chord === '/') {
+        // 小節線（旧形式 c.chord==='/' 含む）
+        if (isSepToken(c)) {
           return `<div class="perform-chord-col"><div class="perform-sep">/</div></div>`;
         }
 
         // コード
         if (c.chord && c.chord !== '') {
-          const chordName = c.chord;
+          const chordName = c.chord;      // lookup key は raw chord のまま
+          const displayName = tokenToText(c);  // DOM表示は tokenToText 経由
           let diagramHTML = '';
 
           if (performState.diagOn) {
@@ -184,7 +186,7 @@ export function renderPerformLines() {
 
           return `
             <div class="perform-chord-col">
-              <div class="perform-chord-name">${chordName}</div>
+              <div class="perform-chord-name">${displayName}</div>
               ${performState.diagOn ? `<div class="perform-chord-diagram">${diagramHTML}</div>` : ''}
             </div>
           `;

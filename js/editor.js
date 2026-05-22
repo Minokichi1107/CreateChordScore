@@ -2,6 +2,8 @@
 // EDITOR - 譜面エディタUI管理
 // ════════════════════════════════════════
 
+import { isSepToken, tokenToText } from './tokens.js';
+
 // ────────────────────────────────────────
 // 内部状態
 // ────────────────────────────────────────
@@ -173,8 +175,8 @@ export function renderLines(lines, uiState, callbacks) {
 
     // コードタグ（削除ボタン大きく）＋セパレーター「/」対応
     line.chords.forEach((c, ci) => {
-      // セパレーターアイテム
-      if (c.type === 'sep') {
+      // セパレーターアイテム（旧形式 c.chord==='/' 含む）
+      if (isSepToken(c)) {
         const sep = document.createElement('span');
         sep.className = 'chord-sep';
         sep.textContent = '/';
@@ -194,7 +196,7 @@ export function renderLines(lines, uiState, callbacks) {
       tag.className = 'chord-tag';
       const ns = document.createElement('span');
       ns.className = 'chord-name';
-      ns.textContent = c.chord;
+      ns.textContent = tokenToText(c);
       tag.appendChild(ns);
       let pressTimer = null;
 

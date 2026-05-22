@@ -1,6 +1,6 @@
 # アーキテクチャ概要
 
-> 最終更新: Phase35完了時点
+> 最終更新: Phase39完了時点
 
 ---
 
@@ -34,6 +34,8 @@ CreateChordScore/
 │   ├─ csvImporter.js
 │   ├─ perform.js
 │   ├─ modals.js
+│   ├─ chordEntry.js
+│   ├─ tokens.js
 │   └─ idb.js
 ├─ resource/
 │   ├─ audio/
@@ -60,6 +62,8 @@ CreateChordScore/
 | csvImporter.js | CSVインポート |
 | perform.js | 演奏モード関連処理 |
 | modals.js | 軽量modal群（time / repeat / copy / diagram / chordEdit） |
+| chordEntry.js | コード入力サブシステム（openAddChord / insertAt state管理 / transient preview） |
+| tokens.js | musical token stream の分類・変換ユーティリティ（isChordToken / isSepToken / isSimileToken / tokenToText） |
 | idb.js | IndexedDB操作層（audio/chord_sourceのローカル保存） |
 
 ### 依存関係ルール
@@ -68,6 +72,7 @@ CreateChordScore/
 - モジュール間の直接操作禁止（例: `editor.js` → `audio.js` の直接呼び出しは禁止）
 - `project.js` はデータ管理・変換に限定（UI操作を含まない）
 - `modals.js` はUI lifecycle と callback通知のみ。state mutationは app.js が担当
+- `tokens.js` は domain-level utility。どのモジュールからも参照可（app.js 経由不要）
 - `utils.js` / `helpers.js` は作らない
 
 ### modals.js 依存注入パターン
@@ -86,10 +91,31 @@ initModals({
 })
 ```
 
+### chordEntry.js 依存注入パターン
+
+`chordEntry.js` は `initChordEntry({...})` で依存を注入される（Phase39-5で接続完成）。
+
+```javascript
+initChordEntry({
+  getLines,            // () => project.lines（アクセサ渡し・値コピー禁止）
+  getPalette,          // () => palette
+  getPaletteTranspose, // () => paletteTranspose
+  addToPaletteIfNew,
+  refreshEditor,
+  openModal,
+  closeModal,
+  mkMBtn,
+  toast,
+  unlockDiag,          // AddChord open時にlock解除（B案・Phase39-2で確立）
+  onPreviewChord,      // (chord) => void（input変更時の右パネル更新）
+  transposeChord,
+})
+```
+
 注入ルール：
-- 「何をしたいか」を表す抽象callbackを渡す（例: `onPreviewChord`）
-- 内部実装（`setDiagRight` / `getCapo` 等）を直接渡さない
-- 広域stateの丸渡し（`getProject()` 等）は禁止
+- 「何をしたいか」を表す抽象callbackを渡す
+- 広域stateの丸渡し禁止
+- `project.lines` は直接渡さずアクセサ経由
 
 ---
 
@@ -115,7 +141,6 @@ project = {
 uiState = {
   focLine,   // フォーカス行インデックス（-1: 未選択）
   tapIdx,    // TAPモードインデックス
-  diagOn,    // ダイアグラム表示フラグ
   rbHits,    // 置換回数
 }
 
@@ -137,6 +162,22 @@ audioState = {
 }
 ```
 
+### diagLock API（app.js内・Phase36で確立）
+
+```javascript
+// updateDiagRight(chord, capo) — 右パネル更新の正式API（currentDiagChordを常に同期）
+// lockDiag(chord)              — diagLock有効化
+// unlockDiag()                 — diagLock解除
+// canUpdateDiagFromHover()     — hover更新guard（diagLocked時はfalse）
+// updateDiagLockUI()           — ロック状態のUI反映（.phdr クラス切替）
+// forcePreviewChord(chord)     — diagLocked中でも右パネルを一時更新（currentDiagChord書き換えなし）
+//                                現在未使用・将来の preview layer 多層化向けに予約（Phase39-5）
+```
+
+AddChord open時のlock解除方針（Phase39-2で確立）：
+- B案採用: `openAddChord()` 冒頭で `unlockDiag()` を呼ぶ
+- A案（restore方式）は不採用 → `forcePreviewChord` のコメントに設計意図を記載
+
 ---
 
 ## 5. 起動フロー
@@ -144,35 +185,86 @@ audioState = {
 ```
 DOMContentLoaded
 ↓
-initApp()
-↓
 setupEventHandlers()
+↓
+initAudioEngine()
+↓
+initPerformMode()
+↓
+initTapMode()
+↓
+initReplace()
 ↓
 initModals()         ← Phase33で追加
 ↓
-initializeUI()
+initChordEntry()     ← Phase39-5で追加（chordEntry subsystem接続完成）
 ↓
-restoreProjectState()
+loadCustomDiagrams()
+↓
+restoreFromLocalStorage()
 ```
 
 ---
 
-## 6. 将来予定（構造レベル・未実装）
+## 6. token stream 設計
 
-### chordEntry.js（将来）
-`openAddChord` は現在 `app.js` に残留しているが、将来的に独立subsystem化を想定。
+### token 種別
 
+| token | 内部表現 | 状態 |
+|---|---|---|
+| chord | `{ chord: 'Am7' }` | 現行 |
+| barline | `{ type: 'barline' }` | canonical（Phase39-4以降） |
+| barline legacy | `{ type: 'sep' }` | deprecated（storage互換維持） |
+| barline legacy | `{ chord: '/' }` | deprecated（storage互換維持） |
+| simile | `{ type: 'simile', bars: 1\|2 }` | 設計済み・未実装 |
+
+### token access layer（tokens.js）
+
+```javascript
+isSepToken(token)    // barline / sep / '/' の全形式を吸収
+isChordToken(token)  // chord token 判定（プロパティ存在判定）
+isSimileToken(token) // simile token 判定
+tokenToText(token)   // DOM表示用変換（lookup key には使わない）
 ```
-chordEntry.js（将来）
-  ├ openAddChord
-  ├ insertAt state管理
-  ├ preview rendering
-  ├ keyboard handling
-  ├ 他行コード転送
-  └ live editing flow
-```
 
-現時点で `modals.js` への収納は行わない。理由：ライブ編集型であり軽量modal群と性質が異なるため。
+### 責務分離ルール
+
+| 用途 | 使用値 |
+|---|---|
+| 内部処理（lookup / compare / callback） | `c.chord`（raw） |
+| DOM表示 | `tokenToText(c)` |
+| separator判定 | `isSepToken(c)` |
+
+`tokenToText()` を lookup key / compare / storage に使うことは禁止。
+
+---
+
+## 7. 将来予定
+
+### chordEntry.js 拡張（Phase39以降）
+
+Phase39-5で app.js との接続完成。現在の実装範囲：
+- `openAddChord(idx)`
+- `insertAt` state管理
+- `addChord` / `addSep`（addSep は barline canonical 生成）
+- キーボードハンドリング（Enter / Escape / IME guard）
+- `isChordLikeInput` domain validation
+
+Phase39以降の拡張予定：
+- insertion cursor 化
+- keyboard-first chord entry（insertion model 再設計）
+- simile token 挿入UI
+- token shorthand（`/`→barline、`ss`→sim. 等）
+
+### Issue #26 — barline → bars[] 移行パス
+
+現在の token stream モデル（`[token, barline, token]`）から、
+将来の bars 構造（`bars[].chords[]`）への移行に備えた設計：
+
+- `isSepToken()` が access layer として確立（Phase39-3/4）
+- 新規生成は `{ type: 'barline' }` canonical（Phase39-4）
+- 旧データは `isSepToken()` で透過的に扱える
+- storage migration は Issue #26 設計フェーズで判断
 
 ### その他将来予定
 - モジュールが肥大化した場合は責務単位での再分割を検討

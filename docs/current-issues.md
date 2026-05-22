@@ -1,23 +1,10 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase35完了時点
+> 最終更新: Phase39完了時点
 
 ---
 
 ## 1. バックログ（優先順）
-
-### ダイアグラム固定操作
-状態: ほぼ完了（あとはマウス操作追加）
-内容: ポインタ移動で表示が変わってしまうため、編集時に右パネルに固定する操作を追加したい。
-方向性:
-- ダブルクリック等で固定（`diagLocked` 状態を導入）
-- hover preview と locked preview を状態として分離
-- `uiState` に `diagLocked: false` を追加する方向
-
-### TAP閉じるボタン hover feedback欠落
-状態: 未着手
-内容: TAPモードの閉じるボタンにhover時の視覚変化がない。
-方向性: `--surface-hover` を適用する。Phase35で追加したtokenへ寄せられる候補。
 
 ### pause icon alignment
 状態: 未着手
@@ -46,30 +33,60 @@
 ## 2. 将来検討（subsystem別整理）
 
 ### chord editor / line editing 系
-将来的に `chordEntry.js` および `editor.js` 拡張と関係する。
 
-#### openAddChord subsystem化（chordEntry.js）
-状態: 意図的保留
-内容: openAddChord はライブ編集型であり、軽量modal群とは性質が異なるため Phase33 では app.js に残留。
-将来的に以下を含む独立subsystemとして切り出す：
-- insertAt state管理
-- preview rendering
-- keyboard handling（キー入力主体操作）
-- 他行コード転送
-- 記号入力
-- live editing flow
+#### transient preview restore
+状態: 未着手
+内容: chordEntry.js の modal close 後、diagLocked 状態の右パネル表示を復元する処理。
+Phase39-1 で forcePreviewChord が diagLockedChord を書き換えない設計になったため、
+modal close 時に diagLockedChord を右パネルに再表示する処理が必要。
+方向性:
+- `restoreDiagAfterTransientPreview()` を app.js に追加
+- `closeMod()` から呼ぶ（暫定）
+- 将来: `beginTransientPreview()` / `endTransientPreview()` API に昇格
 
 #### 挿入ボタン上下両方向対応
 状態: 未着手
 内容: 現在の `insertAt` が片方向のみ。cursor的な insertion control へ拡張。
-openAddChord subsystem化とセットで設計すること。
+chordEntry.js の keyboard-first 化とセットで設計すること。
 
 #### 行またぎコード移動
 状態: 未着手
 内容: 先頭コード→前行末尾 / 末尾コード→次行先頭への移動。
 通常画面（inline editing）側での実装が望ましい。
-`project.lines` 編集APIが必要。openAddChord subsystem化とセットで設計すること。
+`project.lines` 編集APIが必要。app.js 内 `moveChordAcrossLines` として設計済み（Phase38-3）。
 ※ modal内の小機能として実装すると line mutation が modal subsystem に漏れるため注意。
+
+#### diagLocked — 将来拡張候補
+状態: 検討
+内容: Phase36で確立した diagLock gestureに将来追加できる操作。
+- context menu からのlock
+- long press = lock（タッチ対応時・PC版は実装済み）
+備考: dblclick = lock はevent競合問題により longpress に変更済み。
+
+### token / rendering 系
+
+#### simile token 挿入UI
+状態: 未着手
+内容: AddChordモーダルから simile token（`{type:'simile', bars:1|2}`）を挿入できるUI。
+Phase38-2で設計済み。chordEntry.js 拡張として実装予定。
+
+#### renderTokenNode 層
+状態: 未着手
+内容: simile token の SVG描画。performSimileStyle='svg' 対応。
+Phase38-2で設計済み。
+
+#### interaction hierarchy 改修
+状態: 未着手
+内容: AddChord modal の操作体系をキーボード主体に変更。
+- insertion cursor 化（`+` → `|` 表示への変更）
+- hover-only 削除ボタン（`✕` の表示制御）
+Phase38-2で設計済み。chordEntry.js 拡張として実装予定。
+
+### Issue #26 — ChordMini Beat/Grid情報対応
+状態: 設計前
+内容: 将来の `bars[]` 構造への移行・grid表示・beat alignment対応。
+Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み。
+本格設計は Issue #26 設計フェーズで行う。
 
 ### responsive UI 系
 
@@ -145,13 +162,6 @@ tones / intervals / harmonic relation を持たない。
   intervals: [1,3,5,7]
 }
 ```
-### diagLocked — 将来拡張候補
-状態: 検討
-内容: Phase34-1で確立した diagLocked に将来追加できる操作。
-- dblclick = lock（hover overlay redesign後）
-- long press = lock（タッチ対応時）
-- context menu からのlock
-
 
 ---
 
@@ -177,23 +187,6 @@ tones / intervals / harmonic relation を持たない。
 状態: 再現性確認中
 内容: 読み込みを中止して再度読み込むと比較的早く開く。再現条件の特定が必要
 
-### hover overlay interaction redesign
-状態: 未着手
-内容: chord-tag上のhover popupが操作を阻害している問題の総合対応。
-
-問題の全体像:
-- popup が chord-tag を覆い、その上のクリック操作を奪う
-- dblclick が成立しない（click → modal open → DOM状態変化 → dblclick崩壊の複合）
-- pointer-events / offset / z-index の再設計が必要
-
-対応候補:
-- popup に `pointer-events: none` を追加（popup内にインタラクションがないことを確認の上）
-- popup の表示位置を chord-tag から右方向にオフセット
-- dblclick = lock の実装（popup問題解消後に再挑戦）
-
-注意: dblclick単独の修正ではなく、hover UX全体の設計として扱うこと。
-
-
 ---
 
 ## 4. 既知の技術的負債
@@ -202,6 +195,21 @@ tones / intervals / harmonic relation を持たない。
 - `idb.js` は最低構成（GC・schema migration・compression なし）
   - asset種類追加: key形式 `${projectId}:${type}` に新typeを追加
   - schema変更: `DB_VERSION` をインクリメントして `onupgradeneeded` を更新
-- `openAddChord` が app.js に残留（意図的・将来 chordEntry.js 化を想定）
+- `isSepToken` の旧形式互換（`c.chord === '/'` / `type:'sep'`）は barline migration 完了後に削除判断
 
+### isChordLikeInput の末尾検証強化
+状態: 未着手
+内容: 現行の `/^[A-G](#|♯|b|♭)?/` は先頭のみ検証するため、
+`Cほげ` / `A日本語` のような入力が通ってしまう。
+方向性:
+- 末尾まで検証する正規表現に強化（暫定案）:
+  `/^[A-G](#|♯|b|♭)?[a-zA-Z0-9()+\-susmajdimaugM♭♯#/]*$/`
+- または将来 `parseChordToken(raw)` として tokens.js に統合
+  `{ type:'chord', raw:'D♭maj7', normalized:'C#maj7' }` のような構造
+- 優先度: 低（実害は限定的。誤入力されても normalizeChordName で処理される）
 
+### barline storage migration
+状態: 意図的保留
+内容: 保存済みデータの `{ type:'sep' }` / `{ chord:'/' }` を `{ type:'barline' }` へ migration。
+現在は `isSepToken()` で透過的に扱えるため不急。
+時期: Issue #26 の bars[] 設計フェーズ前後に合わせて実施を検討。

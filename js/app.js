@@ -162,6 +162,8 @@ import {
   openChordEdit,
 } from './modals.js';
 
+import { isSepToken } from './tokens.js';
+
 import { initChordEntry, openAddChord } from './chordEntry.js';
 
 // ════════════════════════════════════════
@@ -294,33 +296,11 @@ function updateDiagLockUI() {
 }
 
 // ── preview layer API ──────────────────
-/**
- * forcePreviewChord — diagLocked 中でも右パネルを一時更新する
- *
- * 【現在の使用状況】
- *   現在は未使用。chordEntry.js は AddChord open 時に unlockDiag() を呼ぶため、
- *   modal 内では diagLocked = false になっており updateDiagRight() で足りる。
- *
- * 【なぜ残しているか】
- *   将来の preview layer 多層化に備えた予約 API。
- *   具体的には以下を想定している：
- *     - hover preview（chord-tag 上のホバー）
- *     - keyboard preview（replace bar 入力中）
- *     - playback preview（再生位置に連動した表示）
- *   これらは diagLocked 中でも「一時的に別コードを表示したい」ケースがある。
- *   その際に beginTransientPreview() / endTransientPreview() の内部実装として使う。
- *
- * 【updateDiagRight との違い】
- *   updateDiagRight: currentDiagChord を更新する（lock状態に影響）
- *   forcePreviewChord: currentDiagChord を更新しない（lock状態を保持）
- *
- * 【将来の発展形】
- *   function beginTransientPreview(chord) { forcePreviewChord(chord); }
- *   function endTransientPreview() { restoreDiagAfterTransientPreview(); }
- *   function restoreDiagAfterTransientPreview() {
- *     if (diagLocked && diagLockedChord) updateDiagRight(diagLockedChord);
- *   }
- */
+// diagLocked 中でも右パネルを一時更新する（diagLockedChord は書き換えない）
+// chordEntry.js の transient preview から使用。
+// updateDiagRight との違い: currentDiagChord を更新しないため
+//   diagLock 状態が壊れない。modal close 後に lock が復元可能。
+// 将来: beginTransientPreview() / endTransientPreview() に発展予定
 function forcePreviewChord(chord) {
   setDiagRight(chord, getCapo(), getDiagCallbacks());
 }
@@ -576,7 +556,7 @@ function createEditorCallbacks() {
       refreshEditor();
     },
     onSepInsert: (idx, ci) => {
-      project.lines[idx].chords.splice(ci + 1, 0, { type: 'sep' });
+      project.lines[idx].chords.splice(ci + 1, 0, { type: 'barline' });
       refreshEditor();
     },
     onLineInsert: (idx) => {
@@ -780,7 +760,6 @@ function addToPaletteIfNew(chord){
     document.getElementById('pal-count').textContent=palette.length;
   }
 }
-
 
 // ダイアグラム編集・削除
 function refreshDiagrams(){
@@ -1377,7 +1356,7 @@ function setupEventHandlers() {
     const semitones=-diff;
     project.lines.forEach(line=>{
       line.chords.forEach(c=>{
-        if(c.type==='sep')return;
+        if(isSepToken(c))return;
         c.chord=transposeChord(c.chord,semitones);
       });
     });
@@ -1435,10 +1414,10 @@ function setupEventHandlers() {
       }
     }
 
-    // Shift+L: diagLock トグル（演奏モード中は無視）
-    // 単独 L はテキスト入力と衝突するため Shift+L に設定。
-    // INPUT / TEXTAREA フォーカス中でも Shift+L は diagLock 操作として受け付ける。
-    if (e.shiftKey && (e.key === 'l' || e.key === 'L')) {
+    // L: diagLock トグル（テキスト入力中・演奏モード中は無視）
+    if (e.key === 'l' || e.key === 'L') {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (document.getElementById('perform-overlay')?.hidden === false) return;
       if (diagLocked) {
         unlockDiag();
@@ -1834,7 +1813,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     onPreviewChord: (chord) => updateDiagRight(chord),
   });
 
-  // ⑦ ChordEntry 初期化
+  // ⑦ ChordEntry 初期化（Phase39-5: chordEntry.js接続完成）
   initChordEntry({
     getLines:            () => project.lines,
     getPalette:          () => palette,
@@ -1845,11 +1824,8 @@ window.addEventListener('DOMContentLoaded',()=>{
     closeModal:          closeMod,
     mkMBtn,
     toast,
-    // forcePreviewChord は渡さない。
-    // AddChord open 時に unlockDiag() を呼ぶため modal 内は diagLocked = false になり
-    // updateDiagRight で足りる。forcePreviewChord は将来の preview layer 拡張用に app.js に予約。
     unlockDiag,
-    onPreviewChord: (chord) => updateDiagRight(chord),
+    onPreviewChord:      (chord) => updateDiagRight(chord),
     transposeChord,
   });
 
