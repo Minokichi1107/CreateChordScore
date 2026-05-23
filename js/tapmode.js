@@ -22,6 +22,8 @@
  * - syncTovPlayer()    ← openTapMode内で呼ぶ
  */
 
+import { isSepToken } from './tokens.js';
+
 // ════════════════════════════════════════
 // MODULE STATE
 // ════════════════════════════════════════
@@ -174,7 +176,7 @@ export function renderTovLines() {
       chordWrap.appendChild(rb);
     }
     line.chords.forEach(c => {
-      if (c.type === 'sep') {
+      if (isSepToken(c)) {
         const sp = document.createElement('span');
         sp.style.cssText = 'color:var(--text-muted);font-size:15px;padding:0 1px;align-self:center';
         sp.textContent = '/';

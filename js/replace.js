@@ -20,6 +20,8 @@
  * - rbRefresh()        ← focLine変更時にapp.jsから呼ぶ
  */
 
+import { isSepToken } from './tokens.js';
+
 // ════════════════════════════════════════
 // MODULE STATE
 // ════════════════════════════════════════
@@ -97,7 +99,7 @@ export function rbRefresh() {
 
   targetLines.forEach(li => {
     lines[li].chords.forEach((c, ci) => {
-      if (c.type === 'sep') return;
+      if (isSepToken(c)) return;
       if (c.chord === find) rbHits.push({ li, ci });
     });
   });
@@ -140,7 +142,7 @@ function rbScrollToCurrent() {
     if (i !== rbCurr) return;
     const row = rows[h.li];
     if (!row) return;
-    const nonSepIdx = lines[h.li].chords.slice(0, h.ci + 1).filter(c => c.type !== 'sep').length - 1;
+    const nonSepIdx = lines[h.li].chords.slice(0, h.ci + 1).filter(c => !isSepToken(c)).length - 1;
     const allTags = row.querySelectorAll('.chord-tag');
     if (allTags[nonSepIdx]) allTags[nonSepIdx].classList.add('rb-curr');
   });
@@ -204,7 +206,7 @@ function _setupEvents() {
       if (!scopeAll && li !== focLine) return;
       for (let ci = line.chords.length - 1; ci >= 0; ci--) {
         const c = line.chords[ci];
-        if (c.type === 'sep' || c.chord !== find) continue;
+        if (isSepToken(c) || c.chord !== find) continue;
         if (repl === '') line.chords.splice(ci, 1);
         else { line.chords[ci].chord = repl; _callbacks.addToPaletteIfNew(repl); }
         count++;

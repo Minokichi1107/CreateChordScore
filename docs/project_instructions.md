@@ -93,6 +93,28 @@ raw input → normalizeChordName() → canonical key → findChord() → CHORD_D
 
 ---
 
+## レビュー・設計説明時の用語ルール
+
+専門用語・略称・ローカル関数名は、
+初出時に簡単な補足説明を付記すること。
+
+例：
+
+- migration（旧設計から新設計への移行）
+- latent bug（潜在化していた既存バグ）
+- rbRefresh（replace検索結果を再生成する関数）
+
+特に以下を区別して説明する：
+
+- 一般的CS用語
+- 音楽ドメイン用語
+- CreateChordScore固有概念
+- ローカル関数名/略称
+
+略称や内部関数名のみで説明を進めないこと。
+
+---
+
 ## 設計議論のルール
 
 ### 目的
