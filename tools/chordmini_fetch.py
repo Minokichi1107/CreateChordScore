@@ -198,12 +198,51 @@ def convert_to_player_json(chord_resp, beat_resp, filename):
 
     for item in raw:
         ch = normalize_chord(item.get("chord", item.get("label", "")))
-        # start/time どちらにも対応
         t  = round(float(item.get("start", item.get("time", 0))), 3)
         if ch != prev:
             chords.append(ch)
             times.append(t)
             prev = ch
+
+    # ── analysis.raw 組み立て ──────────────────
+    # beat_resp が取得できた場合のみ analysis を追加する。
+    # beat_resp が None（API失敗）の場合は analysis: null。
+    # 既存の chords / times / tempo は後方互換のため維持する。
+    # tempo は既存player用。新機能は analysis.raw.bpm を参照すること。
+    if beat_resp:
+        # timeSignature: "4/4" 形式の文字列をそのまま保持
+        # analysisLoader.js 側で { numerator, denominator } に normalize する
+        ts_raw = beat_resp.get("time_signature", "4/4")
+        time_signature = ts_raw if isinstance(ts_raw, str) else "4/4"
+
+        # chords の raw 保持（confidence / end を含む完全形）
+        raw_chords = []
+        for item in raw:
+            ch = normalize_chord(item.get("chord", item.get("label", "")))
+            raw_chords.append({
+                "chord":      ch,
+                "start":      round(float(item.get("start", item.get("time", 0))), 3),
+                "end":        round(float(item.get("end", 0)), 3),
+                "confidence": round(float(item.get("confidence", 0)), 4),
+            })
+
+        analysis = {
+            "raw": {
+                "chords":        raw_chords,
+                "beats":         beat_resp.get("beats", []),
+                "downbeats":     beat_resp.get("downbeats", []),
+                "timeSignature": time_signature,
+                "bpm":           round(float(beat_resp.get("bpm", 0)), 3),
+                "meta": {
+                    "detector":       beat_resp.get("model_used", ""),
+                    "totalBeats":     beat_resp.get("total_beats", 0),
+                    "totalDownbeats": beat_resp.get("total_downbeats", 0),
+                    "processingTime": round(float(beat_resp.get("processing_time", 0)), 2),
+                },
+            }
+        }
+    else:
+        analysis = None
 
     return {
         "file":     filename,
@@ -214,8 +253,9 @@ def convert_to_player_json(chord_resp, beat_resp, filename):
         "times":    times,
         "model":    chord_resp.get("model_name", "Chord-CNN-LSTM"),
         "source":   "ChordMini (自動取得)",
+        "analysis": analysis,
         # 元データも保持（参照用）
-        "_raw_total_chords": chord_resp.get("total_chords", len(raw)),
+        "_raw_total_chords":    chord_resp.get("total_chords", len(raw)),
         "_raw_processing_time": chord_resp.get("processing_time", 0),
     }
 
