@@ -390,6 +390,8 @@ Phase38設計
 ### やったこと
 Phase38-39
 - openAddChord subsystem化（chordEntry.js）
+- chordEntry.js 分離
+- tokens.js 導入
 ### 気づき
 今まで何曲もつくってきたproject.jsonファイルのほとんどが消失した。.gitigonoreで管理対象からも外していたためかなり焦ったがChatGPTと相談して過去のgitに残っていたcommitから復旧出来た。
 .gitignoreから再度外してクラウドストレージのバックアップ対象に加えた。
@@ -403,4 +405,39 @@ Phase38-39
 同一フェーズ内だからと長くなったChatを更新しなかったら作業途中で二度もトークンの切れになった
 ### 次
 Phase39-2 restoreDiagAfterTransientPreview
+
+## 2026-05-21
+
+### やったこと
+token rendering path の統一
+「画面に表示するコード名」と「内部で使うコード名」を分離
+isSepToken() / tokenToText() という access layer が確立
+
+### 気づき
+
+### 次
+39-4: barline canonical化
+
+## 2026-05-22
+
+### やったこと
+39-4: barline canonical化
+Phase39-5 chordEntry subsystem migration completion
+handoverから積み残した主要３つのドキュメントへの追記と更新
+### 気づき
+今日はClaudeがすぐにトークン切れになるのでほとんど進まない。Chatの切り替えが遅かったかも。
+プロジェクトの編集中に置き換え機能をしてるうちに取り込んだコードが全て消えるバグ発見
+まだ再現性が分からないが、元に戻すが関わっていそう。
+
+### 次
+39-6バグ対応
+
+## 2026-05-22
+
+### やったこと
+
+### 気づき
+
+### 次
+
 
