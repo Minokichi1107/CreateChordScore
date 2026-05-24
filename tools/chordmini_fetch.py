@@ -290,22 +290,19 @@ def main():
         args.compress = True
     args.beats = True
 
-    # ファイル上部
-    from tkinter import Tk, filedialog
-
-    root = Tk()
-    root.withdraw()
-
-    file = filedialog.askopenfilename(
-        title="音声ファイルを選択",
-        filetypes=[("Audio files","*.mp3 *.wav *.flac *.m4a"), ("All files","*.*")]
-    )
-
-    if not file:
-        print("ファイルが選択されませんでした")
-        sys.exit(1)
-
-    args.audio = file
+# コマンドライン引数でファイルが指定されていない場合のみGUIを起動
+    if not args.audio:
+        from tkinter import Tk, filedialog
+        root = Tk()
+        root.withdraw()
+        file = filedialog.askopenfilename(
+            title="音声ファイルを選択",
+            filetypes=[("Audio files","*.mp3 *.wav *.flac *.m4a"), ("All files","*.*")]
+        )
+        if not file:
+            print("ファイルが選択されませんでした")
+            sys.exit(1)
+        args.audio = file
 
     if not os.path.exists(args.audio):
         print(f"エラー: ファイルが見つかりません: {args.audio}")
