@@ -34,6 +34,11 @@
  * csvImporter.js
  *  - CSV/JSONパース
  * 
+ * analysisLoader.js
+ *  - analysis.raw の validate / sanitize / normalize
+ *  - project.analysis への render-safe 構造の生成
+ *  - beats / downbeats / timeSignature / chords の安全変換
+ * 
  * modals.js
  *  - モーダルのUI lifecycle と interaction lifecycle を担当
  *  - state mutation は行わず、onConfirm / onDelete / onCopy で app.js へ通知する
@@ -165,6 +170,8 @@ import {
 import { isSepToken } from './tokens.js';
 
 import { initChordEntry, openAddChord } from './chordEntry.js';
+
+import { loadAnalysis } from './analysisLoader.js';
 
 // ════════════════════════════════════════
 // GLOBAL STATE
@@ -322,9 +329,17 @@ function loadChordData(data,filename){
   // tempo・keyがあれば自動入力（空欄の場合のみ上書き）
   if(data.tempo){const bpmEl=document.getElementById('proj-bpm');if(!bpmEl.value)bpmEl.value=Math.round(data.tempo);}
   if(data.key){const keyEl=document.getElementById('proj-key');if(!keyEl.value)keyEl.value=data.key;}
-  renderPalette();document.getElementById('pal-count').textContent=palette.length;
-  toast(`コード読み込み: ${palette.length}種`+(data.tempo?` / ${Math.round(data.tempo)}BPM`:'')+(data.key?` / ${data.key}`:''));
+  // Analysis ingestion / normalization layer
+  project.analysis = loadAnalysis(data.analysis);
+  console.log('bpm:', project.analysis?.bpm);
+  console.log('timeSignature:', project.analysis?.timeSignature);
+  console.log('beats length:', project.analysis?.beats?.length);
+  console.log('downbeats length:', project.analysis?.downbeats?.length);
+  console.log('chords length:', project.analysis?.chords?.length);
+  console.log('meta:', project.analysis?.meta);  toast(`コード読み込み: ${palette.length}種`+(data.tempo?` / ${Math.round(data.tempo)}BPM`:'')+(data.key?` / ${data.key}`:''));
   checkReloadBannerDone();
+  // app.js 内の loadChordData() に一時追加
+  console.log('project.analysis:', project.analysis);
   renderImportBtn();
 }
 
