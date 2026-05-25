@@ -25,6 +25,13 @@
  *   analysis.raw.sections  → セクション構造（verse / chorus 等）
  *   これらが追加されても本ファイルで normalize する経路は変わらない。
  *
+ * 【normalize pipeline】
+ *   raw.chords
+ *     ↓ sanitizeChords()   入力整形（null除去・数値補正）
+ *     ↓ normalizeChordName() 意味変換（replacementMap適用）
+ *     ↓ analysis.chords    UI/timing/chartが参照
+ *   raw は不変。normalizeルール変更時も raw から再生成可能。
+ *
  * 【呼び出し元】
  *   app.js の loadChordData() 内で
  *   project.analysis = loadAnalysis(data.analysis) として使用する。
@@ -83,6 +90,51 @@ function sanitizeTimestamps(raw) {
 }
 
 // ────────────────────────────────────────
+// replacementMap（chord名正規化辞書）
+// ────────────────────────────────────────
+
+/**
+ * replacementMap
+ *
+ * resource/analysis/replacementMap.json を fetch して返す。
+ * fetch は loadAnalysis() 呼び出し時に行う（lazy loading）。
+ * 失敗した場合は空オブジェクト（normalize スキップ）。
+ *
+ * @returns {Promise<object>}
+ */
+async function fetchReplacementMap() {
+  try {
+    const res = await fetch('/resource/analysis/replacementMap.json');
+    if (!res.ok) return {};
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+// module-level cache（同一セッション内で再 fetch しない）
+let _replacementMap = null;
+
+/**
+ * normalizeChordName
+ *
+ * replacementMap を使って chord 名を正規化する。
+ * - replacementMap に存在する → 置換後の名前を返す
+ * - 存在しない → 元の名前をそのまま返す
+ *
+ * sanitize（入力整形）とは分離した責務。
+ * sanitize: null除去・数値補正
+ * normalize: 意味変換（非正規表記 → 正規表記）
+ *
+ * @param {string} name
+ * @returns {string}
+ */
+function normalizeChordName(name) {
+  if (!_replacementMap) return name;
+  return _replacementMap[name] ?? name;
+}
+
+// ────────────────────────────────────────
 // chords sanitize
 // ────────────────────────────────────────
 
@@ -119,7 +171,7 @@ function sanitizeChords(raw) {
         ? Math.min(1, Math.max(0, item.confidence))
         : 0;
 
-      return { chord: item.chord, start, end, confidence };
+      return { chord: normalizeChordName(item.chord), start, end, confidence };
     });
 }
 
@@ -162,7 +214,12 @@ function normalizeMeta(raw) {
  * @param {*} analysis - data.analysis（analysis.raw を持つオブジェクト）
  * @returns {object|null}
  */
-export function loadAnalysis(analysis) {
+export async function loadAnalysis(analysis) {
+  // replacementMap を初期化（初回のみ fetch）
+  if (_replacementMap === null) {
+    _replacementMap = await fetchReplacementMap();
+  }
+
   // ── structural check ──────────────────
   // analysis 自体がない → null（beat解析未実行等、正常ケースを含む）
   if (!analysis) return null;
@@ -182,10 +239,7 @@ export function loadAnalysis(analysis) {
     : null;
 
   // ── normalize / sanitize ─────────────
-  // [RAW-READONLY] raw は serialize 用に保持。Chart Mode 等は derived を参照すること。
-  // 将来: derived: { bpm, beats, ... } namespace に移行予定（Phase40設計）
   return {
-    raw,
     bpm,
     timeSignature: normalizeTimeSignature(raw.timeSignature),
     beats:         sanitizeTimestamps(raw.beats),
