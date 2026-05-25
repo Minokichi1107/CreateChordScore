@@ -248,3 +248,69 @@ export async function loadAnalysis(analysis) {
     meta:          normalizeMeta(raw.meta),
   };
 }
+
+// ────────────────────────────────────────
+// analysis persistence API
+// ────────────────────────────────────────
+
+/**
+ * saveAnalysisFile
+ *
+ * analysis.raw を analysis/{projectId}.json として保存する。
+ * 呼び出しタイミングは app.js（orchestration層）が決定する。
+ * import時のみ呼ぶこと（loadAnalysis/autosave からは呼ばない）。
+ *
+ * @param {string} projectId
+ * @param {object} raw        - analysis.raw（不変の生データ）
+ * @returns {Promise<boolean>} 成功:true / 失敗:false
+ */
+export async function saveAnalysisFile(projectId, raw) {
+  try {
+    const payload = {
+      version:     1,
+      projectId,
+      generatedAt: new Date().toISOString(),
+      raw,
+    };
+    const res = await fetch('/save-analysis', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * loadAnalysisFile
+ *
+ * analysis/{projectId}.json を読み込み、
+ * projectId照合・version確認の上で raw を返す。
+ *
+ * @param {string} projectId
+ * @returns {Promise<object|null>} raw / null（missing・mismatch・破損）
+ */
+export async function loadAnalysisFile(projectId) {
+  try {
+    const res = await fetch(`/analysis/${projectId}.json`);
+    if (!res.ok) return null;          // missing → null（正常系）
+
+    const data = await res.json();
+
+    // version field 存在確認（migration準備）
+    if (typeof data.version !== 'number') {
+      console.warn('[analysisLoader] version field missing. migration may be needed.');
+      // version なしでも読み込みは続行（Step4でmigration対応）
+    }
+
+    // raw 存在確認
+    if (!data.raw || typeof data.raw !== 'object') return null;
+
+    return data.raw;
+
+  } catch {
+    return null;                       // 破損・parse error → null
+  }
+}

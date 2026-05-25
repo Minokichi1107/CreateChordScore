@@ -171,7 +171,7 @@ import { isSepToken } from './tokens.js';
 
 import { initChordEntry, openAddChord } from './chordEntry.js';
 
-import { loadAnalysis } from './analysisLoader.js';
+import { loadAnalysis, saveAnalysisFile, loadAnalysisFile } from './analysisLoader.js';
 
 import {
   initChartMode,
@@ -338,6 +338,25 @@ async function loadChordData(data,filename){
   if(data.key){const keyEl=document.getElementById('proj-key');if(!keyEl.value)keyEl.value=data.key;}
   // Analysis ingestion / normalization layer
   project.analysis = await loadAnalysis(data.analysis);
+
+  // ★ analysis が存在すれば即保存
+  if (data.analysis?.raw) {
+    const ok = await saveAnalysisFile(project.id, data.analysis.raw);
+    if (ok) {
+      project.hasAnalysis = true;
+    } else {
+      console.warn('[analysis] failed to persist analysis file. Chart Mode will not survive reload.');
+    }
+  }
+
+  updateChartModeAvailability();
+
+  // analysis 復元成功時にバナーを消す
+  if (project.analysis) {
+    const analysisBanner = document.getElementById('analysis-missing-banner');
+    if (analysisBanner) analysisBanner.remove();
+  }
+
   toast(`コード読み込み: ${palette.length}種`+(data.tempo?` / ${Math.round(data.tempo)}BPM`:'')+(data.key?` / ${data.key}`:''));
   checkReloadBannerDone();
   renderImportBtn();
@@ -929,6 +948,52 @@ function showReloadBanner(audioName, chordName){
   ea.insertBefore(banner, ea.firstChild);
 }
 
+// analysis missing バナー
+function showAnalysisMissingBanner() {
+  const old = document.getElementById('analysis-missing-banner');
+  if (old) old.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'analysis-missing-banner';
+  banner.style.cssText = [
+    'background:rgba(255,184,64,.08)',
+    'border:1px solid var(--color-amber)',
+    'border-radius:var(--r-md)',
+    'padding:8px 10px',
+    'margin:0 0 8px',
+    'font-size:11px',
+    'font-family:var(--font-mono)',
+    'color:var(--color-amber)',
+  ].join(';');
+
+  banner.innerHTML = `
+    <div style="font-weight:600;margin-bottom:3px">
+      ⚠ 解析データが見つかりません
+    </div>
+    <div style="color:var(--text-secondary)">
+      Chart Mode は利用できません。
+      解析データを再インポートしてください。
+    </div>
+    <button onclick="document.getElementById('analysis-missing-banner').remove()"
+      style="margin-top:5px;background:none;border:none;
+             color:var(--text-muted);cursor:pointer;
+             font-family:var(--font-mono);font-size:10px;padding:0">
+      ✕ 閉じる
+    </button>
+  `;
+
+  const ea = document.getElementById('editor-area');
+  if (ea) ea.insertBefore(banner, ea.firstChild);
+}
+
+function updateChartModeAvailability() {
+  const btn = document.getElementById('btn-chart-mode');
+  if (!btn) return;
+  const enabled = !!project.analysis;
+  btn.disabled = !enabled;
+  btn.title = enabled ? '' : '解析データがありません';
+}
+
 // ════════════════════════════════════════
 // STATE MANAGEMENT
 // ════════════════════════════════════════
@@ -1012,6 +1077,9 @@ function resetProject() {
   
   const reloadBanner = document.getElementById('reload-banner');
   if (reloadBanner) reloadBanner.remove();
+
+  const analysisBanner = document.getElementById('analysis-missing-banner');
+  if (analysisBanner) analysisBanner.remove();
 }
 
 // ════════════════════════════════════════
@@ -1037,8 +1105,28 @@ async function loadProj(data){
   project.capo = uiState.capo;
   project.chord_source = newProject.chord_source;
   project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
-  // analysis.raw を loadAnalysis() で sanitize/normalize して復元
-  project.analysis = await loadAnalysis(newProject.analysis ?? null);
+
+// analysis load / migration
+  if (newProject.hasAnalysis) {
+    // 新形式: analysis/{id}.json から load
+    const raw = await loadAnalysisFile(newProject.id);
+    project.analysis = await loadAnalysis(raw ? { raw } : null);
+    if (!project.analysis) showAnalysisMissingBanner();
+
+  } else if (data.analysis?.raw) {
+    // 旧形式 migration: 埋め込み analysis を外部ファイルへ移行
+    console.info('[analysis] migrating embedded analysis to external file');
+    await saveAnalysisFile(newProject.id, data.analysis.raw);
+    newProject.hasAnalysis = true;   // ★ newProject も更新
+    project.hasAnalysis    = true;
+    project.analysis = await loadAnalysis(data.analysis);
+
+  } else {
+    // analysis なし
+    project.analysis = null;
+  }
+
+  updateChartModeAvailability();
   
   // Update file buttons
   const audioBtn = document.getElementById('audio-btn');
@@ -1586,6 +1674,7 @@ function setupEventHandlers() {
 
   document.getElementById('btn-chart-mode')
     .addEventListener('click', openChartMode);
+
   document.getElementById('btn-chart-close')
     .addEventListener('click', closeChartMode);
   

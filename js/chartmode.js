@@ -242,13 +242,11 @@ export function initChartMode({ getAnalysis, getAudioEl, getAudioDuration }) {
  */
 export function openChartMode() {
   const analysis = _getAnalysis?.();
-  if (!analysis) {
-    // analysis なし → fallback 表示
-    chartState.viewModel = null;
-  } else {
-    const duration = _getAudioDuration?.() || null;
-    chartState.viewModel = buildGridViewModel(analysis, duration);
-  }
+  if (!analysis) return;  // ★ runtime guard（ここで return するので以下は不要）
+
+  // analysis は必ず存在する（上でguard済み）
+  const duration = _getAudioDuration?.() || null;
+  chartState.viewModel = buildGridViewModel(analysis, duration);
 
   chartState.active = true;
   const overlay = document.getElementById('chart-overlay');

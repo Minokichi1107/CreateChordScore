@@ -17,9 +17,7 @@ export function serializeProject(project, uiState) {
     lines: project.lines,
     chord_source: project.chord_source,
     // [RAW-READONLY] raw のみ保存。derived は保存禁止（Phase40設計）
-    analysis: project.analysis?.raw
-      ? { raw: project.analysis.raw }
-      : null,
+    hasAnalysis: project.hasAnalysis === true,
   };
 }
 
@@ -31,14 +29,14 @@ export function deserializeProject(jsonData) {
   
   return {
     project: {
-      id: data.id || crypto.randomUUID(),
-      audio: data.audio || '',
+      id:           data.id || crypto.randomUUID(),
+      audio:        data.audio || '',
       chord_source: data.chord_source || '',
-      lines: data.lines || [],
-      // [RAW-READONLY] raw のみ復元。loadProj() で loadAnalysis() を通すこと
-      analysis: data.analysis?.raw
-        ? { raw: data.analysis.raw }
-        : null,
+      lines:        data.lines || [],
+      hasAnalysis:  data.hasAnalysis === true,
+      // [migration] 旧形式の analysis.raw を loadProj() に引き渡す
+      // 新形式（hasAnalysis:true）では参照しない
+      _legacyAnalysis: data.analysis?.raw ? data.analysis : null,
     },
     uiState: {
       title: data.title || '',

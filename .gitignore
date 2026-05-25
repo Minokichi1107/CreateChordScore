@@ -34,3 +34,6 @@ __pycache__/
 
 # 個人作業データ
 resource/project/work/
+
+# analysis: derived artifact・著作権配慮
+analysis/
