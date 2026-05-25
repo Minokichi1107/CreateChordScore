@@ -333,13 +333,15 @@ async function loadChordData(data,filename){
   const all=(data.chords||[]).filter(c=>c&&c!=='N');
   palette=[...new Set(all)];
   window._cn=data.chords||[];window._ct=data.times||[];
+
   // tempo・keyがあれば自動入力（空欄の場合のみ上書き）
   if(data.tempo){const bpmEl=document.getElementById('proj-bpm');if(!bpmEl.value)bpmEl.value=Math.round(data.tempo);}
   if(data.key){const keyEl=document.getElementById('proj-key');if(!keyEl.value)keyEl.value=data.key;}
-  // Analysis ingestion / normalization layer
-  project.analysis = await loadAnalysis(data.analysis);
 
-  // ★ analysis が存在すれば即保存
+  // Analysis ingestion / normalization layer
+  project.analysis = await loadAnalysis(data.analysis ?? null);
+
+  // analysis が存在すれば即保存
   if (data.analysis?.raw) {
     const ok = await saveAnalysisFile(project.id, data.analysis.raw);
     if (ok) {
@@ -348,6 +350,10 @@ async function loadChordData(data,filename){
       console.warn('[analysis] failed to persist analysis file. Chart Mode will not survive reload.');
     }
   }
+
+  // ★ palette UI 更新
+  renderPalette();
+  document.getElementById('pal-count').textContent = palette.length;
 
   updateChartModeAvailability();
 
@@ -1304,6 +1310,7 @@ function setupEventHandlers() {
   });
 
   // Chord file load (JSON/CSV)
+  // file-chord の addEventListener の直前に追加
   document.getElementById('file-chord').addEventListener('change',e=>{
     const f=e.target.files[0];if(!f)return;
     const r=new FileReader();
@@ -1322,6 +1329,8 @@ function setupEventHandlers() {
       saveAsset(project.id, 'chord', { data: ev.target.result, filename: f.name });
     };
     r.readAsText(f,'utf-8');
+    
+    e.target.value = '';  // ★ これがないと同じファイルで change が発火しない
   });
 
   // Audio file load
