@@ -30,6 +30,7 @@
   <div class="header-center">
     <button id="btn-perform-mode" class="hdr-btn">🎸 演奏モード</button>
     <button id="btn-tapmode"      class="hdr-btn">🎵 TAPモード</button>
+    <button id="btn-chart-mode"    class="hdr-btn">📊 チャート</button>
   </div>
 
   <div class="header-right">
@@ -341,6 +342,15 @@
     </div>
   </div>
   <div id="perform-lines"></div>
+</div>
+
+<div id="chart-overlay" hidden>
+  <div id="chart-header">
+    <span class="chart-header-label">CHART</span>
+    <span id="chart-header-info"></span>
+    <button id="btn-chart-close" class="hdr-btn">✕ 閉じる</button>
+  </div>
+  <div id="chart-grid"></div>
 </div>
 
 <div id="modal-ov">

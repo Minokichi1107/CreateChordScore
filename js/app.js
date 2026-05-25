@@ -173,6 +173,13 @@ import { initChordEntry, openAddChord } from './chordEntry.js';
 
 import { loadAnalysis } from './analysisLoader.js';
 
+import {
+  initChartMode,
+  openChartMode,
+  closeChartMode,
+  updateChartPlayback,
+} from './chartmode.js';
+
 // ════════════════════════════════════════
 // GLOBAL STATE
 // ════════════════════════════════════════
@@ -331,15 +338,8 @@ function loadChordData(data,filename){
   if(data.key){const keyEl=document.getElementById('proj-key');if(!keyEl.value)keyEl.value=data.key;}
   // Analysis ingestion / normalization layer
   project.analysis = loadAnalysis(data.analysis);
-  console.log('bpm:', project.analysis?.bpm);
-  console.log('timeSignature:', project.analysis?.timeSignature);
-  console.log('beats length:', project.analysis?.beats?.length);
-  console.log('downbeats length:', project.analysis?.downbeats?.length);
-  console.log('chords length:', project.analysis?.chords?.length);
-  console.log('meta:', project.analysis?.meta);  toast(`コード読み込み: ${palette.length}種`+(data.tempo?` / ${Math.round(data.tempo)}BPM`:'')+(data.key?` / ${data.key}`:''));
+  toast(`コード読み込み: ${palette.length}種`+(data.tempo?` / ${Math.round(data.tempo)}BPM`:'')+(data.key?` / ${data.key}`:''));
   checkReloadBannerDone();
-  // app.js 内の loadChordData() に一時追加
-  console.log('project.analysis:', project.analysis);
   renderImportBtn();
 }
 
@@ -1034,9 +1034,11 @@ function loadProj(data){
   // Apply project data
   project.id = newProject.id;
   project.audio = newProject.audio;
-  project.capo = uiState.capo;  // ← 追加
+  project.capo = uiState.capo;
   project.chord_source = newProject.chord_source;
   project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
+  // analysis.raw を loadAnalysis() で sanitize/normalize して復元
+  project.analysis = loadAnalysis(newProject.analysis ?? null);
   
   // Update file buttons
   const audioBtn = document.getElementById('audio-btn');
@@ -1581,9 +1583,12 @@ function setupEventHandlers() {
       }
     }
   });
-  
-  // ============================================
 
+  document.getElementById('btn-chart-mode')
+    .addEventListener('click', openChartMode);
+  document.getElementById('btn-chart-close')
+    .addEventListener('click', closeChartMode);
+  
   // ============================================
   // Project Meta Events
   // ============================================
@@ -1764,6 +1769,11 @@ window.addEventListener('DOMContentLoaded',()=>{
   aEl.addEventListener('timeupdate', updateTovTime);
   aEl.addEventListener('timeupdate', updatePerformFocus);
   aEl.addEventListener('timeupdate', updatePerformPlayer);
+  aEl.addEventListener('timeupdate', () => updateChartPlayback(aEl.currentTime));
+  aEl.addEventListener('timeupdate', updateTovTime);
+  aEl.addEventListener('timeupdate', updatePerformFocus);
+  aEl.addEventListener('timeupdate', updatePerformPlayer);
+  aEl.addEventListener('timeupdate', () => updateChartPlayback(aEl.currentTime));
 
   // ⑤ Replace 初期化
   initReplace(
@@ -1842,6 +1852,13 @@ window.addEventListener('DOMContentLoaded',()=>{
     unlockDiag,
     onPreviewChord:      (chord) => updateDiagRight(chord),
     transposeChord,
+  });
+
+  // ⑧ ChartMode 初期化
+  initChartMode({
+    getAnalysis:      () => project.analysis,
+    getAudioEl:       () => aEl,
+    getAudioDuration: () => aEl.duration,
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）

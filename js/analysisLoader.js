@@ -182,7 +182,10 @@ export function loadAnalysis(analysis) {
     : null;
 
   // ── normalize / sanitize ─────────────
+  // [RAW-READONLY] raw は serialize 用に保持。Chart Mode 等は derived を参照すること。
+  // 将来: derived: { bpm, beats, ... } namespace に移行予定（Phase40設計）
   return {
+    raw,
     bpm,
     timeSignature: normalizeTimeSignature(raw.timeSignature),
     beats:         sanitizeTimestamps(raw.beats),

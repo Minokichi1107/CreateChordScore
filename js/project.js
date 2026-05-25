@@ -16,6 +16,10 @@ export function serializeProject(project, uiState) {
     tempo: uiState.tempo,
     lines: project.lines,
     chord_source: project.chord_source,
+    // [RAW-READONLY] raw のみ保存。derived は保存禁止（Phase40設計）
+    analysis: project.analysis?.raw
+      ? { raw: project.analysis.raw }
+      : null,
   };
 }
 
@@ -31,6 +35,10 @@ export function deserializeProject(jsonData) {
       audio: data.audio || '',
       chord_source: data.chord_source || '',
       lines: data.lines || [],
+      // [RAW-READONLY] raw のみ復元。loadProj() で loadAnalysis() を通すこと
+      analysis: data.analysis?.raw
+        ? { raw: data.analysis.raw }
+        : null,
     },
     uiState: {
       title: data.title || '',
