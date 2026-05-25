@@ -203,6 +203,7 @@ export function expandCarryForward(measures, slotsPerMeasure) {
 export const chartState = {
   active:   false,
   viewModel: null,  // buildGridViewModel の戻り値
+  lastScrolledMeasure: -1,
 };
 
 // ────────────────────────────────────────
@@ -263,6 +264,7 @@ export function openChartMode() {
  */
 export function closeChartMode() {
   chartState.active = false;
+  chartState.lastScrolledMeasure = -1;
   const overlay = document.getElementById('chart-overlay');
   if (overlay) {
     overlay.hidden = true;
@@ -485,9 +487,12 @@ export function updateChartPlayback(currentTime) {
     );
     if (slotEl) {
       slotEl.classList.add('chart-slot--active');
+    }
 
-      // スクロール追従（小節が見えていない場合）
-      measureEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // ★ 小節が変わった時だけ中央スクロール
+    if (q.measure !== chartState.lastScrolledMeasure) {
+      chartState.lastScrolledMeasure = q.measure;
+      measureEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }
 }
