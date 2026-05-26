@@ -8,7 +8,7 @@ echo ================================
 set DATESTAMP=%DATE:~0,4%-%DATE:~5,2%-%DATE:~8,2%
 
 :: プロジェクトルート（scriptsの一つ上）
-set SRC=%~dp0..
+set SRC=C:\work\Projects\CreateChordScore
 
 :: バックアップ先
 set DST_HDD=D:\SettingBackup\project\Guitarchordscore\%DATESTAMP%
