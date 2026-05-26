@@ -89,9 +89,7 @@ import {
   diagPushUndo,
   diagUndo,
   diagUndoSize,
-  transposeRoot,
   transposeChord,
-  showCapoInfo,
   normalizeChordName,
   findChord,
   getChordEntry,
@@ -114,8 +112,6 @@ import {
   fmt,
   setSpeed,
   flashLine,
-  getAudioElement,
-  setAudioSource
 } from './audio.js';
 
 import {
@@ -134,13 +130,11 @@ import {
 import {
   initTapMode,
   updateTovTime,
-  renderTovLines,
   resetTovFocus
 } from './tapmode.js';
 
 import {
   initReplace,
-  rbRefresh
 } from './replace.js';
 
 import {
@@ -212,11 +206,6 @@ const aEl = document.getElementById('audio-el');
 let _aURL = null;
 let tapIdx = -1;
 
-// ユーティリティ
-function generateId(){
-  if(typeof crypto!=='undefined'&&crypto.randomUUID)return crypto.randomUUID();
-  return Date.now().toString(36)+Math.random().toString(36).slice(2);
-}
 
 // UI状態
 let _prevCapo = 0;
@@ -318,10 +307,6 @@ function updateDiagLockUI() {
 function forcePreviewChord(chord) {
   setDiagRight(chord, getCapo(), getDiagCallbacks());
 }
-
-// ════════════════════════════════════════
-// AUDIO ENGINE（初期化はDOMContentLoadedで実行）
-// ════════════════════════════════════════
 
 // ════════════════════════════════════════
 // FILE LOADING
@@ -732,10 +717,6 @@ function handleAddChordToLine(chord) {
     if (ins[focLine]) ins[focLine].focus();
   }, 0);
 }
-
-// ════════════════════════════════════════
-// LYRIC IMPORT
-// ════════════════════════════════════════
 
 // ════════════════════════════════════════
 // MODAL SYSTEM
@@ -1200,19 +1181,6 @@ async function loadProj(data){
     }
   })();
 }
-
-// ════════════════════════════════════════
-// TAP MODE OVERLAY → tapmode.js に移動
-// ════════════════════════════════════════
-
-
-
-// TAPオーバーレイ内の再生コントロールをメインaElに同期
-
-
-
-
-// ⑦ コード置換バー → replace.js に移動
 
 // ════════════════════════════════════════
 // ⑤ 音量バー
@@ -1864,10 +1832,6 @@ window.addEventListener('DOMContentLoaded',()=>{
   });
 
   // Audio timeupdate リスナー（initTapMode/initPerformModeの後に登録）
-  aEl.addEventListener('timeupdate', updateTovTime);
-  aEl.addEventListener('timeupdate', updatePerformFocus);
-  aEl.addEventListener('timeupdate', updatePerformPlayer);
-  aEl.addEventListener('timeupdate', () => updateChartPlayback(aEl.currentTime));
   aEl.addEventListener('timeupdate', updateTovTime);
   aEl.addEventListener('timeupdate', updatePerformFocus);
   aEl.addEventListener('timeupdate', updatePerformPlayer);
