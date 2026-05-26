@@ -172,6 +172,8 @@ import {
   openChartMode,
   closeChartMode,
   updateChartPlayback,
+  chartState,
+  renderChartMode,
 } from './chartmode.js';
 
 // ════════════════════════════════════════
@@ -1450,6 +1452,12 @@ function setupEventHandlers() {
     const cur=document.getElementById('diag-in').value.trim();
     if(cur) showDiagramPanel(cur, getCapo(), getDiagCallbacks());
     toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
+    
+    // Chart Mode が開いていれば表示を更新する
+    // TODO: future optimization: separate chord label refresh from full chart rerender
+    //       現在は DOM フル再構築。chart interaction が増えた段階で
+    //       chord textContent の差分更新に切り替えることを検討する。
+    if (chartState.active) renderChartMode();
   });
 
   // ============================================
@@ -1921,6 +1929,8 @@ window.addEventListener('DOMContentLoaded',()=>{
     getAnalysis:      () => project.analysis,
     getAudioEl:       () => aEl,
     getAudioDuration: () => aEl.duration,
+    getCapo:          getCapo,
+    transposeChord:   transposeChord,
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）

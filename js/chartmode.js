@@ -26,6 +26,14 @@
  *
  * 【Chart Mode が触らないもの】
  *   project.lines / editor.js / perform.js / tapmode.js
+ *
+ * 【display projection について】
+ *   capo 移調（表示用コード変換）は現在 editor.js / perform.js / chartmode.js
+ *   それぞれで個別に行っている。
+ *   analysis.raw / project.lines は常に canonical（移調なし）のまま保持すること。
+ *   NOTE: chord display projection (capo transpose) is currently performed
+ *   per-renderer. Future phases may centralize this into a shared display layer
+ *   when N.C. / simile / slash bass / Roman numeral 等が加わる段階で統合を検討する。
  */
 
 import { createTimingModel } from './timing.js';
@@ -210,9 +218,11 @@ export const chartState = {
 // 注入依存
 // ────────────────────────────────────────
 
-let _getAnalysis    = null;  // () => project.analysis
-let _getAudioEl     = null;  // () => aEl
-let _getAudioDuration = null; // () => aEl.duration
+let _getAnalysis      = null;  // () => project.analysis
+let _getAudioEl       = null;  // () => aEl
+let _getAudioDuration = null;  // () => aEl.duration
+let _getCapo          = null;  // () => number（カポ値）
+let _transposeChord   = null;  // (chord, semitones) => string
 
 /**
  * initChartMode
@@ -223,11 +233,15 @@ let _getAudioDuration = null; // () => aEl.duration
  * @param {Function} deps.getAnalysis      - () => project.analysis
  * @param {Function} deps.getAudioEl       - () => aEl
  * @param {Function} deps.getAudioDuration - () => aEl.duration
+ * @param {Function} deps.getCapo          - () => number（現在のカポ値）
+ * @param {Function} deps.transposeChord   - (chord, semitones) => string
  */
-export function initChartMode({ getAnalysis, getAudioEl, getAudioDuration }) {
-  _getAnalysis     = getAnalysis;
-  _getAudioEl      = getAudioEl;
+export function initChartMode({ getAnalysis, getAudioEl, getAudioDuration, getCapo, transposeChord }) {
+  _getAnalysis      = getAnalysis;
+  _getAudioEl       = getAudioEl;
   _getAudioDuration = getAudioDuration;
+  _getCapo          = getCapo;
+  _transposeChord   = transposeChord;
 }
 
 // ────────────────────────────────────────
@@ -399,7 +413,15 @@ function _renderChartGrid(vm, analysis) {
         if (cell.chord) {
           const chordEl = document.createElement('span');
           chordEl.className = 'chart-chord-name';
-          chordEl.textContent = cell.chord;
+
+          // display projection: capo 移調を表示時のみ適用
+          // analysis.raw / GridViewModel の chord は canonical のまま保持する
+          // （analysis は regeneratable artifact のため保存時に変換しないこと）
+          const capo = _getCapo?.() ?? 0;
+          chordEl.textContent = (capo !== 0 && _transposeChord)
+            ? _transposeChord(cell.chord, -capo)
+            : cell.chord;
+
           // carry-forward（onset なし）は薄く表示
           if (!hasOnset) {
             chordEl.classList.add('chart-chord--carried');
@@ -434,10 +456,15 @@ function _renderFallbackGrid(container, analysis) {
   const listEl = document.createElement('div');
   listEl.className = 'chart-fallback-list';
 
+  // display projection: capo 移調を表示時のみ適用（canonical は変更しない）
+  const capo = _getCapo?.() ?? 0;
+
   for (const c of validChords) {
     const el = document.createElement('div');
     el.className = 'chart-fallback-chord';
-    el.textContent = c.chord;
+    el.textContent = (capo !== 0 && _transposeChord)
+      ? _transposeChord(c.chord, -capo)
+      : c.chord;
     listEl.appendChild(el);
   }
 
