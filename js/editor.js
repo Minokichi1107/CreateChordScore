@@ -204,6 +204,8 @@ export function renderLines(lines, uiState, callbacks) {
         if (e.target.classList.contains('del-x')) return;
         pressTimer = setTimeout(() => {
           pressTimer = null;
+          // c.chord 直参照禁止。no_chord 等でも安全に動作させるため tokenToText 経由。
+          // ただし diagLock の lookup key は c.chord を使うため app.js 側で分離して扱う。
           if (callbacks.onChordDblClick) callbacks.onChordDblClick(idx, ci, c.chord);
         }, 400);
       });
@@ -222,6 +224,8 @@ export function renderLines(lines, uiState, callbacks) {
       });
       tag.addEventListener('mouseenter', () => {
         if (callbacks.onChordHover) {
+          // no_chord 等 c.chord が undefined の場合でも安全に扱うため tokenToText 経由。
+          // ただし右パネル lookup は c.chord を必要とするため、app.js 側で isChordToken 判定を行う。
           callbacks.onChordHover(c.chord, tag);
         }
       });
@@ -240,7 +244,7 @@ export function renderLines(lines, uiState, callbacks) {
       const insertSep = document.createElement('button');
       insertSep.className = 'insert-sep-btn';
       insertSep.textContent = '/';
-      insertSep.title = `${c.chord}の後に小節線を挿入`;
+      insertSep.title = `${tokenToText(c)}の後に小節線を挿入`;
       insertSep.addEventListener('click', e => {
         e.stopPropagation();
         onSepInsert(idx, ci);

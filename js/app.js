@@ -161,7 +161,7 @@ import {
   openChordEdit,
 } from './modals.js';
 
-import { isSepToken } from './tokens.js';
+import { isSepToken, isNoChordToken } from './tokens.js';
 
 import { initChordEntry, openAddChord } from './chordEntry.js';
 
@@ -201,7 +201,15 @@ let project = {id:crypto.randomUUID(),title:'',audio:'',capo:0,lines:[],chord_so
 let palette = [];
 let paletteTranspose = 0; // session only、-6〜+6、循環
 let focLine = -1;
-let importUndoStack = []; // import単位undo用
+// DESIGN CONSTRAINT: importUndoStack stores chord form snapshots
+// (i.e. transposed values at the time of import, not actual pitch).
+// Correctness is NOT guaranteed if capo is changed after import.
+// Reason: capo change directly mutates c.chord (destructive model),
+// so a snapshot taken at capo=0 becomes stale after capo changes.
+// NOTE: analysis.raw canonical data is NOT affected by this constraint.
+// Full resolution requires migrating capo to a projection-only model
+// (architecture debt — see capo mutation state in architecture.md).
+let importUndoStack = [];
 
 // Audio関連
 const aEl = document.getElementById('audio-el');
@@ -317,7 +325,13 @@ function forcePreviewChord(chord) {
 async function loadChordData(data,filename){
   project.chord_source=filename;
   const b=document.getElementById('chord-btn');b.textContent=filename;b.classList.add('loaded');
-  const all=(data.chords||[]).filter(c=>c&&c!=='N');
+  // no_chord 系文字列（N / NC / N.C.）はパレットに含めない。
+  // 文字列比較は import 経路のみ（内部 token は isNoChordToken で判定）。
+  // normalize後（ドット・括弧除去・大文字化）で比較するため 'N.C.' / '(N.C)' 等も吸収する
+  const NO_CHORD_STRS = new Set(['N', 'NC']);
+  const all=(data.chords||[]).filter(c=>c&&!NO_CHORD_STRS.has(
+    String(c).trim().toUpperCase().replace(/\./g,'').replace(/[()]/g,'')
+  ));
   palette=[...new Set(all)];
   window._cn=data.chords||[];window._ct=data.times||[];
 
@@ -421,9 +435,17 @@ function importChordsFromJson(){
     // 各行にコードを配置
     const newLines=lines.map(l=>({...l,chords:overwrite?[]:l.chords.map(c=>({...c}))}));
     cn.forEach((chord,ji)=>{
-      if(!chord||chord==='N')return;
+      if(!chord)return;
       const t=ct[ji];
       if(t==null)return;
+
+      // no_chord 系文字列（N / NC / N.C. / (N.C) 等）は { type:'no_chord' } token として挿入する。
+      // 文字列のまま保存しない（token semantic への移行）。
+      // 括弧・ドット・空白を除去してから比較する。
+      const normalized = String(chord).trim().toUpperCase()
+        .replace(/\./g,'').replace(/\s/g,'').replace(/[()]/g,'');
+      const isNc = normalized === 'N' || normalized === 'NC';
+
       // どの行に属するか判定: effTs[i] <= t < effTs[i+1]
       let target=-1;
       for(let i=0;i<newLines.length;i++){
@@ -433,7 +455,16 @@ function importChordsFromJson(){
         if(t>=cur&&t<nxt){target=i;break;}
       }
       if(target<0)return;
-      newLines[target].chords.push({chord,offset:0});
+      if (isNc) {
+        // no_chord は token semantic で保存（文字列禁止）
+        newLines[target].chords.push({ type: 'no_chord' });
+      } else {
+        // NOTE [LEGACY-RESIDUE]: offset is currently unused (always 0, never read).
+        // This was an early attempt to record intra-measure chord position.
+        // Future musical coordinate redesign (Issue #26) should replace this
+        // with a proper bar/beat model rather than extending this field.
+        newLines[target].chords.push({chord, offset:0});
+      }
     });
 
     project.lines=newLines;
@@ -1042,6 +1073,7 @@ function resetProject() {
   // UI Reset
   document.getElementById('project-title').value = '';
   document.getElementById('capo').value = 0;
+  _prevCapo = 0;  // capo change イベントの diff 計算基準をリセット
   document.getElementById('proj-key').value = '';
   document.getElementById('proj-bpm').value = '';
   document.getElementById('diag-in').value = '';
@@ -1094,6 +1126,21 @@ async function loadProj(data){
   project.capo = uiState.capo;
   project.chord_source = newProject.chord_source;
   project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
+
+  // TOKEN MIGRATION: no_chord 文字列 → { type:'no_chord' }
+  // 旧形式で保存された '(N.C)' / 'N' / 'NC' / 'N.C.' 等を
+  // token semantic に変換する。
+  // Phase44-Step2 以降の新規データはこの経路を通らない。
+  project.lines.forEach(line => {
+    line.chords = line.chords.map(c => {
+      if (c.type) return c; // 既に typed token（barline / no_chord 等）はスキップ
+      if (!c.chord) return c;
+      const n = String(c.chord).trim().toUpperCase()
+        .replace(/\./g,'').replace(/\s/g,'').replace(/[()]/g,'');
+      if (n === 'N' || n === 'NC') return { type: 'no_chord' };
+      return c;
+    });
+  });
 
 // analysis load / migration
   if (newProject.hasAnalysis) {
@@ -1182,6 +1229,10 @@ async function loadProj(data){
       );
     }
   })();
+
+  // TOKEN MIGRATION の結果を LocalStorage に即書き戻す。
+  // これにより次回の自動保存復元時も migration 済みデータが使われる。
+  autoSaveLocal();
 }
 
 // ════════════════════════════════════════
@@ -1441,6 +1492,7 @@ function setupEventHandlers() {
     project.lines.forEach(line=>{
       line.chords.forEach(c=>{
         if(isSepToken(c))return;
+        if(isNoChordToken(c))return;  // no_chord は音高を持たないためスキップ
         c.chord=transposeChord(c.chord,semitones);
       });
     });

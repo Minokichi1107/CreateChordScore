@@ -12,9 +12,10 @@
  *   domain-level token utility。
  *
  * 【token 種別】
- *   chord   : { chord: 'Am7' }  または { type:'chord', chord:'Am7' }
- *   barline : { type:'barline' }  小節線（canonical、Phase39-4以降）
- *   simile  : { type:'simile', bars:1|2 }  繰り返し省略記号
+ *   chord    : { chord: 'Am7' }  または { type:'chord', chord:'Am7' }
+ *   barline  : { type:'barline' }  小節線（canonical、Phase39-4以降）
+ *   simile   : { type:'simile', bars:1|2 }  繰り返し省略記号
+ *   no_chord : { type:'no_chord' }  音なし（N.C.）（Phase44-Step2以降）
  *
  * 【barline token の表現形式】
  *   canonical : { type: 'barline' }          ← 新規生成はこれ
@@ -64,6 +65,18 @@ export function isSimileToken(token) {
   return token?.type === 'simile';
 }
 
+/**
+ * no_chord token かどうか（N.C. / 音なし）
+ *
+ * canonical : { type: 'no_chord' }（Phase44-Step2以降の新規生成）
+ *
+ * 入力時に N / NC / N.C. 等の文字列を即変換して生成する。
+ * 内部では文字列 'N.C.' を直接持たない。tokenToText() が表示文字列を返す。
+ */
+export function isNoChordToken(token) {
+  return token?.type === 'no_chord';
+}
+
 // ────────────────────────────────────────
 // 表示変換
 // ────────────────────────────────────────
@@ -77,7 +90,8 @@ export function isSimileToken(token) {
  * @returns {string}
  */
 export function tokenToText(token, opts = {}) {
-  if (isSepToken(token))    return '/';
-  if (isSimileToken(token)) return token.bars === 2 ? 'sim.2' : 'sim.';
+  if (isSepToken(token))     return '/';
+  if (isSimileToken(token))  return token.bars === 2 ? 'sim.2' : 'sim.';
+  if (isNoChordToken(token)) return 'N.C.';
   return token.chord ?? '?';
 }

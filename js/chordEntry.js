@@ -37,52 +37,32 @@
  *   - token shorthand（`/` → barline、`ss` → simile 等・Phase39-4）
  */
 
-import { isSepToken } from './tokens.js';
+import { isSepToken, isNoChordToken, tokenToText } from './tokens.js';
 
 // ────────────────────────────────────────
 // MODULE STATE（注入済み依存）
 // ────────────────────────────────────────
-let _getLines            = null;  // () => project.lines
-let _getPalette          = null;  // () => palette
-let _getPaletteTranspose = null;  // () => paletteTranspose
-let _addToPaletteIfNew   = null;  // (chord) => void
-let _refreshEditor       = null;  // () => void
-let _openModal           = null;  // ({ title, body, onOpen, buttons }) => void
-let _closeModal          = null;  // () => void
-let _mkMBtn              = null;  // (txt, cls, fn) => HTMLElement
-let _toast               = null;  // (msg) => void
-let _unlockDiag          = null;  // () => void（AddChord open時にlock解除）
-let _onPreviewChord      = null;  // (chord) => void（input変更時の右パネル更新）
-let _transposeChord      = null;  // (chord, semitones) => string
+let _getLines            = null;
+let _getPalette          = null;
+let _getPaletteTranspose = null;
+let _addToPaletteIfNew   = null;
+let _refreshEditor       = null;
+let _openModal           = null;
+let _closeModal          = null;
+let _mkMBtn              = null;
+let _toast               = null;
+let _unlockDiag          = null;
+let _onPreviewChord      = null;
+let _transposeChord      = null;
 
 // ────────────────────────────────────────
 // INIT
 // ────────────────────────────────────────
-/**
- * initChordEntry
- *
- * app.js の DOMContentLoaded から呼ばれる。
- * 依存をすべて注入する。
- *
- * 【forcePreviewChord を受け取らない理由】
- *   AddChord open 時に unlockDiag() を呼ぶため、modal 内は常に diagLocked = false。
- *   そのため diagLocked を無視して強制更新する forcePreviewChord は不要。
- *   forcePreviewChord は将来の preview layer 拡張（hover / keyboard / playback preview）
- *   向けに app.js に予約されている。
- */
 export function initChordEntry({
-  getLines,
-  getPalette,
-  getPaletteTranspose,
-  addToPaletteIfNew,
-  refreshEditor,
-  openModal,
-  closeModal,
-  mkMBtn,
-  toast,
-  unlockDiag,
-  onPreviewChord,
-  transposeChord,
+  getLines, getPalette, getPaletteTranspose,
+  addToPaletteIfNew, refreshEditor,
+  openModal, closeModal, mkMBtn, toast,
+  unlockDiag, onPreviewChord, transposeChord,
 }) {
   _getLines            = getLines;
   _getPalette          = getPalette;
@@ -99,27 +79,47 @@ export function initChordEntry({
 }
 
 // ────────────────────────────────────────
+// NO_CHORD NORMALIZE HELPER
+// ────────────────────────────────────────
+/**
+ * normalizeNoChordInput
+ *
+ * no_chord 系入力の正規化。
+ * N / NC / N.C. / (N.C) / (N.C.) 等をすべて統一形式に変換する。
+ *
+ * NOTE: app.js の import / palette filter にも同等の処理がある。
+ *       将来は tokens.js か shared util に統合することを検討する。
+ *
+ * @param {string} v
+ * @returns {string} 大文字・括弧・ドット・空白除去後の文字列
+ */
+function normalizeNoChordInput(v) {
+  return String(v)
+    .trim()
+    .toUpperCase()
+    .replace(/\./g, '')
+    .replace(/\s/g, '')
+    .replace(/[()]/g, '');
+}
+
+function isNoChordInput(v) {
+  const n = normalizeNoChordInput(v);
+  return n === 'N' || n === 'NC';
+}
+
+// ────────────────────────────────────────
 // INPUT VALIDATION
 // ────────────────────────────────────────
 /**
  * isChordLikeInput
  *
- * コード名として妥当な入力かを判定する domain validator。
+ * 【通るもの】 C, Cm7, D♭, F#sus4, Bbadd9, Am7/D
+ * 【落ちるもの】あ, hello（A-G以外で始まる英単語）
  *
- * 【設計方針】
- *   「非ASCII禁止」ではなく「コードっぽい入力だけ通す」。
- *   これにより ♭（U+266D）/ ♯（U+266F）/ △ / ø 等の音楽記号は通り、
- *   日本語・全角かなは落ちる。
- *
- * 【通るもの】
- *   C, Cm7, D♭, F#sus4, Bbadd9, Am7/D
- *
- * 【落ちるもの】
- *   あ, あdf, hello（A-G以外で始まる英単語）
- *
- * 【将来の拡張】
- *   N.C. / sim. 等の非コードトークンは tokens.js 側で扱う。
- *   このバリデーターはあくまで「コード入力欄の入力値チェック」に限定。
+ * 【N.C. / no_chord 入力の扱い】
+ *   N / NC / N.C. / (N.C) は A-G で始まらないためここでは落ちる。
+ *   呼び出し元（addChord）で先に isNoChordInput() 判定を行い、
+ *   { type:'no_chord' } に変換してからこの validator を迂回する。
  *
  * @param {string} v
  * @returns {boolean}
@@ -131,31 +131,9 @@ function isChordLikeInput(v) {
 // ────────────────────────────────────────
 // OPEN ADD CHORD
 // ────────────────────────────────────────
-/**
- * openAddChord
- *
- * コード追加モーダルを開く。
- *
- * 【insertAt state の扱い】
- *   - null  = 末尾に挿入
- *   - 数値  = splice位置
- *   - modal内ローカル変数（外部に漏れない）
- *
- * 【lock解除のタイミング】
- *   modal open 時に unlockDiag() を呼ぶ。
- *   これにより modal 内では diagLocked = false が保証され、
- *   input preview は通常の updateDiagRight 相当で動作する。
- *
- * @param {number} idx - 対象行インデックス
- */
 export function openAddChord(idx) {
-  // AddChord 開始 = diagLock session 終了
-  // 「固定表示モード」と「コード入力モード」は目的が競合するため lock を解除する。
-  // 将来「lock維持しながら入力」の要件が出た場合は上部のコメントを参照。
   _unlockDiag?.();
 
-  // 挿入位置（modal内ローカル state）
-  // null = 末尾、数値 = splice位置
   let insertAt = null;
 
   // ── 挿入位置ボタン ──
@@ -209,7 +187,7 @@ export function openAddChord(idx) {
         const tag = document.createElement('span');
         tag.className = 'mac-preview-tag';
         const nm = document.createElement('span');
-        nm.textContent = c.chord;
+        nm.textContent = tokenToText(c);
         const dx = document.createElement('span');
         dx.textContent = '✕';
         dx.className = 'mac-preview-tag-del';
@@ -238,8 +216,26 @@ export function openAddChord(idx) {
   // ── コード追加 ──
   function addChord(ch) {
     if (!ch) return;
+
+    // no_chord 入力（N / NC / N.C. / (N.C) 等）を先に判定してtoken化する。
+    // 文字列のまま保存しない。内部表現は { type:'no_chord' } のみ。
+    if (isNoChordInput(ch)) {
+      const token = { type: 'no_chord' };
+      const chords = _getLines()[idx].chords;
+      if (insertAt === null) {
+        chords.push(token);
+      } else {
+        chords.splice(insertAt, 0, token);
+        insertAt++;
+      }
+      _refreshEditor();
+      renderModalPreview();
+      const inp = document.getElementById('mac-input');
+      if (inp) { inp.value = ''; inp.focus(); }
+      return;
+    }
+
     // domain validation: コードとして妥当な入力のみ受け付ける
-    // IME誤入力・日本語・A-G以外で始まる文字列を防ぐ
     if (!isChordLikeInput(ch)) return;
     _addToPaletteIfNew(ch);
     const chords = _getLines()[idx].chords;
@@ -323,23 +319,14 @@ export function openAddChord(idx) {
       if (inp) {
         inp.focus();
 
-        // IME確定直後フラグ
-        // Chrome系では変換確定Enter時に isComposing=false になるため、
-        // compositionend で1フレーム分のガードを設ける
         let justComposed = false;
         inp.addEventListener('compositionend', () => {
           justComposed = true;
           setTimeout(() => { justComposed = false; }, 0);
         });
 
-        // Escape: keydown で即時処理（IMEと衝突しない）
         inp.addEventListener('keydown', e => {
-          if (e.key === 'Escape') {
-            _closeModal();
-            return;
-          }
-          // Enter: isComposing / justComposed でガード
-          // 非ASCII文字チェックは addChord 内でも行うため二重ガードになる
+          if (e.key === 'Escape') { _closeModal(); return; }
           if (e.key === 'Enter') {
             if (e.isComposing || justComposed) return;
             e.preventDefault();
@@ -347,14 +334,11 @@ export function openAddChord(idx) {
           }
         });
 
-        // keyup の Enter は不要（addChord内の非ASCII検証で防護済み）
-
         // input変更 → 右パネル一時更新
-        // unlock済みのため diagLocked = false が保証されており、
-        // forcePreviewChord ではなく onPreviewChord（= updateDiagRight 相当）で十分。
-        // isChordLikeInput でコードとして妥当な入力のみ右パネルに渡す
+        // no_chord 入力時はダイアグラムpreviewをスキップする
         inp.addEventListener('input', () => {
           const v = inp.value.trim();
+          if (isNoChordInput(v)) return;
           if (isChordLikeInput(v)) _onPreviewChord?.(v);
         });
       }

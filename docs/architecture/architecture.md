@@ -269,3 +269,44 @@ Phase39以降の拡張予定：
 ### その他将来予定
 - モジュールが肥大化した場合は責務単位での再分割を検討
 - 機能追加・既知課題は `current-issues.md` を参照
+
+---
+
+## 8. カポ設計の移行状態（Phase43 audit 確認）
+
+現在プロジェクト内でカポの扱いが2つの方式で混在している。
+
+### 旧方式（editor / palette / importUndo）
+
+capo change → `c.chord` を直接書き換える（destructive mutation model）
+
+```js
+// app.js capo changeイベント
+const semitones = -diff;
+project.lines.forEach(line => {
+  line.chords.forEach(c => { c.chord = transposeChord(c.chord, semitones); });
+});
+```
+
+### 新方式（chartmode.js / Phase43以降）
+
+capo change → 表示時のみ変換（display projection model）
+`analysis.raw` は実音canonical として不変
+
+```js
+// chartmode.js _renderChartGrid
+chordEl.textContent = _transposeChord(cell.chord, -capo); // render時のみ
+```
+
+### 既知の制約
+
+- `importUndoStack` はフォーム音スナップショットを保存するため、
+  capo変更後にUndoすると chord と capo の整合性が保証されない
+- `analysis.raw` の実音canonical は全経路で保護されている（✅ 確認済み）
+
+### 移行方針
+
+この混在は意図的な移行途中の状態。
+全面的な projection 化は editor / perform / import / save-load 全体に
+波及するため大規模な設計変更になる。
+将来の semantic / projection redesign フェーズで統合を検討する。

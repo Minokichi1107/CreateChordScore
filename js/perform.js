@@ -27,7 +27,7 @@
 
 import { lookupChord, drawDiagram } from './chords.js';
 import { fmt } from './audio.js';
-import { isSepToken, tokenToText } from './tokens.js';
+import { isSepToken, isNoChordToken, tokenToText } from './tokens.js';
 
 // ════════════════════════════════════════
 // MODULE STATE
@@ -160,15 +160,26 @@ export function renderPerformLines() {
     // コード列生成
     let chordColumns = '';
 
-    if (line.chords.length > 0) {
+if (line.chords.length > 0) {
       chordColumns = line.chords.map(c => {
         // 小節線（旧形式 c.chord==='/' 含む）
         if (isSepToken(c)) {
           return `<div class="perform-chord-col"><div class="perform-sep">/</div></div>`;
         }
 
-        // コード
-        if (c.chord && c.chord !== '') {
+        // no_chord（N.C.）: ダイアグラムなし・表示名のみ
+        if (isNoChordToken(c)) {
+          return `
+            <div class="perform-chord-col">
+              <div class="perform-chord-name">N.C.</div>
+              ${performState.diagOn ? '<div class="perform-chord-diagram"><div class="perform-chord-empty">-</div></div>' : ''}
+            </div>
+          `;
+        }
+
+        // コード（isChordToken で判定。c.chord 直参照禁止）
+        // NOTE: 将来 simile / repeat 等の token が増えても安全
+        if (isChordToken(c)) {
           const chordName = c.chord;      // lookup key は raw chord のまま
           const displayName = tokenToText(c);  // DOM表示は tokenToText 経由
           let diagramHTML = '';
