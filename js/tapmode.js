@@ -22,7 +22,7 @@
  * - syncTovPlayer()    ← openTapMode内で呼ぶ
  */
 
-import { isSepToken } from './tokens.js';
+import { isSepToken, isNoChordToken, tokenToText } from './tokens.js';
 
 // ════════════════════════════════════════
 // MODULE STATE
@@ -183,9 +183,16 @@ export function renderTovLines() {
         chordWrap.appendChild(sp);
         return;
       }
+      if (isNoChordToken(c)) {
+        const ct = document.createElement('span');
+        ct.className = 'tov-chord-tag';
+        ct.textContent = 'N.C.';
+        chordWrap.appendChild(ct);
+        return;
+      }
       const ct = document.createElement('span');
       ct.className = 'tov-chord-tag';
-      ct.textContent = c.chord;
+      ct.textContent = tokenToText(c);
       chordWrap.appendChild(ct);
     });
 

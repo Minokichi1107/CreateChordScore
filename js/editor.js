@@ -93,6 +93,11 @@ export function scrollEditorToRow(rowEl, force = false) {
 // 譜面全体描画
 // ────────────────────────────────────────
 export function renderLines(lines, uiState, callbacks) {
+  // NOTE: chord display projection (capo transpose) is NOT performed here.
+  // editor.js renders already-mutated chord state (c.chord) as-is.
+  // Transposition is applied by the destructive capo model in app.js
+  // (capo change event rewrites c.chord directly).
+  // See architecture.md §8 for migration status and constraints.
   const { focLine, tapIdx, capo, fmt } = uiState;
   const {
     onTimeClick,
@@ -204,6 +209,11 @@ export function renderLines(lines, uiState, callbacks) {
         if (e.target.classList.contains('del-x')) return;
         pressTimer = setTimeout(() => {
           pressTimer = null;
+          // [LOOKUP-KEY] c.chord を raw lookup identifier として渡す。
+          // tokenToText(c) に置換すると display 文字列が渡され
+          // app.js 側の lockDiag / CHORD_DB lookup が壊れる。
+          // app.js 側で isChordToken(c) ? c.chord : null の guard を行っている。
+          // Do not replace with tokenToText().
           if (callbacks.onChordDblClick) callbacks.onChordDblClick(idx, ci, c.chord);
         }, 400);
       });
@@ -222,6 +232,10 @@ export function renderLines(lines, uiState, callbacks) {
       });
       tag.addEventListener('mouseenter', () => {
         if (callbacks.onChordHover) {
+          // [LOOKUP-KEY] c.chord を raw lookup identifier として渡す。
+          // no_chord 等では c.chord が undefined になるが、
+          // app.js 側の canUpdateDiagFromHover / updateDiagRight が if(!chord)return で guard している。
+          // Do not replace with tokenToText().
           callbacks.onChordHover(c.chord, tag);
         }
       });
@@ -240,7 +254,7 @@ export function renderLines(lines, uiState, callbacks) {
       const insertSep = document.createElement('button');
       insertSep.className = 'insert-sep-btn';
       insertSep.textContent = '/';
-      insertSep.title = `${c.chord}の後に小節線を挿入`;
+      insertSep.title = `${tokenToText(c)}の後に小節線を挿入`;
       insertSep.addEventListener('click', e => {
         e.stopPropagation();
         onSepInsert(idx, ci);

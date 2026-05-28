@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase39完了時点
+> 最終更新: Phase44完了時点
 
 ---
 
@@ -283,20 +283,67 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - `app.js`: `initChordEntry({...})` を `initModals` 直後に追加
 - Phase39-1 の incomplete migration を修正・subsystem ownership 確定
 
-#### 性質
-- UI変更なし・ロジック変更なし（ownership 切替）
-- app.js が orchestration 層へ帰還
+
+### Phase40 — Chart Mode 設計フェーズ
+- project.analysis.raw データ構造確定
+- analysisLoader.js / timing.js / chartmode.js の設計確定
+- TimingModel 動作モード（full / beat-only / fallback）設計
+- GridViewModel onset-only 設計・collision resolution 設計
+
+### Phase41 — Chart Mode 実装
+- chordmini_fetch.py に beats / downbeats / meta 出力追加
+- analysisLoader.js 新設（validate / sanitize / normalize）
+- timing.js 新設（TimingModel・quantize・getMeasure）
+- chartmode.js 新設（GridViewModel・renderChartMode・playback sync）
+- project.js に analysis raw-only serialize 追加
+- replacementMap.json 新設（140件の chord name 置換辞書）
+
+### Phase42 — Analysis Persistence Redesign
+- analysis を project.json から外部ファイル（analysis/{id}.json）に分離
+- project.json には hasAnalysis フラグのみ保持
+- degraded mode / analysis missing バナー実装
+- 旧形式 migration（埋め込み analysis → 外部ファイル自動変換）
+- server.py に analysis 保存 API 追加
+- Issue #48（loadChordData regression）修正
+
+### Phase42.5 — 環境整備・Git運用改善
+- VSCode 検索除外設定・不要ファイル削除
+- 個人データ .gitignore 追加
+- app.js 未使用 import・重複リスナー削除
+- バックアップバッチ・起動バッチ修正
+- Git interactive rebase 運用確立
+
+### Phase43 — Chart Mode カポ反映（Issue #48）
+- analysis.raw = 実音 canonical / editor 表示 = フォーム音 の原則確立
+- chartmode.js に getCapo / transposeChord 注入
+- _renderChartGrid / _renderFallbackGrid に -capo projection 追加
+- app.js の capo change イベントに Chart Mode 再描画追加
+- display projection NOTE（per-renderer・将来統合予定）をコードに追記
+
+### Phase44 — Token Semantic Stabilization
+- Step1: undo / contamination audit・analysis.raw 保護確認・architecture.md §8 追記
+- Step2: no_chord token semantic 化（{ type:'no_chord' }）・migration・バグ4件修正
+- Step2.5: c.chord 直参照 audit・[LOOKUP-KEY] コメント統一
+- Step3: tokens.js に TOKEN SEMANTIC 定義表・DISPLAY PROJECTION 非可逆性追記
+- Step4: perform.js / editor.js に projection responsibility NOTE 追記
+- hotfix: perform.js の isChordToken import 漏れ修正（Step3 動作確認時発覚）
 
 ---
 
 ## 現在地
 
-- Phase39完了・phase38ブランチ
-- token stream architecture 整理フェーズ（39-0〜39-5）完了
-  - `tokens.js` 導入・rendering abstraction 全モジュール適用
-  - barline canonical 化・access layer 確立
-  - chordEntry subsystem ownership 確定（app.js から150行削減）
-- 次の大型設計フェーズ（Issue #26 / keyboard-first input）の基盤整備完了
+- Phase44完了・phase42-design ブランチ
+- token semantic stabilization フェーズ（Phase44 Step1〜Step4）完了
+  - `analysis.raw` 実音 canonical 保護の確認（Step1）
+  - `no_chord` token semantic 導入・migration 安定化（Step2）
+  - `c.chord` 直参照 audit・`[LOOKUP-KEY]` コメント統一（Step2.5・Step3）
+  - `tokens.js` に TOKEN SEMANTIC 定義表・DISPLAY PROJECTION 非可逆性を追記（Step3）
+  - `perform.js` / `editor.js` に projection responsibility NOTE を追記（Step4）
+  - perform.js import 漏れ（isChordToken）を発見・修正（Step3 動作確認時）
+- display / lookup / serialize / transpose の責務分離が正式に文書化された
+- renderer 分類確定:
+  - chartmode.js → projection renderer（render 時に -capo 変換）
+  - perform.js / editor.js → mutated state renderer（projection なし）
 
 ---
 
@@ -304,12 +351,19 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 
 詳細は `current-issues.md` のバックログを参照。
 
-直近：
-- isChordLikeInput の末尾検証強化（または parseChordToken として tokens.js へ統合）
+軽量UI改善系（比較的独立・実装しやすい）:
+- 挿入ボタン ↑↓ 両方向対応
+- 行またぎコード移動（token array boundary mutation）
+- フロートメニュー位置改善（lyric baseline anchor）
+- アーティスト名 / 曲名フィールド分離
 
-将来（設計フェーズが必要）:
-- Issue #26: Beat/Grid 対応（bar / measure semantic 設計）
-- `isSepToken()` → `isBarlineToken()` rename（Issue #26 設計フェーズで判断）
+Chart Mode 拡張系:
+- Chart Mode 並列表示（設計フェーズが必要）
+- Chart Mode に mini transport（audio controls）追加
+- Chart Mode ビート単位フォーカス（playback engine 拡張）
+
+将来（大規模設計フェーズが必要）:
+- Issue #26: Beat/Grid 対応（bars[] 構造移行）
 - keyboard-first chord entry（insertion model 再設計）
-- 行またぎコード移動
-- renderTokenNode 層（SVG simile 描画）
+- capo projection 統合（destructive model → projection model 移行）
+- app.js 分割（Issue #49）

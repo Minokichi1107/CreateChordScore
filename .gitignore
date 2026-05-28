@@ -32,5 +32,11 @@ __pycache__/
 # ドキュメント草稿
 /docs/draft/
 
-# 個人作業データ
-resource/project/work/
+# 個人作業データ（ローカルバックアップで管理）
+resource/projects/
+resource/chords/
+resource/lyrics/
+resource/sample/
+
+# analysis: derived artifact・著作権配慮
+analysis/

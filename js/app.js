@@ -89,9 +89,7 @@ import {
   diagPushUndo,
   diagUndo,
   diagUndoSize,
-  transposeRoot,
   transposeChord,
-  showCapoInfo,
   normalizeChordName,
   findChord,
   getChordEntry,
@@ -114,8 +112,6 @@ import {
   fmt,
   setSpeed,
   flashLine,
-  getAudioElement,
-  setAudioSource
 } from './audio.js';
 
 import {
@@ -134,13 +130,11 @@ import {
 import {
   initTapMode,
   updateTovTime,
-  renderTovLines,
   resetTovFocus
 } from './tapmode.js';
 
 import {
   initReplace,
-  rbRefresh
 } from './replace.js';
 
 import {
@@ -167,17 +161,19 @@ import {
   openChordEdit,
 } from './modals.js';
 
-import { isSepToken } from './tokens.js';
+import { isSepToken, isNoChordToken } from './tokens.js';
 
 import { initChordEntry, openAddChord } from './chordEntry.js';
 
-import { loadAnalysis } from './analysisLoader.js';
+import { loadAnalysis, saveAnalysisFile, loadAnalysisFile } from './analysisLoader.js';
 
 import {
   initChartMode,
   openChartMode,
   closeChartMode,
   updateChartPlayback,
+  chartState,
+  renderChartMode,
 } from './chartmode.js';
 
 // ════════════════════════════════════════
@@ -205,18 +201,21 @@ let project = {id:crypto.randomUUID(),title:'',audio:'',capo:0,lines:[],chord_so
 let palette = [];
 let paletteTranspose = 0; // session only、-6〜+6、循環
 let focLine = -1;
-let importUndoStack = []; // import単位undo用
+// DESIGN CONSTRAINT: importUndoStack stores chord form snapshots
+// (i.e. transposed values at the time of import, not actual pitch).
+// Correctness is NOT guaranteed if capo is changed after import.
+// Reason: capo change directly mutates c.chord (destructive model),
+// so a snapshot taken at capo=0 becomes stale after capo changes.
+// NOTE: analysis.raw canonical data is NOT affected by this constraint.
+// Full resolution requires migrating capo to a projection-only model
+// (architecture debt — see capo mutation state in architecture.md).
+let importUndoStack = [];
 
 // Audio関連
 const aEl = document.getElementById('audio-el');
 let _aURL = null;
 let tapIdx = -1;
 
-// ユーティリティ
-function generateId(){
-  if(typeof crypto!=='undefined'&&crypto.randomUUID)return crypto.randomUUID();
-  return Date.now().toString(36)+Math.random().toString(36).slice(2);
-}
 
 // UI状態
 let _prevCapo = 0;
@@ -320,24 +319,51 @@ function forcePreviewChord(chord) {
 }
 
 // ════════════════════════════════════════
-// AUDIO ENGINE（初期化はDOMContentLoadedで実行）
-// ════════════════════════════════════════
-
-// ════════════════════════════════════════
 // FILE LOADING
 // ════════════════════════════════════════
 
 async function loadChordData(data,filename){
   project.chord_source=filename;
   const b=document.getElementById('chord-btn');b.textContent=filename;b.classList.add('loaded');
-  const all=(data.chords||[]).filter(c=>c&&c!=='N');
+  // no_chord 系文字列（N / NC / N.C.）はパレットに含めない。
+  // 文字列比較は import 経路のみ（内部 token は isNoChordToken で判定）。
+  // normalize後（ドット・括弧除去・大文字化）で比較するため 'N.C.' / '(N.C)' 等も吸収する
+  const NO_CHORD_STRS = new Set(['N', 'NC']);
+  const all=(data.chords||[]).filter(c=>c&&!NO_CHORD_STRS.has(
+    String(c).trim().toUpperCase().replace(/\./g,'').replace(/[()]/g,'')
+  ));
   palette=[...new Set(all)];
   window._cn=data.chords||[];window._ct=data.times||[];
+
   // tempo・keyがあれば自動入力（空欄の場合のみ上書き）
   if(data.tempo){const bpmEl=document.getElementById('proj-bpm');if(!bpmEl.value)bpmEl.value=Math.round(data.tempo);}
   if(data.key){const keyEl=document.getElementById('proj-key');if(!keyEl.value)keyEl.value=data.key;}
+
   // Analysis ingestion / normalization layer
-  project.analysis = await loadAnalysis(data.analysis);
+  project.analysis = await loadAnalysis(data.analysis ?? null);
+
+  // analysis が存在すれば即保存
+  if (data.analysis?.raw) {
+    const ok = await saveAnalysisFile(project.id, data.analysis.raw);
+    if (ok) {
+      project.hasAnalysis = true;
+    } else {
+      console.warn('[analysis] failed to persist analysis file. Chart Mode will not survive reload.');
+    }
+  }
+
+  // ★ palette UI 更新
+  renderPalette();
+  document.getElementById('pal-count').textContent = palette.length;
+
+  updateChartModeAvailability();
+
+  // analysis 復元成功時にバナーを消す
+  if (project.analysis) {
+    const analysisBanner = document.getElementById('analysis-missing-banner');
+    if (analysisBanner) analysisBanner.remove();
+  }
+
   toast(`コード読み込み: ${palette.length}種`+(data.tempo?` / ${Math.round(data.tempo)}BPM`:'')+(data.key?` / ${data.key}`:''));
   checkReloadBannerDone();
   renderImportBtn();
@@ -409,9 +435,17 @@ function importChordsFromJson(){
     // 各行にコードを配置
     const newLines=lines.map(l=>({...l,chords:overwrite?[]:l.chords.map(c=>({...c}))}));
     cn.forEach((chord,ji)=>{
-      if(!chord||chord==='N')return;
+      if(!chord)return;
       const t=ct[ji];
       if(t==null)return;
+
+      // no_chord 系文字列（N / NC / N.C. / (N.C) 等）は { type:'no_chord' } token として挿入する。
+      // 文字列のまま保存しない（token semantic への移行）。
+      // 括弧・ドット・空白を除去してから比較する。
+      const normalized = String(chord).trim().toUpperCase()
+        .replace(/\./g,'').replace(/\s/g,'').replace(/[()]/g,'');
+      const isNc = normalized === 'N' || normalized === 'NC';
+
       // どの行に属するか判定: effTs[i] <= t < effTs[i+1]
       let target=-1;
       for(let i=0;i<newLines.length;i++){
@@ -421,7 +455,16 @@ function importChordsFromJson(){
         if(t>=cur&&t<nxt){target=i;break;}
       }
       if(target<0)return;
-      newLines[target].chords.push({chord,offset:0});
+      if (isNc) {
+        // no_chord は token semantic で保存（文字列禁止）
+        newLines[target].chords.push({ type: 'no_chord' });
+      } else {
+        // NOTE [LEGACY-RESIDUE]: offset is currently unused (always 0, never read).
+        // This was an early attempt to record intra-measure chord position.
+        // Future musical coordinate redesign (Issue #26) should replace this
+        // with a proper bar/beat model rather than extending this field.
+        newLines[target].chords.push({chord, offset:0});
+      }
     });
 
     project.lines=newLines;
@@ -709,10 +752,6 @@ function handleAddChordToLine(chord) {
 }
 
 // ════════════════════════════════════════
-// LYRIC IMPORT
-// ════════════════════════════════════════
-
-// ════════════════════════════════════════
 // MODAL SYSTEM
 // ════════════════════════════════════════
 function closeMod(){mOv.classList.remove('open');mBody.innerHTML='';mBtns.innerHTML='';}
@@ -929,6 +968,52 @@ function showReloadBanner(audioName, chordName){
   ea.insertBefore(banner, ea.firstChild);
 }
 
+// analysis missing バナー
+function showAnalysisMissingBanner() {
+  const old = document.getElementById('analysis-missing-banner');
+  if (old) old.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'analysis-missing-banner';
+  banner.style.cssText = [
+    'background:rgba(255,184,64,.08)',
+    'border:1px solid var(--color-amber)',
+    'border-radius:var(--r-md)',
+    'padding:8px 10px',
+    'margin:0 0 8px',
+    'font-size:11px',
+    'font-family:var(--font-mono)',
+    'color:var(--color-amber)',
+  ].join(';');
+
+  banner.innerHTML = `
+    <div style="font-weight:600;margin-bottom:3px">
+      ⚠ 解析データが見つかりません
+    </div>
+    <div style="color:var(--text-secondary)">
+      Chart Mode は利用できません。
+      解析データを再インポートしてください。
+    </div>
+    <button onclick="document.getElementById('analysis-missing-banner').remove()"
+      style="margin-top:5px;background:none;border:none;
+             color:var(--text-muted);cursor:pointer;
+             font-family:var(--font-mono);font-size:10px;padding:0">
+      ✕ 閉じる
+    </button>
+  `;
+
+  const ea = document.getElementById('editor-area');
+  if (ea) ea.insertBefore(banner, ea.firstChild);
+}
+
+function updateChartModeAvailability() {
+  const btn = document.getElementById('btn-chart-mode');
+  if (!btn) return;
+  const enabled = !!project.analysis;
+  btn.disabled = !enabled;
+  btn.title = enabled ? '' : '解析データがありません';
+}
+
 // ════════════════════════════════════════
 // STATE MANAGEMENT
 // ════════════════════════════════════════
@@ -988,6 +1073,7 @@ function resetProject() {
   // UI Reset
   document.getElementById('project-title').value = '';
   document.getElementById('capo').value = 0;
+  _prevCapo = 0;  // capo change イベントの diff 計算基準をリセット
   document.getElementById('proj-key').value = '';
   document.getElementById('proj-bpm').value = '';
   document.getElementById('diag-in').value = '';
@@ -1012,6 +1098,9 @@ function resetProject() {
   
   const reloadBanner = document.getElementById('reload-banner');
   if (reloadBanner) reloadBanner.remove();
+
+  const analysisBanner = document.getElementById('analysis-missing-banner');
+  if (analysisBanner) analysisBanner.remove();
 }
 
 // ════════════════════════════════════════
@@ -1037,8 +1126,48 @@ async function loadProj(data){
   project.capo = uiState.capo;
   project.chord_source = newProject.chord_source;
   project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
-  // analysis.raw を loadAnalysis() で sanitize/normalize して復元
-  project.analysis = await loadAnalysis(newProject.analysis ?? null);
+
+  // TOKEN MIGRATION: no_chord 文字列 → { type:'no_chord' }
+  // 旧形式で保存された '(N.C)' / 'N' / 'NC' / 'N.C.' 等を
+  // token semantic に変換する。
+  // Phase44-Step2 以降の新規データはこの経路を通らない。
+  //
+  // [SERIALIZE PRINCIPLE] serialize は token object をそのまま保存する。
+  // この migration は「旧形式文字列 → token object 変換」であり、
+  // tokenToText() の逆引きではない。display projection は非可逆のため
+  // 復元は必ず raw 文字列から token を生成する経路を使う。
+  project.lines.forEach(line => {
+    line.chords = line.chords.map(c => {
+      if (c.type) return c; // 既に typed token（barline / no_chord 等）はスキップ
+      if (!c.chord) return c;
+      const n = String(c.chord).trim().toUpperCase()
+        .replace(/\./g,'').replace(/\s/g,'').replace(/[()]/g,'');
+      if (n === 'N' || n === 'NC') return { type: 'no_chord' };
+      return c;
+    });
+  });
+
+// analysis load / migration
+  if (newProject.hasAnalysis) {
+    // 新形式: analysis/{id}.json から load
+    const raw = await loadAnalysisFile(newProject.id);
+    project.analysis = await loadAnalysis(raw ? { raw } : null);
+    if (!project.analysis) showAnalysisMissingBanner();
+
+  } else if (data.analysis?.raw) {
+    // 旧形式 migration: 埋め込み analysis を外部ファイルへ移行
+    console.info('[analysis] migrating embedded analysis to external file');
+    await saveAnalysisFile(newProject.id, data.analysis.raw);
+    newProject.hasAnalysis = true;   // ★ newProject も更新
+    project.hasAnalysis    = true;
+    project.analysis = await loadAnalysis(data.analysis);
+
+  } else {
+    // analysis なし
+    project.analysis = null;
+  }
+
+  updateChartModeAvailability();
   
   // Update file buttons
   const audioBtn = document.getElementById('audio-btn');
@@ -1105,20 +1234,11 @@ async function loadProj(data){
       );
     }
   })();
+
+  // TOKEN MIGRATION の結果を LocalStorage に即書き戻す。
+  // これにより次回の自動保存復元時も migration 済みデータが使われる。
+  autoSaveLocal();
 }
-
-// ════════════════════════════════════════
-// TAP MODE OVERLAY → tapmode.js に移動
-// ════════════════════════════════════════
-
-
-
-// TAPオーバーレイ内の再生コントロールをメインaElに同期
-
-
-
-
-// ⑦ コード置換バー → replace.js に移動
 
 // ════════════════════════════════════════
 // ⑤ 音量バー
@@ -1216,6 +1336,7 @@ function setupEventHandlers() {
   });
 
   // Chord file load (JSON/CSV)
+  // file-chord の addEventListener の直前に追加
   document.getElementById('file-chord').addEventListener('change',e=>{
     const f=e.target.files[0];if(!f)return;
     const r=new FileReader();
@@ -1234,6 +1355,8 @@ function setupEventHandlers() {
       saveAsset(project.id, 'chord', { data: ev.target.result, filename: f.name });
     };
     r.readAsText(f,'utf-8');
+    
+    e.target.value = '';  // ★ これがないと同じファイルで change が発火しない
   });
 
   // Audio file load
@@ -1374,6 +1497,7 @@ function setupEventHandlers() {
     project.lines.forEach(line=>{
       line.chords.forEach(c=>{
         if(isSepToken(c))return;
+        if(isNoChordToken(c))return;  // no_chord は音高を持たないためスキップ
         c.chord=transposeChord(c.chord,semitones);
       });
     });
@@ -1385,6 +1509,12 @@ function setupEventHandlers() {
     const cur=document.getElementById('diag-in').value.trim();
     if(cur) showDiagramPanel(cur, getCapo(), getDiagCallbacks());
     toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
+    
+    // Chart Mode が開いていれば表示を更新する
+    // TODO: future optimization: separate chord label refresh from full chart rerender
+    //       現在は DOM フル再構築。chart interaction が増えた段階で
+    //       chord textContent の差分更新に切り替えることを検討する。
+    if (chartState.active) renderChartMode();
   });
 
   // ============================================
@@ -1586,6 +1716,7 @@ function setupEventHandlers() {
 
   document.getElementById('btn-chart-mode')
     .addEventListener('click', openChartMode);
+
   document.getElementById('btn-chart-close')
     .addEventListener('click', closeChartMode);
   
@@ -1770,10 +1901,6 @@ window.addEventListener('DOMContentLoaded',()=>{
   aEl.addEventListener('timeupdate', updatePerformFocus);
   aEl.addEventListener('timeupdate', updatePerformPlayer);
   aEl.addEventListener('timeupdate', () => updateChartPlayback(aEl.currentTime));
-  aEl.addEventListener('timeupdate', updateTovTime);
-  aEl.addEventListener('timeupdate', updatePerformFocus);
-  aEl.addEventListener('timeupdate', updatePerformPlayer);
-  aEl.addEventListener('timeupdate', () => updateChartPlayback(aEl.currentTime));
 
   // ⑤ Replace 初期化
   initReplace(
@@ -1859,6 +1986,8 @@ window.addEventListener('DOMContentLoaded',()=>{
     getAnalysis:      () => project.analysis,
     getAudioEl:       () => aEl,
     getAudioDuration: () => aEl.duration,
+    getCapo:          getCapo,
+    transposeChord:   transposeChord,
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）

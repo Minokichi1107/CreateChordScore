@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase39完了時点
+> 最終更新: Phase44完了時点
 
 ---
 
@@ -46,13 +46,15 @@ modal close 時に diagLockedChord を右パネルに再表示する処理が必
 
 #### 挿入ボタン上下両方向対応
 状態: 未着手
-内容: 現在の `insertAt` が片方向のみ。cursor的な insertion control へ拡張。
+内容: 現在の `insertAt` が下方向のみ。上方向（前に挿入）にも対応する。
+cursor的な insertion control へ拡張。
 chordEntry.js の keyboard-first 化とセットで設計すること。
 
 #### 行またぎコード移動
 状態: 未着手
 内容: 先頭コード→前行末尾 / 末尾コード→次行先頭への移動。
-通常画面（inline editing）側での実装が望ましい。
+通常画面（inline editing）または AddChord モーダルから操作できるUIを追加。
+token array boundary mutation として実装すること（string splice 禁止）。
 `project.lines` 編集APIが必要。app.js 内 `moveChordAcrossLines` として設計済み（Phase38-3）。
 ※ modal内の小機能として実装すると line mutation が modal subsystem に漏れるため注意。
 
@@ -92,8 +94,11 @@ Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み�
 
 #### 狭幅時フロートUI
 状態: 未着手
-内容: `+コード` `+/` 等のフロートが狭幅時に編集を阻害。
-focus行以外の位置（行外ガター等）への移動を検討。
+内容: ウィンドウ縮小時に TAP / リピート / コピー / 挿入 等のフロートメニューが
+編集エリアと重なり操作を阻害する。
+歌詞行の下側（lyric baseline）を anchor にした位置に移動することを検討。
+方向性: viewport 幅に応じて anchor を切り替える responsive positioning。
+モバイル縮小時は safe-area を基準にする。
 
 ### import normalization 系
 
@@ -102,6 +107,33 @@ focus行以外の位置（行外ガター等）への移動を検討。
 内容: chordminiからのJSONインポート時の非正規コード名を解読・置換。
 canonical chord / alias resolution の延長線上にある。
 import normalization pipeline として設計。
+
+### Chart Mode 系
+
+#### Chart Mode 並列表示（編集しながら Chart を参照）
+状態: 設計前
+内容: Chart Mode を全画面モードではなく、エディター画面と並列表示できるようにする。
+または全画面編集モードに Chart パネルを組み込む。
+設計上の注意点:
+- editor renderer / chart renderer の single source of truth をどこに置くか
+- focus / selection / scroll sync のタイミング
+- mutation 後の chart 再描画タイミング
+備考: Phase44 で projection responsibility が整理されたため、並列表示の設計に入れる段階。
+
+#### Chart Mode に audio controls 追加（mini transport）
+状態: 未着手
+内容: Chart Mode 内に ▶ / シークバー / 速度 / 音量 の mini transport を追加。
+現在はメイン画面で再生してから Chart Mode を開く必要がある。
+方向性: Chart renderer が playback authority を持つか、
+既存 aEl の proxy として動作させるかを設計段階で決定する。
+
+#### Chart Mode ビート単位フォーカス
+状態: 未着手
+内容: 現在の再生同期は小節単位ハイライト。
+将来的にビート単位・スロット単位での追従を可能にする。
+必要な要素: beat index / token duration / subdivision / sync source。
+備考: 単純な UI 改善ではなく playback engine 拡張に近い規模。
+timing.js の quantize() が基盤になる。Phase41 handover の「slot highlight」と同一方向。
 
 ### その他将来検討
 
@@ -120,6 +152,15 @@ import normalization pipeline として設計。
 #### プロジェクトDBライブラリタブ追加
 状態: 未着手
 内容: 保存済みプロジェクトをブラウザ内DBで管理・一覧表示するUIの追加（右パネル）
+
+#### アーティスト名 / 曲名フィールド分離
+状態: 未着手
+内容: 現在の project.title を artist / title の2フィールドに分離する。
+UI: ヘッダー左にアーティスト名、右に曲名の入力欄を並べる。
+保存ファイル名: `{artist}-{title}_project.json` 形式で自動生成。
+将来の検索・ソート・ライブラリ表示・export にも波及する基盤変更。
+設計上の注意: serializeProject / deserializeProject / resetProject / loadProj の
+全経路で artist フィールドの追加が必要。旧形式との backward compatibility を確保すること。
 
 #### LAN配信モード（PCサーバー → スマホブラウザ）
 状態: 検討中
@@ -213,3 +254,9 @@ tones / intervals / harmonic relation を持たない。
 内容: 保存済みデータの `{ type:'sep' }` / `{ chord:'/' }` を `{ type:'barline' }` へ migration。
 現在は `isSepToken()` で透過的に扱えるため不急。
 時期: Issue #26 の bars[] 設計フェーズ前後に合わせて実施を検討。
+
+### token utility 追加時の import audit（教訓・Phase44）
+状態: 再発防止知識
+内容: Phase44-Step2 で perform.js に isChordToken を使う変更を入れたが
+import 追加が漏れ、perform mode 全消失バグとして Step3 動作確認時に発覚。
+対策: token 関数を追加・変更した際は、参照している全ファイルの import を同時に確認すること。

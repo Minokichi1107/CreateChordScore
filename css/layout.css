@@ -3,7 +3,7 @@
 #header{background:var(--grad-header);border-bottom:1px solid var(--border-ui);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-sm)}
 .logo{font-family:var(--font-display);font-size:17px;font-weight:900;color:var(--text-primary);letter-spacing:.5px;white-space:nowrap;text-shadow:1px 1px 0 rgba(0,0,0,.35),2px 2px 0 rgba(0,0,0,.25),3px 3px 6px rgba(0,0,0,.2)}
 .logo span{color:var(--text-secondary);font-weight:900}
-.logo-img{height:28px;width:auto;object-fit:contain;flex-shrink:0;display:block}
+.logo-img{height:36px;width:auto;object-fit:contain;flex-shrink:0;display:block;border-radius: 8px;margin: 0 4px;}
 #project-title{flex:1 1 auto;background:var(--surface-overlay);border:1px solid var(--border-ui);border-top-color:rgba(0,0,0,.2);border-bottom-color:var(--border-ui-strong);border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-sans);font-size:14px;padding:5px 10px;min-width:0;box-shadow:var(--shadow-inset)}
 #project-title:focus{outline:none;border-color:var(--text-accent)}
 #project-title::placeholder{color:var(--text-muted)}

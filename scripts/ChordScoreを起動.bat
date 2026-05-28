@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 > nul
-cd /d "%~dp0"
+cd /d "%~dp0.."
 echo.
 echo  ChordScore Editor を起動しています...
 echo  URL: http://localhost:8767/index.html
