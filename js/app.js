@@ -1131,6 +1131,11 @@ async function loadProj(data){
   // 旧形式で保存された '(N.C)' / 'N' / 'NC' / 'N.C.' 等を
   // token semantic に変換する。
   // Phase44-Step2 以降の新規データはこの経路を通らない。
+  //
+  // [SERIALIZE PRINCIPLE] serialize は token object をそのまま保存する。
+  // この migration は「旧形式文字列 → token object 変換」であり、
+  // tokenToText() の逆引きではない。display projection は非可逆のため
+  // 復元は必ず raw 文字列から token を生成する経路を使う。
   project.lines.forEach(line => {
     line.chords = line.chords.map(c => {
       if (c.type) return c; // 既に typed token（barline / no_chord 等）はスキップ

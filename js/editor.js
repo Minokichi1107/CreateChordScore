@@ -204,8 +204,11 @@ export function renderLines(lines, uiState, callbacks) {
         if (e.target.classList.contains('del-x')) return;
         pressTimer = setTimeout(() => {
           pressTimer = null;
-          // c.chord 直参照禁止。no_chord 等でも安全に動作させるため tokenToText 経由。
-          // ただし diagLock の lookup key は c.chord を使うため app.js 側で分離して扱う。
+          // [LOOKUP-KEY] c.chord を raw lookup identifier として渡す。
+          // tokenToText(c) に置換すると display 文字列が渡され
+          // app.js 側の lockDiag / CHORD_DB lookup が壊れる。
+          // app.js 側で isChordToken(c) ? c.chord : null の guard を行っている。
+          // Do not replace with tokenToText().
           if (callbacks.onChordDblClick) callbacks.onChordDblClick(idx, ci, c.chord);
         }, 400);
       });
@@ -224,8 +227,10 @@ export function renderLines(lines, uiState, callbacks) {
       });
       tag.addEventListener('mouseenter', () => {
         if (callbacks.onChordHover) {
-          // no_chord 等 c.chord が undefined の場合でも安全に扱うため tokenToText 経由。
-          // ただし右パネル lookup は c.chord を必要とするため、app.js 側で isChordToken 判定を行う。
+          // [LOOKUP-KEY] c.chord を raw lookup identifier として渡す。
+          // no_chord 等では c.chord が undefined になるが、
+          // app.js 側の canUpdateDiagFromHover / updateDiagRight が if(!chord)return で guard している。
+          // Do not replace with tokenToText().
           callbacks.onChordHover(c.chord, tag);
         }
       });

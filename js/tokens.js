@@ -11,6 +11,57 @@
  *   editor / modals / perform / export など全モジュールが参照する
  *   domain-level token utility。
  *
+ * ════════════════════════════════════════
+ * TOKEN SEMANTIC 定義表
+ * ════════════════════════════════════════
+ *
+ * token種別        内部表現                           isXxx関数          tokenToText
+ * ──────────────────────────────────────────────────────────────────────────────
+ * chord           { chord: 'Am7' }                   isChordToken       → 'Am7'
+ * barline         { type: 'barline' }                isSepToken         → '/'
+ * barline legacy  { type: 'sep' }                    isSepToken         → '/'  （互換）
+ * barline legacy  { chord: '/' }                     isSepToken         → '/'  （互換）
+ * simile          { type: 'simile', bars: 1|2 }      isSimileToken      → 'sim.' / 'sim.2'（将来実装）
+ * no_chord        { type: 'no_chord' }               isNoChordToken     → 'N.C.'
+ *
+ * ════════════════════════════════════════
+ * TOKEN SEMANTIC ごとの責務分離
+ * ════════════════════════════════════════
+ *
+ * 用途               使用する値              理由
+ * ──────────────────────────────────────────────────────────────────────────────
+ * display（DOM表示）   tokenToText(c)          no_chord / simile も安全に変換できる
+ * lookup（DB検索）     c.chord（raw）           CHORD_DB のキーは raw 文字列
+ * transpose（移調）    isChordToken(c) 判定後   no_chord / barline を誤って移調しない
+ * serialize（保存）    token object そのまま    変換しない。復元時の互換性を保つ
+ *
+ * 禁止: tokenToText() を lookup key / compare / storage に使うこと
+ * 禁止: tokenToText() の出力から token semantic を逆引きすること（非可逆）
+ *
+ * ════════════════════════════════════════
+ * DISPLAY PROJECTION は非可逆
+ * ════════════════════════════════════════
+ *
+ * tokenToText() は「表示用の投影（projection）」であり、
+ * 元の token semantic を復元できない一方向変換である。
+ *
+ *   { type: 'simile', bars: 2 }  →  '𝄋' または 'sim.2'（将来実装例）
+ *   逆方向（表示文字列 → token）は tokenToText() では不可能
+ *
+ * display projection ≠ persisted semantic
+ *
+ * この原則により:
+ *   - serialize は必ず token object をそのまま保存する
+ *   - import / migration は raw 文字列から token を生成する（逆引き禁止）
+ *   - 表示文字列を DB lookup key や比較に使ってはならない
+ *
+ * 将来 simile / Nashville / Roman numeral / slash bass 等が追加されても
+ * この原則は変わらない。
+ *
+ * ════════════════════════════════════════
+ * token 種別
+ * ════════════════════════════════════════
+ *
  * 【token 種別】
  *   chord    : { chord: 'Am7' }  または { type:'chord', chord:'Am7' }
  *   barline  : { type:'barline' }  小節線（canonical、Phase39-4以降）
