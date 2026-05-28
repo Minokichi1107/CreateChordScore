@@ -93,6 +93,11 @@ export function scrollEditorToRow(rowEl, force = false) {
 // 譜面全体描画
 // ────────────────────────────────────────
 export function renderLines(lines, uiState, callbacks) {
+  // NOTE: chord display projection (capo transpose) is NOT performed here.
+  // editor.js renders already-mutated chord state (c.chord) as-is.
+  // Transposition is applied by the destructive capo model in app.js
+  // (capo change event rewrites c.chord directly).
+  // See architecture.md §8 for migration status and constraints.
   const { focLine, tapIdx, capo, fmt } = uiState;
   const {
     onTimeClick,

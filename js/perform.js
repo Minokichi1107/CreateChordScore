@@ -134,6 +134,10 @@ export function closePerformMode() {
 // ════════════════════════════════════════
 
 export function renderPerformLines() {
+  // NOTE: perform.js does not apply capo projection during render.
+  // It renders already-mutated chord state produced by the current
+  // destructive capo model in app.js/editor flow.
+  // See architecture.md §8 for migration status and constraints.
   const container = document.getElementById('perform-lines');
   const overlay = document.getElementById('perform-overlay');
   container.innerHTML = '';
