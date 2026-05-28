@@ -27,7 +27,7 @@
 
 import { lookupChord, drawDiagram } from './chords.js';
 import { fmt } from './audio.js';
-import { isSepToken, isNoChordToken, tokenToText } from './tokens.js';
+import { isSepToken, isChordToken, isNoChordToken, tokenToText } from './tokens.js';
 
 // ════════════════════════════════════════
 // MODULE STATE
