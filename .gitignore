@@ -40,3 +40,6 @@ resource/sample/
 
 # analysis: derived artifact・著作権配慮
 analysis/
+
+# local archive
+docs/finished/
