@@ -26,25 +26,33 @@ CreateChordScore/
 │   ├─ state.css
 │   └─ perform.css
 ├─ js/
-│   ├─ app.js
+│   ├─ app.js            ← オーケストレーター
 │   ├─ audio.js
 │   ├─ editor.js
 │   ├─ chords.js
 │   ├─ project.js
 │   ├─ csvImporter.js
 │   ├─ perform.js
-│   ├─ modals.js
-│   ├─ chordEntry.js
-│   ├─ tokens.js
-│   └─ idb.js
+│   ├─ tapmode.js        ← Phase12で分離
+│   ├─ replace.js        ← Phase12で分離
+│   ├─ modals.js         ← Phase33で新設
+│   ├─ chordEntry.js     ← Phase39-1で新設
+│   ├─ tokens.js         ← Phase39-0で新設
+│   ├─ idb.js
+│   ├─ analysisLoader.js ← Phase41で新設
+│   ├─ timing.js         ← Phase41で新設（外部依存ゼロ）
+│   └─ chartmode.js      ← Phase41で新設
 ├─ resource/
-│   ├─ audio/
-│   ├─ chords/
+│   ├─ audio/            ← 音声ファイル（.gitignore対象）
+│   ├─ chords/           ← コード解析JSON（.gitignore対象）
 │   ├─ icons/
-│   └─ projects/
+│   ├─ lyrics/           ← 歌詞テキスト（.gitignore対象）
+│   ├─ projects/         ← プロジェクトJSON（.gitignore対象）
+│   ├─ analysis/         ← 解析データ / replacementMap.json（Phase42で追加）
+│   └─ sample/           ← サンプル画像等
 ├─ docs/
-├─ tools/
-├─ scripts/
+├─ tools/                ← chordmini_fetch.py 等の外部ツール
+├─ scripts/              ← バックアップ・起動バッチ
 └─ testdata/
 ```
 
@@ -52,19 +60,24 @@ CreateChordScore/
 
 ## 3. JSモジュール構成
 
-| モジュール | 責務 |
-|---|---|
-| app.js | アプリ起動・状態管理・モジュール間調整（オーケストレーター） |
-| audio.js | 音声再生管理 |
-| editor.js | コード譜編集 |
-| chords.js | コード情報・ダイアグラム・lookup |
-| project.js | プロジェクトデータの管理・シリアライズ・保存関連処理 |
-| csvImporter.js | CSVインポート |
-| perform.js | 演奏モード関連処理 |
-| modals.js | 軽量modal群（time / repeat / copy / diagram / chordEdit） |
-| chordEntry.js | コード入力サブシステム（openAddChord / insertAt state管理 / transient preview） |
-| tokens.js | musical token stream の分類・変換ユーティリティ（isChordToken / isSepToken / isSimileToken / tokenToText） |
-| idb.js | IndexedDB操作層（audio/chord_sourceのローカル保存） |
+| モジュール | 責務 | 導入 |
+|---|---|---|
+| app.js | アプリ起動・状態管理・モジュール間調整（オーケストレーター） | 初期 |
+| audio.js | 音声再生管理 | 初期 |
+| editor.js | コード譜編集・譜面UI描画 | 初期 |
+| chords.js | コード情報・ダイアグラム描画・lookup | 初期 |
+| project.js | プロジェクトデータの管理・シリアライズ・保存関連処理 | 初期 |
+| csvImporter.js | CSV / JSON インポート・パース | 初期 |
+| perform.js | 演奏モード状態管理・描画・スクロール同期 | Phase12 |
+| tapmode.js | TAP Mode オーバーレイの状態・描画・入力制御 | Phase12 |
+| replace.js | 置換機能（replace bar）の状態・UI・ロジック | Phase12 |
+| modals.js | 軽量modal群（time / repeat / copy / diagram / chordEdit） | Phase33 |
+| chordEntry.js | コード入力サブシステム（openAddChord / insertAt state管理 / transient preview） | Phase39-1 |
+| tokens.js | musical token stream の分類・変換ユーティリティ（isChordToken / isSepToken / isNoChordToken / tokenToText） | Phase39-0 |
+| idb.js | IndexedDB操作層（audio / chord_source のローカル保存） | Phase32 |
+| analysisLoader.js | analysis.raw の validate / sanitize / normalize → project.analysis 生成 | Phase41 |
+| timing.js | TimingModel（beat / measure grid 構築・quantize）。外部依存ゼロ | Phase41 |
+| chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer） | Phase41 |
 
 ### 依存関係ルール
 
@@ -73,6 +86,9 @@ CreateChordScore/
 - `project.js` はデータ管理・変換に限定（UI操作を含まない）
 - `modals.js` はUI lifecycle と callback通知のみ。state mutationは app.js が担当
 - `tokens.js` は domain-level utility。どのモジュールからも参照可（app.js 経由不要）
+- `analysisLoader.js` は analysis data の ingestion 専用。UI / DOM / project.lines に触らない
+- `timing.js` は外部依存ゼロ。chartmode.js のみが import する
+- `tapmode.js` / `replace.js` は app.js 経由で初期化される（initTapMode / initReplace）
 - `utils.js` / `helpers.js` は作らない
 
 ### modals.js 依存注入パターン
