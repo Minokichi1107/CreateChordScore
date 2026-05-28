@@ -1,6 +1,6 @@
 # アーキテクチャ概要
 
-> 最終更新: Phase39完了時点
+> 最終更新: Phase44完了時点
 
 ---
 
@@ -217,25 +217,53 @@ restoreFromLocalStorage()
 | barline legacy | `{ type: 'sep' }` | deprecated（storage互換維持） |
 | barline legacy | `{ chord: '/' }` | deprecated（storage互換維持） |
 | simile | `{ type: 'simile', bars: 1\|2 }` | 設計済み・未実装 |
+| no_chord | `{ type: 'no_chord' }` | canonical（Phase44-Step2以降） |
 
 ### token access layer（tokens.js）
 
 ```javascript
-isSepToken(token)    // barline / sep / '/' の全形式を吸収
-isChordToken(token)  // chord token 判定（プロパティ存在判定）
-isSimileToken(token) // simile token 判定
-tokenToText(token)   // DOM表示用変換（lookup key には使わない）
+isSepToken(token)     // barline / sep / '/' の全形式を吸収
+isChordToken(token)   // chord token 判定（プロパティ存在判定）
+isSimileToken(token)  // simile token 判定
+isNoChordToken(token) // no_chord token 判定（Phase44-Step2追加）
+tokenToText(token)    // DOM表示用変換（lookup key には使わない）
 ```
 
-### 責務分離ルール
+### 責務分離ルール（Phase44-Step3 確定）
 
-| 用途 | 使用値 |
-|---|---|
-| 内部処理（lookup / compare / callback） | `c.chord`（raw） |
-| DOM表示 | `tokenToText(c)` |
-| separator判定 | `isSepToken(c)` |
+| 用途 | 使用値 | 理由 |
+|---|---|---|
+| display（DOM表示） | `tokenToText(c)` | no_chord / simile も安全に変換できる |
+| lookup（DB検索） | `c.chord`（raw） | CHORD_DB のキーは raw 文字列 |
+| transpose（移調） | `isChordToken(c)` 判定後に `c.chord` | no_chord / barline を誤って移調しない |
+| serialize（保存） | token object そのまま | 変換しない。復元時の互換性を保つ |
 
-`tokenToText()` を lookup key / compare / storage に使うことは禁止。
+**禁止事項:**
+- `tokenToText()` を lookup key / compare / storage に使うこと
+- `tokenToText()` の出力から token semantic を逆引きすること（非可逆）
+
+### display projection は非可逆（Phase44-Step3 確定）
+
+`tokenToText()` は「表示用の投影（projection）」であり、
+元の token semantic を復元できない一方向変換である。
+
+**display projection ≠ persisted semantic**
+
+この原則により：
+- serialize は必ず token object をそのまま保存する
+- import / migration は raw 文字列から token を生成する（逆引き禁止）
+- 表示文字列を DB lookup key や比較に使ってはならない
+
+将来 simile / Nashville / Roman numeral / slash bass 等が追加されても
+この原則は変わらない。
+
+### renderer の projection 責務（Phase44-Step4 確定）
+
+| renderer | projection | 方式 |
+|---|---|---|
+| chartmode.js | あり | render 時に `transposeChord(chord, -capo)` で変換 |
+| perform.js | なし（mutated state renderer） | app.js の destructive model で変換済みの `c.chord` をそのまま render |
+| editor.js | なし（mutated state renderer） | 同上 |
 
 ---
 
