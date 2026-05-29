@@ -617,7 +617,11 @@ function createEditorCallbacks() {
       project.lines[idx].chords.splice(ci + 1, 0, { type: 'barline' });
       refreshEditor();
     },
-    onLineInsert: (idx) => {
+    onLineInsertAbove: (idx) => {
+      project.lines.splice(idx, 0, mkLine());
+      refreshEditor();
+    },
+    onLineInsertBelow: (idx) => {
       project.lines.splice(idx + 1, 0, mkLine());
       refreshEditor();
     },
@@ -722,6 +726,7 @@ function getEditorUIState() {
 
 // エディタを再描画
 function refreshEditor() {
+  console.log('refreshEditor');  // ★これだけ追加
   renderLines(project.lines, getEditorUIState(), createEditorCallbacks());
   autoSaveLocal();
 }
@@ -1488,7 +1493,14 @@ function setupEventHandlers() {
 
   // カポ変更：前の値との差分で全コードを移調（確認なし・即時）
   document.getElementById('capo').addEventListener('change',()=>{
+
     const newCapo=parseInt(document.getElementById('capo').value)||0;
+
+  // ===== DEBUG START =====
+  console.log('CAPO CHANGE', newCapo);
+  // ===== DEBUG END =====
+
+    
     const diff=newCapo-_prevCapo;
     if(diff===0)return;
     // カポが増える(0→2)＝同じ音を出すためコードフォームは下げる(-2半音)

@@ -109,7 +109,8 @@ export function renderLines(lines, uiState, callbacks) {
     onChordDelete,
     onSepClick,
     onSepInsert,
-    onLineInsert,
+    onLineInsertAbove,
+    onLineInsertBelow,
     onLineDelete,
     onLyricFocus,
     onLyricInput,
@@ -314,7 +315,28 @@ export function renderLines(lines, uiState, callbacks) {
     acts.appendChild(mk('⏱', '', '次TAPでこの行に時刻セット', () => onTapSet(idx)));
     acts.appendChild(mk('🔁 リピート', 'am', 'リピート記号を追加/編集', () => onRepeatClick(idx)));
     acts.appendChild(mk('📋 コピー', 'gn', 'コードを別の行にコピー', () => onCopyClick(idx)));
-    acts.appendChild(mk('↓挿入', '', '下に空行を挿入', () => onLineInsert(idx)));
+
+    // ↑挿入 挿入 ↓ グループ
+    const insertWrap = document.createElement('span');
+    insertWrap.className = 'la-insert-wrap';
+    const btnAbove = document.createElement('button');
+    btnAbove.className = 'la';
+    btnAbove.textContent = '↑';
+    btnAbove.title = '上に空行を挿入';
+    btnAbove.addEventListener('click', () => onLineInsertAbove(idx));
+    const insertLabel = document.createElement('span');
+    insertLabel.className = 'la-insert-label';
+    insertLabel.textContent = '挿入';
+    const btnBelow = document.createElement('button');
+    btnBelow.className = 'la';
+    btnBelow.textContent = '↓';
+    btnBelow.title = '下に空行を挿入';
+    btnBelow.addEventListener('click', () => onLineInsertBelow(idx));
+    insertWrap.appendChild(btnAbove);
+    insertWrap.appendChild(insertLabel);
+    insertWrap.appendChild(btnBelow);
+    acts.appendChild(insertWrap);
+
     acts.appendChild(mk('削除', 'del', '', () => onLineDelete(idx)));
     row.appendChild(acts);
     

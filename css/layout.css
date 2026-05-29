@@ -217,6 +217,31 @@ body.diag-off .chord-tag:hover{cursor:default}
 .la.del:hover{color:var(--color-red);border-color:var(--color-red)}
 .la.am:hover{color:var(--color-amber);border-color:var(--color-amber)}
 .la.gn:hover{color:var(--color-green);border-color:var(--color-green)}
+/* 挿入ボタングループ */
+.la-insert-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.la-insert-label {
+  background: var(--surface-overlay);
+  border-top: 1px solid var(--border-ui);
+  border-bottom: 1px solid var(--border-ui);
+  border-left: 1px solid var(--border-ui);   /* ★追加 */
+  border-right: 1px solid var(--border-ui);  /* ★追加 */
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 2px 4px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.la-insert-wrap .la:first-child {
+  border-radius: 3px 0 0 3px;
+}
+.la-insert-wrap .la:last-child {
+  border-radius: 0 3px 3px 0;
+}
 #add-line-btn{background:var(--surface-raised);border:1px dashed var(--border-ui);border-radius:var(--r-md);color:var(--text-muted);cursor:pointer;font-family:var(--font-mono);font-size:11px;padding:8px;text-align:center;width:100%;margin-top:6px;transition:all .15s}
 #add-line-btn:hover{border-color:var(--text-accent);color:var(--text-accent)}
 
