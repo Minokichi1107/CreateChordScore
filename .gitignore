@@ -38,6 +38,11 @@ resource/sample/
 # analysis: derived artifact・著作権配慮
 analysis/
 resource/analysis/
+# 個人作業データ（著作権保護・ローカルバックアップで管理）
+resource/projects/
+resource/chords/
+resource/lyrics/
+resource/sample/
 
 # local archive
 docs/finished/
