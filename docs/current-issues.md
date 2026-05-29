@@ -260,3 +260,16 @@ tones / intervals / harmonic relation を持たない。
 内容: Phase44-Step2 で perform.js に isChordToken を使う変更を入れたが
 import 追加が漏れ、perform mode 全消失バグとして Step3 動作確認時に発覚。
 対策: token 関数を追加・変更した際は、参照している全ファイルの import を同時に確認すること。
+
+### git filter-repo / git gc 実行時に objects 削除質問が大量に出る
+状態: 既知・無害
+内容: Windows 環境で git filter-repo や git gc を実行すると
+`.git/objects/xx` の削除に失敗し `Should I try again? (y/n)` が
+大量に表示される。
+原因: VSCode / Explorer / ウイルス対策ソフト等が .git 配下のファイルを
+ロックしているため削除できない。
+影響: なし。Git の処理本体（履歴書き換え・パック）は完了している。
+対処:
+- `Parsed N commits` / `HEAD is now at...` が出た時点で成功
+- 質問が出始めたら Ctrl+C で即中断してよい
+- 気になる場合は実行前に VSCode を閉じると質問が減る
