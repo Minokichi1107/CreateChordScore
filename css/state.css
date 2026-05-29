@@ -21,16 +21,12 @@
 .silver-preview{background:linear-gradient(135deg,#dde1e7 50%,#2d6fd4 50%)}
 .blue-preview{background:linear-gradient(135deg,#0e1e3a 50%,#4fb8ff 50%)}
 
+/* ── play-btn SVG icon 表示切り替え ─────────────────
+   .playing クラスで再生中/停止中を判定する
+   textContent 切り替えを廃止し、環境差によるズレを解消
+   ─────────────────────────────────────────────────── */
+.play-btn .icon-pause { display: none; }
+.play-btn .icon-play  { display: block; }
 
-
-
-
-
-
-
-
-
-
-
-
-
+.play-btn.playing .icon-pause { display: block; }
+.play-btn.playing .icon-play  { display: none; }

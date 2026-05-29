@@ -136,8 +136,11 @@
   --grad-seek-track:     linear-gradient(180deg,#1a1e2e 0%,#242840 40%,#2a2e48 100%);
   --grad-seek-fill:      linear-gradient(180deg,#2060d0 0%,#1040b0 50%,#1850c0 100%);
   --grad-slider:         linear-gradient(180deg,#1e2238 0%,#2a2e48 100%);
-  --grad-play-btn:       radial-gradient(circle at 40% 30%,rgba(255,255,255,.15) 0%,transparent 55%),
-                         linear-gradient(180deg,#2a3060 0%,#1a2050 30%,#141840 65%,#0e1230 100%);
+  --grad-play-btn:
+      radial-gradient(circle at 40% 20%, rgba(255,255,255,.18) 0%, transparent 55%),
+      repeating-linear-gradient(60deg, rgba(255,255,255,0) 0px, rgba(255,255,255,0) 2px, rgba(255,255,255,.06) 3px),
+      repeating-linear-gradient(90deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 5px, rgba(0,0,0,.05) 6px),
+      linear-gradient(180deg, #3a4060 0%, #22284a 35%, #1a2040 65%, #0e1428 100%);
   --grad-add-diag-btn:   linear-gradient(180deg,#1e6030 0%,#124820 100%);
   --grad-btn-gloss:      linear-gradient(180deg,rgba(255,255,255,.08) 0%,rgba(255,255,255,.02) 100%);
   --grad-perform-overlay:linear-gradient(180deg,#0f1117 0%,#0a0d14 60%,#080b11 100%);
@@ -264,6 +267,15 @@ body[data-theme="silver"] #tap-ov-tapbtn {
 body[data-theme="blue"] #tap-ov-tapbtn {
   background: var(--tap-btn-surface);
   color: var(--text-chord);
+}
+
+/* play button */
+body[data-theme="dark"] .play-btn {
+  background: var(--grad-play-btn);
+  border: 1px solid var(--border-play-btn);
+  border-top-color: var(--border-play-btn-top);
+  border-bottom-color: var(--border-play-btn-bottom);
+  box-shadow: var(--shadow-play-btn);
 }
 
 
@@ -570,8 +582,10 @@ body[data-theme="blue"] {
   --grad-seek-fill:      linear-gradient(180deg,#3070e0 0%,#1a4ab8 50%,#2860d0 100%);
   --grad-slider:         linear-gradient(180deg,#8890a0 0%,#b0b4c0 100%);
   --grad-play-btn:
-    radial-gradient(circle at 40% 30%,rgba(255,255,255,.2) 0%,transparent 55%),
-    linear-gradient(180deg,#6090c8 0%,#3060a0 30%,#1a4080 65%,#0e2860 100%);
+      radial-gradient(circle at 40% 20%, rgba(255,255,255,.22) 0%, transparent 55%),
+      repeating-linear-gradient(60deg, rgba(255,255,255,0) 0px, rgba(255,255,255,0) 2px, rgba(255,255,255,.07) 3px),
+      repeating-linear-gradient(90deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 5px, rgba(0,0,0,.05) 6px),
+      linear-gradient(180deg, #6090c8 0%, #3868a8 35%, #1a4888 65%, #0e2860 100%);
   --grad-add-diag-btn:   linear-gradient(180deg,#2a7a3a 0%,#1a5a28 100%);
   --grad-btn-gloss:      linear-gradient(180deg,rgba(200,235,255,.3) 0%,rgba(200,235,255,.05) 100%);
   --grad-perform-overlay:linear-gradient(180deg,#284e7a 0%,#23476f 60%,#1f3f63 100%);
@@ -1105,7 +1119,14 @@ body[data-theme="blue"] .dv {
   border-bottom: 1px solid var(--border-dv-bottom);
   box-shadow: var(--shadow-dv);
 }
-
+/* play button */
+body[data-theme="blue"] .play-btn {
+  background: var(--grad-play-btn);
+  border: 1px solid var(--border-play-btn);
+  border-top-color: var(--border-play-btn-top);
+  border-bottom-color: var(--border-play-btn-bottom);
+  box-shadow: var(--shadow-play-btn);
+}
 
 /* ================================================
    COMPONENT OVERRIDES — PERFORM MODE

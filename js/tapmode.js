@@ -88,7 +88,9 @@ export function closeTapMode() {
 
 export function syncTovPlayer() {
   const tovPlay = document.getElementById('tov-play-btn');
-  tovPlay.textContent = _aEl.paused ? '▶' : '⏸';
+  _aEl.paused
+  ? tovPlay.classList.remove('playing')
+  : tovPlay.classList.add('playing');
   const d = _aEl.duration || 0;
   if (d > 0) {
     const pct = _aEl.currentTime / d * 100;
@@ -327,14 +329,14 @@ function _setupEvents() {
 
   // play/pause同期
   _aEl.addEventListener('play', () => {
-    document.getElementById('tov-play-btn').textContent = '⏸';
+    document.getElementById('tov-play-btn').classList.add('playing');
     const performBtn = document.getElementById('perform-play-btn');
-    if (performBtn) performBtn.textContent = '⏸';
+    if (performBtn) performBtn.classList.add('playing');
   });
   _aEl.addEventListener('pause', () => {
-    document.getElementById('tov-play-btn').textContent = '▶';
+    document.getElementById('tov-play-btn').classList.remove('playing');
     const performBtn = document.getElementById('perform-play-btn');
-    if (performBtn) performBtn.textContent = '▶';
+    if (performBtn) performBtn.classList.remove('playing');
   });
 
   // メタデータ取得後にシークバーを同期（durationがNaNの場合の対策）

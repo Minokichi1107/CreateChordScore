@@ -111,16 +111,16 @@ export function initAudioEngine(audioElement, elements, callbacks) {
   // ────────────────────────────────────────
   // play/pause/ended: 再生状態変更
   // ────────────────────────────────────────
-  _audioElement.addEventListener('play', () => {
-    if (_elements.playBtn) _elements.playBtn.textContent = '⏸';
+_audioElement.addEventListener('play', () => {
+    if (_elements.playBtn) _elements.playBtn.classList.add('playing');
   });
   
   _audioElement.addEventListener('pause', () => {
-    if (_elements.playBtn) _elements.playBtn.textContent = '▶';
+    if (_elements.playBtn) _elements.playBtn.classList.remove('playing');
   });
   
   _audioElement.addEventListener('ended', () => {
-    if (_elements.playBtn) _elements.playBtn.textContent = '▶';
+    if (_elements.playBtn) _elements.playBtn.classList.remove('playing');
   });
 
   // ────────────────────────────────────────
