@@ -43,13 +43,13 @@ CreateChordScore/
 │   ├─ timing.js         ← Phase41で新設（外部依存ゼロ）
 │   └─ chartmode.js      ← Phase41で新設
 ├─ resource/
-│   ├─ audio/            ← 音声ファイル（.gitignore対象）
-│   ├─ chords/           ← コード解析JSON（.gitignore対象）
-│   ├─ icons/
-│   ├─ lyrics/           ← 歌詞テキスト（.gitignore対象）
-│   ├─ projects/         ← プロジェクトJSON（.gitignore対象）
-│   ├─ analysis/         ← 解析データ / replacementMap.json（Phase42で追加）
-│   └─ sample/           ← サンプル画像等
+│   ├─ audio/    ← .gitignore対象（*.mp3等）
+│   ├─ chords/   ← .gitignore対象（著作権保護）
+│   ├─ icons/    ← Git管理
+│   ├─ lyrics/   ← .gitignore対象（著作権保護）
+│   ├─ projects/ ← .gitignore対象（個人データ）
+│   ├─ analysis/ ← .gitignore対象 / replacementMap.jsonのみGit管理
+│   └─ sample/   ← .gitignore対象（個人素材）
 ├─ docs/
 ├─ tools/                ← chordmini_fetch.py 等の外部ツール
 ├─ scripts/              ← バックアップ・起動バッチ
