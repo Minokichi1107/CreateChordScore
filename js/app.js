@@ -99,6 +99,8 @@ import {
 } from './chords.js';
 
 import {
+  normalizeProject,
+  createEmptyProject,
   serializeProject,
   deserializeProject,
   saveProjectToFile,
@@ -197,7 +199,7 @@ import {
  */
 
 // プロジェクトデータ
-let project = {id:crypto.randomUUID(),title:'',audio:'',capo:0,lines:[],chord_source:''};
+let project = createEmptyProject();
 let palette = [];
 let paletteTranspose = 0; // session only、-6〜+6、循環
 let focLine = -1;
@@ -917,10 +919,10 @@ function importCustomDiagrams(file){
 // ════════════════════════════════════════
 
 function getUIState() {
+  // title / artist は project ownership。uiState には含めない（Phase46）
   return {
-    title: document.getElementById('project-title').value,
-    capo: parseInt(document.getElementById('capo').value) || 0,
-    key: document.getElementById('proj-key').value.trim(),
+    capo:  parseInt(document.getElementById('capo').value) || 0,
+    key:   document.getElementById('proj-key').value.trim(),
     tempo: parseInt(document.getElementById('proj-bpm').value) || 0,
   };
 }
@@ -1044,15 +1046,8 @@ function updateChartModeAvailability() {
  * New Project / Load Project の共通処理
  */
 function resetProject() {
-  // Project Data
-  project = {
-    id: crypto.randomUUID(),
-    title: '',
-    audio: '',
-    capo: 0,
-    lines: [],
-    chord_source: ''
-  };
+  // Project Data（createEmptyProject 経由で invariant 保証）
+  project = createEmptyProject();
   
   palette = [];
   window._cn = [];
@@ -1076,6 +1071,7 @@ function resetProject() {
   resetTovFocus();
   
   // UI Reset
+  document.getElementById('project-artist').value = '';
   document.getElementById('project-title').value = '';
   document.getElementById('capo').value = 0;
   _prevCapo = 0;  // capo change イベントの diff 計算基準をリセット
@@ -1118,19 +1114,26 @@ async function loadProj(data){
   
   const { project: newProject, uiState } = deserializeProject(data);
   
-  // Apply UI state
-  document.getElementById('project-title').value = uiState.title;
+// Apply UI state（capo / key / tempo のみ）
   document.getElementById('capo').value = uiState.capo;
   document.getElementById('proj-key').value = uiState.key;
   document.getElementById('proj-bpm').value = uiState.tempo;
   _prevCapo = uiState.capo;
-  
+
   // Apply project data
-  project.id = newProject.id;
-  project.audio = newProject.audio;
-  project.capo = uiState.capo;
-  project.chord_source = newProject.chord_source;
-  project.lines = (newProject.lines || []).map(l => mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null));
+  // normalizeProject 経由で invariant 保証（field追加時の代入漏れ防止）
+  // capo は uiState ownership だが serialize 互換のため project にも保持
+  project = normalizeProject({
+    ...newProject,
+    capo:  uiState.capo,
+    lines: (newProject.lines || []).map(l =>
+      mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null)
+    ),
+  });
+
+  // title / artist input を project から復元
+  document.getElementById('project-artist').value = project.artist;
+  document.getElementById('project-title').value  = project.title;
 
   // TOKEN MIGRATION: no_chord 文字列 → { type:'no_chord' }
   // 旧形式で保存された '(N.C)' / 'N' / 'NC' / 'N.C.' 等を
@@ -1735,7 +1738,14 @@ function setupEventHandlers() {
   // ============================================
   // Project Meta Events
   // ============================================
-  document.getElementById('project-title').addEventListener('input',autoSaveLocal);
+  document.getElementById('project-artist').addEventListener('input', e => {
+    project.artist = e.target.value;
+    autoSaveLocal();
+  });
+  document.getElementById('project-title').addEventListener('input', e => {
+    project.title = e.target.value;
+    autoSaveLocal();
+  });
   document.getElementById('proj-key').addEventListener('input',autoSaveLocal);
   document.getElementById('proj-bpm').addEventListener('input',autoSaveLocal);
 
