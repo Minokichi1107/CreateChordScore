@@ -443,3 +443,50 @@ phase40 ChordMini Beat/Grid情報対応mode設計会議
 ### 次
 
 
+## 2026-05-27
+
+### やったこと
+Phase42.5 — 環境整備・Git運用改善
+Phase43 — Chart Mode カポ反映
+phase44 step1
+### 気づき
+
+### 次
+
+## 2026-05-28
+
+### やったこと
+phase44 step2-4
+TOKEN SEMANTIC 定義
+handoverに積み残した内容の棚卸し、主要4ファイル更新
+git整理したところで問題発生mainへのmergeに失敗して現在復旧中
+
+### 気づき
+ブランチの途中でファイル構成やgitignoreの大幅変更をしたためにmainへのmerge作業でコンフリクト？が発生して多くのファイルが消失、googleドライブのファイル削除発生！（多分二回目）
+ファイルやフォルダ構成ignoreの変更は常にmainにマージしてbranchを整理したときに行うように運用ルールをつくる。
+### 次
+gitの復旧とmainへのmerge、消失したresourceファイル群の復旧
+
+## 2026-05-29
+
+### やったこと
+gitの復旧とmainへのmerge、消失したresourceファイル群の復旧
+phase45 挿入↑↓両方出来るように改修
+ChatGPTとこれからの展望構想
+
+### 気づき
+ChatGPT、Claudeどちらかのトークン切れが起こると作業が止まるので、そういう時にリラックスして雑談タイムにすると色々と気づかなかった作業中の意味や潜在的な問題、これからの段取りが見えてくる。
+### 次
+phase46 artist/title 分離（Project Metadata Schema Migration）
+
+## 2026-05-30
+
+### やったこと
+phase46 artist/title 分離（Project Metadata Schema Migration）
+pause icon alignment #39 修正
+
+### 気づき
+Claudeが考えながらコードを書き出すので、コロコロ変わることがある。一度全部読んでから実装をするかまとめてChatGPTのレビューを受けてから実装する方が手戻りが少なくて済む。
+### 次
+phase47
+
