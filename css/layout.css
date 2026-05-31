@@ -20,8 +20,8 @@
   min-width: 0;
   box-shadow: var(--shadow-inset);
 }
-#project-artist { width: 120px; }
-#project-title  { width: 170px; }
+#project-artist { width: 140px; flex-grow: 1; }  /* ← flex-grow追加・固定幅は最小幅として機能 */
+#project-title  { width: 200px; flex-grow: 2; }  /* ← flex-grow: 2でtitleを少し広く */
 #project-artist:focus,
 #project-title:focus { outline: none; border-color: var(--text-accent); }
 #project-artist::placeholder,
@@ -457,7 +457,7 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -466,8 +466,8 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
   display: flex;
   gap: 6px;
   min-width: 0;
+  flex-grow: 1;      /* ← 追加：余白を吸収して広がる */
 }
-
 .header-center {
   display: flex;
   align-items: center;
@@ -538,7 +538,7 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
 /* ── Phase29: ヘッダーボタン収縮ガード（再定義） ── */
 .hdr-btn,
 .menu-trigger,
-#btn-settings {
+#btn-open-settings-theme {
   flex-shrink: 0;
 }
 

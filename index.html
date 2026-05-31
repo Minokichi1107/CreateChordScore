@@ -36,67 +36,57 @@
     <button id="btn-chart-mode"    class="hdr-btn">📊 チャート</button>
   </div>
 
-  <div class="header-right">
+<div class="header-right">
 
-    <div class="menu-group">
-      <button class="menu-trigger hdr-btn">ファイル ▼</button>
-      <div class="dropdown" id="menu-file">
-        <button class="dd-item" id="btn-open">📂 開く</button>
-        <button class="dd-item" id="btn-save">💾 上書保存 <span class="shortcut">[Ctrl+S]</span></button>
-        <button class="dd-item" id="btn-saveas">📁 別名保存</button>
-        <button class="dd-item" id="btn-new">✕ 新規 <span class="shortcut">[Alt+N]</span></button>
-      </div>
+  <div class="menu-group">
+    <button class="menu-trigger hdr-btn">ファイル ▼</button>
+    <div class="dropdown" id="menu-file">
+      <button class="dd-item" id="btn-open">📂 開く</button>
+      <button class="dd-item" id="btn-save">💾 上書保存 <span class="shortcut">[Ctrl+S]</span></button>
+      <button class="dd-item" id="btn-saveas">📁 別名保存</button>
+      <button class="dd-item" id="btn-new">✕ 新規 <span class="shortcut">[Alt+N]</span></button>
+      <hr>
+      <button class="dd-item" disabled>📚 ライブラリ</button>
+      <button class="dd-item" disabled>⚙ プロジェクト設定</button>
     </div>
-
-    <div class="menu-group">
-      <button class="menu-trigger hdr-btn">編集 ▼</button>
-      <div class="dropdown" id="menu-edit">
-        <button class="dd-item" id="btn-replace-open">🔁 置換 <span class="shortcut">[Ctrl+H]</span></button>
-      </div>
-    </div>
-
-    <div class="menu-group">
-      <button class="menu-trigger hdr-btn">表示 ▼</button>
-      <div class="dropdown" id="menu-view">
-        <button class="dd-item" id="btn-theme-cycle" disabled>🎨 テーマ切替</button>
-        <button class="dd-item" disabled>◧ 左パネル表示</button>
-        <button class="dd-item" disabled>◨ 右パネル表示</button>
-        <button class="dd-item" disabled>⛶ 全画面編集</button>
-      </div>
-    </div>
-
-    <div class="menu-group">
-      <button class="menu-trigger hdr-btn">プロジェクト ▼</button>
-      <div class="dropdown" id="menu-project">
-        <button class="dd-item" disabled>📚 ライブラリ</button>
-        <button class="dd-item" disabled>⚙ プロジェクト設定</button>
-      </div>
-    </div>
-
-    <div class="menu-group">
-      <button class="menu-trigger hdr-btn">ツール ▼</button>
-      <div class="dropdown" id="menu-tools">
-        <button class="dd-item" disabled>🎵 コードDB</button>
-        <button class="dd-item" disabled>🔄 コード進行ロジック</button>
-        <button class="dd-item" disabled>🎸 ストロークパターン</button>
-        <button class="dd-item" disabled>🎹 アルペジオパターン</button>
-        <button class="dd-item" disabled>🔌 API拡張</button>
-      </div>
-    </div>
-
-    <div class="menu-group">
-      <button class="menu-trigger hdr-btn">設定 ▼</button>
-      <div class="dropdown" id="menu-settings">
-        <button class="dd-item" id="btn-settings">⚙ 設定を開く</button>
-        <button class="dd-item" disabled>📤 設定エクスポート</button>
-        <button class="dd-item" disabled>📥 設定インポート</button>
-        <button class="dd-item" disabled>↩ デフォルトに戻す</button>
-        <button class="dd-item" disabled>❓ ヘルプ</button>
-        <button class="dd-item" disabled>ℹ バージョン情報</button>
-      </div>
-    </div>
-
   </div>
+
+  <div class="menu-group">
+    <button class="menu-trigger hdr-btn">編集 ▼</button>
+    <div class="dropdown" id="menu-edit">
+      <button class="dd-item" id="btn-replace-open">🔁 置換 <span class="shortcut">[Ctrl+H]</span></button>
+    </div>
+  </div>
+
+  <div class="menu-group">
+    <button class="menu-trigger hdr-btn">表示 ▼</button>
+    <div class="dropdown" id="menu-view">
+      <button class="dd-item" id="btn-open-settings-theme">🎨 テーマ切替</button>
+      <button class="dd-item" disabled>◧ 左パネル表示</button>
+      <button class="dd-item" disabled>◨ 右パネル表示</button>
+      <button class="dd-item" disabled>⛶ 全画面編集</button>
+    </div>
+  </div>
+
+  <div class="menu-group">
+    <button class="menu-trigger hdr-btn">ツール ▼</button>
+    <div class="dropdown" id="menu-tools">
+      <button class="dd-item" disabled>🎵 コードDB</button>
+      <button class="dd-item" disabled>🔄 コード進行ロジック</button>
+      <button class="dd-item" disabled>🎸 ストロークパターン</button>
+      <button class="dd-item" disabled>🎹 アルペジオパターン</button>
+      <button class="dd-item" disabled>🔌 API拡張</button>
+      <hr>
+      <button class="dd-item" disabled>📤 設定エクスポート</button>
+      <button class="dd-item" disabled>📥 設定インポート</button>
+      <button class="dd-item" disabled>↩ デフォルトに戻す</button>
+      <hr>
+      <button class="dd-item" disabled>❓ ヘルプ</button>
+      <button class="dd-item" disabled>ℹ バージョン情報</button>
+    </div>
+  </div>
+
+</div>
 
 </header>
 
@@ -427,9 +417,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const panel = document.getElementById('settings-panel');
   const overlay = document.getElementById('settings-overlay');
 
-  document.getElementById('btn-settings').addEventListener('click', () => {
+  document.getElementById('btn-open-settings-theme').addEventListener('click', () => {
     panel.classList.add('open');
     overlay.classList.add('open');
+  });
+  document.getElementById('project-title').addEventListener('blur', function() {
+    this.scrollLeft = 0;
+  });
+  document.getElementById('project-artist').addEventListener('blur', function() {
+    this.scrollLeft = 0;
   });
   document.getElementById('settings-close').addEventListener('click', closeSettings);
   overlay.addEventListener('click', closeSettings);
