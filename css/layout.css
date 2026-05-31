@@ -552,3 +552,19 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
   background: none;
   color: var(--text-muted);
 }
+
+/* ── right-hidden: 右パネル非表示 ────────────────────────────
+   @media(max-width:900px) の既存パターンを踏襲。
+   display:none だけでは grid gap が残るため
+   grid-template-columns を明示的に2列化する。
+   ─────────────────────────────────────────────────────────── */
+body.right-hidden #panel-right {
+  display: none;
+}
+body.right-hidden #app {
+  grid-template-columns: minmax(200px,260px) minmax(200px,1fr);
+}
+/* left-collapsed と right-hidden の組み合わせ */
+body.left-collapsed.right-hidden #app {
+  grid-template-columns: 40px minmax(200px,1fr);
+}

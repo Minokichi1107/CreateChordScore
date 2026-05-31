@@ -236,6 +236,7 @@ let currentDiagChord = null;
 let leftCollapsedManual = false;
 let leftCollapsedAuto = false;
 let leftExpandedOverride = false;
+let rightHidden = false;  // 右パネル非表示フラグ（localStorage永続）
 
 // ファイル保存
 let _fileHandle = null;
@@ -265,6 +266,26 @@ function applyLeftCollapsed() {
   const collapsed = (leftCollapsedManual || leftCollapsedAuto)
                     && !leftExpandedOverride;
   document.body.classList.toggle('left-collapsed', collapsed);
+}
+
+// ── 右パネル表示/非表示 API ──────────────────────
+function applyRightHidden() {
+  document.body.classList.toggle('right-hidden', rightHidden);
+}
+
+// ── 表示メニューのチェックマーク更新 ─────────────
+// メニューを開くたびに現在の状態を反映する。
+// 表示中 → ✔付き、非表示 → ✔なし
+function updateViewMenuChecks() {
+  const btnLeft  = document.getElementById('btn-toggle-left');
+  const btnRight = document.getElementById('btn-toggle-right');
+  if (!btnLeft || !btnRight) return;
+
+  // 実際の表示状態を表示する（manual stateではない）
+  // narrow時はauto-collapseにより manual=false でも closed になりうる
+  const leftVisible = !document.body.classList.contains('left-collapsed');
+  btnLeft.textContent  = (leftVisible  ? '✔ ' : '　') + '◧ 左パネル';
+  btnRight.textContent = (!rightHidden ? '✔ ' : '　') + '◨ 右パネル';
 }
 
 window.addEventListener('resize', () => {
@@ -1600,6 +1621,26 @@ function setupEventHandlers() {
         return;
       }
     }
+
+    // Shift+BracketLeft: 左パネル トグル
+    // Shift+BracketRight: 右パネル トグル
+    // （e.code基準でJIS/US差を吸収。INPUT/TEXTAREA中は無視）
+    if (e.shiftKey && e.key === '{') {   // Shift+[ 左パネル トグル
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      leftExpandedOverride = false;
+      leftCollapsedManual = !leftCollapsedManual;
+      applyLeftCollapsed();
+      localStorage.setItem('leftCollapsed', leftCollapsedManual ? '1' : '0');
+    }
+
+    if (e.shiftKey && e.key === '}') {   // Shift+] 右パネル トグル
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      rightHidden = !rightHidden;
+      applyRightHidden();
+      localStorage.setItem('rightHidden', rightHidden ? '1' : '0');
+    }
   });
 
   // ============================================
@@ -1788,6 +1829,34 @@ function setupEventHandlers() {
   phdr.addEventListener('mouseleave', () => {
     clearTimeout(phdrPressTimer);
   });
+  
+  // ============================================
+  // View Menu Events
+  // ============================================
+
+  // 表示メニューを開く直前にチェックマークを更新
+  document.getElementById('menu-view')
+    ?.closest('.menu-group')
+    ?.querySelector('.menu-trigger')
+    ?.addEventListener('click', updateViewMenuChecks, { capture: true });
+
+  // 左パネル トグル
+  document.getElementById('btn-toggle-left')?.addEventListener('click', () => {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    // leftCollapsedAuto は触らない（manual のみ操作）
+    leftExpandedOverride = false;
+    leftCollapsedManual = !leftCollapsedManual;
+    applyLeftCollapsed();
+    localStorage.setItem('leftCollapsed', leftCollapsedManual ? '1' : '0');
+  });
+
+  // 右パネル トグル
+  document.getElementById('btn-toggle-right')?.addEventListener('click', () => {
+    rightHidden = !rightHidden;
+    applyRightHidden();
+    localStorage.setItem('rightHidden', rightHidden ? '1' : '0');
+  });
 
   // ============================================
   // Header Menu Events (Phase29)
@@ -1819,8 +1888,6 @@ function setupEventHandlers() {
         .forEach(g => g.classList.remove('open'));
     }
     
-
-
   })();  
 }
 
@@ -1834,6 +1901,10 @@ window.addEventListener('DOMContentLoaded',()=>{
   leftCollapsedManual = localStorage.getItem('leftCollapsed') === '1';
   leftCollapsedAuto = window.innerWidth < 960;
   applyLeftCollapsed();
+
+  // 右パネル初期化（localStorage復元）
+  rightHidden = localStorage.getItem('rightHidden') === '1';
+  applyRightHidden();
 
   if (btnCollapse) {
     btnCollapse.addEventListener('click', () => {
