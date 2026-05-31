@@ -229,8 +229,9 @@ body.diag-off .chord-tag:hover{cursor:default}
 .add-chord-btn{background:none;border:1px dashed var(--border-input-empty);border-radius:3px;color:var(--text-input-empty);cursor:pointer;font-family:var(--font-mono);font-size:10px;padding:2px 7px;transition:all .15s}
 .add-chord-btn:hover{border-color:var(--text-accent);color:var(--text-accent)}
 
-.line-acts{position:absolute;right:4px;top:4px;display:none;gap:3px;z-index:10}
-.line-row:hover .line-acts{display:flex}
+/* 変更後 */
+.line-acts{display:flex;flex-wrap:wrap;gap:3px;padding:0 4px;max-height:0;overflow:hidden;opacity:0;transition:max-height .15s ease,opacity .15s ease,padding .15s ease;grid-column:1 / -1}
+.line-row:hover .line-acts,.line-row:focus-within .line-acts{max-height:36px;opacity:1;padding:3px 4px}
 .la{background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:3px;color:var(--text-muted);cursor:pointer;font-size:10px;padding:2px 5px;font-family:var(--font-mono);transition:all .12s;white-space:nowrap}
 .la:hover{color:var(--text-primary);border-color:var(--border-ui-strong)}
 .la.del:hover{color:var(--color-red);border-color:var(--color-red)}
