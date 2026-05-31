@@ -357,7 +357,7 @@ function _renderChartGrid(vm, analysis) {
   }
 
   // full / beat-only: 4小節ずつ行に並べる
-  const MEASURES_PER_ROW = 4;
+  const MEASURES_PER_ROW = 3;
   const expanded = expandCarryForward(measures, model.slotsPerMeasure);
 
   // expanded を measure ごとにグループ化

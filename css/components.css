@@ -520,13 +520,14 @@
 
 /* コード名 */
 .chart-chord-name {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
+  font-family: 'Atkinson Hyperlegible', var(--font-mono), monospace;
+  font-size: 12px;
+  font-weight: 700;  /* 800→700に戻す */
+  letter-spacing: 0.02em;
   color: var(--text-primary);
-  white-space: normal;      /* 折り返し許可 */
-  overflow-wrap: anywhere;  /* 極端に幅不足の時だけ強制折返し */
-  word-break: keep-all;     /* 通常は単位を壊さない */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   display: block;
 }
 .chart-chord--carried {
