@@ -1,17 +1,10 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase44完了時点
+> 最終更新: Phase49完了時点
 
 ---
 
 ## 1. バックログ（優先順）
-
-### pause icon alignment
-状態: 未着手
-内容: 一時停止アイコン（⏸️）が再生ボタン内で中央からズレる。
-原因候補: Unicode glyph metrics / font rendering差異。
-方向性: 将来的にSVG icon化またはinline-flex + fixed width対応を検討。
-単純なpadding調整は環境差で逆効果になる可能性あり。
 
 ### Issue #27 — メタリックテーマ描画方式の見直し
 状態: 検討中
@@ -52,13 +45,6 @@ token array boundary mutation として実装すること（string splice 禁止
 `project.lines` 編集APIが必要。app.js 内 `moveChordAcrossLines` として設計済み（Phase38-3）。
 ※ modal内の小機能として実装すると line mutation が modal subsystem に漏れるため注意。
 
-#### diagLocked — 将来拡張候補
-状態: 検討
-内容: Phase36で確立した diagLock gestureに将来追加できる操作。
-- context menu からのlock
-- long press = lock（タッチ対応時・PC版は実装済み）
-備考: dblclick = lock はevent競合問題により longpress に変更済み。
-
 ### token / rendering 系
 
 #### simile token 挿入UI
@@ -85,14 +71,6 @@ Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み�
 本格設計は Issue #26 設計フェーズで行う。
 
 ### responsive UI 系
-
-### import normalization 系
-
-#### 非正規コード置換
-状態: 未着手
-内容: chordminiからのJSONインポート時の非正規コード名を解読・置換。
-canonical chord / alias resolution の延長線上にある。
-import normalization pipeline として設計。
 
 ### Chart Mode 系
 
@@ -122,10 +100,6 @@ import normalization pipeline として設計。
 timing.js の quantize() が基盤になる。Phase41 handover の「slot highlight」と同一方向。
 
 ### その他将来検討
-
-#### コード名正規化
-状態: 検討中
-目的: 全角→半角変換・表記揺れ統一・lookup安定化
 
 #### CHORD_DB再構造化
 状態: 検討中
@@ -159,7 +133,7 @@ timing.js の quantize() が基盤になる。Phase41 handover の「slot highli
 備考: Phase化する場合は server.py 改修・音声配信・UI対応の3段階に分割予定
 
 #### 音楽理論・学習支援基盤（theory.js）
-状態: 検討中
+状態: 部分実装済み・将来拡張
 目的:
 - コード構成音表示
 - キー/度数解析
@@ -167,10 +141,16 @@ timing.js の quantize() が基盤になる。Phase41 handover の「slot highli
 - 指板可視化
 - 自動理論解釈
 
-現在の canonical chord は lookup 用文字列正規化であり、
-tones / intervals / harmonic relation を持たない。
+実装済み:
+- alias normalization（CM7 → Cmaj7 等）
+- lookup normalization（normalizeChordName / findChord）
+- replacementMap.json（140件の chord name 置換辞書）
 
-将来的には以下のような理論構造を扱う必要がある。
+未実装:
+- 完全な理論構造化（tones / intervals / harmonic relation）
+- interval semantic engine
+
+将来的には以下のような理論構造を扱う必要がある：
 
 ```js
 {
@@ -237,19 +217,6 @@ tones / intervals / harmonic relation を持たない。
 内容: Phase44-Step2 で perform.js に isChordToken を使う変更を入れたが
 import 追加が漏れ、perform mode 全消失バグとして Step3 動作確認時に発覚。
 対策: token 関数を追加・変更した際は、参照している全ファイルの import を同時に確認すること。
-
-### git filter-repo / git gc 実行時に objects 削除質問が大量に出る
-状態: 既知・無害
-内容: Windows 環境で git filter-repo や git gc を実行すると
-`.git/objects/xx` の削除に失敗し `Should I try again? (y/n)` が
-大量に表示される。
-原因: VSCode / Explorer / ウイルス対策ソフト等が .git 配下のファイルを
-ロックしているため削除できない。
-影響: なし。Git の処理本体（履歴書き換え・パック）は完了している。
-対処:
-- `Parsed N commits` / `HEAD is now at...` が出た時点で成功
-- 質問が出始めたら Ctrl+C で即中断してよい
-- 気になる場合は実行前に VSCode を閉じると質問が減る
 
 ### grid-template-columns の分散管理（技術的負債・Phase49）
 状態: 意図的保留
