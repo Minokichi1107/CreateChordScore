@@ -44,12 +44,6 @@ modal close 時に diagLockedChord を右パネルに再表示する処理が必
 - `closeMod()` から呼ぶ（暫定）
 - 将来: `beginTransientPreview()` / `endTransientPreview()` API に昇格
 
-#### 挿入ボタン上下両方向対応
-状態: 未着手
-内容: 現在の `insertAt` が下方向のみ。上方向（前に挿入）にも対応する。
-cursor的な insertion control へ拡張。
-chordEntry.js の keyboard-first 化とセットで設計すること。
-
 #### 行またぎコード移動
 状態: 未着手
 内容: 先頭コード→前行末尾 / 末尾コード→次行先頭への移動。
@@ -91,14 +85,6 @@ Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み�
 本格設計は Issue #26 設計フェーズで行う。
 
 ### responsive UI 系
-
-#### 狭幅時フロートUI
-状態: 未着手
-内容: ウィンドウ縮小時に TAP / リピート / コピー / 挿入 等のフロートメニューが
-編集エリアと重なり操作を阻害する。
-歌詞行の下側（lyric baseline）を anchor にした位置に移動することを検討。
-方向性: viewport 幅に応じて anchor を切り替える responsive positioning。
-モバイル縮小時は safe-area を基準にする。
 
 ### import normalization 系
 
@@ -152,15 +138,6 @@ timing.js の quantize() が基盤になる。Phase41 handover の「slot highli
 #### プロジェクトDBライブラリタブ追加
 状態: 未着手
 内容: 保存済みプロジェクトをブラウザ内DBで管理・一覧表示するUIの追加（右パネル）
-
-#### アーティスト名 / 曲名フィールド分離
-状態: 未着手
-内容: 現在の project.title を artist / title の2フィールドに分離する。
-UI: ヘッダー左にアーティスト名、右に曲名の入力欄を並べる。
-保存ファイル名: `{artist}-{title}_project.json` 形式で自動生成。
-将来の検索・ソート・ライブラリ表示・export にも波及する基盤変更。
-設計上の注意: serializeProject / deserializeProject / resetProject / loadProj の
-全経路で artist フィールドの追加が必要。旧形式との backward compatibility を確保すること。
 
 #### LAN配信モード（PCサーバー → スマホブラウザ）
 状態: 検討中
@@ -273,3 +250,32 @@ import 追加が漏れ、perform mode 全消失バグとして Step3 動作確�
 - `Parsed N commits` / `HEAD is now at...` が出た時点で成功
 - 質問が出始めたら Ctrl+C で即中断してよい
 - 気になる場合は実行前に VSCode を閉じると質問が減る
+
+### grid-template-columns の分散管理（技術的負債・Phase49）
+状態: 意図的保留
+内容: `#app` の `grid-template-columns` 定義が以下の4箇所に分散している:
+  1. デフォルト（3列）
+  2. `body.left-collapsed`（2列・左40px）
+  3. `body.right-hidden`（2列・右なし）
+  4. `body.left-collapsed.right-hidden`（2列・両方）
+将来: 左固定幅変更・可変サイドバー・diag幅調整が入ると重複管理になる。
+時期: パネルレイアウト再設計フェーズで統合を検討。
+
+### 左パネル collapse / hide の概念整理（Phase49）
+状態: 意図的保留
+内容: 現在の「◧ 左パネル」トグルは `width:40px` の collapse（細バー残存）であり、
+完全非表示（hide）ではない。UIラベルと実挙動がずれている。
+方向性: collapse（幅縮小）と hide（完全非表示）を概念として分離し、
+UIラベル・状態変数名を整理する。
+時期: パネルレイアウト再設計フェーズで対応。
+
+### Chart Mode 小節数切り替え（Phase49.5より持ち越し）
+状態: 未着手
+内容: Chart Mode の1行あたり小節数を表示メニューから切り替えられるようにする。
+現在は `MEASURES_PER_ROW = 3` に固定（Phase49.5で3列が見やすいと確認済み）。
+方向性:
+- `chartMeasuresPerRow` 状態変数追加（localStorage永続）
+- 表示メニューに「📊 Chart: 3列 / 4列」トグル追加
+- `MEASURES_PER_ROW` を定数→引数化
+注意: render関数の引数追加が呼び出し元に波及するため設計フェーズが必要。
+時期: Chart Mode拡張フェーズで独立実装。

@@ -328,22 +328,55 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - Step4: perform.js / editor.js に projection responsibility NOTE 追記
 - hotfix: perform.js の isChordToken import 漏れ修正（Step3 動作確認時発覚）
 
+### Phase45 — 行挿入ボタン上下両方向対応
+- `onLineInsert` を `onLineInsertAbove` / `onLineInsertBelow` に分離
+- [↑] 挿入 [↓] グループUI追加（`.la-insert-wrap` / `.la-insert-label`）
+- 全行でdisabledなし・同一UI
+
+### Phase46 — Project Metadata Schema Migration
+- `project.title` → `project.artist` + `project.title` に分離
+- `normalizeProject` / `createEmptyProject` / `buildProjectFilename` 新設
+- `serializeProject` / `deserializeProject` / `resetProject` / `loadProj` 更新
+- ヘッダーにアーティスト名入力欄追加
+- 旧形式（title only）backward compatibility 保証
+
+### Phase47 — Header Menu Consolidation & Input Layout Fix
+- ヘッダーメニューを6→4に統合（ファイル・編集・表示・ツール）
+- `btn-open-settings-theme` 命名規則確立（`btn-open-settings-*` パターン）
+- `.header-left` / `.project-meta` flex修正
+- blur時先頭表示（`scrollLeft = 0`）
+
+### Phase48 — フロートメニュー位置改善
+- `.line-acts` を `position:absolute` → `grid-column:1/-1` で行下展開に変更
+- `z-index:10` 削除
+- `:focus-within` 対応（キーボード操作中も展開）
+
+### Phase49 — 表示メニュー有効化（左・右パネルトグル）
+- 表示メニュー「◧ 左パネル」「◨ 右パネル」を有効化
+- `rightHidden` 変数・`applyRightHidden()` / `updateViewMenuChecks()` 追加
+- `Shift+{` / `Shift+}` キーボードショートカット追加（`e.key` 基準・JIS対応）
+- `body.right-hidden` CSS追加（`grid-template-columns` 明示切替）
+- `localStorage` 永続（`rightHidden` キー）
+- `left-collapsed + right-hidden` 組み合わせ対応
+
+### Phase49.5 — Chart Mode視認性向上
+- `MEASURES_PER_ROW`: 4 → 3（1行3小節化・固定）
+- Chart chordフォントを JetBrains Mono に変更（12px・letter-spacing: 0.02em）
+- `nowrap` + `text-overflow: ellipsis`（折り返し防止・長コード省略）
+- silverテーマ専用コントラスト補正（暗背景・白文字・小節番号半透明）
+
 ---
 
 ## 現在地
 
-- Phase44完了・phase42-design ブランチ
-- token semantic stabilization フェーズ（Phase44 Step1〜Step4）完了
-  - `analysis.raw` 実音 canonical 保護の確認（Step1）
-  - `no_chord` token semantic 導入・migration 安定化（Step2）
-  - `c.chord` 直参照 audit・`[LOOKUP-KEY]` コメント統一（Step2.5・Step3）
-  - `tokens.js` に TOKEN SEMANTIC 定義表・DISPLAY PROJECTION 非可逆性を追記（Step3）
-  - `perform.js` / `editor.js` に projection responsibility NOTE を追記（Step4）
-  - perform.js import 漏れ（isChordToken）を発見・修正（Step3 動作確認時）
-- display / lookup / serialize / transpose の責務分離が正式に文書化された
-- renderer 分類確定:
-  - chartmode.js → projection renderer（render 時に -capo 変換）
-  - perform.js / editor.js → mutated state renderer（projection なし）
+- Phase49完了・棚卸し済み（Phase45〜49.5）
+- Phase45〜49.5 の主な成果:
+  - 行挿入ボタン上下両方向対応（Phase45）
+  - `project.artist` / `project.title` 分離・schema migration（Phase46）
+  - ヘッダーメニュー統合（Phase47）
+  - フロートメニュー位置改善（Phase48）
+  - 表示メニュー左・右パネルトグル有効化（Phase49）
+  - Chart Mode視認性向上（Phase49.5）
 
 ---
 
@@ -352,10 +385,8 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 詳細は `current-issues.md` のバックログを参照。
 
 軽量UI改善系（比較的独立・実装しやすい）:
-- 挿入ボタン ↑↓ 両方向対応
 - 行またぎコード移動（token array boundary mutation）
-- フロートメニュー位置改善（lyric baseline anchor）
-- アーティスト名 / 曲名フィールド分離
+- Chart Mode 小節数切り替え（3列/4列・表示メニュー連動）
 
 Chart Mode 拡張系:
 - Chart Mode 並列表示（設計フェーズが必要）

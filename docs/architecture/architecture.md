@@ -167,6 +167,7 @@ let currentDiagChord  // 右パネル現在表示コード（source of truth）
 let leftCollapsedManual  // <<ボタン操作（localStorage永続）
 let leftCollapsedAuto    // resize自動（runtime only）
 let leftExpandedOverride // narrow時の一時展開（runtime only）
+let rightHidden          // 右パネル非表示フラグ（localStorage永続・body.right-hidden同期・Phase49追加）
 ```
 
 ### audioState
