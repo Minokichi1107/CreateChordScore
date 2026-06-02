@@ -1225,6 +1225,11 @@ body[data-theme="silver"] .chart-measure-num {
   color: rgba(255, 255, 255, 0.5);
 }
 
+body[data-theme="silver"] .chart-measure--active {
+  background: rgba(26, 85, 200, 0.55);   /* [SAFE] 暗い紺背景に対して明確な青で強調 */
+  border-color: #6aabff;                  /* [SAFE] 通常border(#909aac)より明るい青 */
+}
+
 /* ================================================
    COMPONENT OVERRIDES — CHART TRANSPORT
    共通 transport color ルール（全テーマ共通）

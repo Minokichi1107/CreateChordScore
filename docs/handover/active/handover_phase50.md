@@ -1,8 +1,8 @@
 # 引き継ぎ: Phase50完了 — Chart Mode mini transport 追加
 
 ## 作業状態
-- ブランチ: phase50（main へマージ予定）
-- 直前作業: Phase49.5完了
+- ブランチ: main（マージ済み）
+- commit: `377ce67` feat: Phase50 — Chart Mode mini transport
 
 ---
 
@@ -16,9 +16,11 @@
 | 時刻フォーマット | `_fmt()` 追加（M:SS形式） | js/chartmode.js |
 | seek 競合防止 | `_isSeeking` フラグ + 4点解除（pointerup/cancel/change/blur） | js/chartmode.js |
 | speed slider 同期 | chart→main の双方向同期（`mainSpeedSel.value = speedSel.value`） | js/chartmode.js |
-| transport CSS shape | `#chart-transport` 等の構造スタイル | css/components.css |
+| transport CSS shape | `#chart-transport` 等の構造スタイル・再生ボタン丸形化（`border-radius:50%`） | css/components.css |
 | transport CSS color | 3テーマ分の変数・共通セレクタールール | css/theme.css |
 | blue テーマ文字色補正 | `chart-time-display` / `chart-speed-label` / `chart-header-label` | css/theme.css |
+| silver active highlight 修正 | `chart-measure--active` の background / border-color 上書き | css/theme.css |
+| theme.css 構造バグ修正 | `:root` ブロック未閉じ問題（変数・セレクターの混入）を修正 | css/theme.css |
 
 ---
 
@@ -56,15 +58,15 @@ seekIn.addEventListener('blur',          endSeeking);
 - Chart Mode 側で速度変更 → `aEl.playbackRate` + `mainSpeedSel.value` を両方更新
 - メイン画面 UI と Chart Mode UI の表示が常に一致する
 
-### CSS ownership
+### CSS ownership（theme.css / components.css 分担）
 ```
 components.css: 構造のみ（display / flex / gap / width / height / border-radius 等）
 theme.css:      色のみ（background / color / border-color）
                └ 変数は各テーマブロック内（:root / body[data-theme="silver"] / body[data-theme="blue"]）
-               └ セレクタールールは theme.css 末尾の共通セクションに集約
+               └ 共通セレクタールールは theme.css 末尾セクションに集約
 ```
 
-### blue テーマの --text-secondary 問題（既知パターン）
+### blue テーマの --text-secondary 近似色問題（既知パターン）
 ```
 blue テーマ:
   --text-secondary: #d1e3ff（薄い水色）
@@ -76,21 +78,38 @@ blue テーマ:
 ```
 同様の問題が Chart Mode 以外で発生した場合も同パターンで対処する。
 
+### silver テーマの active highlight 問題（既知パターン）
+```
+silver テーマ:
+  通常小節背景:  rgba(20,40,80, 0.55)（Phase49.5で設定した暗い紺）
+  --surface-playing: rgba(79,158,255, .20)（薄い水色）
+
+→ 暗い紺の上に薄い水色 = 通常小節との差が小さくて見えない
+対処: body[data-theme="silver"] .chart-measure--active で上書き
+  background:   rgba(26,85,200, 0.55)（鮮やかな青・通常と明確に差別化）
+  border-color: #6aabff（通常border #909aac より明るい青）
+```
+
 ---
 
 ## 修正過程で発覚・修正したバグ
 
 ### theme.css の構造バグ（`:root` ブロック未閉じ）
-- 前フェーズで chart transport の CSS を追加した際、`:root` の閉じ括弧の前に
+- Phase50 で chart transport の CSS を追加した際、`:root` の閉じ括弧の前に
   変数定義とセレクタールールが混入していた
 - 変数が silver ブロック内に入り込み、dark テーマの値が silver に上書きされていた
-- 今回の修正で3テーマすべて正しいブロック内に配置し直した
+- 修正で3テーマすべて正しいブロック内に配置し直した
+
+### silver テーマの active highlight が見えなかった
+- Phase49.5 で chart-measure の背景を暗い紺（rgba(20,40,80,.55)）に変更した結果、
+  --surface-playing の薄い水色と差がなくなっていた
+- body[data-theme="silver"] .chart-measure--active の上書きで修正
 
 ---
 
 ## 積み残し・保留
 
-特になし。Phase50 の機能追加は完結している。
+特になし。Phase50 の全修正は完結している。
 
 ---
 
@@ -113,14 +132,12 @@ chordEntry.js の modal close 後に diagLockedChord を右パネルに再表示
 ## commit message 案
 
 ```
-feat: Phase50 — Chart Mode mini transport 追加
+fix: Phase50 — テーマ視認性修正・transport ボタン丸形化
 
-- _buildTransport(): play/pause・シークバー・時刻表示・速度スライダーを追加
-- _setupTransportEvents(): isSeeking guard（4点解除）・speed slider 双方向同期
-- _updateTransport(): polling方式でplayback stateをUI反映
-- CSS: components.css に構造スタイル・theme.css に3テーマ分の色変数を追加
-- blue テーマの --text-secondary 近似色問題を修正（chart-header-label 含む）
-- theme.css の :root ブロック構造バグを修正
+- silver: chart-measure--active の highlight を強化（暗い背景に対して鮮やかな青）
+- blue: chart-time-display / chart-speed-label / chart-header-label の文字色補正
+- transport 再生ボタンを border-radius:50% で丸形化
+- theme.css の :root ブロック構造バグを修正（変数・セレクターの混入を解消）
 ```
 
 ---
