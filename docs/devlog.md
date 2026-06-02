@@ -517,9 +517,14 @@ phase50 後処理
 
 ### やったこと
 phase50 後処理
+Phase51完了 — Chart Mode CSS局所整理
+Phase52: Transient Preview Restore
 
 ### 気づき
-
+transaction
+rollback
+transient state
+committed state
 ### 次
-
+Phase52: Transient Preview Restore
 
