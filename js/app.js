@@ -229,6 +229,9 @@ let diagLockedChord = null;
 // 右パネル現在表示中コード（Lキー用 source of truth）
 let currentDiagChord = null;
 
+// AddChord modal open 前の diagLock 退避（cancel rollback用）
+let _savedDiagState = null;
+
 // 左パネル折りたたみ state
 // leftCollapsedManual: <<ボタン操作（localStorage永続）
 // leftCollapsedAuto:   1440px未満でauto collapse（runtime only）
@@ -318,6 +321,33 @@ function unlockDiag() {
   diagLockedChord = null;
   updateDiagLockUI();
 }
+
+// ── cancel rollback API ──────────────────────────
+// AddChord open 時に lock 状態を退避する
+function saveDiagStateForModal() {
+  _savedDiagState = {
+    locked: diagLocked,
+    chord:  diagLockedChord,
+  };
+}
+
+// OK 確定時（コード追加・バーライン追加等）に退避を破棄する
+function clearSavedDiagState() {
+  _savedDiagState = null;
+}
+
+// Cancel / Escape / × 時に lock 状態を復元する
+// lock していなかった場合は何もしない
+function restoreOnCancel() {
+  if (!_savedDiagState) return;
+  const { locked, chord } = _savedDiagState;
+  if (locked && chord) {
+    updateDiagRight(chord);
+    lockDiag(chord);
+  }
+  _savedDiagState = null;
+}
+
 function canUpdateDiagFromHover() {
   return !diagLocked;
 }
@@ -2072,6 +2102,9 @@ window.addEventListener('DOMContentLoaded',()=>{
     unlockDiag,
     onPreviewChord:      (chord) => updateDiagRight(chord),
     transposeChord,
+    saveDiagStateForModal,
+    clearSavedDiagState,
+    restoreOnCancel,
   });
 
   // ⑧ ChartMode 初期化

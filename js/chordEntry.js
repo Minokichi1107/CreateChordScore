@@ -54,6 +54,9 @@ let _toast               = null;
 let _unlockDiag          = null;
 let _onPreviewChord      = null;
 let _transposeChord      = null;
+let _saveDiagStateForModal = null;
+let _clearSavedDiagState   = null;
+let _restoreOnCancel       = null;
 
 // ────────────────────────────────────────
 // INIT
@@ -63,6 +66,7 @@ export function initChordEntry({
   addToPaletteIfNew, refreshEditor,
   openModal, closeModal, mkMBtn, toast,
   unlockDiag, onPreviewChord, transposeChord,
+  saveDiagStateForModal, clearSavedDiagState, restoreOnCancel,
 }) {
   _getLines            = getLines;
   _getPalette          = getPalette;
@@ -76,6 +80,9 @@ export function initChordEntry({
   _unlockDiag          = unlockDiag;
   _onPreviewChord      = onPreviewChord;
   _transposeChord      = transposeChord;
+  _saveDiagStateForModal = saveDiagStateForModal;
+  _clearSavedDiagState   = clearSavedDiagState;
+  _restoreOnCancel       = restoreOnCancel;
 }
 
 // ────────────────────────────────────────
@@ -132,6 +139,7 @@ function isChordLikeInput(v) {
 // OPEN ADD CHORD
 // ────────────────────────────────────────
 export function openAddChord(idx) {
+  _saveDiagStateForModal?.();   // ★追加：unlock前に退避
   _unlockDiag?.();
 
   let insertAt = null;
@@ -326,7 +334,7 @@ export function openAddChord(idx) {
         });
 
         inp.addEventListener('keydown', e => {
-          if (e.key === 'Escape') { _closeModal(); return; }
+          if (e.key === 'Escape') { _restoreOnCancel?.(); _closeModal(); return; }
           if (e.key === 'Enter') {
             if (e.isComposing || justComposed) return;
             e.preventDefault();
@@ -343,8 +351,8 @@ export function openAddChord(idx) {
         });
       }
     },
-    buttons: (close) => [
-      _mkMBtn('完了', 'ok', close),
+      buttons: (close) => [
+      _mkMBtn('完了', 'ok', () => { _clearSavedDiagState?.(); close(); }),
     ],
   });
 }
