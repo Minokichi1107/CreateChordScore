@@ -241,6 +241,10 @@
   --tap-chord-tag-surface:  linear-gradient(135deg,#1e3a6e,#162a52);
   --tap-chord-tag-border:   #4a7fd4;
   --tap-chord-tag-text:     #c8e4ff;
+
+  /* --- chart transport --- */
+  --chart-seek-track: #2a2f45;      /* [SAFE] darkテーマ track背景 */
+  --chart-seek-fill:  #4f9eff;      /* [SAFE] darkテーマ fill */
 }
 
 body[data-theme="dark"] {
@@ -494,6 +498,10 @@ body[data-theme="silver"] {
   --tap-surface-tapped:     rgba(var(--color-green-rgb), .22);
   --tap-surface-current:    rgba(var(--color-green-rgb), .14);
   --tap-btn-surface:        var(--surface-overlay);
+
+  /* --- chart transport --- */
+  --chart-seek-track: #909aac;      /* [SAFE] silverテーマ track背景 */
+  --chart-seek-fill:  #1a55c8;      /* [SAFE] silverテーマ fill */
 }
 
 
@@ -691,6 +699,10 @@ body[data-theme="blue"] {
   --tap-surface-tapped:     rgba(var(--color-green-rgb), .18);
   --tap-surface-current:    rgba(var(--color-green-rgb), .10);
   --tap-btn-surface:        #2b54af;
+
+  /* --- chart transport --- */
+  --chart-seek-track: rgba(0,28,58,.55);   /* [SAFE] blueテーマ track背景 */
+  --chart-seek-fill:  #4f9eff;             /* [SAFE] blueテーマ fill */
 }
 
 
@@ -989,6 +1001,7 @@ body[data-theme="silver"] #btn-add-diag-bottom {
   text-shadow: var(--shadow-text-add-diag-btn);
   box-shadow: var(--shadow-add-diag-btn);
 }
+
 #diag-search  { display: none; }
 #diag-title   { width: 100%; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -1210,4 +1223,45 @@ body[data-theme="silver"] .chart-chord-name {
 
 body[data-theme="silver"] .chart-measure-num {
   color: rgba(255, 255, 255, 0.5);
+}
+
+/* ================================================
+   COMPONENT OVERRIDES — CHART TRANSPORT
+   共通 transport color ルール（全テーマ共通）
+   変数値は各テーマの :root / body[data-theme] で定義
+   ================================================ */
+#chart-transport {
+  border-bottom-color: var(--border-ui);
+  background: var(--surface-raised);
+}
+.chart-play-btn {
+  border-color: var(--border-ui);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
+.chart-play-btn:hover {
+  border-color: var(--border-focus);
+  color: var(--text-accent);
+}
+.chart-seek-track { background: var(--chart-seek-track); }
+.chart-seek-fill  { background: var(--chart-seek-fill);  }
+.chart-speed-sel  { background: var(--chart-seek-track); }
+.chart-speed-sel::-webkit-slider-thumb {
+  background: var(--border-ui-strong);
+  border: 1px solid var(--border-ui);
+}
+.chart-time-display { color: var(--text-secondary); }
+.chart-speed-label  { color: var(--text-secondary); }
+
+/* blue テーマ: transport文字色上書き
+   --text-secondary が背景(--surface-raised)と近似色になるため個別に指定 */
+body[data-theme="blue"] .chart-time-display,
+body[data-theme="blue"] .chart-speed-label {
+  color: var(--text-primary);    /* #0e1e30 — 濃い紺色で視認性を確保 */
+}
+
+/* blue テーマ: chart-header-label 文字色上書き
+   --text-secondary が --surface-raised と近似色になるため個別に指定 */
+body[data-theme="blue"] .chart-header-label {
+  color: var(--text-primary);
 }

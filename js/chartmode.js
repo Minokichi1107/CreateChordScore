@@ -268,6 +268,8 @@ export function openChartMode() {
     overlay.hidden = false;
   }
 
+  _buildTransport();
+
   renderChartMode();
 }
 
@@ -520,4 +522,141 @@ export function updateChartPlayback(currentTime) {
       measureEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }
+
+  _updateTransport(currentTime);
+
+}
+
+// ════════════════════════════════════════
+// MINI TRANSPORT
+// ════════════════════════════════════════
+
+// seek 競合防止フラグ
+let _isSeeking = false;
+
+/**
+ * _buildTransport
+ * #chart-header 直後に mini transport を生成する。
+ * 既存 transport がある場合は重複生成しない。
+ */
+function _buildTransport() {
+  if (document.getElementById('chart-transport')) return;
+
+  const transport = document.createElement('div');
+  transport.id = 'chart-transport';
+
+  transport.innerHTML = `
+    <button id="chart-play-btn" class="chart-play-btn" title="再生 / 一時停止">▶</button>
+    <div id="chart-seek-wrap" class="chart-seek-wrap">
+      <div id="chart-seek-track" class="chart-seek-track">
+        <div id="chart-seek-fill" class="chart-seek-fill"></div>
+      </div>
+      <input id="chart-seek-in" class="chart-seek-in" type="range"
+             min="0" max="1000" value="0" step="1">
+    </div>
+    <span id="chart-time-display" class="chart-time-display">0:00 / 0:00</span>
+    <div class="chart-speed-cluster">
+      <input id="chart-speed-sel" class="chart-speed-sel" type="range"
+             min="50" max="150" value="100" step="1">
+      <span id="chart-speed-label" class="chart-speed-label">100%</span>
+    </div>
+  `;
+
+  const header = document.getElementById('chart-header');
+  header.insertAdjacentElement('afterend', transport);
+
+  _setupTransportEvents(transport);
+}
+
+/**
+ * _setupTransportEvents
+ * transport のイベントハンドラーを登録する。
+ * aEl の play/pause listener は持たない（_updateTransport で polling）。
+ */
+function _setupTransportEvents(transport) {
+  const aEl = _getAudioEl();
+
+  // ── 再生 / 一時停止 ──
+  const playBtn = transport.querySelector('#chart-play-btn');
+  playBtn.addEventListener('click', () => {
+    if (aEl.paused) aEl.play();
+    else            aEl.pause();
+  });
+
+  // ── シークバー ──
+  const seekIn   = transport.querySelector('#chart-seek-in');
+  const seekFill = transport.querySelector('#chart-seek-fill');
+
+  seekIn.addEventListener('pointerdown', () => { _isSeeking = true; });
+
+  seekIn.addEventListener('input', () => {
+    if (!aEl.duration) return;
+    const pct            = seekIn.value / 1000;
+    aEl.currentTime      = pct * aEl.duration;
+    seekFill.style.width = `${pct * 100}%`;   // ドラッグ中も fill を追従
+  });
+
+  const endSeeking = () => { _isSeeking = false; };
+  seekIn.addEventListener('pointerup',     endSeeking);
+  seekIn.addEventListener('pointercancel', endSeeking);
+  seekIn.addEventListener('change',        endSeeking);
+  seekIn.addEventListener('blur',          endSeeking);
+
+  // ── 速度スライダー ──
+  const speedSel     = transport.querySelector('#chart-speed-sel');
+  const speedLabel   = transport.querySelector('#chart-speed-label');
+  const mainSpeedSel = document.getElementById('speed-sel');
+
+  // メイン画面の現在速度を初期値として反映
+  if (mainSpeedSel) {
+    speedSel.value = Math.round(parseFloat(mainSpeedSel.value) * 100);
+  }
+  speedLabel.textContent = `${speedSel.value}%`;
+
+  speedSel.addEventListener('input', () => {
+    aEl.playbackRate       = parseInt(speedSel.value) / 100;
+    speedLabel.textContent = `${speedSel.value}%`;
+    if (mainSpeedSel) mainSpeedSel.value = speedSel.value;  // ✅ 整数同士で同期
+  });
+}
+
+/**
+ * _updateTransport
+ * updateChartPlayback() から毎フレーム呼ばれる。
+ * 再生アイコンを polling で更新。isSeeking 中はシークバー位置を更新しない。
+ */
+function _updateTransport(currentTime) {
+  const aEl = _getAudioEl();
+  if (!aEl || !aEl.duration) return;
+
+  // 再生アイコン（polling 方式）
+  const playBtn = document.getElementById('chart-play-btn');
+  if (playBtn) {
+    playBtn.textContent = aEl.paused ? '▶' : '⏸';
+  }
+
+  // シークバー（isSeeking 中はスキップ）
+  if (!_isSeeking) {
+    const pct      = currentTime / aEl.duration;
+    const seekIn   = document.getElementById('chart-seek-in');
+    const seekFill = document.getElementById('chart-seek-fill');
+    if (seekIn)   seekIn.value         = Math.round(pct * 1000);
+    if (seekFill) seekFill.style.width = `${pct * 100}%`;
+  }
+
+  // 時刻表示
+  const timeDisplay = document.getElementById('chart-time-display');
+  if (timeDisplay) {
+    timeDisplay.textContent = `${_fmt(currentTime)} / ${_fmt(aEl.duration)}`;
+  }
+}
+
+/**
+ * _fmt — 秒数を "M:SS" 形式に変換
+ */
+function _fmt(sec) {
+  if (!Number.isFinite(sec)) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
 }

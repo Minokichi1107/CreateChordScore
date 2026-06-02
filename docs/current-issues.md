@@ -185,6 +185,13 @@ timing.js の quantize() が基盤になる。Phase41 handover の「slot highli
 状態: 再現性確認中
 内容: 読み込みを中止して再度読み込むと比較的早く開く。再現条件の特定が必要
 
+
+### Theme system cleanup / contrast audit
+
+- blue theme で text-secondary contrast が低く、一部UIで局所overrideが発生
+- theme.css の selector override 増殖に注意
+- 将来的に component → CSS variable 経由への整理を検討
+
 ---
 
 ## 4. 既知の技術的負債
