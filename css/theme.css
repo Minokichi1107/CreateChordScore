@@ -1210,31 +1210,14 @@ body[data-theme="silver"] {
   background-image: var(--bg-texture-metal);
 }
 
-/* ── Chart Mode: silverテーマ コントラスト補正 ──────────────
-   文字を白寄りに・背景を暗くしてコントラストを確保する
-   ─────────────────────────────────────────────────────── */
-body[data-theme="silver"] .chart-measure {
-  background: rgba(20, 40, 80, 0.55);
-}
-
-body[data-theme="silver"] .chart-chord-name {
-  color: #ffffff;
-}
-
-body[data-theme="silver"] .chart-measure-num {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-body[data-theme="silver"] .chart-measure--active {
-  background: rgba(26, 85, 200, 0.55);   /* [SAFE] 暗い紺背景に対して明確な青で強調 */
-  border-color: #6aabff;                  /* [SAFE] 通常border(#909aac)より明るい青 */
-}
-
 /* ================================================
-   COMPONENT OVERRIDES — CHART TRANSPORT
-   共通 transport color ルール（全テーマ共通）
-   変数値は各テーマの :root / body[data-theme] で定義
+   CHART MODE OVERRIDES
+   構造 / state / theme特例 を局所化
+   変数は各テーマの :root / body[data-theme] で定義済み
+   ここには component override のみ置く（semantic定義禁止）
    ================================================ */
+
+/* --- 共通 component override（全テーマ）--- */
 #chart-transport {
   border-bottom-color: var(--border-ui);
   background: var(--surface-raised);
@@ -1258,15 +1241,30 @@ body[data-theme="silver"] .chart-measure--active {
 .chart-time-display { color: var(--text-secondary); }
 .chart-speed-label  { color: var(--text-secondary); }
 
-/* blue テーマ: transport文字色上書き
-   --text-secondary が背景(--surface-raised)と近似色になるため個別に指定 */
-body[data-theme="blue"] .chart-time-display,
-body[data-theme="blue"] .chart-speed-label {
-  color: var(--text-primary);    /* #0e1e30 — 濃い紺色で視認性を確保 */
+/* --- silver特例: Chart Mode コントラスト補正 ---
+   silver背景(#c8ced8)の上にdark系chart-measureを乗せるため
+   背景を暗くして文字を白寄りに補正する               */
+body[data-theme="silver"] .chart-measure {
+  background: rgba(20, 40, 80, 0.55);
+}
+body[data-theme="silver"] .chart-chord-name {
+  color: #ffffff;
+}
+body[data-theme="silver"] .chart-measure-num {
+  color: rgba(255, 255, 255, 0.5);
+}
+body[data-theme="silver"] .chart-measure--active {
+  background: rgba(26, 85, 200, 0.55);   /* [SAFE] 暗い紺背景に対して明確な青で強調 */
+  border-color: #6aabff;                  /* [SAFE] 通常border(#909aac)より明るい青 */
 }
 
-/* blue テーマ: chart-header-label 文字色上書き
-   --text-secondary が --surface-raised と近似色になるため個別に指定 */
+/* --- blue特例: transport / header 文字色補正 ---
+   --text-secondary が --surface-raised(#d5e9f8)と近似色になるため
+   個別に --text-primary で上書きして視認性を確保する    */
+body[data-theme="blue"] .chart-time-display,
+body[data-theme="blue"] .chart-speed-label {
+  color: var(--text-primary);
+}
 body[data-theme="blue"] .chart-header-label {
   color: var(--text-primary);
 }
