@@ -244,6 +244,9 @@ let rightHidden = false;  // 右パネル非表示フラグ（localStorage永続
 // ファイル保存
 let _fileHandle = null;
 
+// Chart Mode 列数（localStorage永続）
+let chartMeasuresPerRow = Number(localStorage.getItem('chartMeasuresPerRow')) || 3;
+
 // モーダル要素
 const mOv = document.getElementById('modal-ov');
 const mTit = document.getElementById('m-title');
@@ -1580,7 +1583,7 @@ function setupEventHandlers() {
     // TODO: future optimization: separate chord label refresh from full chart rerender
     //       現在は DOM フル再構築。chart interaction が増えた段階で
     //       chord textContent の差分更新に切り替えることを検討する。
-    if (chartState.active) renderChartMode();
+    if (chartState.active) renderChartMode({ measuresPerRow: chartMeasuresPerRow });
   });
 
   // ============================================
@@ -1801,10 +1804,35 @@ function setupEventHandlers() {
   });
 
   document.getElementById('btn-chart-mode')
-    .addEventListener('click', openChartMode);
+    .addEventListener('click', () => {
+      openChartMode();
+      // 列数ボタンの active 状態を現在の設定に合わせる
+      document.querySelectorAll('.chart-col-btn').forEach(b => {
+        b.classList.toggle('active', Number(b.dataset.cols) === chartMeasuresPerRow);
+      });
+      renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+    });
 
   document.getElementById('btn-chart-close')
     .addEventListener('click', closeChartMode);
+
+  document.getElementById('chart-col-switcher')
+    .addEventListener('click', e => {
+      const btn = e.target.closest('.chart-col-btn');
+      if (!btn) return;
+      const cols = Number(btn.dataset.cols);
+      if (cols === chartMeasuresPerRow) return;
+
+      chartMeasuresPerRow = cols;
+      localStorage.setItem('chartMeasuresPerRow', cols);
+
+      // ボタン active 切替
+      document.querySelectorAll('.chart-col-btn').forEach(b => {
+        b.classList.toggle('active', Number(b.dataset.cols) === cols);
+      });
+
+      renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+    });
   
   // ============================================
   // Project Meta Events

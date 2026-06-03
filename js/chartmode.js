@@ -208,6 +208,9 @@ export function expandCarryForward(measures, slotsPerMeasure) {
 // Chart Mode UI state
 // ────────────────────────────────────────
 
+// コード名 compact 表示の文字数閾値（layout heuristic）
+const COMPACT_CHORD_LENGTH = 8;
+
 export const chartState = {
   active:   false,
   viewModel: null,  // buildGridViewModel の戻り値
@@ -242,6 +245,35 @@ export function initChartMode({ getAnalysis, getAudioEl, getAudioDuration, getCa
   _getAudioDuration = getAudioDuration;
   _getCapo          = getCapo;
   _transposeChord   = transposeChord;
+
+  // ツールチップ要素を body 直下に生成（overflow: hidden を突き抜けるため）
+  if (!document.getElementById('chart-tooltip')) {
+    const tip = document.createElement('div');
+    tip.id = 'chart-tooltip';
+    document.body.appendChild(tip);
+  }
+
+  // compact コード名のホバーイベントを chart-grid に委譲
+  const grid = document.getElementById('chart-grid');
+  if (grid) {
+    grid.addEventListener('mousemove', e => {
+      const el = e.target.closest('.chart-chord-name--compact');
+      const tip = document.getElementById('chart-tooltip');
+      if (!tip) return;
+      if (!el) {
+        tip.style.display = 'none';
+        return;
+      }
+      tip.textContent = el.dataset.chord;
+      tip.style.display = 'block';
+      tip.style.left = (e.clientX + 8) + 'px';
+      tip.style.top  = (e.clientY - 28) + 'px';
+    });
+    grid.addEventListener('mouseleave', () => {
+      const tip = document.getElementById('chart-tooltip');
+      if (tip) tip.style.display = 'none';
+    });
+  }
 }
 
 // ────────────────────────────────────────
@@ -256,9 +288,8 @@ export function initChartMode({ getAnalysis, getAudioEl, getAudioDuration, getCa
  */
 export function openChartMode() {
   const analysis = _getAnalysis?.();
-  if (!analysis) return;  // ★ runtime guard（ここで return するので以下は不要）
+  if (!analysis) return;
 
-  // analysis は必ず存在する（上でguard済み）
   const duration = _getAudioDuration?.() || null;
   chartState.viewModel = buildGridViewModel(analysis, duration);
 
@@ -269,8 +300,7 @@ export function openChartMode() {
   }
 
   _buildTransport();
-
-  renderChartMode();
+  // 描画は呼び出し元（app.js）が renderChartMode を責務として持つ
 }
 
 /**
@@ -294,15 +324,17 @@ export function closeChartMode() {
  *
  * Chart Mode の全体を描画する。
  * mode に応じて full / beat-only / fallback の表示を切り替える。
+ *
+ * @param {{ measuresPerRow?: number }} [options]
  */
-export function renderChartMode() {
+export function renderChartMode({ measuresPerRow = 3 } = {}) {
   if (!chartState.active) return;
 
   const vm = chartState.viewModel;
   const analysis = _getAnalysis?.();
 
   _renderChartHeader(vm, analysis);
-  _renderChartGrid(vm, analysis);
+  _renderChartGrid(vm, analysis, { measuresPerRow });
 }
 
 /**
@@ -341,7 +373,7 @@ function _renderChartHeader(vm, analysis) {
  * full / beat-only: 小節グリッド
  * fallback:         コード列（均等配置・小節線なし）
  */
-function _renderChartGrid(vm, analysis) {
+function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
   const container = document.getElementById('chart-grid');
   if (!container) return;
   container.innerHTML = '';
@@ -358,8 +390,8 @@ function _renderChartGrid(vm, analysis) {
     return;
   }
 
-  // full / beat-only: 4小節ずつ行に並べる
-  const MEASURES_PER_ROW = 3;
+  // full / beat-only: measuresPerRow 小節ずつ行に並べる
+  const MEASURES_PER_ROW = measuresPerRow;
   const expanded = expandCarryForward(measures, model.slotsPerMeasure);
 
   // expanded を measure ごとにグループ化
@@ -405,12 +437,9 @@ function _renderChartGrid(vm, analysis) {
           slotEl.classList.add('chart-slot--beat');
         }
 
-        // onset があるスロットにマーカー
+        // onset 判定（carry-forward との区別に使用、将来のdebug overlay用に保持）
         const measureData = measures[mi];
         const hasOnset = measureData?.slots.some(s => s.slotIndex === cell.slotIndex);
-        if (hasOnset) {
-          slotEl.classList.add('chart-slot--onset');
-        }
 
         if (cell.chord) {
           const chordEl = document.createElement('span');
@@ -420,9 +449,16 @@ function _renderChartGrid(vm, analysis) {
           // analysis.raw / GridViewModel の chord は canonical のまま保持する
           // （analysis は regeneratable artifact のため保存時に変換しないこと）
           const capo = _getCapo?.() ?? 0;
-          chordEl.textContent = (capo !== 0 && _transposeChord)
+          const display = (capo !== 0 && _transposeChord)
             ? _transposeChord(cell.chord, -capo)
             : cell.chord;
+          chordEl.textContent = display;
+
+          // 長いコード名は compact 表示（行高を変えずに収める）
+          if (display.length >= COMPACT_CHORD_LENGTH) {
+            chordEl.classList.add('chart-chord-name--compact');
+            chordEl.dataset.chord = display;  // ホバーツールチップ用
+          }
 
           // carry-forward（onset なし）は薄く表示
           if (!hasOnset) {

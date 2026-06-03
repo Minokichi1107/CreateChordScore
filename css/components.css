@@ -459,6 +459,31 @@
   flex: 1;
 }
 
+/* 列数切替ボタン */
+#chart-col-switcher {
+  display: flex;
+  gap: 2px;
+}
+.chart-col-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.chart-col-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.chart-col-btn.active {
+  background: var(--surface-active);
+  color: var(--text-accent);
+  border-color: var(--text-accent);
+}
+
 /* グリッドコンテナ */
 #chart-grid {
   flex: 1;
@@ -473,6 +498,7 @@
 .chart-row {
   display: flex;
   gap: 4px;
+  padding-right: 16px;
 }
 
 /* 小節 */
@@ -482,6 +508,7 @@
   border-radius: var(--r-md);
   overflow: hidden;
   min-width: 0;
+  position: relative;
 }
 .chart-measure--estimated {
   border-style: dashed;
@@ -518,7 +545,7 @@
   background: rgba(var(--color-blue-rgb), .08);
 }
 
-/* コード名 */
+/* コード名：小節左端基準で絶対配置し、小節幅いっぱいに展開 */
 .chart-chord-name {
   font-family: 'Atkinson Hyperlegible', var(--font-mono), monospace;
   font-size: 12px;
@@ -529,6 +556,32 @@
   overflow: hidden;
   text-overflow: ellipsis;
   display: block;
+  position: absolute;
+  left: 6px;
+  right: 4px;
+  bottom: 6px;
+}
+/* 長いコード名の軽縮小 + ホバーツールチップ */
+.chart-chord-name--compact {
+  font-size: 10px;
+  letter-spacing: -0.02em;
+  cursor: default;
+}
+/* ツールチップ */
+#chart-tooltip {
+  position: fixed;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  padding: 2px 8px;
+  font-family: 'Atkinson Hyperlegible', var(--font-mono), monospace;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 100;
+  display: none;
 }
 .chart-chord--carried {
   display: none;
