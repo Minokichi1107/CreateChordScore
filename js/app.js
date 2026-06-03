@@ -2102,6 +2102,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     unlockDiag,
     onPreviewChord:      (chord) => updateDiagRight(chord),
     transposeChord,
+    updateModalTitle: (text) => { mTit.textContent = text; },
     saveDiagStateForModal,
     clearSavedDiagState,
     restoreOnCancel,

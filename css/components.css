@@ -661,3 +661,36 @@
   min-width: 36px;
   text-align: center;
 }
+
+/* ── AddChord: insertion cursor ── */
+.insert-cursor-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;         /* クリック当たり判定を広く確保 */
+  padding: 0 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.insert-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: var(--text-accent);
+  opacity: 0;
+  border-radius: 1px;
+  transition: opacity .1s;
+}
+.insert-cursor-wrap:hover .insert-cursor {
+  opacity: .25;        /* hover時：薄く見える */
+}
+.insert-cursor.active {
+  opacity: 1;
+  animation: insert-cursor-blink 1s step-end infinite;
+}
+@keyframes insert-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}

@@ -54,9 +54,11 @@ let _toast               = null;
 let _unlockDiag          = null;
 let _onPreviewChord      = null;
 let _transposeChord      = null;
+let _updateModalTitle    = null;
 let _saveDiagStateForModal = null;
 let _clearSavedDiagState   = null;
 let _restoreOnCancel       = null;
+
 
 // ────────────────────────────────────────
 // INIT
@@ -65,7 +67,7 @@ export function initChordEntry({
   getLines, getPalette, getPaletteTranspose,
   addToPaletteIfNew, refreshEditor,
   openModal, closeModal, mkMBtn, toast,
-  unlockDiag, onPreviewChord, transposeChord,
+  unlockDiag, onPreviewChord, transposeChord,updateModalTitle,
   saveDiagStateForModal, clearSavedDiagState, restoreOnCancel,
 }) {
   _getLines            = getLines;
@@ -80,6 +82,7 @@ export function initChordEntry({
   _unlockDiag          = unlockDiag;
   _onPreviewChord      = onPreviewChord;
   _transposeChord      = transposeChord;
+  _updateModalTitle    = updateModalTitle;
   _saveDiagStateForModal = saveDiagStateForModal;
   _clearSavedDiagState   = clearSavedDiagState;
   _restoreOnCancel       = restoreOnCancel;
@@ -144,32 +147,37 @@ export function openAddChord(idx) {
 
   let insertAt = null;
 
-  // ── 挿入位置ボタン ──
-  function mkInsertBtn(pos) {
-    const btn = document.createElement('button');
-    btn.className = 'mac-insert-btn';
-    btn.textContent = '＋';
-    btn.title = pos === null ? '末尾に挿入' : `位置${pos + 1}に挿入`;
-    btn.dataset.pos = pos === null ? 'end' : String(pos);
-    btn.addEventListener('click', () => {
+  // ── 挿入カーソルスロット（クリック + keyboard navigation 両対応）──
+  function mkCursorSlot(pos) {
+    const wrap = document.createElement('button');
+    wrap.className = 'insert-cursor-wrap';
+    wrap.title = pos === null ? '末尾に挿入' : `位置${pos + 1}に挿入`;
+    wrap.dataset.pos = pos === null ? 'end' : String(pos);
+
+    const cursor = document.createElement('span');
+    cursor.className = 'insert-cursor';
+    wrap.appendChild(cursor);
+
+    wrap.addEventListener('click', () => {
       insertAt = pos;
       renderModalPreview();
       const inp = document.getElementById('mac-input');
       if (inp) inp.focus();
     });
-    return btn;
+    return wrap;
   }
 
   // ── プレビュー再描画 ──
-  function renderModalPreview() {
+function renderModalPreview() {
     const line = _getLines()[idx];
     const previewEl = document.getElementById('mac-preview');
     if (!previewEl) return;
     previewEl.innerHTML = '';
 
-    const headBtn = mkInsertBtn(0);
-    if (insertAt === 0) headBtn.classList.add('active');
-    previewEl.appendChild(headBtn);
+    // ── 先頭スロット ──
+    const headSlot = mkCursorSlot(0);
+    if (insertAt === 0) headSlot.querySelector('.insert-cursor').classList.add('active');
+    previewEl.appendChild(headSlot);
 
     if (!line.chords.length) {
       const empty = document.createElement('span');
@@ -215,9 +223,9 @@ export function openAddChord(idx) {
       const pos = ci + 1;
       const isLast = ci === line.chords.length - 1;
       const isActive = isLast ? (insertAt === null) : (insertAt === pos);
-      const afterBtn = mkInsertBtn(isLast ? null : pos);
-      if (isActive) afterBtn.classList.add('active');
-      previewEl.appendChild(afterBtn);
+      const afterSlot = mkCursorSlot(isLast ? null : pos);
+      if (isActive) afterSlot.querySelector('.insert-cursor').classList.add('active');
+      previewEl.appendChild(afterSlot);
     });
   }
 
@@ -270,6 +278,46 @@ export function openAddChord(idx) {
     }
     _refreshEditor();
     renderModalPreview();
+  }
+
+  // ── insertion cursor navigation（行またぎ対応）──
+  function navigateInsertCursor(direction) {
+    const lines = _getLines();
+    const lineLen = lines[idx].chords.length;
+
+    if (direction === 'left') {
+      if (insertAt === 0) {
+        if (idx > 0) {
+          idx--;
+          insertAt = null;
+          _updateModalTitle?.(`行${idx + 1} コードをまとめて追加`);
+          renderModalPreview();
+        }
+      } else if (insertAt === null) {
+        insertAt = lineLen > 0 ? lineLen - 1 : 0;
+        renderModalPreview();
+      } else {
+        insertAt--;
+        renderModalPreview();
+      }
+    }
+
+    if (direction === 'right') {
+      if (insertAt === null) {
+        if (idx < lines.length - 1) {
+          idx++;
+          insertAt = 0;
+          _updateModalTitle?.(`行${idx + 1} コードをまとめて追加`);
+          renderModalPreview();
+        }
+      } else if (insertAt >= lineLen - 1) {
+        insertAt = lineLen > 0 ? null : 0;
+        renderModalPreview();
+      } else {
+        insertAt++;
+        renderModalPreview();
+      }
+    }
   }
 
   // ── パレット HTML ──
@@ -335,6 +383,8 @@ export function openAddChord(idx) {
 
         inp.addEventListener('keydown', e => {
           if (e.key === 'Escape') { _restoreOnCancel?.(); _closeModal(); return; }
+          if (e.key === 'ArrowLeft')  { e.preventDefault(); navigateInsertCursor('left');  return; }
+          if (e.key === 'ArrowRight') { e.preventDefault(); navigateInsertCursor('right'); return; }
           if (e.key === 'Enter') {
             if (e.isComposing || justComposed) return;
             e.preventDefault();
