@@ -206,7 +206,7 @@ function renderModalPreview() {
         nm.textContent = tokenToText(c);
         const dx = document.createElement('span');
         dx.textContent = '✕';
-        dx.className = 'mac-preview-tag-del';
+        dx.className = 'mac-preview-tag-del chord-delete-btn';
         dx.addEventListener('mouseenter', () => { dx.style.background = 'var(--color-red)'; });
         dx.addEventListener('mouseleave', () => { dx.style.background = ''; });
         dx.addEventListener('click', () => {

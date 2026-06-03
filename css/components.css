@@ -271,6 +271,15 @@
   cursor: pointer;
   padding: 1px 3px;
   border-radius: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.mac-preview-tag:hover .mac-preview-tag-del,
+.mac-preview-tag:focus-within .mac-preview-tag-del {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .mac-sep-token {
