@@ -379,6 +379,32 @@ function forcePreviewChord(chord) {
 // ════════════════════════════════════════
 
 async function loadChordData(data,filename){
+
+  // ── capo restore ──────────────────────────────────────────
+  // コードJSONはcanonical（capo=0）データ前提。
+  // import前にlinesのchordを現capo分だけ逆方向に戻してから
+  // capo stateを0にリセットする。
+  // （restore→reset→ingest の順序が重要）
+  //
+  // paletteはこの直後に新JSONから再生成されるためrestoreしない。
+  // capo change: semitones = -diff なので
+  // restore方向: +_prevCapo（逆算）
+  if (_prevCapo !== 0) {
+    const restoreSemitones = _prevCapo;
+    (project.lines || []).forEach(line => {
+      line.chords.forEach(c => {
+        if (!c.chord) return;
+        c.chord = transposeChord(c.chord, restoreSemitones);
+      });
+    });
+  }
+
+  // capo state リセット（3つセットで整合）
+  project.capo = 0;
+  document.getElementById('capo').value = 0;
+  _prevCapo = 0;
+  // ──────────────────────────────────────────────────────────
+
   project.chord_source=filename;
   const b=document.getElementById('chord-btn');b.textContent=filename;b.classList.add('loaded');
   // no_chord 系文字列（N / NC / N.C.）はパレットに含めない。
@@ -411,6 +437,9 @@ async function loadChordData(data,filename){
   // ★ palette UI 更新
   renderPalette();
   document.getElementById('pal-count').textContent = palette.length;
+
+  // capo restore後のlines再描画
+  refreshEditor();
 
   updateChartModeAvailability();
 
@@ -782,7 +811,6 @@ function getEditorUIState() {
 
 // エディタを再描画
 function refreshEditor() {
-  console.log('refreshEditor');  // ★これだけ追加
   renderLines(project.lines, getEditorUIState(), createEditorCallbacks());
   autoSaveLocal();
 }
@@ -1550,14 +1578,7 @@ function setupEventHandlers() {
 
   // カポ変更：前の値との差分で全コードを移調（確認なし・即時）
   document.getElementById('capo').addEventListener('change',()=>{
-
     const newCapo=parseInt(document.getElementById('capo').value)||0;
-
-  // ===== DEBUG START =====
-  console.log('CAPO CHANGE', newCapo);
-  // ===== DEBUG END =====
-
-    
     const diff=newCapo-_prevCapo;
     if(diff===0)return;
     // カポが増える(0→2)＝同じ音を出すためコードフォームは下げる(-2半音)
