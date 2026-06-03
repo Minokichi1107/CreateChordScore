@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase49完了時点
+> 最終更新: Phase54完了時点
 
 ---
 
@@ -28,22 +28,29 @@
 ### chord editor / line editing 系
 
 #### transient preview restore
-状態: 未着手
-内容: chordEntry.js の modal close 後、diagLocked 状態の右パネル表示を復元する処理。
-Phase39-1 で forcePreviewChord が diagLockedChord を書き換えない設計になったため、
-modal close 時に diagLockedChord を右パネルに再表示する処理が必要。
-方向性:
-- `restoreDiagAfterTransientPreview()` を app.js に追加
-- `closeMod()` から呼ぶ（暫定）
-- 将来: `beginTransientPreview()` / `endTransientPreview()` API に昇格
+状態: **完了（Phase52）**
+内容: modal close 後、diagLocked 状態の右パネル表示を復元する処理。
+退避 → commit / rollback パターンで実装済み。
+適用条件: `locked === true && chord !== null` の場合のみ restore。
+confirm操作（コード追加・バーライン追加）はすべて commit 扱い。
+将来の Add Simile / Inline Edit / Transpose Preview でも同パターンを再利用できる雛形になっている。
 
 #### 行またぎコード移動
 状態: 未着手
-内容: 先頭コード→前行末尾 / 末尾コード→次行先頭への移動。
+内容: 先頭コード→前行末尾 / 末尾コード→次行先頭へのコード移動。
 通常画面（inline editing）または AddChord モーダルから操作できるUIを追加。
 token array boundary mutation として実装すること（string splice 禁止）。
 `project.lines` 編集APIが必要。app.js 内 `moveChordAcrossLines` として設計済み（Phase38-3）。
+※ Phase53 で行またぎ**カーソル navigation** は実装済み。**コードそのものの移動**は別問題として未着手。
 ※ modal内の小機能として実装すると line mutation が modal subsystem に漏れるため注意。
+
+#### interaction hierarchy 改修
+状態: 部分完了（Phase53）
+内容: AddChord modal の操作体系をキーボード主体に変更。
+- insertion cursor 化（`+` → `|` 表示への変更）: **Phase53 で完了**
+- ArrowLeft/Right 行またぎ navigation: **Phase53 で完了**
+- hover-only 削除ボタン（`✕` の表示制御）: 未着手
+Phase38-2で設計済み。残作業は chordEntry.js 拡張として実装予定。
 
 ### token / rendering 系
 
@@ -57,20 +64,11 @@ Phase38-2で設計済み。chordEntry.js 拡張として実装予定。
 内容: simile token の SVG描画。performSimileStyle='svg' 対応。
 Phase38-2で設計済み。
 
-#### interaction hierarchy 改修
-状態: 未着手
-内容: AddChord modal の操作体系をキーボード主体に変更。
-- insertion cursor 化（`+` → `|` 表示への変更）
-- hover-only 削除ボタン（`✕` の表示制御）
-Phase38-2で設計済み。chordEntry.js 拡張として実装予定。
-
 ### Issue #26 — ChordMini Beat/Grid情報対応
 状態: 設計前
 内容: 将来の `bars[]` 構造への移行・grid表示・beat alignment対応。
 Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み。
 本格設計は Issue #26 設計フェーズで行う。
-
-### responsive UI 系
 
 ### Chart Mode 系
 
@@ -85,11 +83,9 @@ Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み�
 備考: Phase44 で projection responsibility が整理されたため、並列表示の設計に入れる段階。
 
 #### Chart Mode に audio controls 追加（mini transport）
-状態: 未着手
-内容: Chart Mode 内に ▶ / シークバー / 速度 / 音量 の mini transport を追加。
-現在はメイン画面で再生してから Chart Mode を開く必要がある。
-方向性: Chart renderer が playback authority を持つか、
-既存 aEl の proxy として動作させるかを設計段階で決定する。
+状態: **完了（Phase50）**
+内容: Chart Mode 内に ▶ / シークバー / 速度 / 音量 の mini transport を実装済み。
+playback authority は `updateChartPlayback()` に集約（aEl listener を transport に持たせない設計）。
 
 #### Chart Mode ビート単位フォーカス
 状態: 未着手
@@ -100,6 +96,16 @@ Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み�
 timing.js の quantize() が基盤になる。Phase41 handover の「slot highlight」と同一方向。
 
 ### その他将来検討
+
+#### カポ範囲拡張（-2 まで対応）
+状態: 未着手
+内容: 現在カポは 0〜11 の範囲のみ。半音下げチューニング用途で -2 まで対応できるようにする。
+方向性: カポ入力UIの範囲変更・移調ロジックの負値対応確認が必要。
+
+#### 名前をつけて保存ショートカット（Ctrl+Shift+S）
+状態: 未着手
+内容: 現在 Ctrl+S は上書き保存。名前をつけて保存（Save As）を Ctrl+Shift+S で追加。
+方向性: 既存の保存処理に Shift 判定を追加するだけで実装可能。
 
 #### CHORD_DB再構造化
 状態: 検討中
@@ -166,8 +172,11 @@ timing.js の quantize() が基盤になる。Phase41 handover の「slot highli
 ## 3. UI/UX課題
 
 ### AddChordモーダルの記号過剰
-状態: 未対応
-内容: `+` と `×` が多く見づらい・冗長。UI上の記号・操作要素の冗長表示を削減し、視認性と意味の明確化が必要
+状態: 部分対応（Phase53）
+内容: `+` と `×` が多く見づらい・冗長。
+- `+` ボタン → insertion cursor（`|`）への変更: **Phase53 で完了**
+- hover-only 削除ボタン（`✕` 表示制御）: 未着手
+- 繰り返し回数「×N回」と削除「×」の視覚的衝突: 未着手
 
 ### 中央パネルの繰り返し表示
 状態: 未対応
@@ -177,7 +186,13 @@ timing.js の quantize() が基盤になる。Phase41 handover の「slot highli
 状態: 未対応
 内容: 繰り返しが行の下に表示されて見づらく、「×N回」表記も削除操作との視覚的衝突がある。Simile記号（𝄋）の使用を検討
 
-### 上書き保存時にファイル選択ダイアログが開く場合がある
+### カポ状態が新規プロジェクト読み込み時に引き継がれるバグ
+状態: 未修正
+内容: カポで移調表示中に別プロジェクトのコードを読み込むと、
+そのカポ位置のまま読み込んでしまう。
+データ（chord JSON）は原データのままだが、UI上の移調状態が残留する。
+方向性: プロジェクトロード時・新規プロジェクト作成時にカポ状態をリセットする処理が必要。
+capo state の reset タイミングを `resetProject()` / `loadProj()` に明示的に追加する。
 状態: 再現性確認中
 内容: 既存プロジェクトファイルを開いた状態で上書き保存しても、ファイル選択ダイアログが開くことがある。再現条件の特定が必要
 
@@ -242,14 +257,3 @@ import 追加が漏れ、perform mode 全消失バグとして Step3 動作確�
 方向性: collapse（幅縮小）と hide（完全非表示）を概念として分離し、
 UIラベル・状態変数名を整理する。
 時期: パネルレイアウト再設計フェーズで対応。
-
-### Chart Mode 小節数切り替え（Phase49.5より持ち越し）
-状態: 未着手
-内容: Chart Mode の1行あたり小節数を表示メニューから切り替えられるようにする。
-現在は `MEASURES_PER_ROW = 3` に固定（Phase49.5で3列が見やすいと確認済み）。
-方向性:
-- `chartMeasuresPerRow` 状態変数追加（localStorage永続）
-- 表示メニューに「📊 Chart: 3列 / 4列」トグル追加
-- `MEASURES_PER_ROW` を定数→引数化
-注意: render関数の引数追加が呼び出し元に波及するため設計フェーズが必要。
-時期: Chart Mode拡張フェーズで独立実装。

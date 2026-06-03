@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase44完了時点
+> 最終更新: Phase54完了時点
 
 ---
 
@@ -365,18 +365,59 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - `nowrap` + `text-overflow: ellipsis`（折り返し防止・長コード省略）
 - silverテーマ専用コントラスト補正（暗背景・白文字・小節番号半透明）
 
+### Phase50 — Chart Mode mini transport 追加
+- `_buildTransport()` / `_setupTransportEvents()` / `_updateTransport()` 追加
+- playback authority を `updateChartPlayback()` に集約（aEl listener を transport に持たせない）
+- seek 競合防止パターン確立（`_isSeeking` フラグ + 4点解除）
+- speed slider の双方向同期（chart↔main）
+- blue テーマ文字色補正・silver テーマ active highlight 修正
+- theme.css の `:root` ブロック構造バグ修正（変数・セレクター混入問題）
+
+### Phase51 — Chart Mode CSS局所整理
+- `CHART MODE OVERRIDES` セクション新設（theme.css）
+- silver 特例を silverブロック内から Chart Mode セクションへ移動
+- semantic variable layer と component override layer を物理的に分離
+- 変更なし（relocation + コメント整理のみ）
+
+### Phase52 — transient preview restore 実装
+- modal close 後、diagLocked 状態の右パネル表示を復元する処理を実装
+- 退避 → commit / rollback パターンを確立
+- 適用条件: `locked === true && chord !== null` の場合のみ restore
+- confirm操作（コード追加・バーライン追加）はすべて commit 扱い
+- Phase39-2 の「open時にunlockする」方針は維持
+
+### Phase53 — insertion cursor navigation in AddChord modal
+- `mkInsertBtn` → `mkCursorSlot`（`+` ボタンを `|` カーソルスロットに置き換え）
+- `navigateInsertCursor()` 追加（同行内 + 行またぎ ArrowLeft/ArrowRight **カーソル移動**）
+- insertAt = editor cursor semantic として確立（click=直接配置・Arrow=navigation・Enter=commit）
+- `.insert-cursor-wrap` / `.insert-cursor` CSS（点滅・hover薄表示）
+- modal subsystem boundary 維持（token mutation は editor core 層として分離）
+- ※ 行またぎ**コード移動**（`moveChordAcrossLines`）は未実装・将来フェーズへ分離
+
+### Phase54 — Chart Mode 3列/4列切替 + measure-based chord projection
+- `renderChartMode({ measuresPerRow })` 引数注入方式（renderer が persistence を持たない）
+- `openChartMode()` を transition のみに分離（render authority を app.js へ）
+- **chord name を measure 基準の absolute 配置へ変更**（slot-scoped → measure-scoped）
+  - before: chord name が slot width に拘束（4拍子8スロット → 1/8 セル幅）
+  - after: `.chart-measure` 基準の `position: absolute` で小節幅いっぱいに展開
+- `COMPACT_CHORD_LENGTH = 8` 定数化・compact 表示導入（行高維持）
+- ホバーツールチップ（body直下JS生成・overflow:hidden を突き抜け）
+- `chart-slot--onset` 削除（analysis semantic を performance UI から除去）
+- `chartMeasuresPerRow` localStorage 永続・3列/4列切替ボタン追加
+
 ---
 
 ## 現在地
 
-- Phase49完了・棚卸し済み（Phase45〜49.5）
-- Phase45〜49.5 の主な成果:
-  - 行挿入ボタン上下両方向対応（Phase45）
-  - `project.artist` / `project.title` 分離・schema migration（Phase46）
-  - ヘッダーメニュー統合（Phase47）
-  - フロートメニュー位置改善（Phase48）
-  - 表示メニュー左・右パネルトグル有効化（Phase49）
-  - Chart Mode視認性向上（Phase49.5）
+- Phase54完了（Phase50〜54 の棚卸し対象）
+- Phase50〜54 の主な成果:
+  - Chart Mode mini transport 追加（Phase50）
+  - Chart Mode CSS局所整理（theme.css CHART MODE OVERRIDESセクション新設）（Phase51）
+  - transient preview restore 実装（退避→commit/rollback パターン確立）（Phase52）
+  - insertion cursor navigation（AddChord modal、insertAt = editor cursor semantic）（Phase53）
+  - Chart Mode 3列/4列切替（Phase54）
+  - Chart chord rendering の measure-based projection へ移行（Phase54）
+  - render authority 分離（openChartMode / renderChartMode）（Phase54）
 
 ---
 
@@ -386,11 +427,11 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 
 軽量UI改善系（比較的独立・実装しやすい）:
 - 行またぎコード移動（token array boundary mutation）
-- Chart Mode 小節数切り替え（3列/4列・表示メニュー連動）
+- transient preview restore（modal close 後の diagLocked 右パネル復元）
 
 Chart Mode 拡張系:
-- Chart Mode 並列表示（設計フェーズが必要）
 - Chart Mode に mini transport（audio controls）追加
+- Chart Mode 並列表示（設計フェーズが必要）
 - Chart Mode ビート単位フォーカス（playback engine 拡張）
 
 将来（大規模設計フェーズが必要）:
