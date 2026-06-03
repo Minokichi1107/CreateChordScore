@@ -12,19 +12,21 @@
 
 ## フェーズ完了時（毎回やること）
 
-- `handover_phaseXX.md` を作成する
+* `handover_phaseXX.md` を作成する
 
 ### handover に書く内容
-- 完了したこと（変更ファイル・設計ポイント）
-- 確定した設計原則
-- 積み残し・保留バグ
-- 次フェーズ候補
-- commit message 案
+
+* 完了したこと（変更ファイル・設計ポイント）
+* 確定した設計原則
+* 積み残し・保留バグ
+* 次フェーズ候補
+* commit message 案
 
 ### 更新しないもの（棚卸しまで保留）
-- `phase-status.md`
-- `architecture.md`
-- `current-issues.md`
+
+* `phase-status.md`
+* `architecture.md`
+* `current-issues.md`
 
 ---
 
@@ -32,30 +34,31 @@
 
 以下をまとめて更新する：
 
-- `phase-status.md` に完了フェーズを追記
-- `architecture.md` を現状に合わせて更新
-- `current-issues.md` のバックログを整理・削除・追加
+* `phase-status.md` に完了フェーズを追記
+* `architecture.md` を現状に合わせて更新
+* `current-issues.md` のバックログを整理・削除・追加
 
 ---
 
 ## ブランチ運用
 
-- 機能追加: `phaseXX` ブランチ
-- バグ修正: `bugfix/xxx` ブランチ
-- 1フィーチャー1コミット
-- リファクタリングと機能追加の混在禁止
+* 機能追加: `phaseXX` ブランチ
+* バグ修正: `bugfix/xxx` ブランチ
+* 1フィーチャー1コミット
+* リファクタリングと機能追加の混在禁止
 
 ---
 
 ## AI レビュー運用
 
-| 役割 | 担当 |
-|---|---|
-| 設計書・整理・長文構造化 | Claude |
+| 役割             | 担当      |
+| -------------- | ------- |
+| 設計書・整理・長文構造化   | Claude  |
 | 境界条件・将来破綻・責務監査 | ChatGPT |
-| 違和感・UX・優先順位判断 | 開発者 |
+| 違和感・UX・優先順位判断  | 開発者     |
 
 ### 実装フロー
+
 1. 仕様確認
 2. 提案（設計・図解）
 3. 明示的な実装指示
@@ -64,9 +67,76 @@
 
 ---
 
+## handover 作成フロー（推奨）
+
+1. Claude
+
+   * 実装
+   * 差分整理
+   * handover draft 作成
+
+2. ChatGPT
+
+   * handover audit
+   * backlog continuity audit
+   * subsystem整合確認
+
+3. 最終版 handover 確定
+
+### handover の役割
+
+handover は単なる「変更履歴」ではなく、
+以下を維持するためのドキュメントとして扱う：
+
+* subsystem continuity
+* backlog continuity
+* architecture continuity
+* 「今回はやらなかった理由」の保存
+
+`current-issues.md` の単純コピーにはしない。
+
+---
+
+## handover監査チェック
+
+### backlog continuity
+
+* current-issues の関連項目を再掲したか
+* 今回触った subsystem の未完了事項を書いたか
+* 今回触らなかったが関連性の高い issue を書いたか
+
+### architecture continuity
+
+* 設計原則の変化を書いたか
+* subsystem boundary の変更を書いたか
+* authority / responsibility の変更を書いたか
+
+### phase continuity
+
+* 「今回はやらなかった理由」を書いたか
+* 次phase候補の優先順位理由を書いたか
+* 将来フェーズへ分離した理由を書いたか
+
+---
+
+## 注意
+
+handover は「今回変更した内容」だけを書くと、
+phase をまたいだ未完了事項や subsystem continuity が失われやすい。
+
+特に以下は抜けやすいため監査対象とする：
+
+* transient preview 系
+* playback authority 系
+* renderer responsibility 系
+* mutation authority 系
+* modal subsystem と editor core の境界
+
+---
+
 ## handover_phaseXX.md のテンプレート
 
-~~~markdown
+```markdown
 # 引き継ぎ: PhaseXX完了 — タイトル
 
 ## 作業状態
@@ -86,4 +156,4 @@
 
 ## 運用ルール（変わらず）
 → docs/handover/README.md 参照
-~~~
+```
