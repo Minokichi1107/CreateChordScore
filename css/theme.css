@@ -573,7 +573,7 @@ body[data-theme="blue"] {
   --grad-control:
     repeating-linear-gradient(90deg, rgba(255,255,255,0) 0px, rgba(255,255,255,0) 6px, rgba(255,255,255,.08) 7px),
     repeating-linear-gradient(90deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 4px, rgba(0,0,0,.04) 5px),
-    linear-gradient(180deg, #7fceff 0%, #abd6f7 45%, #a5daf8 55%, #73c9ff 100%);
+    linear-gradient(180deg, #7fceff 0%, #abd6f7 25%, #91c0db 65%, #509fd1 100%);
   --grad-control-active: linear-gradient(180deg,#8ab0d8 0%,#a8c8e8 100%);
   --grad-input:          linear-gradient(180deg,#a8c8e8 0%,#c0d8f0 100%);
   --grad-chord-tag:      linear-gradient(180deg,#1e2a50 0%,#141e3a 40%,#1a2448 60%,#0e1830 100%);
