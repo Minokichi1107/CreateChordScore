@@ -156,10 +156,15 @@ modal subsystem 内の小機能として実装しない。
 Phase52 で実装済み。将来の Add Simile / Inline Edit / Transpose Preview でも
 退避→commit/rollback パターンを再利用できる雛形として確立されている。
 
-### C. Chart Mode mini transport
+### C. Chart Mode mini transport enhancement
 
-Chart Mode 内に ▶ / シーク / 速度 / 音量 を持つ mini transport を追加。
-現在はメイン画面で再生してから Chart Mode を開く必要がある。
+既存 mini transport の機能拡張。
+将来的に:
+- compact layout
+- transport detach
+- playback authority 分離
+- follow mode
+などを検討。
 
 ### D. Chart Mode 並列表示
 
