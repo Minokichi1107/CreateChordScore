@@ -464,6 +464,14 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
           if (!hasOnset) {
             chordEl.classList.add('chart-chord--carried');
           }
+
+          // 複数コードが1小節内にある場合、slotIndex比率で水平位置を決定
+          // slotIndex=0 は left:6px、それ以外は小節幅に対する比率で配置
+          const leftPct = (cell.slotIndex / model.slotsPerMeasure) * 100;
+          if (cell.slotIndex > 0) {
+            chordEl.style.left = `calc(${leftPct}% + 2px)`;
+          }
+
           slotEl.appendChild(chordEl);
         }
 
