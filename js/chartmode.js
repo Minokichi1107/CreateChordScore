@@ -5,7 +5,8 @@
  *
  * 【責務】
  *   - buildGridViewModel: analysis → GridViewModel（onset-only canonical）
- *   - expandCarryForward: render時のみの表示継続補完（保存禁止）
+ *   - expandToSlots: render用 slot semantic 配列生成（onset|carry|empty）
+ *   - expandCarryForward: @deprecated Phase57で expandToSlots に置き換え済み
  *   - resolveCollision:   同一スロット複数 onset の解決（render時）
  *   - Chart Mode UI の開閉・描画
  *
@@ -34,6 +35,14 @@
  *   NOTE: chord display projection (capo transpose) is currently performed
  *   per-renderer. Future phases may centralize this into a shared display layer
  *   when N.C. / simile / slash bass / Roman numeral 等が加わる段階で統合を検討する。
+ *
+ * 【Phase57 slot DOM invariant（ChatGPT監査確認済み）】
+ *   semantic slot: 常に固定（expandToSlots の結果）
+ *   visual DOM slot: renderer 都合で省略可
+ *     carry slot は onset の grid-column: span N により領域を確保するため DOM 不要。
+ *   active state lookup は DOM index に依存しない。
+ *     carry beatIndex 到達時は同一小節内で最も近い前の onset slot を逆引きする。
+ *   将来の click seek / beat hover 等も semantic slot（expandToSlots 結果）を参照する。
  */
 
 import { createTimingModel } from './timing.js';
@@ -161,18 +170,122 @@ export function resolveCollision(onsets) {
 }
 
 // ────────────────────────────────────────
-// carry-forward（render時のみ・保存禁止）
+// slot semantic expansion（render時のみ・保存禁止）
 // ────────────────────────────────────────
+
+/**
+ * expandToSlots
+ *
+ * GridViewModel（onset-only canonical）を render 用 slot semantic 配列に展開する。
+ *
+ * 【slot type discriminated union】
+ *   onset: { type:'onset', measureIndex, beatIndex, chord, durationSlots }
+ *     - chord は canonical（capo 変換しない）
+ *     - durationSlots = このonsetを含めて何slot継続するか（1以上）
+ *     - 将来の duration rendering / sustain line のために予約
+ *   carry: { type:'carry', measureIndex, beatIndex, sourceSlotIndex }
+ *     - chord を複製しない（ownership = onset slot）
+ *     - sourceSlotIndex = measure local index（0始まり）
+ *     - 将来の cross-measure sustain では sourceMeasureIndex を追加予定
+ *   empty: { type:'empty', measureIndex, beatIndex }
+ *     - 曲頭でまだ chord が現れていない slot
+ *     - null / undefined ではなく明示的 semantic
+ *
+ * 【設計原則】
+ *   - この関数の戻り値を GridViewModel に保存しないこと（render 時のみ生成）
+ *   - carry slot は chord を複製しない（duplication 禁止）
+ *   - slot 位置は CSS Grid が管理（slot が left% 等を持たない）
+ *   - sourceSlotIndex は measure local index に限定（cross-measure は将来拡張）
+ *
+ * 【durationSlots の定義】
+ *   「このonsetを含めて何slot継続するか」
+ *   単発: 1 / 2拍継続: 2 / 3拍継続: 3 ...
+ *   carry count ではないので注意（0始まりではない）
+ *
+ * @param {object[]} measures       - GridViewModel.measures
+ * @param {number}   slotsPerMeasure
+ * @returns {object[]}  slot semantic 配列（onset | carry | empty）
+ */
+export function expandToSlots(measures, slotsPerMeasure) {
+  const result = [];
+
+  // onset が最後に現れた slot の情報（carry の source 追跡用）
+  let lastOnsetMeasureLocal = null;  // measure 内 slot index（measure local）
+  let lastOnsetChord        = null;  // onset chord（carry 検証用）
+  let lastOnsetResultIndex  = -1;   // result[] 内の onset slot index（durationSlots 更新用）
+
+  for (const measure of measures) {
+    const mi = measure.index;
+
+    // onset map: slotIndex → resolved onset
+    const onsetMap = new Map(
+      measure.slots.map(s => [s.slotIndex, resolveCollision(s.onsets)])
+    );
+
+    for (let si = 0; si < slotsPerMeasure; si++) {
+      const onset = onsetMap.get(si);
+
+      if (onset) {
+        // ── onset slot ──────────────────────────────────────
+        // 直前の onset の durationSlots を確定する
+        // （次の onset が来た時点で「ここまでが継続」と分かる）
+        if (lastOnsetResultIndex >= 0) {
+          // 現在の result index との差分が前 onset の durationSlots
+          const prevSlot = result[lastOnsetResultIndex];
+          const currentResultIndex = result.length;
+          prevSlot.durationSlots = currentResultIndex - lastOnsetResultIndex;
+        }
+
+        const slotData = {
+          type:          'onset',
+          measureIndex:  mi,
+          beatIndex:     si,
+          chord:         onset.chord,  // canonical（capo 変換しない）
+          durationSlots: 1,            // 暫定値。次の onset 到達時に更新
+        };
+        result.push(slotData);
+
+        lastOnsetMeasureLocal = si;
+        lastOnsetChord        = onset.chord;
+        lastOnsetResultIndex  = result.length - 1;
+
+      } else if (lastOnsetChord !== null) {
+        // ── carry slot ──────────────────────────────────────
+        // chord は複製しない。sourceSlotIndex は measure local index
+        result.push({
+          type:            'carry',
+          measureIndex:    mi,
+          beatIndex:       si,
+          sourceSlotIndex: lastOnsetMeasureLocal,  // measure local（0始まり）
+        });
+
+      } else {
+        // ── empty slot ──────────────────────────────────────
+        // 曲頭でまだ chord が現れていない（null ではなく明示 semantic）
+        result.push({
+          type:         'empty',
+          measureIndex: mi,
+          beatIndex:    si,
+        });
+      }
+    }
+  }
+
+  // 最後の onset の durationSlots を確定（曲末尾）
+  if (lastOnsetResultIndex >= 0) {
+    const prevSlot = result[lastOnsetResultIndex];
+    prevSlot.durationSlots = result.length - lastOnsetResultIndex;
+  }
+
+  return result;
+}
 
 /**
  * expandCarryForward
  *
- * GridViewModel（onset-only）を render 用に展開する。
- * 各スロットに表示する chord を決定し、flat な配列として返す。
- *
- * 【設計上の注意】
- *   この関数の戻り値を GridViewModel に保存しないこと。
- *   render 時のたびに生成する。
+ * @deprecated Phase57 で expandToSlots() に置き換え。
+ *   _renderChartGrid が Step2 で slot-loop 化されたら削除する。
+ *   現時点では旧 renderer との互換維持のため残置。
  *
  * @param {object[]} measures  - GridViewModel.measures
  * @param {number}   slotsPerMeasure
@@ -183,7 +296,6 @@ export function expandCarryForward(measures, slotsPerMeasure) {
   let lastChord = null;
 
   for (const measure of measures) {
-    // onset インデックスを SlotIndex → onset のマップに変換
     const onsetMap = new Map(
       measure.slots.map(s => [s.slotIndex, resolveCollision(s.onsets)])
     );
@@ -196,7 +308,7 @@ export function expandCarryForward(measures, slotsPerMeasure) {
       result.push({
         measureIndex: measure.index,
         slotIndex:    si,
-        chord:        lastChord,  // null = 曲頭でまだ chord が現れていない
+        chord:        lastChord,
       });
     }
   }
@@ -370,8 +482,20 @@ function _renderChartHeader(vm, analysis) {
  * _renderChartGrid
  *
  * コードグリッドを描画する。
- * full / beat-only: 小節グリッド
+ * full / beat-only: 小節グリッド（slot-centric renderer）
  * fallback:         コード列（均等配置・小節線なし）
+ *
+ * 【Phase57 renderer 設計原則】
+ *   slot owns timing semantic — CSS Grid owns layout
+ *
+ *   measure = grouping container + stacking context（playhead overlay用）
+ *   slot    = timing semantic unit（beatIndex / chord ownership）
+ *   CSS Grid = visual placement authority（position: static）
+ *   playhead = continuous overlay（measure直下 absolute）
+ *
+ *   chord label は onset slot のみ生成。
+ *   carry / empty は DOM label を生成しない。
+ *   slot が left% 等の位置情報を持たない（CSS Grid に委譲）。
  */
 function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
   const container = document.getElementById('chart-grid');
@@ -390,25 +514,29 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
     return;
   }
 
-  // full / beat-only: measuresPerRow 小節ずつ行に並べる
-  const MEASURES_PER_ROW = measuresPerRow;
-  const expanded = expandCarryForward(measures, model.slotsPerMeasure);
+  // display projection: capo 移調を表示時のみ適用
+  // analysis.raw / GridViewModel の chord は canonical のまま保持する
+  const capo = _getCapo?.() ?? 0;
 
-  // expanded を measure ごとにグループ化
-  const byMeasure = new Map();
-  for (const cell of expanded) {
-    if (!byMeasure.has(cell.measureIndex)) {
-      byMeasure.set(cell.measureIndex, []);
+  // slot semantic 配列を生成（expandToSlots: onset | carry | empty）
+  // chord は複製しない。carry は sourceSlotIndex 参照のみ。
+  const allSlots = expandToSlots(measures, model.slotsPerMeasure);
+
+  // measure ごとにグループ化（slot.measureIndex でマッピング）
+  const slotsByMeasure = new Map();
+  for (const slot of allSlots) {
+    if (!slotsByMeasure.has(slot.measureIndex)) {
+      slotsByMeasure.set(slot.measureIndex, []);
     }
-    byMeasure.get(cell.measureIndex).push(cell);
+    slotsByMeasure.get(slot.measureIndex).push(slot);
   }
 
   // 行ごとに描画
-  for (let rowStart = 0; rowStart < measures.length; rowStart += MEASURES_PER_ROW) {
+  for (let rowStart = 0; rowStart < measures.length; rowStart += measuresPerRow) {
     const rowEl = document.createElement('div');
     rowEl.className = 'chart-row';
 
-    for (let mi = rowStart; mi < Math.min(rowStart + MEASURES_PER_ROW, measures.length); mi++) {
+    for (let mi = rowStart; mi < Math.min(rowStart + measuresPerRow, measures.length); mi++) {
       const measureEl = document.createElement('div');
       measureEl.className = 'chart-measure';
       if (model.mode === 'beat-only') {
@@ -422,64 +550,85 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
       numEl.textContent = mi + 1;
       measureEl.appendChild(numEl);
 
-      // ビートカーソル（render時に1回だけ生成・参照を保持）
-      // playback中は left% のみを更新する（DOM再生成しない）
-      const cursorEl = document.createElement('div');
-      cursorEl.className = 'chart-beat-cursor';
-      measureEl.appendChild(cursorEl);
-      measureEl._beatCursorEl = cursorEl;
+      // ── playhead overlay ──────────────────────────────────
+      // measure 直下の continuous playback position indicator。
+      // slot の子ではない（slot は timing semantic unit であり playhead を所有しない）。
+      // playback 中は style.left のみ更新（DOM 再生成しない）。
+      // 停止時: timeupdate が止まるため最後の位置に静止したまま残る（仕様A）。
+      const playheadEl = document.createElement('div');
+      playheadEl.className = 'chart-playhead';
+      measureEl.appendChild(playheadEl);
+      // _playheadEl 参照を保持（updateChartPlayback から参照）
+      measureEl._playheadEl = playheadEl;
 
-      // スロット
+      // ── スロットコンテナ ──────────────────────────────────
+      // CSS Grid で slot 数に応じた均等配置（位置は slot が持たない）
+      // slot DOM は全て生成する（carry / empty 含む）。
+      // grid-auto-flow: row のデフォルトで1行に収まることを保証する。
+      // chord label の幅は CSS変数 --duration-slots で制御する（span 方式は使わない）。
       const slotsEl = document.createElement('div');
       slotsEl.className = 'chart-slots';
+      slotsEl.style.gridTemplateColumns = `repeat(${model.slotsPerMeasure}, 1fr)`;
 
-      const cells = byMeasure.get(mi) ?? [];
-      for (const cell of cells) {
+      // ── slot loop ──────────────────────────────────────────
+      // 全 slot（onset / carry / empty）の DOM を生成する。
+      // slot DOM invariant: DOM slot count = semantic slot count（beatIndex と一致）
+      // chord label の幅拡張は grid-column: span ではなく CSS変数 --duration-slots で行う。
+      // これにより Grid 折り返しが発生しない。
+      const measureSlots = slotsByMeasure.get(mi) ?? [];
+      for (const slot of measureSlots) {
         const slotEl = document.createElement('div');
         slotEl.className = 'chart-slot';
-        slotEl.dataset.slotIndex = cell.slotIndex;
+        slotEl.dataset.slotIndex = slot.beatIndex;
 
-        // beat頭スロット（slotIndex % resolutionPerBeat === 0）に区切り線
-        if (cell.slotIndex % 2 === 0) {
+        // beat 頭スロット（beatIndex が偶数 = 1拍目相当）に区切り線
+        if (slot.beatIndex % 2 === 0) {
           slotEl.classList.add('chart-slot--beat');
         }
 
-        // onset 判定（carry-forward との区別に使用、将来のdebug overlay用に保持）
-        const measureData = measures[mi];
-        const hasOnset = measureData?.slots.some(s => s.slotIndex === cell.slotIndex);
+        // switch(slot.type) で exhaustive dispatch（if(!slot) 禁止）
+        switch (slot.type) {
+          case 'onset': {
+            slotEl.classList.add('chart-slot--onset');
 
-        if (cell.chord) {
-          const chordEl = document.createElement('span');
-          chordEl.className = 'chart-chord-name';
+            // CSS変数 --duration-slots で chord label の表示幅を制御する。
+            // label は position:absolute でslot左端から右へ伸びる。
+            // 1slot分: 100% / 4slot分: 400% のように計算する。
+            // grid-column: span は使わない（Grid折り返し防止）。
+            slotEl.style.setProperty('--duration-slots', slot.durationSlots);
 
-          // display projection: capo 移調を表示時のみ適用
-          // analysis.raw / GridViewModel の chord は canonical のまま保持する
-          // （analysis は regeneratable artifact のため保存時に変換しないこと）
-          const capo = _getCapo?.() ?? 0;
-          const display = (capo !== 0 && _transposeChord)
-            ? _transposeChord(cell.chord, -capo)
-            : cell.chord;
-          chordEl.textContent = display;
+            const chordEl = document.createElement('span');
+            chordEl.className = 'chart-chord-name';
 
-          // 長いコード名は compact 表示（行高を変えずに収める）
-          if (display.length >= COMPACT_CHORD_LENGTH) {
-            chordEl.classList.add('chart-chord-name--compact');
-            chordEl.dataset.chord = display;  // ホバーツールチップ用
+            // display projection: render 時のみ capo 移調（canonical は変更しない）
+            const display = (capo !== 0 && _transposeChord)
+              ? _transposeChord(slot.chord, -capo)
+              : slot.chord;
+            chordEl.textContent = display;
+
+            // compact 表示（8文字以上 → font-size 縮小・行高維持）
+            if (display.length >= COMPACT_CHORD_LENGTH) {
+              chordEl.classList.add('chart-chord-name--compact');
+              chordEl.dataset.chord = display;  // hover tooltip 用
+            }
+
+            slotEl.appendChild(chordEl);
+            break;
           }
 
-          // carry-forward（onset なし）は薄く表示
-          if (!hasOnset) {
-            chordEl.classList.add('chart-chord--carried');
-          }
+          case 'carry':
+            // carry slot: DOM は生成するが chord label を持たない。
+            // onset の chord label が CSS で carry 領域へ伸びるため視覚的に継続して見える。
+            // opacity ではなく class のみ（opacity は子要素に継承されるため使わない）。
+            slotEl.classList.add('chart-slot--carry');
+            break;
 
-          // 複数コードが1小節内にある場合、slotIndex比率で水平位置を決定
-          // slotIndex=0 は left:6px、それ以外は小節幅に対する比率で配置
-          const leftPct = (cell.slotIndex / model.slotsPerMeasure) * 100;
-          if (cell.slotIndex > 0) {
-            chordEl.style.left = `calc(${leftPct}% + 2px)`;
-          }
+          case 'empty':
+            // empty slot: 曲頭でまだ chord が現れていない
+            slotEl.classList.add('chart-slot--empty');
+            break;
 
-          slotEl.appendChild(chordEl);
+          // 将来: case 'simile': / case 'repeat-start': 等をここに追加
         }
 
         slotsEl.appendChild(slotEl);
@@ -557,25 +706,25 @@ export function updateChartPlayback(currentTime) {
     `.chart-measure[data-measure-index="${q.measure}"]`
   );
   if (measureEl) {
-    // 順序: active class 付与 → cursor left 更新（逆順だとチラつく）
+    // 順序: active class 付与 → playhead left 更新（逆順だとチラつく）
     measureEl.classList.add('chart-measure--active');
 
-    // ビートカーソル位置を更新（left% のみ。DOM再生成しない）
+    // playhead 位置を更新（left% のみ。DOM再生成しない）
     // getBeatPosition: timing authority が 0.0〜1.0 を返す
     // chartmode はそれを left% に変換するだけ（timing interpretation をしない）
-    // 停止時: timeupdate が止まるため cursor はその位置に静止したまま残る（仕様A）
-    if (measureEl._beatCursorEl && model.getBeatPosition) {
+    // 停止時: timeupdate が止まるため playhead はその位置に静止したまま残る（仕様A）
+    // _playheadEl: measure 直下 overlay（Phase57: _beatCursorEl から改名）
+    if (measureEl._playheadEl && model.getBeatPosition) {
       const pos = model.getBeatPosition(currentTime);
-      measureEl._beatCursorEl.style.left = `${pos * 100}%`;
+      measureEl._playheadEl.style.left = `${pos * 100}%`;
     }
 
-    // 現在のスロットをハイライト
+    // 現在の slot をハイライト
+    // slot DOM invariant が復活したため、q.slot は常に DOM に対応する（carry 含む）
     const slotEl = measureEl.querySelector(
       `.chart-slot[data-slot-index="${q.slot}"]`
     );
-    if (slotEl) {
-      slotEl.classList.add('chart-slot--active');
-    }
+    if (slotEl) slotEl.classList.add('chart-slot--active');
 
     // ★ 小節が変わった時だけ中央スクロール
     if (q.measure !== chartState.lastScrolledMeasure) {

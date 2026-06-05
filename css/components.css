@@ -536,39 +536,60 @@
   text-align: right;
 }
 
-/* スロット列 */
+/* Phase57: slot DOM invariant 復活。全slot（carry/empty含む）を生成。
+   chord label の幅は --duration-slots CSS変数で制御する。
+   grid-column: span は使わない（Grid折り返し防止）。 */
 .chart-slots {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr); /* fallback: 4/4×2分解=8slot */
   min-height: 36px;
 }
+/* slot は CSS Grid の子として自動配置される（全slot DOM固定） */
 .chart-slot {
-  flex: 1;
+  position: relative;  /* chord label の absolute 配置基準 */
   border-left: 1px solid transparent;
-  padding: 2px 2px 4px;
   min-width: 0;
+  min-height: 36px;   /* chord label の bottom: 4px 基準を確保 */
+  /* overflow: visible → chord label が右に伸びられるよう hidden にしない */
 }
 .chart-slot--beat {
   border-left-color: var(--border-ui);
 }
+/* onset: chord label を持つ slot */
 .chart-slot--onset {
-  background: rgba(var(--color-blue-rgb), .08);
+  /* chord label が absolute で右へ伸びる基準 */
+}
+/* carry: 継続中（chord label なし）
+   opacity は使わない（onset の label が上に重なった時に継承されて薄くなるため）*/
+.chart-slot--carry {
+  /* 視覚的には onset label が覆うため特別なスタイル不要 */
+}
+/* empty: 曲頭でまだ chord が現れていない */
+.chart-slot--empty {
+  /* 特別なスタイルなし */
 }
 
-/* コード名：小節左端基準で絶対配置し、小節幅いっぱいに展開 */
+/* コード名
+   Phase57（修正版）: slot DOM invariant 復活。
+   onset slot に --duration-slots CSS変数を設定し、label がその分だけ右へ広がる。
+   position: absolute で carry 領域を視覚的にカバーする。
+   100% = onset slot 1個分の幅。duration-slots 個分だけ右に伸びる。
+   z-index: 1 で carry slot の上に重なる。 */
 .chart-chord-name {
   font-family: 'Atkinson Hyperlegible', var(--font-mono), monospace;
   font-size: 12px;
-  font-weight: 700;  /* 800→700に戻す */
+  font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: block;
   position: absolute;
-  left: 6px;
-  right: 4px;
-  bottom: 6px;
+  bottom: 4px;
+  left: 2px;
+  /* --duration-slots: JS で onset slot に設定。1slot = 100%換算 */
+  width: calc(var(--duration-slots, 1) * 100% - 4px);
+  z-index: 1;
 }
 /* 長いコード名の軽縮小 + ホバーツールチップ */
 .chart-chord-name--compact {
@@ -592,37 +613,33 @@
   z-index: 100;
   display: none;
 }
-/* ── Chart Mode: beat cursor ─────────────────────────────
-   render時に1回だけ生成。playback中は left% のみ更新する。
-   measureEl._beatCursorEl で参照保持のためDOM再生成しない。
-   transform: translateX(-50%) で left 基準を中心に補正する。
+/* ── Chart Mode: playhead ────────────────────────────────
+   Phase57: .chart-beat-cursor から .chart-playhead に改名。
+   measure 直下の continuous playback indicator。
+   slot の子ではない（measure の stacking context に重ねる）。
+   render時に1回だけ生成。playback中は left% のみ更新（DOM再生成なし）。
+   transform: translateX(-50%) で left 基準を線の中心に補正する。
+   measureEl._playheadEl で参照保持（Phase57: _beatCursorEl から改名）。
    ─────────────────────────────────────────────────────── */
-.chart-beat-cursor {
+.chart-playhead {
   position: absolute;
-  top:    4px;          /* 上端の突き抜け防止 */
-  bottom: 4px;          /* 下端の突き抜け防止 */
+  top:    4px;
+  bottom: 4px;
   width:  2px;
   left:   0%;           /* JS で動的更新 */
-  transform: translateX(-50%);  /* 線の中心を基準にする（左端ではなく） */
+  transform: translateX(-50%);
   border-radius: 999px;
   pointer-events: none;
   background: var(--chart-beat-cursor);
   display: none;        /* 非アクティブ時は非表示 */
 }
-
 /* アクティブ小節の時だけ表示 */
-.chart-measure--active .chart-beat-cursor {
+.chart-measure--active .chart-playhead {
   display: block;
 }
 
-.chart-chord--carried {
-  display: none;
-}
-/* 将来: playback active 時に再表示
-.chart-slot--active .chart-chord--carried {
-  display: block;
-  color: var(--text-muted);
-} */
+/* Phase57: carry slot は chord label を生成しないため .chart-chord--carried は不要。
+   carry の視覚表現は .chart-slot--carry { opacity: 0.35 } で行う。 */
 
 /* 警告・空状態 */
 .chart-warn {
