@@ -378,32 +378,37 @@ function forcePreviewChord(chord) {
 // FILE LOADING
 // ════════════════════════════════════════
 
-async function loadChordData(data,filename){
+async function loadChordData(data, filename, { isRestore = false } = {}) {
 
-  // ── capo restore ──────────────────────────────────────────
-  // コードJSONはcanonical（capo=0）データ前提。
-  // import前にlinesのchordを現capo分だけ逆方向に戻してから
-  // capo stateを0にリセットする。
-  // （restore→reset→ingest の順序が重要）
-  //
-  // paletteはこの直後に新JSONから再生成されるためrestoreしない。
-  // capo change: semitones = -diff なので
-  // restore方向: +_prevCapo（逆算）
-  if (_prevCapo !== 0) {
-    const restoreSemitones = _prevCapo;
-    (project.lines || []).forEach(line => {
-      line.chords.forEach(c => {
-        if (!c.chord) return;
-        c.chord = transposeChord(c.chord, restoreSemitones);
+  if (!isRestore) {
+    // ── capo restore（手動 import 時のみ）────────────────────
+    // コードJSONはcanonical（capo=0）データ前提。
+    // import前にlinesのchordを現capo分だけ逆方向に戻してから
+    // capo stateを0にリセットする。
+    // （restore→reset→ingest の順序が重要）
+    //
+    // paletteはこの直後に新JSONから再生成されるためrestoreしない。
+    // capo change: semitones = -diff なので
+    // restore方向: +_prevCapo（逆算）
+    if (_prevCapo !== 0) {
+      const restoreSemitones = _prevCapo;
+      (project.lines || []).forEach(line => {
+        line.chords.forEach(c => {
+          if (!c.chord) return;
+          c.chord = transposeChord(c.chord, restoreSemitones);
+        });
       });
-    });
+    }
+    document.getElementById('capo').value = 0;
+    _prevCapo = 0;
+    // NOTE: capo authority は DOM state (#capo) と _prevCapo で管理する
+    //       project.capo は normalizeProject 経由で schema 管理される
+    // ──────────────────────────────────────────────────────────
   }
-
-  // capo state リセット（3つセットで整合）
-  project.capo = 0;
-  document.getElementById('capo').value = 0;
-  _prevCapo = 0;
-  // ──────────────────────────────────────────────────────────
+  // NOTE [isRestore = true]:
+  // IndexedDB restore path already provides canonical chord data.
+  // Capo lifecycle is restored separately by loadProj() via uiState.capo.
+  // Therefore restore flow must NOT execute destructive capo rollback/reset.
 
   project.chord_source=filename;
   const b=document.getElementById('chord-btn');b.textContent=filename;b.classList.add('loaded');
@@ -1308,7 +1313,7 @@ async function loadProj(data){
         data = parseJSON(chordAsset.data);
       }
       if (data) {
-        loadChordData(data, chordAsset.filename);
+        loadChordData(data, chordAsset.filename, { isRestore: true });
         chordRestored = true;
       }
     }
@@ -2182,3 +2187,26 @@ window.addEventListener('DOMContentLoaded',()=>{
   }
   refreshEditor();renderPalette();
 });
+
+// ── [TEMP REPAIR] Phase55 project data repair expose ──────
+// 使用後は必ず削除すること
+window.__CS_TRANSPOSE__ = transposeChord;
+window.__CS_REFRESH__   = refreshEditor;
+window.__CS_PROJECT__   = project;
+window.__CS_CHARTSTATE__ = chartState;
+window.__CS_REPAIR__    = (semitones) => {
+  // semitones を明示指定、または capo UI値を使用
+  const n = semitones !== undefined
+    ? semitones
+    : parseInt(document.getElementById('capo').value) || 0;
+  console.log('[repair] semitones =', n, '/ lines =', project.lines.length);
+  project.lines.forEach(line => {
+    line.chords.forEach(c => {
+      if (!c.chord) return;
+      c.chord = transposeChord(c.chord, n);
+    });
+  });
+  refreshEditor();
+  console.log('[repair] complete');
+};
+// ──────────────────────────────────────────────────────────

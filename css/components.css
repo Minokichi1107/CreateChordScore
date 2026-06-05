@@ -796,3 +796,9 @@
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }
 }
+
+/* ── Chart Mode: capo info ────────────────────────────── */
+.chart-header-capo {
+  color: var(--capo-info-color);
+  font-weight: 600;
+}

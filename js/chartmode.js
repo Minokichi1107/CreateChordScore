@@ -475,7 +475,15 @@ function _renderChartHeader(vm, analysis) {
     'fallback':  '<span class="chart-warn">⚠️ タイミング解析不可</span>',
   }[mode] ?? '';
 
-  el.innerHTML = [bpm, ts, modeWarning].filter(Boolean).join(' &nbsp;|&nbsp; ');
+  const capo = _getCapo?.() ?? 0;
+  const key  = document.getElementById('proj-key')?.value?.trim() ?? '';
+  let capoInfo = '';
+  if (capo > 0) {
+    capoInfo = key
+      ? `Capo ${capo} → Concert: ${_transposeChord(key, capo)}`
+      : `Capo ${capo}`;
+  }
+  el.innerHTML = [bpm, ts, capoInfo, modeWarning].filter(Boolean).join(' &nbsp;|&nbsp; ');
 }
 
 /**
