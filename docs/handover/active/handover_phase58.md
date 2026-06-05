@@ -2,8 +2,8 @@
 
 ## 作業状態
 
-* ブランチ: main
-* commit: `d4018ea`
+* branch: main
+* status: committed
 
 ---
 
