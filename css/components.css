@@ -592,6 +592,29 @@
   z-index: 100;
   display: none;
 }
+/* ── Chart Mode: beat cursor ─────────────────────────────
+   render時に1回だけ生成。playback中は left% のみ更新する。
+   measureEl._beatCursorEl で参照保持のためDOM再生成しない。
+   transform: translateX(-50%) で left 基準を中心に補正する。
+   ─────────────────────────────────────────────────────── */
+.chart-beat-cursor {
+  position: absolute;
+  top:    4px;          /* 上端の突き抜け防止 */
+  bottom: 4px;          /* 下端の突き抜け防止 */
+  width:  2px;
+  left:   0%;           /* JS で動的更新 */
+  transform: translateX(-50%);  /* 線の中心を基準にする（左端ではなく） */
+  border-radius: 999px;
+  pointer-events: none;
+  background: var(--chart-beat-cursor);
+  display: none;        /* 非アクティブ時は非表示 */
+}
+
+/* アクティブ小節の時だけ表示 */
+.chart-measure--active .chart-beat-cursor {
+  display: block;
+}
+
 .chart-chord--carried {
   display: none;
 }

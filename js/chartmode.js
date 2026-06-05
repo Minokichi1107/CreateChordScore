@@ -422,6 +422,13 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
       numEl.textContent = mi + 1;
       measureEl.appendChild(numEl);
 
+      // ビートカーソル（render時に1回だけ生成・参照を保持）
+      // playback中は left% のみを更新する（DOM再生成しない）
+      const cursorEl = document.createElement('div');
+      cursorEl.className = 'chart-beat-cursor';
+      measureEl.appendChild(cursorEl);
+      measureEl._beatCursorEl = cursorEl;
+
       // スロット
       const slotsEl = document.createElement('div');
       slotsEl.className = 'chart-slots';
@@ -550,7 +557,17 @@ export function updateChartPlayback(currentTime) {
     `.chart-measure[data-measure-index="${q.measure}"]`
   );
   if (measureEl) {
+    // 順序: active class 付与 → cursor left 更新（逆順だとチラつく）
     measureEl.classList.add('chart-measure--active');
+
+    // ビートカーソル位置を更新（left% のみ。DOM再生成しない）
+    // getBeatPosition: timing authority が 0.0〜1.0 を返す
+    // chartmode はそれを left% に変換するだけ（timing interpretation をしない）
+    // 停止時: timeupdate が止まるため cursor はその位置に静止したまま残る（仕様A）
+    if (measureEl._beatCursorEl && model.getBeatPosition) {
+      const pos = model.getBeatPosition(currentTime);
+      measureEl._beatCursorEl.style.left = `${pos * 100}%`;
+    }
 
     // 現在のスロットをハイライト
     const slotEl = measureEl.querySelector(

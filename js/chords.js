@@ -443,7 +443,7 @@ export function transposeChord(chord, semitones){
 export function showCapoInfo(displayChord, capo){
   if(capo===0)return'';
   const realChord=transposeChord(displayChord, capo);
-  return`<div style="font-size:10px;color:var(--color-amber);text-align:center;margin-top:4px;font-family:var(--font-mono)">カポ${capo} → 実音: ${realChord}</div>`;
+  return`<div style="font-size:10px;color:var(--capo-info-color);text-align:center;margin-top:4px;font-family:var(--font-mono)">カポ${capo} → 実音: ${realChord}</div>`;
 }
 
 // ════════════════════════════════════════

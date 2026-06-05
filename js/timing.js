@@ -338,6 +338,33 @@ export function createTimingModel({
     return measures[measureIndex] ?? null;
   }
 
+  /**
+   * getBeatPosition
+   *
+   * 現在時刻が「小節内のどの位置にいるか」を 0.0〜1.0 で返す。
+   *
+   * 【責務分離】
+   *   timing interpretation (slot → 割合変換) はこの関数が持つ。
+   *   chartmode.js は受け取った値を left% に変換するだけでよい。
+   *
+   * 【設計上の注意】
+   *   今回の実装は slotIndex / slotsPerMeasure による等分割。
+   *   将来 swing / triplet / subdivision が加わる場合も
+   *   この関数内で吸収することで renderer 側への leakage を防ぐ。
+   *
+   * @param {number} time - 現在の再生時刻（秒）
+   * @returns {number} 0.0〜1.0（小節内での拍位置の割合）
+   *                   fallback / 小節外の場合は 0.0 を返す
+   */
+  function getBeatPosition(time) {
+    const q = quantize(time);
+    if (q.confidence === 'low' && q.slot === 0 && q.beat === 0) {
+      // fallback quantize の戻り値（全部0）は位置不明として先頭扱い
+      return 0.0;
+    }
+    return q.slot / slotsPerMeasure;
+  }
+
   return {
     mode,
     // measureCount は detector quality 依存（最終小節を検出できない場合に欠ける）
@@ -345,5 +372,6 @@ export function createTimingModel({
     slotsPerMeasure,
     quantize,
     getMeasure,
+    getBeatPosition,
   };
 }

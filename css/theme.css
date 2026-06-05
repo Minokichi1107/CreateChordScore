@@ -245,6 +245,8 @@
   /* --- chart transport --- */
   --chart-seek-track: #2a2f45;      /* [SAFE] darkテーマ track背景 */
   --chart-seek-fill:  #4f9eff;      /* [SAFE] darkテーマ fill */
+  --chart-beat-cursor: rgba(79,158,255, 0.7);  /* [SAFE] darkテーマ ビートカーソル */
+  --capo-info-color: #ffcc66;       /* [SAFE] カポ→実音表示（dark: amber明るめ） */
 }
 
 body[data-theme="dark"] {
@@ -502,6 +504,8 @@ body[data-theme="silver"] {
   /* --- chart transport --- */
   --chart-seek-track: #909aac;      /* [SAFE] silverテーマ track背景 */
   --chart-seek-fill:  #1a55c8;      /* [SAFE] silverテーマ fill */
+  --chart-beat-cursor: rgba(26,85,200, 0.8);   /* [SAFE] silverテーマ ビートカーソル */
+  --capo-info-color: #7a4400;       /* [SAFE] カポ→実音表示（silver: 濃い茶で背景に対比） */
 }
 
 
@@ -703,6 +707,8 @@ body[data-theme="blue"] {
   /* --- chart transport --- */
   --chart-seek-track: rgba(0,28,58,.55);   /* [SAFE] blueテーマ track背景 */
   --chart-seek-fill:  #4f9eff;             /* [SAFE] blueテーマ fill */
+  --chart-beat-cursor: rgba(255,255,255, 0.6); /* [SAFE] blueテーマ ビートカーソル */
+  --capo-info-color: #f0a030;       /* [SAFE] カポ→実音表示（blue: やや明るいオレンジ） */
 }
 
 
