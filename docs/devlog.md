@@ -528,3 +528,34 @@ committed state
 ### 次
 Phase52: Transient Preview Restore
 
+## 2026-06-03,04
+
+### やったこと
+Phase53 — insertion cursor navigation in AddChord modal
+Phase54 — Chart Mode 3列/4列切替 + measure-based chord projection
+### 気づき
+app.jsの修正をロールバックするときに関数の修正を面倒に感じてrestoreコマンドを使ってしまったためかなり以前のフェーズまで戻ってしまった。手抜きをせずに確認しつつ修正すべきだった。
+### 次
+
+## 2026-06-05
+
+### やったこと
+Phase55 — カポ引き継ぎバグ修正 + AddChordモーダルUI改善 + Chart Modeコード重なり修正
+Phase56 — Chart Mode ビート単位フォーカス + capo info theme token
+Phase57完了 — Chart Mode slot-semantic renderer
+### 気づき
+
+### 次
+
+## 2026-06-06
+
+### やったこと
+Phase58完了 — capo lifecycle stabilization + Chart header capo info
+Phase59完了 — timing stabilization infrastructure + timing failure taxonomy
+ドキュメントの棚卸し
+### 気づき
+Issue #45「小節頭ズレ」を自動的に補正することを今フェーズの目的としていたが、色々なパターンがあることが判明し、今回それらの問題を分類し分析するフェーズとなった。
+### 次
+
+
+

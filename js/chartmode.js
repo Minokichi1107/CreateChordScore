@@ -38,14 +38,20 @@
  *
  * 【Phase57 slot DOM invariant（ChatGPT監査確認済み）】
  *   semantic slot: 常に固定（expandToSlots の結果）
- *   visual DOM slot: renderer 都合で省略可
- *     carry slot は onset の grid-column: span N により領域を確保するため DOM 不要。
- *   active state lookup は DOM index に依存しない。
- *     carry beatIndex 到達時は同一小節内で最も近い前の onset slot を逆引きする。
+ *   visual DOM slot: 全 slot（onset / carry / empty）を生成する（Phase57で復活）
+ *   active state lookup は data-slot-index 属性経由。
+ *     carry / empty 含む全 slot DOM が生成されるため逆引きは不要（Phase57で解決済み）。
  *   将来の click seek / beat hover 等も semantic slot（expandToSlots 結果）を参照する。
+ *
+ * 【Phase59 timing stabilization（normalized timing pipeline）】
+ *   buildGridViewModel() は rawAnalysis を直接 createTimingModel() に渡さない。
+ *   buildNormalizedTimingAnalysis() を経由して normalized source を取得する。
+ *   これにより将来の perform.js / click seek 等も同一 timing source を参照できる。
+ *   診断結果（analyzeTiming）は window.__TIMING_DEBUG__ に常に書き込む。
+ *   repair はデフォルト OFF（experimental）。
  */
 
-import { createTimingModel } from './timing.js';
+import { createTimingModel, buildNormalizedTimingAnalysis, analyzeTiming } from './timing.js';
 
 
 
@@ -67,10 +73,39 @@ import { createTimingModel } from './timing.js';
  * @param {number} [audioDuration]
  * @returns {{ model: TimingModel, measures: object[] } | null}
  */
-export function buildGridViewModel(analysis, audioDuration = null) {
+export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
   if (!analysis) return null;
 
-  const { beats, downbeats, timeSignature, chords } = analysis;
+  // ── Phase59: normalized timing pipeline ──────────────────────────
+  // rawAnalysis を直接 createTimingModel() に渡さない。
+  // buildNormalizedTimingAnalysis() を経由することで:
+  //   1. drift 診断（analyzeTiming）を常に実行
+  //   2. repair: true 時のみ downbeat 補正を適用
+  //   3. 将来の perform.js / click seek も同一 source を参照できる
+  // __TIMING_DEBUG__ への書き込みはここ（chartmode.js）の責務
+  //   timing.js は pure function として DOM / global state に触らない
+  const { repair = false, repairOpts = {} } = opts;
+  const normalized = buildNormalizedTimingAnalysis(analysis, { repair, repairOpts });
+
+  // DevTools デバッグ用（将来の issue 報告・A案設計のデータ収集）
+  window.__TIMING_DEBUG__ = {
+    raw: {
+      beats:     analysis.beats     ?? [],
+      downbeats: analysis.downbeats ?? [],
+    },
+    diagnostics: normalized.diagnostics,
+    repair:      normalized.repair,
+    normalized: {
+      beats:     normalized.beats,
+      downbeats: normalized.downbeats,
+    },
+  };
+
+  const { beats, downbeats, timeSignature, chords } = {
+    ...analysis,
+    beats:     normalized.beats,
+    downbeats: normalized.downbeats,
+  };
 
   const model = createTimingModel({
     beats,
@@ -84,7 +119,7 @@ export function buildGridViewModel(analysis, audioDuration = null) {
 
   // fallback モード: コード列のみ（グリッドなし）
   if (model.mode === 'fallback') {
-    return { model, measures: [] };
+    return { model, measures: [], repairPerMeasure: new Map() };
   }
 
   const slotsPerMeasure = model.slotsPerMeasure;
@@ -133,7 +168,12 @@ export function buildGridViewModel(analysis, audioDuration = null) {
     measure.slots.sort((a, b) => a.slotIndex - b.slotIndex);
   }
 
-  return { model, measures };
+  // repairPerMeasure: measure index → repair状態のマップ
+  // _renderChartGrid() でdata-repair-state付与に使用
+  const repairPerMeasureArr = normalized.repair?.perMeasure ?? [];
+  const repairPerMeasure    = new Map(repairPerMeasureArr.map(e => [e.index, e]));
+
+  return { model, measures, repairPerMeasure };
 }
 
 // ────────────────────────────────────────
@@ -515,7 +555,7 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
     return;
   }
 
-  const { model, measures } = vm;
+  const { model, measures, repairPerMeasure = new Map() } = vm;
 
   if (model.mode === 'fallback') {
     _renderFallbackGrid(container, analysis);
@@ -551,6 +591,24 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
         measureEl.classList.add('chart-measure--estimated');
       }
       measureEl.dataset.measureIndex = mi;
+
+      // ── Phase59: timing diagnosis data attributes ─────────────
+      // data-confidence / data-repair-state を付与する。
+      // 将来の tooltip / debug export / click inspect に使用。
+      // repairPerMeasure は buildGridViewModel() のスコープから参照する。
+      const measureConf = measures[mi]?.confidence ?? 'high';
+      measureEl.dataset.confidence = measureConf;
+      const repairEntry = repairPerMeasure[mi];
+      if (repairEntry) {
+        measureEl.dataset.repairState = repairEntry.state;
+        if (repairEntry.state === 'repaired') {
+          measureEl.classList.add('chart-measure--drift-repaired');
+        } else if (repairEntry.state === 'rejected') {
+          measureEl.classList.add('chart-measure--drift-rejected');
+        }
+      } else {
+        measureEl.dataset.repairState = 'original';
+      }
 
       // 小節番号（UI表示は 1-based）
       const numEl = document.createElement('div');

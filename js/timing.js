@@ -375,3 +375,372 @@ export function createTimingModel({
     getBeatPosition,
   };
 }
+
+// ════════════════════════════════════════
+// Phase59: Timing Stabilization Layer
+// ════════════════════════════════════════
+//
+// 【設計原則】
+//   - createTimingModel() は変更しない（消費者のまま）
+//   - repair は preprocessing として独立させる
+//   - 音楽的な「演奏の揺れ」を解析エラーと誤認しないよう
+//     tolerance-based snap + continuity-aware repair を採用
+//   - repair default OFF（research phase）
+//   - pure functions のみ。DOM / global state / window には触らない
+//     （__TIMING_DEBUG__ への書き込みは呼び出し側 chartmode.js が責務）
+//
+// 【関数一覧】
+//   analyzeTiming()                 — 診断のみ（副作用なし）
+//   repairDownbeats()               — continuity-aware repair（experimental）
+//   buildNormalizedTimingAnalysis() — 全 consumer の入口
+
+// ────────────────────────────────────────
+// 内部ユーティリティ
+// ────────────────────────────────────────
+
+/**
+ * 数値配列の中央値を返す（破壊的ソートを避けるためコピーして使う）
+ * @param {number[]} arr
+ * @returns {number}
+ */
+function _median(arr) {
+  if (!arr.length) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid    = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * beats 配列から各 beat 間の間隔（秒）を計算する
+ * @param {number[]} beats
+ * @returns {number[]}
+ */
+function _beatIntervals(beats) {
+  const intervals = [];
+  for (let i = 1; i < beats.length; i++) {
+    intervals.push(beats[i] - beats[i - 1]);
+  }
+  return intervals;
+}
+
+/**
+ * 近傍ウィンドウ内の beat 間隔の中央値を計算する（local median）
+ *
+ * downbeat[i] 周辺の beats を参照して局所テンポを推定する。
+ * 全体 median だけでは「タメ・rit.・shuffle」を drift と誤認するため
+ * local window で補正する。
+ *
+ * @param {number[]} beats
+ * @param {number}   centerTime     — 対象 downbeat の時刻
+ * @param {number}   windowSeconds  — ±windowSeconds 以内の beats を使う
+ * @returns {number}  中央値 beat 間隔（秒）、計算不能なら 0
+ */
+function _localMedianBeatInterval(beats, centerTime, windowSeconds) {
+  const nearby = [];
+  for (let i = 1; i < beats.length; i++) {
+    const mid = (beats[i - 1] + beats[i]) / 2;
+    if (Math.abs(mid - centerTime) <= windowSeconds) {
+      nearby.push(beats[i] - beats[i - 1]);
+    }
+  }
+  return nearby.length >= 2 ? _median(nearby) : 0;
+}
+
+// ────────────────────────────────────────
+// PUBLIC API: analyzeTiming
+// ────────────────────────────────────────
+
+/**
+ * analyzeTiming
+ *
+ * beats / downbeats の統計を診断する。副作用なし。
+ * repair の前後どちらでも使える（入力データを一切変更しない）。
+ *
+ * 【severity 判定基準】
+ *   "none":     driftCount = 0
+ *   "minor":    driftCount > 0 かつ maxConsecutiveDrift <= 2
+ *   "moderate": maxConsecutiveDrift 3〜5
+ *   "severe":   maxConsecutiveDrift 6 以上
+ *
+ * @param {number[]} beats
+ * @param {number[]} downbeats
+ * @param {{ numerator: number, denominator: number }} timeSignature
+ * @returns {object}  診断結果
+ */
+export function analyzeTiming(beats, downbeats, timeSignature) {
+  const beatsPerMeasure    = timeSignature?.numerator ?? 4;
+  const intervals          = _beatIntervals(beats);
+  const medianBeatInterval = _median(intervals);
+  const estimatedBPM       = medianBeatInterval > 0
+    ? Math.round(60 / medianBeatInterval)
+    : 0;
+  const expectedMeasureLength = medianBeatInterval * beatsPerMeasure;
+
+  // downbeat 間隔を計算して drift を判定する
+  // 基準: expectedMeasureLength から ±driftThreshold 以上ズレたら drift
+  const DRIFT_THRESHOLD = 0.20; // ±20%
+
+  const downbeatIntervals = [];
+  let driftCount          = 0;
+  let maxConsecutiveDrift = 0;
+  let currentConsecutive  = 0;
+  const driftMeasures     = [];
+
+  for (let i = 0; i < downbeats.length - 1; i++) {
+    const interval = downbeats[i + 1] - downbeats[i];
+    const expected = expectedMeasureLength;
+    const drift    = interval - expected;
+    const driftPct = expected > 0 ? Math.abs(drift) / expected : 0;
+    const isDrift  = driftPct > DRIFT_THRESHOLD;
+
+    downbeatIntervals.push({
+      index:    i,
+      interval: +interval.toFixed(4),
+      expected: +expected.toFixed(4),
+      drift:    +drift.toFixed(4),
+      driftPct: +driftPct.toFixed(4),
+      isDrift,
+    });
+
+    if (isDrift) {
+      driftCount++;
+      currentConsecutive++;
+      driftMeasures.push(i + 1); // 次の小節（i+1）の頭がズレる
+      if (currentConsecutive > maxConsecutiveDrift) {
+        maxConsecutiveDrift = currentConsecutive;
+      }
+    } else {
+      currentConsecutive = 0;
+    }
+  }
+
+  // severity 判定
+  let severity;
+  if (driftCount === 0)               severity = 'none';
+  else if (maxConsecutiveDrift <= 2)  severity = 'minor';
+  else if (maxConsecutiveDrift <= 5)  severity = 'moderate';
+  else                                severity = 'severe';
+
+  return {
+    medianBeatInterval: +medianBeatInterval.toFixed(4),
+    estimatedBPM,
+    beatsPerMeasure,
+    expectedMeasureLength: +expectedMeasureLength.toFixed(4),
+    downbeatIntervals,
+    driftThreshold:      DRIFT_THRESHOLD,
+    driftCount,
+    maxConsecutiveDrift,
+    driftMeasures,
+    severity,
+  };
+}
+
+// ────────────────────────────────────────
+// PUBLIC API: repairDownbeats
+// ────────────────────────────────────────
+
+/**
+ * repairDownbeats
+ *
+ * continuity-aware downbeat repair（実験的）。
+ *
+ * 【設計思想】
+ *   音楽的な「演奏の揺れ」（タメ・シンコペ・グルーヴ）は直さない。
+ *   madmom が明らかに道を踏み外した時だけそっと補助する。
+ *   「自信がないなら触るな」を基本方針とする。
+ *
+ * 【continuity repair】
+ *   repair[n] の結果を expected[n+1] の計算に連鎖させる。
+ *   各小節独立判定ではなく、修正後の位置から次を推定する。
+ *
+ * 【tolerance-based snap】
+ *   |expected - nearestBeat| < beatInterval × snapTolerance のみ吸着。
+ *   超えた場合は repair rejected（元の downbeat を維持）。
+ *
+ * 【local/global hybrid median】
+ *   全体 median だけでは局所的なテンポ揺れを drift と誤認する。
+ *   近傍ウィンドウの local median と全体 global median を加重平均して使う。
+ *
+ * @param {number[]} beats
+ * @param {number[]} downbeats
+ * @param {{ numerator: number, denominator: number }} timeSignature
+ * @param {object}   [opts]
+ * @param {number}   [opts.snapTolerance=0.3]          — beatInterval の何倍以内なら吸着するか
+ * @param {number}   [opts.localWindowMeasures=2]       — local median に使う近傍小節数
+ * @param {number[]} [opts.globalLocalRatio=[7,3]]      — [global重み, local重み]
+ * @returns {{ downbeats: number[], repairStats: object, perMeasure: object[] }}
+ */
+export function repairDownbeats(beats, downbeats, timeSignature, opts = {}) {
+  const {
+    snapTolerance       = 0.3,
+    localWindowMeasures = 2,
+    globalLocalRatio    = [7, 3],
+  } = opts;
+
+  // 入力検証: 最低限のデータがない場合は early return（入力をそのまま返す）
+  if (!isBeatsUsable(beats) || !isDownbeatsUsable(downbeats)) {
+    return {
+      downbeats: [...downbeats],
+      repairStats: { attempted: 0, succeeded: 0, rejected: 0, failedClean: false },
+      perMeasure: downbeats.map((_, i) => ({ index: i, state: 'original', confidence: 1.0 })),
+    };
+  }
+
+  const beatsPerMeasure = timeSignature?.numerator ?? 4;
+  const intervals       = _beatIntervals(beats);
+  const globalMedian    = _median(intervals);
+  const [gw, lw]        = globalLocalRatio;
+  const totalWeight     = gw + lw;
+
+  const repairedDownbeats = [downbeats[0]]; // downbeat[0] は anchor（変更しない）
+  const perMeasure        = [{ index: 0, state: 'original', confidence: 1.0 }];
+  let   attempted         = 0;
+  let   succeeded         = 0;
+  let   rejected          = 0;
+
+  try {
+    for (let i = 1; i < downbeats.length; i++) {
+      const prevRepaired    = repairedDownbeats[i - 1];
+      const actual          = downbeats[i];
+
+      // local/global hybrid median で期待間隔を計算
+      const windowSec      = localWindowMeasures * beatsPerMeasure * globalMedian;
+      const localMedian    = _localMedianBeatInterval(beats, prevRepaired, windowSec);
+      const effectiveMedian = (localMedian > 0)
+        ? (globalMedian * gw + localMedian * lw) / totalWeight
+        : globalMedian;
+
+      const expected        = prevRepaired + effectiveMedian * beatsPerMeasure;
+
+      // expected に最も近い beat を探す
+      let nearestBeat = actual; // beat が見つからない場合は actual のまま
+      let nearestDist = Infinity;
+      for (const b of beats) {
+        const dist = Math.abs(b - expected);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestBeat = b;
+        }
+      }
+
+      // snap tolerance チェック
+      const tolerance     = globalMedian * snapTolerance;
+      const gap           = Math.abs(expected - nearestBeat);
+      const withinTol     = gap < tolerance;
+      const confidence    = withinTol
+        ? +(1 - gap / tolerance).toFixed(4)
+        : 0.0;
+
+      attempted++;
+
+      if (withinTol && Math.abs(nearestBeat - actual) > 0.001) {
+        // 吸着成功（actual と nearestBeat が有意に異なる場合のみ修正）
+        repairedDownbeats.push(nearestBeat);
+        succeeded++;
+        perMeasure.push({
+          index:      i,
+          state:      'repaired',
+          before:     +actual.toFixed(4),
+          after:      +nearestBeat.toFixed(4),
+          gap:        +gap.toFixed(4),
+          tolerance:  +tolerance.toFixed(4),
+          confidence,
+        });
+      } else if (withinTol) {
+        // nearestBeat ≈ actual（修正不要）
+        repairedDownbeats.push(actual);
+        perMeasure.push({ index: i, state: 'original', confidence });
+      } else {
+        // tolerance 超過 → repair rejected（元の値を維持）
+        repairedDownbeats.push(actual);
+        rejected++;
+        perMeasure.push({
+          index:      i,
+          state:      'rejected',
+          expected:   +expected.toFixed(4),
+          nearest:    +nearestBeat.toFixed(4),
+          gap:        +gap.toFixed(4),
+          tolerance:  +tolerance.toFixed(4),
+          confidence: 0.0,
+        });
+      }
+    }
+  } catch (err) {
+    // repair 中に予期しない例外が発生 → 完全 fallback（入力をそのまま返す）
+    console.warn('[repairDownbeats] unexpected error, falling back to raw downbeats:', err);
+    return {
+      downbeats: [...downbeats],
+      repairStats: { attempted, succeeded, rejected, failedClean: true },
+      perMeasure: downbeats.map((_, i) => ({ index: i, state: 'original', confidence: 1.0 })),
+    };
+  }
+
+  return {
+    downbeats: repairedDownbeats,
+    repairStats: { attempted, succeeded, rejected, failedClean: false },
+    perMeasure,
+  };
+}
+
+// ────────────────────────────────────────
+// PUBLIC API: buildNormalizedTimingAnalysis
+// ────────────────────────────────────────
+
+/**
+ * buildNormalizedTimingAnalysis
+ *
+ * 全 consumer（chartmode.js / 将来の perform.js / click seek 等）の入口。
+ * rawAnalysis → normalize → normalized timing source を返す。
+ *
+ * 【責務】
+ *   - analyzeTiming() で診断
+ *   - repair: true の場合のみ repairDownbeats() を実行
+ *   - createTimingModel() に渡す最終的な beats / downbeats を決定する
+ *
+ * 【pure function】
+ *   DOM / global state / window には一切触らない。
+ *   __TIMING_DEBUG__ への書き込みは呼び出し側（chartmode.js）の責務。
+ *
+ * @param {object} rawAnalysis     — project.analysis（loadAnalysis済み）
+ * @param {object} [opts]
+ * @param {boolean} [opts.repair=false]  — true: experimental repair を実行
+ * @param {object}  [opts.repairOpts]    — repairDownbeats() に渡すオプション
+ * @returns {{
+ *   beats:       number[],
+ *   downbeats:   number[],
+ *   diagnostics: object,    // analyzeTiming() の結果（常に含まれる）
+ *   repair:      object|null // repairDownbeats() の結果（repair:false なら null）
+ * }}
+ */
+export function buildNormalizedTimingAnalysis(rawAnalysis, opts = {}) {
+  const { repair = false, repairOpts = {} } = opts;
+
+  const beats     = rawAnalysis?.beats     ?? [];
+  const downbeats = rawAnalysis?.downbeats ?? [];
+  const ts        = rawAnalysis?.timeSignature ?? { numerator: 4, denominator: 4 };
+
+  // 診断は常に実行（repair ON/OFF に関係なく）
+  const diagnostics = analyzeTiming(beats, downbeats, ts);
+
+  if (!repair) {
+    // repair OFF: raw をそのまま返す
+    return {
+      beats,
+      downbeats,
+      diagnostics,
+      repair: null,
+    };
+  }
+
+  // repair ON（experimental）: repairDownbeats() を実行
+  const repairResult = repairDownbeats(beats, downbeats, ts, repairOpts);
+
+  return {
+    beats,
+    downbeats: repairResult.downbeats,  // 修正済み（or フォールバックで元のまま）
+    diagnostics,
+    repair: repairResult,
+  };
+}

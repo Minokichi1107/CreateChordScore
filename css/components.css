@@ -802,3 +802,15 @@
   color: var(--capo-info-color);
   font-weight: 600;
 }
+
+/* 修正済み小節: 黄色ボーダー（信頼度付き補正） */
+.chart-measure--drift-repaired {
+  outline: 1.5px solid rgba(255, 184, 64, 0.7);   /* [SAFE] amber */
+  outline-offset: -1px;
+}
+
+/* 修正不可小節: 赤ボーダー（tolerance超過・元のまま） */
+.chart-measure--drift-rejected {
+  outline: 1.5px solid rgba(255, 124, 124, 0.7);  /* [SAFE] red */
+  outline-offset: -1px;
+}
