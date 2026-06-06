@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase54完了時点
+> 最終更新: Phase59完了時点
 
 ---
 
@@ -405,19 +405,54 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - `chart-slot--onset` 削除（analysis semantic を performance UI から除去）
 - `chartMeasuresPerRow` localStorage 永続・3列/4列切替ボタン追加
 
+### Phase55 — capo lifecycle 修正 + AddChord UI改善 + Chart コード重なり修正
+- capo reset lifecycle invariant 確立（restore → reset → ingest の順序保証）
+- `loadChordData()` 冒頭で `_prevCapo` 分を逆算して canonical に戻す処理を追加
+- AddChord モーダルの ✕ ボタンを hover-only 表示に変更
+- Chart Mode 1小節内複数コードの重なりを slotIndex 比率配置で解消
+
+### Phase56 — Chart Mode beat cursor + capo info theme token
+- `getBeatPosition(t)` を timing.js に追加（0.0〜1.0 の小節内拍位置）
+- Chart Mode に playhead（beat cursor）追加（measure直下 continuous overlay）
+- `--chart-beat-cursor` / `--capo-info-color` CSS変数を3テーマに追加
+- `showCapoInfo()` を `--capo-info-color` token 経由に変更
+
+### Phase57 — Chart Mode slot-semantic renderer
+- `expandToSlots()` 新設（onset | carry | empty discriminated union）
+- slot DOM invariant 復活（全 slot DOM を常に生成）
+- `--duration-slots` CSS変数で chord label の visual expansion を制御
+- `grid-column: span` を廃止（Grid折り返し問題の根本解決）
+- `_beatCursorEl` → `_playheadEl` 改名
+- `expandCarryForward()` deprecated化
+
+### Phase58 — capo lifecycle stabilization + Chart header capo info
+- `loadChordData()` に `isRestore` フラグ追加（IndexedDB restore経路での capo reset 副作用排除）
+- Chart header に `Capo N → Concert: X` 表示を追加（`_renderChartHeader()` 拡張）
+- `project.capo` が正式 schema field であることを確認（normalizeProject）
+- initModals の `getCapo` authority 不整合を記録（将来の projection migration 前に統一必須）
+
+### Phase59 — timing diagnostics and normalization pipeline
+- `analyzeTiming()` 追加（drift 診断・failure taxonomy。副作用なし・常に実行）
+- `repairDownbeats()` 追加（continuity-aware repair。experimental・default OFF）
+- `buildNormalizedTimingAnalysis()` 追加（全 consumer の入口。pure function）
+- `buildGridViewModel()` を normalized timing pipeline 経由に変更
+- `window.__TIMING_DEBUG__` を常に書き込み（DevTools 診断用）
+- measure DOM に `data-confidence` / `data-repair-state` 属性追加
+- Issue #45「小節頭ズレ」の failure taxonomy 確立（Type A/B/C/D の分類）
+
 ---
 
 ## 現在地
 
-- Phase54完了（Phase50〜54 の棚卸し対象）
-- Phase50〜54 の主な成果:
-  - Chart Mode mini transport 追加（Phase50）
-  - Chart Mode CSS局所整理（theme.css CHART MODE OVERRIDESセクション新設）（Phase51）
-  - transient preview restore 実装（退避→commit/rollback パターン確立）（Phase52）
-  - insertion cursor navigation（AddChord modal、insertAt = editor cursor semantic）（Phase53）
-  - Chart Mode 3列/4列切替（Phase54）
-  - Chart chord rendering の measure-based projection へ移行（Phase54）
-  - render authority 分離（openChartMode / renderChartMode）（Phase54）
+- Phase59完了（Phase55〜59 の棚卸し対象）
+- Phase55〜59 の主な成果:
+  - capo lifecycle 修正（restore→reset→ingest invariant）（Phase55）
+  - loadChordData() isRestore フラグによる authority collision 解決（Phase58）
+  - Chart Mode beat cursor / playhead 追加（Phase56）
+  - Chart Mode slot-semantic renderer（expandToSlots / slot DOM invariant）（Phase57）
+  - Chart Mode slot DOM invariant 確立（Phase57）
+  - timing diagnostics / normalized pipeline 確立（Phase59）
+  - Issue #45 failure taxonomy 確立（Type A/B/C/D 分類）（Phase59）
 
 ---
 
@@ -425,14 +460,17 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 
 詳細は `current-issues.md` のバックログを参照。
 
+Chart Mode 拡張系（推奨・normalized pipeline 確立済み）:
+- Chart Mode click seek（normalized timing pipeline が前提整備済み）
+- Chart Mode pickup measure 表示補正（Type B 対応・実装コスト小）
+- Chart Mode 並列表示（設計フェーズが必要）
+
 軽量UI改善系（比較的独立・実装しやすい）:
 - 行またぎコード移動（token array boundary mutation）
-- transient preview restore（modal close 後の diagLocked 右パネル復元）
 
-Chart Mode 拡張系:
-- Chart Mode に mini transport（audio controls）追加
-- Chart Mode 並列表示（設計フェーズが必要）
-- Chart Mode ビート単位フォーカス（playback engine 拡張）
+Issue #45 継続対応:
+- Type A/C: A案（手動修正UI）設計フェーズ（大規模）
+- Type D: 発生ケース収集後に B案（repairDownbeats）の有効性検証
 
 将来（大規模設計フェーズが必要）:
 - Issue #26: Beat/Grid 対応（bars[] 構造移行）

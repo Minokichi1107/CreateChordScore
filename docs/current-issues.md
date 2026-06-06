@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase54完了時点
+> 最終更新: Phase59完了時点
 
 ---
 
@@ -87,13 +87,50 @@ Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み�
 内容: Chart Mode 内に ▶ / シークバー / 速度 / 音量 の mini transport を実装済み。
 playback authority は `updateChartPlayback()` に集約（aEl listener を transport に持たせない設計）。
 
-#### Chart Mode ビート単位フォーカス
+#### Chart Mode click seek（再生位置クリック）
 状態: 未着手
-内容: 現在の再生同期は小節単位ハイライト。
-将来的にビート単位・スロット単位での追従を可能にする。
-必要な要素: beat index / token duration / subdivision / sync source。
-備考: 単純な UI 改善ではなく playback engine 拡張に近い規模。
-timing.js の quantize() が基盤になる。Phase41 handover の「slot highlight」と同一方向。
+内容: Chart Mode の小節 / slot クリック → その位置から再生開始。
+normalized timing pipeline（Phase59）が確立したため実装可能な段階。
+playback authority は app.js が持つ（chartmode.js が aEl に直接触らない）。
+注意: 現在の seek 式（slot比率計算）は等間隔 slot 前提の暫定実装。
+      将来 triplet / swing 対応時は beat-aware seek mapping への移行が必要。
+
+#### Chart Mode pickup measure 表示補正（Type B 対応）
+状態: 未着手
+内容: 曲が小節の途中から始まる弱起（pickup measure）のケースで
+小節1が短くなり、以降の小節番号がズレて表示される問題。
+Issue #45 Type B として分類済み（Phase59）。
+対処候補: 小節1の長さ < beatsPerMeasure × 0.75 拍分 → 番号を「0」または「♩」にする。
+注意: 単純な length 比較では rubato intro / free tempo intro での誤検出リスクあり。
+      判定条件は未確定。専用設計フェーズが必要。
+
+#### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
+状態: **classified / instrumented（Phase59）**
+内容: Phase59の調査により、ズレの種類を以下の4タイプに分類した。
+
+| Type | 原因 | B案で直せるか |
+|---|---|---|
+| Type A | beat tracking collapse（beats = downbeats 完全一致） | 不可（A案のみ） |
+| Type B | pickup measure（弱起小節。小節1だけ短い） | 限定的（要設計） |
+| Type C | beats 半テンポ / 粒度異常（beat resolution mismatch） | 不可（A案のみ） |
+| Type D | 局所 drift → 全体伝播（当初の想定ケース） | 可能（B案対象） |
+
+現状:
+  - normalized timing pipeline 確立済み（buildNormalizedTimingAnalysis）
+  - analyzeTiming() / repairDownbeats() 実装済み（repair default OFF）
+  - window.__TIMING_DEBUG__ で DevTools から診断可能
+  - Type D は今回調査した4曲では未発生（サンプル数少・発生頻度未確定）
+  - Type A/C は A案（手動修正UI）のみで対処可能
+
+次のアクション候補:
+  - Type B: pickup measure 自動検出・表示補正（実装コスト小）
+  - Type D: 発生ケース収集後に repair: true で効果検証
+  - Type A/C: A案（手動修正UI）設計フェーズ（大規模・将来）
+
+#### Chart Mode ビート単位フォーカス
+状態: **完了（Phase56）**
+内容: `getBeatPosition(t)` を timing.js に追加し、Chart Mode に playhead（beat cursor）を実装。
+measure直下 continuous overlay として分離。`updateChartPlayback()` で left% のみ更新（DOM再生成なし）。
 
 ### その他将来検討
 
@@ -187,14 +224,10 @@ timing.js の quantize() が基盤になる。Phase41 handover の「slot highli
 内容: 繰り返しが行の下に表示されて見づらく、「×N回」表記も削除操作との視覚的衝突がある。Simile記号（𝄋）の使用を検討
 
 ### カポ状態が新規プロジェクト読み込み時に引き継がれるバグ
-状態: 未修正
-内容: カポで移調表示中に別プロジェクトのコードを読み込むと、
-そのカポ位置のまま読み込んでしまう。
-データ（chord JSON）は原データのままだが、UI上の移調状態が残留する。
-方向性: プロジェクトロード時・新規プロジェクト作成時にカポ状態をリセットする処理が必要。
-capo state の reset タイミングを `resetProject()` / `loadProj()` に明示的に追加する。
-状態: 再現性確認中
-内容: 既存プロジェクトファイルを開いた状態で上書き保存しても、ファイル選択ダイアログが開くことがある。再現条件の特定が必要
+状態: **完了（Phase58）**
+内容: `loadChordData()` に `isRestore` フラグを追加し、IndexedDB restore 経路での
+capo reset 副作用を排除。restore → reset → ingest の順序を invariant として確立。
+`loadProj()` が uiState.capo で capo lifecycle を管理する経路を分離済み。
 
 ### localhost:8767 が読み込み中のまま開かないことがある
 状態: 再現性確認中

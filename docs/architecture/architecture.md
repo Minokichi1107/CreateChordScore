@@ -1,6 +1,6 @@
 # アーキテクチャ概要
 
-> 最終更新: Phase44完了時点
+> 最終更新: Phase59完了時点
 
 ---
 
@@ -76,7 +76,7 @@ CreateChordScore/
 | tokens.js | musical token stream の分類・変換ユーティリティ（isChordToken / isSepToken / isNoChordToken / tokenToText） | Phase39-0 |
 | idb.js | IndexedDB操作層（audio / chord_source のローカル保存） | Phase32 |
 | analysisLoader.js | analysis.raw の validate / sanitize / normalize → project.analysis 生成 | Phase41 |
-| timing.js | TimingModel（beat / measure grid 構築・quantize）。外部依存ゼロ | Phase41 |
+| timing.js | TimingModel（beat / measure grid 構築・quantize）。外部依存ゼロ。Phase59で diagnostics / repair / normalized pipeline 追加 | Phase41 |
 | chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer） | Phase41 |
 
 ### 依存関係ルール
@@ -87,7 +87,7 @@ CreateChordScore/
 - `modals.js` はUI lifecycle と callback通知のみ。state mutationは app.js が担当
 - `tokens.js` は domain-level utility。どのモジュールからも参照可（app.js 経由不要）
 - `analysisLoader.js` は analysis data の ingestion 専用。UI / DOM / project.lines に触らない
-- `timing.js` は外部依存ゼロ。chartmode.js のみが import する
+- `timing.js` は外部依存ゼロ。chartmode.js のみが import する（pure functions のみ・DOM / global state に触らない）
 - `tapmode.js` / `replace.js` は app.js 経由で初期化される（initTapMode / initReplace）
 - `utils.js` / `helpers.js` は作らない
 
@@ -355,3 +355,94 @@ chordEl.textContent = _transposeChord(cell.chord, -capo); // render時のみ
 全面的な projection 化は editor / perform / import / save-load 全体に
 波及するため大規模な設計変更になる。
 将来の semantic / projection redesign フェーズで統合を検討する。
+
+---
+
+## 9. Chart Mode timing pipeline（Phase59で確立）
+
+### normalized timing pipeline
+
+raw analysis を直接 `createTimingModel()` に渡さない。
+`buildNormalizedTimingAnalysis()` を経由することで
+timing normalization / diagnostics / repair を preprocessing として分離する。
+
+```
+raw analysis（project.analysis）
+    ↓
+timing.js: buildNormalizedTimingAnalysis()   ← 全 consumer の入口（pure function）
+    ├─ analyzeTiming()    drift 診断（常に実行・副作用なし）
+    └─ repairDownbeats()  continuity-aware repair（repair: true 時のみ・default OFF）
+    ↓
+normalized timing source { beats, downbeats, diagnostics, repair }
+    ↓
+chartmode.js: buildGridViewModel()
+    ↓
+createTimingModel()                          ← 消費者のまま（シグネチャ変更なし）
+```
+
+将来の perform.js / click seek / waveform sync も同一 timing source を参照できる。
+
+### 責務境界ルール
+
+```
+timing.js:
+  pure functions のみ
+  DOM / global state / window に触らない
+  window.__TIMING_DEBUG__ への書き込みは呼び出し側の責務
+
+chartmode.js:
+  window.__TIMING_DEBUG__ への書き込み責務を持つ
+  buildGridViewModel() が normalized pipeline の呼び出し元
+
+createTimingModel():
+  消費者のまま（preprocessing を受け取るだけ）
+  repair ロジックを埋め込まない
+```
+
+### repair の設計思想
+
+```
+音楽的な「演奏の揺れ」（タメ・シンコペ・グルーヴ）は直さない。
+madmom が明らかに道を踏み外した時だけそっと補助する。
+「自信がないなら触るな」を基本方針とする。
+
+repair default OFF: heuristic の誤補正リスクが未評価なため。
+                    現段階では observational / research mode を優先。
+```
+
+### Issue #45 failure taxonomy（Phase59で確立）
+
+| Type | 原因 | 自動補正可否 |
+|---|---|---|
+| Type A | beat tracking collapse（beats = downbeats） | 不可 |
+| Type B | pickup measure（弱起小節） | 限定的（設計要） |
+| Type C | beat resolution mismatch（半テンポ検出等） | 不可 |
+| Type D | 局所 drift → 全体伝播 | B案（repairDownbeats）で対応可 |
+
+Type A/C は A案（手動修正UI）のみで根治可能。
+Type D は今回調査した4曲では未発生（発生ケース収集中）。
+
+### DevTools 診断
+
+```javascript
+window.__TIMING_DEBUG__ = {
+  raw:         { beats, downbeats },        // 変更前の生データ
+  diagnostics: analyzeTiming() の結果,     // 常に書き込み
+  repair:      repairDownbeats() の結果,   // repair:true 時のみ
+  normalized:  { beats, downbeats },        // createTimingModel に渡した最終値
+}
+```
+
+### Chart Mode slot DOM invariant（Phase57で確立）
+
+```
+semantic slot:  常に固定（expandToSlots の結果）
+slot DOM:       全 slot（onset / carry / empty）を常に生成する
+active lookup:  data-slot-index 属性経由（逆引き不要）
+
+timing / layout / presentation の3層分離:
+  semantic slot  → timing unit
+  slot DOM       → fixed grid
+  chord label    → visual presentation（--duration-slots CSS変数で幅制御）
+  playhead       → measure直下 continuous overlay
+```
