@@ -378,6 +378,10 @@ let _getAudioEl       = null;  // () => aEl
 let _getAudioDuration = null;  // () => aEl.duration
 let _getCapo          = null;  // () => number（カポ値）
 let _transposeChord   = null;  // (chord, semitones) => string
+let _seekTo           = null;  // (time: number) => void（app.js が aEl.currentTime を設定）
+
+// リスナー重複登録防止フラグ（hot reload / re-init 対策）
+let _gridClickSeekBound = false;
 
 /**
  * initChartMode
@@ -390,13 +394,17 @@ let _transposeChord   = null;  // (chord, semitones) => string
  * @param {Function} deps.getAudioDuration - () => aEl.duration
  * @param {Function} deps.getCapo          - () => number（現在のカポ値）
  * @param {Function} deps.transposeChord   - (chord, semitones) => string
+ * @param {Function} [deps.seekTo]         - (time: number) => void（Phase60: click seek）
+ *                                           app.js が aEl.currentTime を設定する責務を持つ。
+ *                                           chartmode.js は aEl に直接触らない。
  */
-export function initChartMode({ getAnalysis, getAudioEl, getAudioDuration, getCapo, transposeChord }) {
+export function initChartMode({ getAnalysis, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo }) {
   _getAnalysis      = getAnalysis;
   _getAudioEl       = getAudioEl;
   _getAudioDuration = getAudioDuration;
   _getCapo          = getCapo;
   _transposeChord   = transposeChord;
+  _seekTo           = seekTo ?? null;
 
   // ツールチップ要素を body 直下に生成（overflow: hidden を突き抜けるため）
   if (!document.getElementById('chart-tooltip')) {
@@ -426,6 +434,65 @@ export function initChartMode({ getAnalysis, getAudioEl, getAudioDuration, getCa
       if (tip) tip.style.display = 'none';
     });
   }
+
+  // Phase60: click seek イベント登録
+  _setupGridClickSeek();
+}
+
+// ────────────────────────────────────────
+// Phase60: click seek
+// ────────────────────────────────────────
+
+/**
+ * _setupGridClickSeek
+ *
+ * chart-grid への click イベントを委譲登録する（1回のみ）。
+ * .chart-measure クリック → normalized measure model の startTime → _seekTo() 経由でシーク。
+ *
+ * 【seek authority ルール（Phase60確立）】
+ *   chartmode.js は raw downbeats を直接参照しない。
+ *   normalized timing pipeline の結果として生成された measure model の
+ *   startTime のみを seek 基準とする。
+ *   これにより将来の pickup correction / repair projection / manual timing override が
+ *   seek 動作に自動的に反映される。
+ *
+ * 【click target ルール】
+ *   e.target.closest('.chart-measure') に固定する。
+ *   chart-slot / chart-chord-name / playhead overlay など内部構造の変更に依存しない。
+ *   measureIndex は data-measure-index 属性のみから取得する。
+ *
+ * 【重複登録防止】
+ *   _gridClickSeekBound フラグで hot reload / re-init 時のリスナー増殖を防ぐ。
+ *   event delegation のため listener は1個で全 measure に追従する。
+ */
+function _setupGridClickSeek() {
+  if (_gridClickSeekBound) return;
+
+  const grid = document.getElementById('chart-grid');
+  if (!grid) return;
+
+  _gridClickSeekBound = true;
+
+  grid.addEventListener('click', e => {
+    if (!_seekTo) return;
+
+    // click target ルール: .chart-measure 全域で固定（内部構造変更に依存しない）
+    const measureEl = e.target.closest('.chart-measure');
+    if (!measureEl) return;
+
+    const mi = Number(measureEl.dataset.measureIndex);
+    if (!Number.isFinite(mi)) return;
+
+    const vm = chartState.viewModel;
+    if (!vm?.model || vm.model.mode === 'fallback') return;
+
+    // seek authority: normalized pipeline の結果として生成された measure model を参照する
+    // raw downbeats を直接使わない（将来の correction / override が自動反映されるため）
+    const startTime = vm.model.getMeasure(mi)?.startTime;
+    if (!Number.isFinite(startTime)) return;  // NaN / undefined ガード（degraded analysis 対策）
+
+    _seekTo(startTime);
+  });
 }
 
 // ────────────────────────────────────────

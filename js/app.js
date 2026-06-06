@@ -2169,6 +2169,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     getAudioDuration: () => aEl.duration,
     getCapo:          getCapo,
     transposeChord:   transposeChord,
+    seekTo:           (time) => { aEl.currentTime = time; },  // Phase60: click seek
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）

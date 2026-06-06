@@ -814,3 +814,6 @@
   outline: 1.5px solid rgba(255, 124, 124, 0.7);  /* [SAFE] red */
   outline-offset: -1px;
 }
+
+/* Phase60: chart mode click seek */
+.chart-measure { cursor: pointer; }
