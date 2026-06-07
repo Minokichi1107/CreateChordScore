@@ -161,6 +161,19 @@ export function createProjectBlob(projectData) {
 }
 
 // ────────────────────────────────────────
+// Phase60.5: File picker 用途別 ID 定数
+// ────────────────────────────────────────
+// 用途ごとに id を分けることで Chrome が
+// 「その用途で最後に使ったフォルダ」を別々に記憶する。
+// scatter 防止のため必ずこの定数を参照すること。
+export const PICKER_IDS = {
+  audio:       'ccs-audio',        // 音声ファイル
+  chord:       'ccs-chord',        // コードファイル
+  projectOpen: 'ccs-project-open', // プロジェクト読み込み
+  projectSave: 'ccs-project-save', // プロジェクト保存
+};
+
+// ────────────────────────────────────────
 // プロジェクト保存
 // ────────────────────────────────────────
 export async function saveProjectToFile(projectData, fileHandle, forceNew = false) {
@@ -175,6 +188,7 @@ export async function saveProjectToFile(projectData, fileHandle, forceNew = fals
       
       if (!handle || forceNew) {
         handle = await window.showSaveFilePicker({
+          id: PICKER_IDS.projectSave,   // Phase60.5: 保存フォルダを別履歴で記憶
           suggestedName,
           types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
         });

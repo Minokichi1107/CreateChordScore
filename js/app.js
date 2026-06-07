@@ -106,7 +106,8 @@ import {
   saveProjectToFile,
   saveToLocalStorage,
   loadFromLocalStorage,
-  clearLocalStorage
+  clearLocalStorage,
+  PICKER_IDS,
 } from './project.js';
 
 import {
@@ -378,37 +379,32 @@ function forcePreviewChord(chord) {
 // FILE LOADING
 // ════════════════════════════════════════
 
-async function loadChordData(data, filename, { isRestore = false } = {}) {
+async function loadChordData(data,filename){
 
-  if (!isRestore) {
-    // ── capo restore（手動 import 時のみ）────────────────────
-    // コードJSONはcanonical（capo=0）データ前提。
-    // import前にlinesのchordを現capo分だけ逆方向に戻してから
-    // capo stateを0にリセットする。
-    // （restore→reset→ingest の順序が重要）
-    //
-    // paletteはこの直後に新JSONから再生成されるためrestoreしない。
-    // capo change: semitones = -diff なので
-    // restore方向: +_prevCapo（逆算）
-    if (_prevCapo !== 0) {
-      const restoreSemitones = _prevCapo;
-      (project.lines || []).forEach(line => {
-        line.chords.forEach(c => {
-          if (!c.chord) return;
-          c.chord = transposeChord(c.chord, restoreSemitones);
-        });
+  // ── capo restore ──────────────────────────────────────────
+  // コードJSONはcanonical（capo=0）データ前提。
+  // import前にlinesのchordを現capo分だけ逆方向に戻してから
+  // capo stateを0にリセットする。
+  // （restore→reset→ingest の順序が重要）
+  //
+  // paletteはこの直後に新JSONから再生成されるためrestoreしない。
+  // capo change: semitones = -diff なので
+  // restore方向: +_prevCapo（逆算）
+  if (_prevCapo !== 0) {
+    const restoreSemitones = _prevCapo;
+    (project.lines || []).forEach(line => {
+      line.chords.forEach(c => {
+        if (!c.chord) return;
+        c.chord = transposeChord(c.chord, restoreSemitones);
       });
-    }
-    document.getElementById('capo').value = 0;
-    _prevCapo = 0;
-    // NOTE: capo authority は DOM state (#capo) と _prevCapo で管理する
-    //       project.capo は normalizeProject 経由で schema 管理される
-    // ──────────────────────────────────────────────────────────
+    });
   }
-  // NOTE [isRestore = true]:
-  // IndexedDB restore path already provides canonical chord data.
-  // Capo lifecycle is restored separately by loadProj() via uiState.capo.
-  // Therefore restore flow must NOT execute destructive capo rollback/reset.
+
+  // capo state リセット（3つセットで整合）
+  project.capo = 0;
+  document.getElementById('capo').value = 0;
+  _prevCapo = 0;
+  // ──────────────────────────────────────────────────────────
 
   project.chord_source=filename;
   const b=document.getElementById('chord-btn');b.textContent=filename;b.classList.add('loaded');
@@ -1313,7 +1309,7 @@ async function loadProj(data){
         data = parseJSON(chordAsset.data);
       }
       if (data) {
-        loadChordData(data, chordAsset.filename, { isRestore: true });
+        loadChordData(data, chordAsset.filename);
         chordRestored = true;
       }
     }
@@ -1421,13 +1417,68 @@ function setupEventHandlers() {
   // File Events
   // ============================================
   // Audio file select button
-  document.getElementById('audio-btn').addEventListener('click', () => {
-    document.getElementById('file-audio').click();
+  document.getElementById('audio-btn').addEventListener('click', async () => {
+    // Phase60.5: showOpenFilePicker で作業フォルダを記憶
+    if (window.showOpenFilePicker) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          id: PICKER_IDS.audio,
+          types: [{ description: '音声ファイル', accept: { 'audio/*': ['.mp3', '.wav', '.m4a', '.ogg', '.flac'] } }],
+        });
+        const file = await handle.getFile();
+        if (_aURL) URL.revokeObjectURL(_aURL);
+        _aURL = URL.createObjectURL(file);
+        aEl.src = _aURL;
+        project.audio = file.name;
+        const b = document.getElementById('audio-btn');
+        b.textContent = file.name;
+        b.classList.add('loaded');
+        const tapBtn = document.getElementById('tap-btn');
+        if (tapBtn) tapBtn.disabled = false;
+        aEl.volume = parseFloat(document.getElementById('vol-slider')?.value || 80) / 100;
+        toast(`音声: ${file.name}`);
+        checkReloadBannerDone();
+        saveAsset(project.id, 'audio', { data: file, filename: file.name });
+      } catch (err) {
+        if (err.name === 'AbortError') return;  // キャンセルは正常
+        toast('音声ファイルの読み込みに失敗しました');
+        console.error('[audio open]', err);
+      }
+    } else {
+      // フォールバック: FSA API 非対応ブラウザ
+      document.getElementById('file-audio').click();
+    }
   });
 
   // Chord file select button
-  document.getElementById('chord-btn').addEventListener('click', () => {
-    document.getElementById('file-chord').click();
+  document.getElementById('chord-btn').addEventListener('click', async () => {
+    // Phase60.5: showOpenFilePicker で作業フォルダを記憶
+    if (window.showOpenFilePicker) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          id: PICKER_IDS.chord,
+          types: [{ description: 'コードファイル', accept: { 'application/json': ['.json'], 'text/csv': ['.csv'] } }],
+        });
+        const file = await handle.getFile();
+        const text = await file.text();
+        let data;
+        if (file.name.endsWith('.csv')) {
+          data = parseCSV(text, normalizeChordName);
+        } else {
+          data = parseJSON(text);
+          if (!data) { toast('JSONエラー'); return; }
+        }
+        loadChordData(data, file.name);
+        saveAsset(project.id, 'chord', { data: text, filename: file.name });
+      } catch (err) {
+        if (err.name === 'AbortError') return;  // キャンセルは正常
+        toast('コードファイルの読み込みに失敗しました');
+        console.error('[chord open]', err);
+      }
+    } else {
+      // フォールバック: FSA API 非対応ブラウザ
+      document.getElementById('file-chord').click();
+    }
   });
 
   // Chord file load (JSON/CSV)
@@ -1538,7 +1589,33 @@ function setupEventHandlers() {
   document.getElementById('btn-saveas').addEventListener('click', () => saveProject(true));
 
   // Open project (trigger file input)
-  document.getElementById('btn-open').addEventListener('click',()=>document.getElementById('file-project').click());
+  document.getElementById('btn-open').addEventListener('click', async () => {
+    // Phase60.5: showOpenFilePicker で作業フォルダを記憶
+    if (window.showOpenFilePicker) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          id: PICKER_IDS.projectOpen,
+          types: [{ description: 'プロジェクトファイル', accept: { 'application/json': ['.json'] } }],
+        });
+        const file = await handle.getFile();
+        const text = await file.text();
+        try {
+          const data = JSON.parse(text);
+          loadProj(data);
+          toast(`読み込み: ${file.name}`);
+        } catch {
+          toast('JSONエラー');
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return;  // キャンセルは正常
+        toast('プロジェクトファイルの読み込みに失敗しました');
+        console.error('[project open]', err);
+      }
+    } else {
+      // フォールバック: FSA API 非対応ブラウザ
+      document.getElementById('file-project').click();
+    }
+  });
 
   // Project file load
   document.getElementById('file-project').addEventListener('change',e=>{
@@ -2169,7 +2246,6 @@ window.addEventListener('DOMContentLoaded',()=>{
     getAudioDuration: () => aEl.duration,
     getCapo:          getCapo,
     transposeChord:   transposeChord,
-    seekTo:           (time) => { aEl.currentTime = time; },  // Phase60: click seek
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）

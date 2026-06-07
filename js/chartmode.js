@@ -633,6 +633,11 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
   // analysis.raw / GridViewModel の chord は canonical のまま保持する
   const capo = _getCapo?.() ?? 0;
 
+  // Phase61: pickup measure 判定（1回のみ実行）
+  // 弱起小節（曲が拍の途中から始まる）の場合、小節0の番号を "0" にする
+  // 以降の小節は 1, 2, 3 ... と連番（通常と変わらず）
+  const isPickup = detectPickupMeasure(measures);
+
   // slot semantic 配列を生成（expandToSlots: onset | carry | empty）
   // chord は複製しない。carry は sourceSlotIndex 参照のみ。
   const allSlots = expandToSlots(measures, model.slotsPerMeasure);
@@ -677,10 +682,12 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
         measureEl.dataset.repairState = 'original';
       }
 
-      // 小節番号（UI表示は 1-based）
+      // 小節番号（display numbering semantics）
+      // measure identity（mi）と表示番号は getDisplayMeasureNumber() で分離する。
+      // pickup / alternate numbering 等の policy 変更はヘルパー側で管理する。
       const numEl = document.createElement('div');
       numEl.className = 'chart-measure-num';
-      numEl.textContent = mi + 1;
+      numEl.textContent = String(getDisplayMeasureNumber(mi, isPickup));
       measureEl.appendChild(numEl);
 
       // ── playhead overlay ──────────────────────────────────
@@ -773,6 +780,91 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
 
     container.appendChild(rowEl);
   }
+}
+
+// ────────────────────────────────────────
+// Phase61: pickup measure 検出
+// ────────────────────────────────────────
+
+/**
+ * detectPickupMeasure
+ *
+ * 曲が小節途中から始まる弱起（pickup measure）かどうかを判定する。
+ *
+ * 【判定条件: 2条件 AND】
+ *   条件A: measures[0] の長さ < normalized median measure length × 0.75
+ *   条件B: measures[1] 以降の長さが中央値の ±30% 以内（正常範囲の確認）
+ *
+ * 【median 基準を採用する理由】
+ *   measures[1] を基準にすると intro drift / early jitter / tempo settle delay で
+ *   false positive が増える。全小節の中央値を基準にすることで安定する。
+ *
+ * 【available range のみ使用】
+ *   短曲（小節数が少ない）でも measures.slice(1) の全件を使うため
+ *   measures[1〜3] の固定参照はしない。
+ *
+ * 【この関数が触らないもの】
+ *   timing.js / GridViewModel / analysis.raw — 参照のみ
+ *
+ * @param {object[]} measures  - GridViewModel.measures
+ * @returns {boolean}
+ */
+function detectPickupMeasure(measures) {
+  if (measures.length < 2) return false;
+
+  // 旧project互換ガード（Phase61 hotfix）:
+  // 保存済み viewModel には endTime が存在しない場合がある。
+  // endTime が欠損している状態で計算すると NaN が混入し renderer が停止する。
+  // endTime が揃っている場合のみ pickup 判定を実行する。
+  if (!measures.every(
+    m => Number.isFinite(m?.startTime) && Number.isFinite(m?.endTime)
+  )) {
+    return false;
+  }
+
+  // measures[1] 以降の長さを取得（available range 全件）
+  const restLengths = measures.slice(1).map(m => m.endTime - m.startTime);
+  if (!restLengths.length) return false;
+
+  // normalized median measure length を計算
+  const sorted = [...restLengths].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  if (!median || median <= 0) return false;
+
+  // 条件A: 小節0 が median の 75% 未満
+  const m0len = measures[0].endTime - measures[0].startTime;
+  const condA = m0len < median * 0.75;
+
+  // 条件B: measures[1] 以降が中央値の ±30% 以内（正常範囲の確認）
+  // rubato intro / free tempo intro での false positive 抑制
+  const checkCount = Math.min(restLengths.length, 4);  // 最大4小節で確認
+  const condB = restLengths.slice(0, checkCount).every(
+    len => Math.abs(len - median) / median < 0.30
+  );
+
+  return condA && condB;
+}
+
+/**
+ * getDisplayMeasureNumber
+ *
+ * measure index（identity）を表示番号（display numbering semantics）に変換する。
+ *
+ * 【measure identity と display numbering の分離（Phase61で確立）】
+ *   mi は GridViewModel の index（0-based identity）。
+ *   表示番号は numbering policy によって変わる semantic layer。
+ *   renderer 内で直接 mi+1 等を計算しないこと。
+ *
+ * 将来の alternate numbering / rehearsal-local numbering / section reset numbering は
+ * この関数を拡張するか、opts を追加することで対応する。
+ *
+ * @param {number}  mi        - measure index（0-based）
+ * @param {boolean} isPickup  - pickup measure 判定結果
+ * @returns {number}  表示番号
+ */
+function getDisplayMeasureNumber(mi, isPickup) {
+  if (isPickup) return mi;       // pickup: 0→0, 1→1, 2→2 ...
+  return mi + 1;                 // 通常:   0→1, 1→2, 2→3 ...
 }
 
 /**
