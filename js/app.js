@@ -106,8 +106,7 @@ import {
   saveProjectToFile,
   saveToLocalStorage,
   loadFromLocalStorage,
-  clearLocalStorage,
-  PICKER_IDS,
+  clearLocalStorage
 } from './project.js';
 
 import {
@@ -1417,68 +1416,13 @@ function setupEventHandlers() {
   // File Events
   // ============================================
   // Audio file select button
-  document.getElementById('audio-btn').addEventListener('click', async () => {
-    // Phase60.5: showOpenFilePicker で作業フォルダを記憶
-    if (window.showOpenFilePicker) {
-      try {
-        const [handle] = await window.showOpenFilePicker({
-          id: PICKER_IDS.audio,
-          types: [{ description: '音声ファイル', accept: { 'audio/*': ['.mp3', '.wav', '.m4a', '.ogg', '.flac'] } }],
-        });
-        const file = await handle.getFile();
-        if (_aURL) URL.revokeObjectURL(_aURL);
-        _aURL = URL.createObjectURL(file);
-        aEl.src = _aURL;
-        project.audio = file.name;
-        const b = document.getElementById('audio-btn');
-        b.textContent = file.name;
-        b.classList.add('loaded');
-        const tapBtn = document.getElementById('tap-btn');
-        if (tapBtn) tapBtn.disabled = false;
-        aEl.volume = parseFloat(document.getElementById('vol-slider')?.value || 80) / 100;
-        toast(`音声: ${file.name}`);
-        checkReloadBannerDone();
-        saveAsset(project.id, 'audio', { data: file, filename: file.name });
-      } catch (err) {
-        if (err.name === 'AbortError') return;  // キャンセルは正常
-        toast('音声ファイルの読み込みに失敗しました');
-        console.error('[audio open]', err);
-      }
-    } else {
-      // フォールバック: FSA API 非対応ブラウザ
-      document.getElementById('file-audio').click();
-    }
+  document.getElementById('audio-btn').addEventListener('click', () => {
+    document.getElementById('file-audio').click();
   });
 
   // Chord file select button
-  document.getElementById('chord-btn').addEventListener('click', async () => {
-    // Phase60.5: showOpenFilePicker で作業フォルダを記憶
-    if (window.showOpenFilePicker) {
-      try {
-        const [handle] = await window.showOpenFilePicker({
-          id: PICKER_IDS.chord,
-          types: [{ description: 'コードファイル', accept: { 'application/json': ['.json'], 'text/csv': ['.csv'] } }],
-        });
-        const file = await handle.getFile();
-        const text = await file.text();
-        let data;
-        if (file.name.endsWith('.csv')) {
-          data = parseCSV(text, normalizeChordName);
-        } else {
-          data = parseJSON(text);
-          if (!data) { toast('JSONエラー'); return; }
-        }
-        loadChordData(data, file.name);
-        saveAsset(project.id, 'chord', { data: text, filename: file.name });
-      } catch (err) {
-        if (err.name === 'AbortError') return;  // キャンセルは正常
-        toast('コードファイルの読み込みに失敗しました');
-        console.error('[chord open]', err);
-      }
-    } else {
-      // フォールバック: FSA API 非対応ブラウザ
-      document.getElementById('file-chord').click();
-    }
+  document.getElementById('chord-btn').addEventListener('click', () => {
+    document.getElementById('file-chord').click();
   });
 
   // Chord file load (JSON/CSV)
@@ -1585,37 +1529,22 @@ function setupEventHandlers() {
   // Save project
   document.getElementById('btn-save').addEventListener('click', () => saveProject(false));
 
-  // Save as
+  // Save as（同一 project identity 維持）
   document.getElementById('btn-saveas').addEventListener('click', () => saveProject(true));
 
-  // Open project (trigger file input)
-  document.getElementById('btn-open').addEventListener('click', async () => {
-    // Phase60.5: showOpenFilePicker で作業フォルダを記憶
-    if (window.showOpenFilePicker) {
-      try {
-        const [handle] = await window.showOpenFilePicker({
-          id: PICKER_IDS.projectOpen,
-          types: [{ description: 'プロジェクトファイル', accept: { 'application/json': ['.json'] } }],
-        });
-        const file = await handle.getFile();
-        const text = await file.text();
-        try {
-          const data = JSON.parse(text);
-          loadProj(data);
-          toast(`読み込み: ${file.name}`);
-        } catch {
-          toast('JSONエラー');
-        }
-      } catch (err) {
-        if (err.name === 'AbortError') return;  // キャンセルは正常
-        toast('プロジェクトファイルの読み込みに失敗しました');
-        console.error('[project open]', err);
-      }
-    } else {
-      // フォールバック: FSA API 非対応ブラウザ
-      document.getElementById('file-project').click();
-    }
+  // 新規プロジェクトとして保存（新 UUID 発行 → project lineage を分離）
+  // 用途: 既存プロジェクトを土台に別曲を作る場合
+  //   保存    → project.id 維持（同一曲の別ファイル）
+  //   別名保存 → project.id 維持（同一曲の別名）
+  //   新規プロジェクトとして保存 → 新 UUID（別曲として独立）
+  document.getElementById('btn-savenew').addEventListener('click', () => {
+    project.id = crypto.randomUUID();
+    _fileHandle = null;  // 前のファイルハンドルを破棄（新ファイルに保存させる）
+    saveProject(true);
   });
+
+  // Open project (trigger file input)
+  document.getElementById('btn-open').addEventListener('click',()=>document.getElementById('file-project').click());
 
   // Project file load
   document.getElementById('file-project').addEventListener('change',e=>{

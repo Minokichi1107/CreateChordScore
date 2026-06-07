@@ -97,6 +97,7 @@ raw input → normalizeChordName() → canonical key → findChord() → CHORD_D
 
 専門用語・略称・ローカル関数名は、
 初出時に簡単な補足説明を付記すること。
+説明文は日本語で書くこと。コードコメントも日本語で。
 
 例：
 
