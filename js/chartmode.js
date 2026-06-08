@@ -383,6 +383,44 @@ let _seekTo           = null;  // (time: number) => void（app.js が aEl.curren
 // リスナー重複登録防止フラグ（hot reload / re-init 対策）
 let _gridClickSeekBound = false;
 
+// ── rAF playback loop ──────────────────────────────────────
+// Chart Mode が open 中のみ走る描画ループ。
+//
+// authority 分離:
+//   audio engine (aEl.currentTime) = source of truth
+//   rAF                            = visual update authority
+//   timeupdate                     = line highlight / perform 等の通知のみ
+//
+// interpolation / 補間は行わない。
+// 毎フレーム aEl.currentTime を読むだけ。
+// → playbackRate / seek / tab throttle に対して安全。
+//
+// pause / seeked / ended 時は app.js が単発で updateChartPlayback() を呼ぶ。
+
+let _rafId      = null;   // requestAnimationFrame の戻り値
+let _rafRunning = false;  // ループ稼働フラグ
+
+function _startRafLoop() {
+  if (_rafRunning) return;          // 多重起動ガード（open連打・re-init 対策）
+  cancelAnimationFrame(_rafId);     // 念のため既存 ID をキャンセル
+  _rafRunning = true;
+  _rafLoop();
+}
+
+function _stopRafLoop() {
+  _rafRunning = false;
+  cancelAnimationFrame(_rafId);
+  _rafId = null;
+}
+
+function _rafLoop() {
+  if (!_rafRunning) return;
+  const aEl = _getAudioEl?.();
+  if (aEl) updateChartPlayback(aEl.currentTime);
+  _rafId = requestAnimationFrame(_rafLoop);
+}
+// ──────────────────────────────────────────────────────────
+
 /**
  * initChartMode
  *
@@ -518,6 +556,7 @@ export function openChartMode() {
     overlay.hidden = false;
   }
 
+  _startRafLoop();  // rAF playback loop 開始（visual update authority）
   _buildTransport();
   // 描画は呼び出し元（app.js）が renderChartMode を責務として持つ
 }
@@ -526,6 +565,7 @@ export function openChartMode() {
  * closeChartMode
  */
 export function closeChartMode() {
+  _stopRafLoop();  // rAF playback loop 停止（active=false の前に止める）
   chartState.active = false;
   chartState.lastScrolledMeasure = -1;
   const overlay = document.getElementById('chart-overlay');

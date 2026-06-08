@@ -378,7 +378,7 @@ function forcePreviewChord(chord) {
 // FILE LOADING
 // ════════════════════════════════════════
 
-async function loadChordData(data,filename){
+async function loadChordData(data, filename, isRestore = false){
 
   // ── capo restore ──────────────────────────────────────────
   // コードJSONはcanonical（capo=0）データ前提。
@@ -386,23 +386,32 @@ async function loadChordData(data,filename){
   // capo stateを0にリセットする。
   // （restore→reset→ingest の順序が重要）
   //
+  // isRestore=true（IndexedDB 自動復元経路）の場合は
+  // capo reset をスキップする。
+  //   理由: loadProj() が uiState.capo で _prevCapo を設定済みであり
+  //         ここで capo を 0 にリセットすると保存済み capo 値が失われる。
+  //   例:   capo=2 で保存したプロジェクトを開くと
+  //         IndexedDB restore が capo を 0 に上書きしてしまうバグ（Phase63修正）
+  //
   // paletteはこの直後に新JSONから再生成されるためrestoreしない。
   // capo change: semitones = -diff なので
   // restore方向: +_prevCapo（逆算）
-  if (_prevCapo !== 0) {
-    const restoreSemitones = _prevCapo;
-    (project.lines || []).forEach(line => {
-      line.chords.forEach(c => {
-        if (!c.chord) return;
-        c.chord = transposeChord(c.chord, restoreSemitones);
+  if (!isRestore) {
+    if (_prevCapo !== 0) {
+      const restoreSemitones = _prevCapo;
+      (project.lines || []).forEach(line => {
+        line.chords.forEach(c => {
+          if (!c.chord) return;
+          c.chord = transposeChord(c.chord, restoreSemitones);
+        });
       });
-    });
-  }
+    }
 
-  // capo state リセット（3つセットで整合）
-  project.capo = 0;
-  document.getElementById('capo').value = 0;
-  _prevCapo = 0;
+    // capo state リセット（3つセットで整合）
+    project.capo = 0;
+    document.getElementById('capo').value = 0;
+    _prevCapo = 0;
+  }
   // ──────────────────────────────────────────────────────────
 
   project.chord_source=filename;
@@ -1308,7 +1317,7 @@ async function loadProj(data){
         data = parseJSON(chordAsset.data);
       }
       if (data) {
-        loadChordData(data, chordAsset.filename);
+        loadChordData(data, chordAsset.filename, true);  // isRestore=true: capo reset をスキップ
         chordRestored = true;
       }
     }
@@ -2083,7 +2092,12 @@ window.addEventListener('DOMContentLoaded',()=>{
   aEl.addEventListener('timeupdate', updateTovTime);
   aEl.addEventListener('timeupdate', updatePerformFocus);
   aEl.addEventListener('timeupdate', updatePerformPlayer);
-  aEl.addEventListener('timeupdate', () => updateChartPlayback(aEl.currentTime));
+  // Chart Mode の playback 更新は rAF ループが担う（chartmode.js）。
+  // timeupdate は ~250ms 間隔のため visual authority には使わない。
+  // pause / seeked / ended 時のみ最終位置を1回同期する。
+  aEl.addEventListener('pause',  () => updateChartPlayback(aEl.currentTime));
+  aEl.addEventListener('seeked', () => updateChartPlayback(aEl.currentTime));
+  aEl.addEventListener('ended',  () => updateChartPlayback(aEl.currentTime));
 
   // ⑤ Replace 初期化
   initReplace(
@@ -2175,6 +2189,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     getAudioDuration: () => aEl.duration,
     getCapo:          getCapo,
     transposeChord:   transposeChord,
+    seekTo:           (time) => { aEl.currentTime = time; },  // Phase60: click seek authority
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
