@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase59完了時点
+> 最終更新: Phase64完了時点
 
 ---
 
@@ -440,19 +440,77 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - measure DOM に `data-confidence` / `data-repair-state` 属性追加
 - Issue #45「小節頭ズレ」の failure taxonomy 確立（Type A/B/C/D の分類）
 
+### Phase60 — Chart Mode click seek
+- `_seekTo` コールバック注入（app.js が aEl.currentTime を設定・playback authority 維持）
+- `_setupGridClickSeek()` 追加（chart-grid への click event delegation）
+- seek authority 確立: createTimingModel() が生成した normalized measure model の startTime のみを参照（raw downbeats 禁止）
+- seekTo = transport mutation boundary（chartmode.js は transport state を持たない）
+- click target を `.chart-measure` 全域に固定（内部DOM構造変更耐性）
+- `_gridClickSeekBound` フラグでリスナー重複防止
+- NaN ガード（degraded / partial analysis 対策）
+- `.chart-measure { cursor: pointer; }` 追加（Chart Mode CSS セクション）
+
+### Phase60.5 — File picker folder memory
+- `PICKER_IDS` 定数を project.js に export（用途別 picker id の一元管理）
+- 音声・コード・プロジェクト読み込みを `showOpenFilePicker` に移行
+- `showSaveFilePicker` に `id: PICKER_IDS.projectSave` 追加
+- 用途別フォルダ記憶（audio / chord / projectOpen / projectSave を分離）
+- `AbortError` ガード（キャンセル時の console error 防止）
+- FSA API 非対応ブラウザへの `<input type="file">` フォールバック
+- ※ Phase64 で実コード適用（Phase60.5はhandover記録のみで適用漏れがあった）
+
+### Phase61 — pickup measure numbering correction
+- `detectPickupMeasure()` 追加（2条件AND判定・median 基準・available range 全件）
+- `getDisplayMeasureNumber()` 追加（measure identity と display numbering semantics の分離）
+- pickup 判定: 小節0 → "0"、以降 1, 2, 3 ...（通常は 1, 2, 3 ...）
+- 旧スキーマ互換ガード（endTime 欠損時は pickup 判定スキップ）
+- timing.js / app.js / CSS 変更なし
+- hotfix: 旧project で Chart Mode が開かないバグ修正（endTime 欠損による NaN）
+- ※ endTime 未付与の根本原因は Phase64 で修正
+
+### Phase62 — project identity semantics + 新規プロジェクトとして保存
+- project identity semantics を確立（保存 / 別名保存 / 新規プロジェクトとして保存の UUID lifecycle 定義）
+- ファイルメニューに「🆕 新規プロジェクトとして保存」追加（新UUID発行・lineage 分岐）
+- fix: 同一アーティストの複数曲で project.id が重複する問題（IndexedDB asset 混在）
+- filename ≠ project identity の原則確立
+
+### Phase63 — playback UX stabilization + restore lifecycle fix
+- capo restore バグ修正: `isRestore` フラグを IndexedDB chord 復元経路へ適用（※ Phase64で実コード確定）
+- rAF playback loop 導入: `_startRafLoop()` / `_stopRafLoop()` / `_rafLoop()` を chartmode.js に追加
+- timeupdate → updateChartPlayback 削除（rAF が visual update authority に）
+- pause / seeked / ended 単発更新追加（最終位置の正確な反映）
+- playback authority 3層分離確立（audio engine / notification / visual update）
+- hotfix: initChartMode への seekTo 注入漏れ修正（Phase60からの既存バグ）
+
+### Phase64 — timing model rehydration redesign
+- **4層 architecture contract 確立**:
+  - Layer 1: Persistence Domain（analysis.raw = 唯一の永続化 canonical source）
+  - Layer 2: Runtime Cache（project.analysis.normalized = 永続化禁止・serialize禁止）
+  - Layer 3: Chart Mode Runtime Domain（chartmode.js ownership）
+  - Layer 4: UI Projection（capo依存はここだけ）
+- `loadAnalysis()` 戻り値に `raw` と `normalized` を追加
+- `buildNormalizedTimingAnalysis()` を chartmode.js → analysisLoader.js へ移動（rebuild 責務の集約）
+- `buildGridViewModel()` 引数を analysis 全体に統一
+- `endTime` を measures[] 初期化時に付与（Phase61 hotfix の根本原因を修正）
+- restore ordering contract を loadProj() にコメントで明示（①〜⑥ invariant）
+- Phase63の `isRestore` フラグを実コードへ適用（3箇所の適用漏れを修正）
+- Phase60.5 の `showOpenFilePicker` 移行を実コードへ適用（audio/chord/project open の3経路）
+- audio MIME タイプ修正（`'audio/*'` → 個別 MIME タイプ・Chrome 要件対応）
+- **教訓**: 「handover に書いてある」と「実コードに反映済み」は別問題。実コード audit が必要。
+
 ---
 
 ## 現在地
 
-- Phase59完了（Phase55〜59 の棚卸し対象）
-- Phase55〜59 の主な成果:
-  - capo lifecycle 修正（restore→reset→ingest invariant）（Phase55）
-  - loadChordData() isRestore フラグによる authority collision 解決（Phase58）
-  - Chart Mode beat cursor / playhead 追加（Phase56）
-  - Chart Mode slot-semantic renderer（expandToSlots / slot DOM invariant）（Phase57）
-  - Chart Mode slot DOM invariant 確立（Phase57）
-  - timing diagnostics / normalized pipeline 確立（Phase59）
-  - Issue #45 failure taxonomy 確立（Type A/B/C/D 分類）（Phase59）
+- Phase64完了
+- Phase60〜64 の主な成果:
+  - Chart Mode click seek 実装（normalized measure model の startTime authority）（Phase60）
+  - 用途別ファイルピッカーフォルダ記憶（PICKER_IDS）（Phase60.5）
+  - Chart Mode pickup measure 番号補正（detectPickupMeasure / getDisplayMeasureNumber）（Phase61）
+  - project identity semantics 確立・新規プロジェクトとして保存（Phase62）
+  - rAF playback loop 導入・playback authority 3層分離（Phase63）
+  - **4層 architecture contract 確立**（Persistence / Runtime Cache / Chart Runtime / UI Projection）（Phase64）
+  - handover記録と実コードの乖離を複数発見・修正（Phase64の重要な成果）
 
 ---
 
@@ -460,19 +518,21 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 
 詳細は `current-issues.md` のバックログを参照。
 
-Chart Mode 拡張系（推奨・normalized pipeline 確立済み）:
-- Chart Mode click seek（normalized timing pipeline が前提整備済み）
-- Chart Mode pickup measure 表示補正（Type B 対応・実装コスト小）
-- Chart Mode 並列表示（設計フェーズが必要）
+UX改善系（推奨・実装コスト小〜中）:
+- **restored asset state synchronization**（restore後のバナー誤表示解消・UXに直結）
+- debug API 整理（window.__CS_DEBUG__ 統合・TEMP REPAIR タグ削除）
 
-軽量UI改善系（比較的独立・実装しやすい）:
-- 行またぎコード移動（token array boundary mutation）
+Chart Mode 拡張系:
+- Chart Mode pickup-aware alignment（pickup offset metadata / leading empty slot・設計フェーズが必要）
+- Chart Mode 並列表示（設計フェーズが必要）
 
 Issue #45 継続対応:
 - Type A/C: A案（手動修正UI）設計フェーズ（大規模）
 - Type D: 発生ケース収集後に B案（repairDownbeats）の有効性検証
 
 将来（大規模設計フェーズが必要）:
+- timing model rehydration schema contract（schema versioning / migration layer）
+- moveChordAcrossLines（Chart 関連作業後に実装予定）
 - Issue #26: Beat/Grid 対応（bars[] 構造移行）
 - keyboard-first chord entry（insertion model 再設計）
 - capo projection 統合（destructive model → projection model 移行）

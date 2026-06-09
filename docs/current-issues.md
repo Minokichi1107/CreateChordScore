@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase59完了時点
+> 最終更新: Phase64完了時点
 
 ---
 
@@ -42,6 +42,7 @@ confirm操作（コード追加・バーライン追加）はすべて commit �
 token array boundary mutation として実装すること（string splice 禁止）。
 `project.lines` 編集APIが必要。app.js 内 `moveChordAcrossLines` として設計済み（Phase38-3）。
 ※ Phase53 で行またぎ**カーソル navigation** は実装済み。**コードそのものの移動**は別問題として未着手。
+※ Chart 関連作業の後に実装予定。
 ※ modal内の小機能として実装すると line mutation が modal subsystem に漏れるため注意。
 
 #### interaction hierarchy 改修
@@ -75,12 +76,11 @@ Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み�
 #### Chart Mode 並列表示（編集しながら Chart を参照）
 状態: 設計前
 内容: Chart Mode を全画面モードではなく、エディター画面と並列表示できるようにする。
-または全画面編集モードに Chart パネルを組み込む。
 設計上の注意点:
 - editor renderer / chart renderer の single source of truth をどこに置くか
 - focus / selection / scroll sync のタイミング
 - mutation 後の chart 再描画タイミング
-備考: Phase44 で projection responsibility が整理されたため、並列表示の設計に入れる段階。
+備考: Phase64 で 4層 architecture contract が確立したため、設計着手可能な段階。
 
 #### Chart Mode に audio controls 追加（mini transport）
 状態: **完了（Phase50）**
@@ -88,42 +88,42 @@ Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み�
 playback authority は `updateChartPlayback()` に集約（aEl listener を transport に持たせない設計）。
 
 #### Chart Mode click seek（再生位置クリック）
-状態: 未着手
-内容: Chart Mode の小節 / slot クリック → その位置から再生開始。
-normalized timing pipeline（Phase59）が確立したため実装可能な段階。
-playback authority は app.js が持つ（chartmode.js が aEl に直接触らない）。
-注意: 現在の seek 式（slot比率計算）は等間隔 slot 前提の暫定実装。
-      将来 triplet / swing 対応時は beat-aware seek mapping への移行が必要。
+状態: **完了（Phase60）**
+内容: measure クリック → normalized measure model の startTime → app.js seekTo 経由でシーク。
+seek authority は normalized measure model に限定（raw downbeats 禁止）。
+playback authority は app.js が持つ（chartmode.js は aEl に直接触らない）。
+event delegation により将来の renderer 変更に対して耐性がある。
 
 #### Chart Mode pickup measure 表示補正（Type B 対応）
-状態: 未着手
-内容: 曲が小節の途中から始まる弱起（pickup measure）のケースで
-小節1が短くなり、以降の小節番号がズレて表示される問題。
-Issue #45 Type B として分類済み（Phase59）。
-対処候補: 小節1の長さ < beatsPerMeasure × 0.75 拍分 → 番号を「0」または「♩」にする。
-注意: 単純な length 比較では rubato intro / free tempo intro での誤検出リスクあり。
-      判定条件は未確定。専用設計フェーズが必要。
+状態: **一部完了（Phase61）**
+内容:
+  numbering correction: 完了（小節0 → "0"、以降 1, 2, 3 ...）
+  alignment correction: 未着手（pickup-aware slot projection として将来候補）
+
+pickup-aware measure alignment の影響範囲:
+  measure.pickupOffsetBeats metadata 追加
+  leading empty slot projection
+  right-aligned pickup rendering
+  pickup-aware cursor / seek semantics
+  → slot / cursor / seek 全体に影響するため別フェーズで設計が必要
 
 #### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
-状態: **classified / instrumented（Phase59）**
-内容: Phase59の調査により、ズレの種類を以下の4タイプに分類した。
+状態: **classified / instrumented（Phase59）/ Type B 番号補正完了（Phase61）**
+内容: ズレの種類を以下の4タイプに分類した。
 
-| Type | 原因 | B案で直せるか |
+| Type | 原因 | 対処状況 |
 |---|---|---|
-| Type A | beat tracking collapse（beats = downbeats 完全一致） | 不可（A案のみ） |
-| Type B | pickup measure（弱起小節。小節1だけ短い） | 限定的（要設計） |
-| Type C | beats 半テンポ / 粒度異常（beat resolution mismatch） | 不可（A案のみ） |
-| Type D | 局所 drift → 全体伝播（当初の想定ケース） | 可能（B案対象） |
+| Type A | beat tracking collapse（beats = downbeats 完全一致） | 未着手（A案・手動修正UIが必要） |
+| Type B | pickup measure（弱起小節） | 番号補正: 完了（Phase61）/ alignment: 将来候補 |
+| Type C | beats 半テンポ / 粒度異常（beat resolution mismatch） | 未着手（A案のみ） |
+| Type D | 局所 drift → 全体伝播（当初の想定ケース） | 発生ケース収集中（今回調査4曲では未発生） |
 
 現状:
   - normalized timing pipeline 確立済み（buildNormalizedTimingAnalysis）
   - analyzeTiming() / repairDownbeats() 実装済み（repair default OFF）
   - window.__TIMING_DEBUG__ で DevTools から診断可能
-  - Type D は今回調査した4曲では未発生（サンプル数少・発生頻度未確定）
-  - Type A/C は A案（手動修正UI）のみで対処可能
 
 次のアクション候補:
-  - Type B: pickup measure 自動検出・表示補正（実装コスト小）
   - Type D: 発生ケース収集後に repair: true で効果検証
   - Type A/C: A案（手動修正UI）設計フェーズ（大規模・将来）
 
@@ -132,7 +132,62 @@ Issue #45 Type B として分類済み（Phase59）。
 内容: `getBeatPosition(t)` を timing.js に追加し、Chart Mode に playhead（beat cursor）を実装。
 measure直下 continuous overlay として分離。`updateChartPlayback()` で left% のみ更新（DOM再生成なし）。
 
+### restore lifecycle 系
+
+#### restored asset state synchronization
+状態: 未着手（Phase62から継続・推奨次フェーズ）
+内容:
+  現象: project restore 後、audio/chord は IndexedDB から正常に復元されているが
+  UI は「〇〇を読み込んでください」バナーが表示される。
+
+本質:
+  manual ingest（ユーザーが手動でファイルを選ぶ）と
+  project restore（IndexedDB から自動復元）が別 state 扱いになっている。
+  runtime loaded flags が manual ingest path でしか更新されていない。
+
+必要:
+  - restore-aware loaded state
+  - ingest / restore state の統合
+  - runtime asset authority の整理
+
+将来への影響:
+  autosave restore / workspace reopen / recent project reopen
+  を実装する際に必ず問題になる。
+
+優先度: 中（UX に直結）
+
+#### timing model rehydration schema contract
+状態: 未着手（Phase61 hotfix で発覚・Phase64で止血済み）
+内容: restore ordering contract は確立（Phase64）。
+しかし schema versioning / migration layer は未定義のまま。
+
+必要なもの:
+  - runtime timing schema contract の定義
+  - schema versioning / migration layer
+  - invariant validation（endTime 等の必須フィールド保証）
+
+現状: isRestore フラグ（Phase63）/ endTime 付与（Phase64）で止血済み。
+
 ### その他将来検討
+
+#### debug API 整理
+状態: 未着手（Phase62で方針決定）
+内容:
+  window.__CS_REPAIR__ 等の TEMP REPAIR タグ付きコードが残留。
+  window.__TIMING_DEBUG__ は有用だが名前がバラバラ。
+
+方針:
+  Step 1: 仕分け（削除 / 残す / 整理）
+  Step 2: window.__CS_DEBUG__ に統合
+    window.__CS_DEBUG__.timing     タイミング診断
+    window.__CS_DEBUG__.project    プロジェクト状態
+    window.__CS_DEBUG__.chart      Chart Mode 状態
+    window.__CS_DEBUG__.dumpInvariants()  ← 推奨
+      project.id / loaded asset ids / audio authority /
+      chart authority / timing schema を一覧表示
+  Step 3: docs/ にデバッグガイドを作成
+
+実装コスト: 小
 
 #### カポ範囲拡張（-2 まで対応）
 状態: 未着手
@@ -193,17 +248,6 @@ measure直下 continuous overlay として分離。`updateChartPlayback()` で l
 - 完全な理論構造化（tones / intervals / harmonic relation）
 - interval semantic engine
 
-将来的には以下のような理論構造を扱う必要がある：
-
-```js
-{
-  root: "C",
-  quality: "maj7",
-  tones: ["C","E","G","B"],
-  intervals: [1,3,5,7]
-}
-```
-
 ---
 
 ## 3. UI/UX課題
@@ -224,21 +268,25 @@ measure直下 continuous overlay として分離。`updateChartPlayback()` で l
 内容: 繰り返しが行の下に表示されて見づらく、「×N回」表記も削除操作との視覚的衝突がある。Simile記号（𝄋）の使用を検討
 
 ### カポ状態が新規プロジェクト読み込み時に引き継がれるバグ
-状態: **完了（Phase58）**
+状態: **完了（Phase63設計・Phase64実装）**
 内容: `loadChordData()` に `isRestore` フラグを追加し、IndexedDB restore 経路での
 capo reset 副作用を排除。restore → reset → ingest の順序を invariant として確立。
-`loadProj()` が uiState.capo で capo lifecycle を管理する経路を分離済み。
+Phase63 で設計・Phase64 で実コード適用（3箇所の適用漏れを修正）。
 
 ### localhost:8767 が読み込み中のまま開かないことがある
 状態: 再現性確認中
 内容: 読み込みを中止して再度読み込むと比較的早く開く。再現条件の特定が必要
-
 
 ### Theme system cleanup / contrast audit
 
 - blue theme で text-secondary contrast が低く、一部UIで局所overrideが発生
 - theme.css の selector override 増殖に注意
 - 将来的に component → CSS variable 経由への整理を検討
+
+### バグ: バックアップ中の音声停止問題
+状態: 未対応（低優先度）
+内容: バックアップバッチ実行 → タブが再起動 → 音声は流れ続けるが止める手段がない。
+原因候補: beforeunload / visibilitychange イベントで aEl.pause() が呼ばれていない。
 
 ---
 
@@ -250,6 +298,17 @@ capo reset 副作用を排除。restore → reset → ingest の順序を invari
   - schema変更: `DB_VERSION` をインクリメントして `onupgradeneeded` を更新
 - `isSepToken` の旧形式互換（`c.chord === '/'` / `type:'sep'`）は barline migration 完了後に削除判断
 
+### project identity lifecycle semantics（Phase62で確立）
+状態: 確立済み
+内容:
+  保存 → id 維持 / 別名保存 → id 維持 / 新規として保存 → 新UUID
+  UUID は system-wide authority key として定義。
+  将来の Project DB / workspace / recent projects の設計基盤。
+
+  将来追加の可能性:
+  外部共有 / zip import / project merge / cloud sync が来ると
+  deserialize 時の duplicate UUID detection が必要になる可能性あり。
+
 ### isChordLikeInput の末尾検証強化
 状態: 未着手
 内容: 現行の `/^[A-G](#|♯|b|♭)?/` は先頭のみ検証するため、
@@ -258,7 +317,6 @@ capo reset 副作用を排除。restore → reset → ingest の順序を invari
 - 末尾まで検証する正規表現に強化（暫定案）:
   `/^[A-G](#|♯|b|♭)?[a-zA-Z0-9()+\-susmajdimaugM♭♯#/]*$/`
 - または将来 `parseChordToken(raw)` として tokens.js に統合
-  `{ type:'chord', raw:'D♭maj7', normalized:'C#maj7' }` のような構造
 - 優先度: 低（実害は限定的。誤入力されても normalizeChordName で処理される）
 
 ### barline storage migration
@@ -272,6 +330,17 @@ capo reset 副作用を排除。restore → reset → ingest の順序を invari
 内容: Phase44-Step2 で perform.js に isChordToken を使う変更を入れたが
 import 追加が漏れ、perform mode 全消失バグとして Step3 動作確認時に発覚。
 対策: token 関数を追加・変更した際は、参照している全ファイルの import を同時に確認すること。
+
+### handover記録と実コードの乖離（教訓・Phase64）
+状態: 再発防止知識
+内容: Phase64 で以下の「handover に書いてあったが実コードに未適用」のケースを複数発見・修正した。
+  - Phase60.5: showOpenFilePicker 移行（audio/chord/project open の3経路）
+  - Phase63: isRestore フラグ（loadChordData 引数・capo reset ガード・IndexedDB 呼び出し）
+  - Phase61: endTime が measures[] 初期化時に未付与（hotfix は症状対処のみだった）
+
+対策:
+  - フェーズ完了後の実コード audit を handover audit と同様に実施すること
+  - 特に漏れやすい箇所: フラグ追加の呼び出し側への適用・API 移行の全経路への適用・生成側のフィールド追加
 
 ### grid-template-columns の分散管理（技術的負債・Phase49）
 状態: 意図的保留
@@ -290,3 +359,9 @@ import 追加が漏れ、perform mode 全消失バグとして Step3 動作確�
 方向性: collapse（幅縮小）と hide（完全非表示）を概念として分離し、
 UIラベル・状態変数名を整理する。
 時期: パネルレイアウト再設計フェーズで対応。
+
+### debug API 散在（Phase62から継続）
+状態: 未着手
+内容: window.__CS_REPAIR__ / window.__CS_TRANSPOSE__ 等の TEMP REPAIR タグ付きコードが残留。
+window.__TIMING_DEBUG__ は有用だが window.__CS_DEBUG__ への統合が未実施。
+優先度: 小（動作への影響なし・運用改善）

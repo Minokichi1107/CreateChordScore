@@ -1,6 +1,6 @@
 # アーキテクチャ概要
 
-> 最終更新: Phase59完了時点
+> 最終更新: Phase64完了時点
 
 ---
 
@@ -75,9 +75,9 @@ CreateChordScore/
 | chordEntry.js | コード入力サブシステム（openAddChord / insertAt state管理 / transient preview） | Phase39-1 |
 | tokens.js | musical token stream の分類・変換ユーティリティ（isChordToken / isSepToken / isNoChordToken / tokenToText） | Phase39-0 |
 | idb.js | IndexedDB操作層（audio / chord_source のローカル保存） | Phase32 |
-| analysisLoader.js | analysis.raw の validate / sanitize / normalize → project.analysis 生成 | Phase41 |
+| analysisLoader.js | analysis.raw の validate / sanitize / normalize → project.analysis 生成。buildNormalizedTimingAnalysis() の呼び出し元（Phase64〜）。normalized の rebuild responsibility を集約 | Phase41 |
 | timing.js | TimingModel（beat / measure grid 構築・quantize）。外部依存ゼロ。Phase59で diagnostics / repair / normalized pipeline 追加 | Phase41 |
-| chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer） | Phase41 |
+| chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer）。rAF playback loop ownership（Phase63〜） | Phase41 |
 
 ### 依存関係ルール
 
@@ -86,8 +86,9 @@ CreateChordScore/
 - `project.js` はデータ管理・変換に限定（UI操作を含まない）
 - `modals.js` はUI lifecycle と callback通知のみ。state mutationは app.js が担当
 - `tokens.js` は domain-level utility。どのモジュールからも参照可（app.js 経由不要）
-- `analysisLoader.js` は analysis data の ingestion 専用。UI / DOM / project.lines に触らない
-- `timing.js` は外部依存ゼロ。chartmode.js のみが import する（pure functions のみ・DOM / global state に触らない）
+- `analysisLoader.js` は analysis data の ingestion 専用。UI / DOM / project.lines に触らない。normalized の rebuild responsibility を持つ
+- `timing.js` は外部依存ゼロ。pure functions のみ・DOM / global state に触らない。chartmode.js と analysisLoader.js が import する
+- `chartmode.js` は projection renderer。app.js 経由で normalized を注入される。project tree から直接読み取り禁止
 - `tapmode.js` / `replace.js` は app.js 経由で初期化される（initTapMode / initReplace）
 - `utils.js` / `helpers.js` は作らない
 
@@ -142,13 +143,15 @@ initChordEntry({
 ### project
 ```javascript
 project = {
-  id,        // UUID（IndexedDB参照キー）
+  id,        // UUID（IndexedDB参照キー・system-wide authority key）
   title,
   artist,
   beats,
   audioFile,
   lines[],
-  palette[]
+  palette[],
+  capo,      // UI state兼serialize互換
+  hasAnalysis // フラグのみ（analysis本体は外部ファイル）
 }
 ```
 
@@ -195,6 +198,20 @@ AddChord open時のlock解除方針（Phase39-2で確立）：
 - B案採用: `openAddChord()` 冒頭で `unlockDiag()` を呼ぶ
 - A案（restore方式）は不採用 → `forcePreviewChord` のコメントに設計意図を記載
 
+### project identity semantics（Phase62で確立）
+
+```
+操作                       project.id    用途
+─────────────────────────────────────────────────────────
+上書き保存                 維持          同一project継続
+別名保存                   維持          同一projectの別ファイル
+新規プロジェクトとして保存   新UUID        別project lineage開始
+─────────────────────────────────────────────────────────
+
+UUID は system-wide authority key（analyses / IndexedDB assets / autosave / 将来の workspace）。
+filename ≠ project identity。
+```
+
 ---
 
 ## 5. 起動フロー
@@ -215,6 +232,8 @@ initReplace()
 initModals()         ← Phase33で追加
 ↓
 initChordEntry()     ← Phase39-5で追加（chordEntry subsystem接続完成）
+↓
+initChartMode()      ← Phase41で追加
 ↓
 loadCustomDiagrams()
 ↓
@@ -266,14 +285,6 @@ tokenToText(token)    // DOM表示用変換（lookup key には使わない）
 
 **display projection ≠ persisted semantic**
 
-この原則により：
-- serialize は必ず token object をそのまま保存する
-- import / migration は raw 文字列から token を生成する（逆引き禁止）
-- 表示文字列を DB lookup key や比較に使ってはならない
-
-将来 simile / Nashville / Roman numeral / slash bass 等が追加されても
-この原則は変わらない。
-
 ### renderer の projection 責務（Phase44-Step4 確定）
 
 | renderer | projection | 方式 |
@@ -288,31 +299,26 @@ tokenToText(token)    // DOM表示用変換（lookup key には使わない）
 
 ### chordEntry.js 拡張（Phase39以降）
 
-Phase39-5で app.js との接続完成。現在の実装範囲：
+現在の実装範囲：
 - `openAddChord(idx)`
 - `insertAt` state管理
 - `addChord` / `addSep`（addSep は barline canonical 生成）
 - キーボードハンドリング（Enter / Escape / IME guard）
 - `isChordLikeInput` domain validation
 
-Phase39以降の拡張予定：
-- insertion cursor 化
+将来の拡張予定：
 - keyboard-first chord entry（insertion model 再設計）
 - simile token 挿入UI
 - token shorthand（`/`→barline、`ss`→sim. 等）
 
 ### Issue #26 — barline → bars[] 移行パス
 
-現在の token stream モデル（`[token, barline, token]`）から、
-将来の bars 構造（`bars[].chords[]`）への移行に備えた設計：
-
 - `isSepToken()` が access layer として確立（Phase39-3/4）
 - 新規生成は `{ type: 'barline' }` canonical（Phase39-4）
-- 旧データは `isSepToken()` で透過的に扱える
 - storage migration は Issue #26 設計フェーズで判断
 
 ### その他将来予定
-- モジュールが肥大化した場合は責務単位での再分割を検討
+- moveChordAcrossLines: Chart 関連作業後に実装予定
 - 機能追加・既知課題は `current-issues.md` を参照
 
 ---
@@ -325,23 +331,10 @@ Phase39以降の拡張予定：
 
 capo change → `c.chord` を直接書き換える（destructive mutation model）
 
-```js
-// app.js capo changeイベント
-const semitones = -diff;
-project.lines.forEach(line => {
-  line.chords.forEach(c => { c.chord = transposeChord(c.chord, semitones); });
-});
-```
-
 ### 新方式（chartmode.js / Phase43以降）
 
 capo change → 表示時のみ変換（display projection model）
 `analysis.raw` は実音canonical として不変
-
-```js
-// chartmode.js _renderChartGrid
-chordEl.textContent = _transposeChord(cell.chord, -capo); // render時のみ
-```
 
 ### 既知の制約
 
@@ -352,51 +345,172 @@ chordEl.textContent = _transposeChord(cell.chord, -capo); // render時のみ
 ### 移行方針
 
 この混在は意図的な移行途中の状態。
-全面的な projection 化は editor / perform / import / save-load 全体に
-波及するため大規模な設計変更になる。
-将来の semantic / projection redesign フェーズで統合を検討する。
+全面的な projection 化は将来の semantic / projection redesign フェーズで統合を検討する。
 
 ---
 
-## 9. Chart Mode timing pipeline（Phase59で確立）
+## 9. Chart Mode timing pipeline（Phase59〜Phase64で確立）
+
+### 4層 architecture contract（Phase64で確立）
+
+```
+Layer 1: Persistence Domain
+  analysis/{id}.json:
+    raw                persisted canonical source（timing persistence の唯一の canonical source）
+  project.json:
+    project.lines      コード譜本体
+    project.id         UUID（system-wide authority key）
+    capo / key / tempo UI state
+    hasAnalysis        フラグのみ
+
+Layer 2: Runtime Cache（project.analysis）
+  NEVER persist / NEVER serialize / NEVER treat as source of truth
+  analysis = {
+    raw,               persisted canonical timing data（Persistence Layer からの配置済みコピー）
+    normalized,        timing専用補助データ（RUNTIME CACHE）
+      ├─ beats          repair済み timing source
+      ├─ downbeats      repair済み timing source
+      ├─ diagnostics    analyzeTiming() 結果
+      └─ repair         repairDownbeats() 結果
+    bpm, timeSignature, chords, meta   runtime参照用（normalized とは別物・rebuild 責務なし）
+  }
+
+Layer 3: Chart Mode Runtime Domain（chartmode.js ownership）
+  timingModel          createTimingModel() から生成
+  measures[]           startTime / endTime / slots 保証済み
+  cursor / playback    rAF loop（Phase63〜）
+
+Layer 4: UI Projection（capo依存はここだけ）
+  chord label = transposeChord(chord, -capo)
+  将来の Nashville / movable key / transpose preview もここに閉じ込める
+```
+
+### normalized の責務（Phase64で確定）
+
+```
+normalized = timing layer 専用の deterministic derived cache
+
+含むもの:
+  beats / downbeats（repair済み）
+  diagnostics（analyzeTiming 結果）
+  repair（repairDownbeats 結果）
+
+含まないもの（analysis から直接取得する）:
+  chords / timeSignature / bpm / meta
+
+禁止:
+  normalized を analysis 全体の代用品として使わない
+  （musical/project layer と timing layer の境界が崩れる）
+
+rebuild が必要な場合:
+  - analysis 再読込（loadAnalysis() 呼び出し時）
+  - repair policy 変更
+  - 将来の manual timing edit
+  - timing semantics change
+
+rebuild 不要:
+  - capo 変更（capo は Layer 4 のみに影響）
+  - Chart Mode open / close / UI 変更全般
+```
 
 ### normalized timing pipeline
 
-raw analysis を直接 `createTimingModel()` に渡さない。
-`buildNormalizedTimingAnalysis()` を経由することで
-timing normalization / diagnostics / repair を preprocessing として分離する。
+```
+raw analysis
+    ↓
+analysisLoader.js: loadAnalysis()          ← normalized の rebuild 責務を集約
+    └─ buildNormalizedTimingAnalysis()
+        ├─ analyzeTiming()    診断（常に実行・副作用なし）
+        └─ repairDownbeats()  補正（repair: true 時のみ・default OFF）
+    ↓
+project.analysis = { raw, normalized, bpm, timeSignature, chords, meta }
+    ↓
+app.js: getNormalized() 経由で chartmode.js に注入
+    ↓
+chartmode.js: buildGridViewModel(analysis)
+    ↓
+createTimingModel()                        ← 消費者のまま（シグネチャ変更なし）
+```
+
+### restore ordering contract（loadProj の実行順序）
 
 ```
-raw analysis（project.analysis）
-    ↓
-timing.js: buildNormalizedTimingAnalysis()   ← 全 consumer の入口（pure function）
-    ├─ analyzeTiming()    drift 診断（常に実行・副作用なし）
-    └─ repairDownbeats()  continuity-aware repair（repair: true 時のみ・default OFF）
-    ↓
-normalized timing source { beats, downbeats, diagnostics, repair }
-    ↓
-chartmode.js: buildGridViewModel()
-    ↓
-createTimingModel()                          ← 消費者のまま（シグネチャ変更なし）
+① deserializeProject()        lines / title / capo 復元
+② analysis/{id}.json 読込      raw のみ取得
+③ loadAnalysis({ raw })        normalized 生成（capo 非依存）
+   project.analysis = { raw, normalized, ... }
+④ capo UI 復元（_prevCapo）    ← ③の後でよい（capo 非依存）
+⑤ audio / chord 自動復元      isRestore=true で capo reset スキップ
+⑥ refreshEditor()              全 runtime state が揃った後
+
+[TIMING INVARIANT]   normalized は capo 非依存。capo は Layer 4 のみに影響。
+[PERSIST INVARIANT]  analysis.normalized は serialize 禁止。
+[OWNERSHIP INVARIANT] chartmode.js は persistence ownership を持たない。
+                      project.analysis の直接参照は app.js の責務。
 ```
 
-将来の perform.js / click seek / waveform sync も同一 timing source を参照できる。
-
-### 責務境界ルール
+### isRestore semantics（Phase63設計・Phase64で実コード確定）
 
 ```
-timing.js:
-  pure functions のみ
-  DOM / global state / window に触らない
-  window.__TIMING_DEBUG__ への書き込みは呼び出し側の責務
+loadChordData(data, filename, isRestore = false)
 
-chartmode.js:
-  window.__TIMING_DEBUG__ への書き込み責務を持つ
-  buildGridViewModel() が normalized pipeline の呼び出し元
+isRestore = false（default）: manual ingest 経路
+  - _prevCapo 分を逆算して lines を canonical に戻す
+  - capo を 0 にリセット（project.capo / UI / _prevCapo の3点セット）
 
-createTimingModel():
-  消費者のまま（preprocessing を受け取るだけ）
-  repair ロジックを埋め込まない
+isRestore = true: IndexedDB 自動復元経路
+  - capo reset をスキップ
+  - loadProj() が uiState.capo で設定済みの _prevCapo を保持する
+```
+
+### playback authority 3層分離（Phase63で確立）
+
+```
+authority layer:
+  audio engine (aEl.currentTime) = source of truth
+  chartmode.js は aEl に直接触らない（seekTo 経由のみ）
+
+notification layer:
+  timeupdate → line highlight / perform sync / tapmode
+  visual playback rendering の responsibility は持たない
+
+visual update layer（Chart Mode open 中のみ）:
+  requestAnimationFrame ループ（_rafLoop）
+    └→ 毎フレーム _getAudioEl().currentTime を読んで updateChartPlayback()
+    └→ interpolation なし（authority = audio engine のまま）
+
+単発更新:
+  pause / seeked / ended → app.js が updateChartPlayback() を1回呼ぶ
+
+rAF lifecycle:
+  openChartMode()  → _startRafLoop()
+  closeChartMode() → _stopRafLoop()
+```
+
+### seek authority（Phase60で確立）
+
+```
+seek authority = createTimingModel() が生成した normalized measure model の startTime
+raw downbeats の直接参照は禁止。
+
+seekTo = transport mutation boundary（chartmode.js は transport state を持たない）。
+aEl.currentTime の書き換えは app.js のみが行う。
+```
+
+### pickup-aware measure numbering（Phase61で確立）
+
+```
+measure identity（mi）と display numbering semantics は分離する。
+
+mi:      GridViewModel の 0-based index（data layer identity）
+表示番号: getDisplayMeasureNumber(mi, isPickup) が決める（render phase）
+
+detectPickupMeasure() の判定条件:
+  条件A: measures[0] の長さ < normalized median measure length × 0.75
+  条件B: measures[1〜N] の長さが中央値の ±30% 以内（正常範囲の確認）
+  → 2条件 AND で pickup と判定
+
+表示: pickup 小節0 → "0"、以降 1, 2, 3 ...（通常は 1, 2, 3 ...）
 ```
 
 ### repair の設計思想
@@ -407,7 +521,6 @@ madmom が明らかに道を踏み外した時だけそっと補助する。
 「自信がないなら触るな」を基本方針とする。
 
 repair default OFF: heuristic の誤補正リスクが未評価なため。
-                    現段階では observational / research mode を優先。
 ```
 
 ### Issue #45 failure taxonomy（Phase59で確立）
@@ -415,7 +528,7 @@ repair default OFF: heuristic の誤補正リスクが未評価なため。
 | Type | 原因 | 自動補正可否 |
 |---|---|---|
 | Type A | beat tracking collapse（beats = downbeats） | 不可 |
-| Type B | pickup measure（弱起小節） | 限定的（設計要） |
+| Type B | pickup measure（弱起小節）| 番号補正: 完了（Phase61）/ alignment: 将来候補 |
 | Type C | beat resolution mismatch（半テンポ検出等） | 不可 |
 | Type D | 局所 drift → 全体伝播 | B案（repairDownbeats）で対応可 |
 
@@ -425,12 +538,15 @@ Type D は今回調査した4曲では未発生（発生ケース収集中）。
 ### DevTools 診断
 
 ```javascript
+// Phase59時点: window.__TIMING_DEBUG__（chartmode.js が書き込む）
 window.__TIMING_DEBUG__ = {
-  raw:         { beats, downbeats },        // 変更前の生データ
-  diagnostics: analyzeTiming() の結果,     // 常に書き込み
-  repair:      repairDownbeats() の結果,   // repair:true 時のみ
-  normalized:  { beats, downbeats },        // createTimingModel に渡した最終値
+  raw:         { beats, downbeats },
+  diagnostics: analyzeTiming() の結果,
+  repair:      repairDownbeats() の結果（repair:false なら null）,
+  normalized:  { beats, downbeats },
 }
+
+// 将来: window.__CS_DEBUG__ に統合予定（debug API 整理フェーズ）
 ```
 
 ### Chart Mode slot DOM invariant（Phase57で確立）
@@ -445,4 +561,38 @@ timing / layout / presentation の3層分離:
   slot DOM       → fixed grid
   chord label    → visual presentation（--duration-slots CSS変数で幅制御）
   playhead       → measure直下 continuous overlay
+```
+
+---
+
+## 10. PICKER_IDS による用途別ファイル管理（Phase60.5で確立・Phase64で実装）
+
+```javascript
+// project.js で export
+export const PICKER_IDS = {
+  audio:       'ccs-audio',
+  chord:       'ccs-chord',
+  projectOpen: 'ccs-project-open',
+  projectSave: 'ccs-project-save',
+};
+```
+
+Chrome は showOpenFilePicker / showSaveFilePicker の id ごとに「最後に使ったフォルダ」を記憶する。
+用途別に id を分けることで、音声・コード・プロジェクトそれぞれのフォルダが独立して記憶される。
+
+**AbortError ガード必須:**
+```javascript
+try { ... } catch (err) {
+  if (err.name === 'AbortError') return;  // キャンセルは正常
+  // ...
+}
+```
+
+**Chrome audio MIME タイプ注意:**
+`'audio/*'` は Chrome で受け付けられない。個別 MIME タイプを明示する必要がある。
+```javascript
+// ✅ 正しい
+'audio/mpeg': ['.mp3'], 'audio/wav': ['.wav'], 'audio/ogg': ['.ogg'], ...
+// ✗ 誤り（Chrome で動作しない）
+'audio/*': ['.mp3', '.wav', ...]
 ```

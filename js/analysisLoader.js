@@ -202,6 +202,19 @@ function normalizeMeta(raw) {
 // メインエントリ
 // ────────────────────────────────────────
 
+// ────────────────────────────────────────
+// timing pipeline（normalized cache 生成用）
+// ────────────────────────────────────────
+// [OWNERSHIP] buildNormalizedTimingAnalysis は timing.js の純関数。
+// loadAnalysis() がここで呼ぶことで、
+// normalized は project.analysis に1度だけ生成・格納される。
+// chartmode.js / 将来の consumer は再計算せず normalized を受け取るだけ。
+import { buildNormalizedTimingAnalysis } from './timing.js';
+
+// ────────────────────────────────────────
+// メインエントリ
+// ────────────────────────────────────────
+
 /**
  * loadAnalysis
  *
@@ -211,7 +224,18 @@ function normalizeMeta(raw) {
  * 致命的な構造破損の場合は null を返す。
  * 呼び出し元は null を許容すること（Chart Mode は null guard が必要）。
  *
- * @param {*} analysis - data.analysis（analysis.raw を持つオブジェクト）
+ * 【戻り値の層構造】
+ *   raw:        persisted canonical source（serialize 対象）
+ *   normalized: runtime-only derived cache（serialize 禁止）
+ *   その他:     sanitize / normalize 済み参照フィールド
+ *
+ * 【normalized の invalidate 条件】
+ *   - analysis 再読込（このファイルの呼び出し）
+ *   - repair policy 変更
+ *   - 将来の manual timing edit
+ *   capo 変更 / chart open/close では rebuild 不要（capo 非依存）
+ *
+ * @param {*} analysis - data.analysis（analysis.raw を持つオブジェクト）または raw 直接
  * @returns {object|null}
  */
 export async function loadAnalysis(analysis) {
@@ -239,13 +263,40 @@ export async function loadAnalysis(analysis) {
     : null;
 
   // ── normalize / sanitize ─────────────
+  const timeSignature = normalizeTimeSignature(raw.timeSignature);
+  const beats         = sanitizeTimestamps(raw.beats);
+  const downbeats     = sanitizeTimestamps(raw.downbeats);
+
+  // ── normalized timing cache ───────────
+  // [RUNTIME CACHE] deterministic derived cache。
+  // NEVER persist / NEVER treat as source of truth。
+  // capo 非依存。capo 変更では rebuild 不要。
+  // rebuild 条件: analysis 再読込 / repair policy 変更 / 将来の manual timing edit のみ。
+  //
+  // timing.js の buildNormalizedTimingAnalysis は analysis オブジェクト全体を受け取る。
+  // sanitize 済みの { beats, downbeats, timeSignature, ... } を含むオブジェクトを渡す。
+  const sanitizedAnalysis = { beats, downbeats, timeSignature,
+    chords: sanitizeChords(raw.chords), bpm, meta: normalizeMeta(raw.meta) };
+  const normalized = buildNormalizedTimingAnalysis(sanitizedAnalysis, { repair: false });
+
   return {
+    // [PERSIST INVARIANT] raw = persisted canonical source。
+    // loadProj() が analysis/{id}.json から復元する際の source of truth。
+    // serialize は raw のみ行う（project.js serializeProject 参照）。
+    raw,
+
+    // derived（sanitize 済み）— raw からの投影
     bpm,
-    timeSignature: normalizeTimeSignature(raw.timeSignature),
-    beats:         sanitizeTimestamps(raw.beats),
-    downbeats:     sanitizeTimestamps(raw.downbeats),
-    chords:        sanitizeChords(raw.chords),
-    meta:          normalizeMeta(raw.meta),
+    timeSignature,
+    beats,
+    downbeats,
+    chords:     sanitizedAnalysis.chords,
+    meta:       sanitizedAnalysis.meta,
+
+    // [RUNTIME CACHE] normalized = deterministic derived cache。
+    // chartmode.js / 将来の consumer はこれを受け取るだけ（再計算しない）。
+    // NEVER persist / NEVER treat as source of truth。
+    normalized,
   };
 }
 

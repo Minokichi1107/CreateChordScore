@@ -43,15 +43,16 @@
  *     carry / empty 含む全 slot DOM が生成されるため逆引きは不要（Phase57で解決済み）。
  *   将来の click seek / beat hover 等も semantic slot（expandToSlots 結果）を参照する。
  *
- * 【Phase59 timing stabilization（normalized timing pipeline）】
- *   buildGridViewModel() は rawAnalysis を直接 createTimingModel() に渡さない。
- *   buildNormalizedTimingAnalysis() を経由して normalized source を取得する。
- *   これにより将来の perform.js / click seek 等も同一 timing source を参照できる。
+ * 【Phase59/64 timing stabilization（normalized timing pipeline）】
+ *   buildGridViewModel() は normalized を引数で受け取る（Phase64で変更）。
+ *   normalized の生成責務は analysisLoader.js の loadAnalysis() が持つ。
+ *   chartmode.js は project tree を直接読まない（OWNERSHIP INVARIANT）。
+ *   normalized は app.js が project.analysis から取り出して注入する。
  *   診断結果（analyzeTiming）は window.__TIMING_DEBUG__ に常に書き込む。
  *   repair はデフォルト OFF（experimental）。
  */
 
-import { createTimingModel, buildNormalizedTimingAnalysis, analyzeTiming } from './timing.js';
+import { createTimingModel } from './timing.js';
 
 
 
@@ -74,38 +75,33 @@ import { createTimingModel, buildNormalizedTimingAnalysis, analyzeTiming } from 
  * @returns {{ model: TimingModel, measures: object[] } | null}
  */
 export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
+  // [OWNERSHIP INVARIANT] analysis は app.js が project.analysis を注入する。
+  // chartmode.js は project tree を直接読まない。
+  // normalized は analysis.normalized（analysisLoader.js の loadAnalysis() が生成した runtime cache）。
+  // NEVER rebuild normalized here — それは analysisLoader.js の責務。
   if (!analysis) return null;
 
-  // ── Phase59: normalized timing pipeline ──────────────────────────
-  // rawAnalysis を直接 createTimingModel() に渡さない。
-  // buildNormalizedTimingAnalysis() を経由することで:
-  //   1. drift 診断（analyzeTiming）を常に実行
-  //   2. repair: true 時のみ downbeat 補正を適用
-  //   3. 将来の perform.js / click seek も同一 source を参照できる
-  // __TIMING_DEBUG__ への書き込みはここ（chartmode.js）の責務
-  //   timing.js は pure function として DOM / global state に触らない
-  const { repair = false, repairOpts = {} } = opts;
-  const normalized = buildNormalizedTimingAnalysis(analysis, { repair, repairOpts });
+  // normalized timing を analysis から取得する。
+  // analysis.normalized が存在しない場合（旧データ等）はフォールバックとして
+  // analysis 自体を timing source として使う（beats/downbeats はそのまま利用）。
+  const cachedNormalized = analysis.normalized;
 
   // DevTools デバッグ用（将来の issue 報告・A案設計のデータ収集）
   window.__TIMING_DEBUG__ = {
-    raw: {
-      beats:     analysis.beats     ?? [],
-      downbeats: analysis.downbeats ?? [],
-    },
-    diagnostics: normalized.diagnostics,
-    repair:      normalized.repair,
+    diagnostics: cachedNormalized?.diagnostics ?? null,
+    repair:      cachedNormalized?.repair ?? null,
     normalized: {
-      beats:     normalized.beats,
-      downbeats: normalized.downbeats,
+      beats:     cachedNormalized?.beats ?? analysis.beats ?? [],
+      downbeats: cachedNormalized?.downbeats ?? analysis.downbeats ?? [],
     },
   };
 
-  const { beats, downbeats, timeSignature, chords } = {
-    ...analysis,
-    beats:     normalized.beats,
-    downbeats: normalized.downbeats,
-  };
+  // timing: normalized が存在すれば repair済みの beats/downbeats を使う。
+  // chords / timeSignature は timing 非依存のため analysis から直接取得する。
+  const beats         = cachedNormalized?.beats     ?? analysis.beats     ?? [];
+  const downbeats     = cachedNormalized?.downbeats ?? analysis.downbeats ?? [];
+  const timeSignature = analysis.timeSignature;
+  const chords        = analysis.chords;
 
   const model = createTimingModel({
     beats,
@@ -125,12 +121,18 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
   const slotsPerMeasure = model.slotsPerMeasure;
 
   // 小節配列を初期化（onset-only: slots は空配列でスタート）
-  const measures = Array.from({ length: model.measureCount }, (_, mi) => ({
-    index:      mi,           // 0-based
-    startTime:  model.getMeasure(mi).startTime,
-    confidence: model.getMeasure(mi).confidence,
-    slots:      [],           // { slotIndex, onsets[] } onset ありのみ追加
-  }));
+  // endTime は detectPickupMeasure() / click seek での measure 長さ計算に必須。
+  // getMeasure(mi) から startTime / endTime / confidence を取得する。
+  const measures = Array.from({ length: model.measureCount }, (_, mi) => {
+    const m = model.getMeasure(mi);
+    return {
+      index:      mi,           // 0-based
+      startTime:  m.startTime,
+      endTime:    m.endTime,    // pickup 判定・seek に必須
+      confidence: m.confidence,
+      slots:      [],           // { slotIndex, onsets[] } onset ありのみ追加
+    };
+  });
 
   // N / 空コードを除外してから quantize
   const validChords = (chords || []).filter(c =>
@@ -170,7 +172,7 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
 
   // repairPerMeasure: measure index → repair状態のマップ
   // _renderChartGrid() でdata-repair-state付与に使用
-  const repairPerMeasureArr = normalized.repair?.perMeasure ?? [];
+  const repairPerMeasureArr = cachedNormalized?.repair?.perMeasure ?? [];
   const repairPerMeasure    = new Map(repairPerMeasureArr.map(e => [e.index, e]));
 
   return { model, measures, repairPerMeasure };
@@ -373,7 +375,8 @@ export const chartState = {
 // 注入依存
 // ────────────────────────────────────────
 
-let _getAnalysis      = null;  // () => project.analysis
+let _getAnalysis      = null;  // () => project.analysis（header/fallback 表示用）
+let _getNormalized    = null;  // () => project.analysis?.normalized（timing pipeline 用）
 let _getAudioEl       = null;  // () => aEl
 let _getAudioDuration = null;  // () => aEl.duration
 let _getCapo          = null;  // () => number（カポ値）
@@ -436,8 +439,9 @@ function _rafLoop() {
  *                                           app.js が aEl.currentTime を設定する責務を持つ。
  *                                           chartmode.js は aEl に直接触らない。
  */
-export function initChartMode({ getAnalysis, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo }) {
   _getAnalysis      = getAnalysis;
+  _getNormalized    = getNormalized;
   _getAudioEl       = getAudioEl;
   _getAudioDuration = getAudioDuration;
   _getCapo          = getCapo;
@@ -548,6 +552,9 @@ export function openChartMode() {
   if (!analysis) return;
 
   const duration = _getAudioDuration?.() || null;
+  // [OWNERSHIP] analysis は app.js が project.analysis を注入する。
+  // chartmode.js は project tree を直接読まない。
+  // analysis.normalized が runtime cache として含まれている（analysisLoader.js で生成済み）。
   chartState.viewModel = buildGridViewModel(analysis, duration);
 
   chartState.active = true;
