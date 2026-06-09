@@ -365,3 +365,26 @@ UIラベル・状態変数名を整理する。
 内容: window.__CS_REPAIR__ / window.__CS_TRANSPOSE__ 等の TEMP REPAIR タグ付きコードが残留。
 window.__TIMING_DEBUG__ は有用だが window.__CS_DEBUG__ への統合が未実施。
 優先度: 小（動作への影響なし・運用改善）
+
+### runtime authority の継続的な明文化（設計知見）
+状態: 継続観察
+内容:
+  Phase60〜64 でやっていたことの本質は「authority の整理」だった。
+  authority が曖昧になると設計負債化する。
+  新しい機能を追加するたびに、以下の authority が明確かどうかを確認すること。
+
+  現在確立済みの authority:
+    seek authority          = normalized measure model の startTime（Phase60）
+    playback authority      = app.js / aEl.currentTime（Phase50〜63）
+    visual update authority = rAF loop in chartmode.js（Phase63）
+    rebuild authority       = app.js が orchestration / analysisLoader.js が implementation（Phase64）
+    persistence authority   = analysis.raw のみ serialize（全フェーズ通じて一貫）
+    projection authority    = capo依存の変換は Layer 4（chartmode.js render phase）のみ（Phase43〜）
+    mutation authority      = project.lines への変更は app.js 経由（初期から一貫）
+
+  authority が曖昧になりやすいタイミング:
+    - 新しいモジュールが既存モジュールのデータを参照し始めた時
+    - 「ここで直接やった方が楽」という誘惑が生じた時
+    - 複数のモジュールが同じデータを書き換え始めた時
+
+  参照: architecture.md §9 の各 authority セクション

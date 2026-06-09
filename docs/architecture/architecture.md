@@ -366,7 +366,7 @@ Layer 1: Persistence Domain
 Layer 2: Runtime Cache（project.analysis）
   NEVER persist / NEVER serialize / NEVER treat as source of truth
   analysis = {
-    raw,               persisted canonical timing data（Persistence Layer からの配置済みコピー）
+    raw,               runtime-loaded canonical timing data（Persistence Layer からロードした canonical source）
     normalized,        timing専用補助データ（RUNTIME CACHE）
       ├─ beats          repair済み timing source
       ├─ downbeats      repair済み timing source
@@ -388,7 +388,9 @@ Layer 4: UI Projection（capo依存はここだけ）
 ### normalized の責務（Phase64で確定）
 
 ```
-normalized = timing layer 専用の deterministic derived cache
+normalized = timing layer 専用の disposable derived cache
+  analysis.raw から rebuild 可能であることを前提とする。
+  rebuild 可能であることが、serialize 禁止・migration source 禁止の根拠。
 
 含むもの:
   beats / downbeats（repair済み）
@@ -397,16 +399,20 @@ normalized = timing layer 専用の deterministic derived cache
 
 含まないもの（analysis から直接取得する）:
   chords / timeSignature / bpm / meta
+  ※ normalized を analysis 全体の代用品として使わない
+    （musical/project layer と timing layer の境界が崩れる）
 
-禁止:
-  normalized を analysis 全体の代用品として使わない
-  （musical/project layer と timing layer の境界が崩れる）
+rebuild entry point:
+  通常の rebuild entry point は loadAnalysis()（analysisLoader.js）。
+  rebuild orchestration authority は app.js が持つ。
+  将来 manual timing edit 等が入ると、loadAnalysis() を経由しない
+  rebuild パスが必要になる可能性がある。その場合は app.js が
+  直接 buildNormalizedTimingAnalysis() を呼び出す設計で対応する。
 
-rebuild が必要な場合:
-  - analysis 再読込（loadAnalysis() 呼び出し時）
+rebuild が必要なケース（主なもの）:
+  - analysis 再読込（通常は loadAnalysis() 経由）
   - repair policy 変更
-  - 将来の manual timing edit
-  - timing semantics change
+  - 将来の manual timing edit / timing semantics change
 
 rebuild 不要:
   - capo 変更（capo は Layer 4 のみに影響）
@@ -443,10 +449,19 @@ createTimingModel()                        ← 消費者のまま（シグネチ
 ⑤ audio / chord 自動復元      isRestore=true で capo reset スキップ
 ⑥ refreshEditor()              全 runtime state が揃った後
 
-[TIMING INVARIANT]   normalized は capo 非依存。capo は Layer 4 のみに影響。
-[PERSIST INVARIANT]  analysis.normalized は serialize 禁止。
-[OWNERSHIP INVARIANT] chartmode.js は persistence ownership を持たない。
-                      project.analysis の直接参照は app.js の責務。
+[TIMING INVARIANT]
+  normalized は capo 非依存。capo は Layer 4（UI Projection）のみに影響する。
+  capo 変更では normalized rebuild 不要。
+
+[OWNERSHIP INVARIANT]
+  chartmode.js は persistence ownership を持たない。
+  normalized timing data と projection inputs のみを受け取る。
+  project.analysis の直接参照は app.js の責務（chartmode.js に持たせない）。
+
+[PERSIST INVARIANT]
+  normalized は disposable derived cache。
+  serializeProject() は hasAnalysis フラグのみを保存する。
+  normalized を serialize / migration source として扱わない。
 ```
 
 ### isRestore semantics（Phase63設計・Phase64で実コード確定）
