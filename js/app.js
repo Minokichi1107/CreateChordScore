@@ -263,10 +263,110 @@ let asT = null;
 // トーストタイマー
 let toastT = null;
 
+// ── asset loaded authority ────────────────────────────────────────────
+// assetState: audio / chord のロード済み状態の唯一の authority（source of truth）
+// DOM class / aEl.src / palette.length は assetState を「反映する」だけ。
+// DOM 状態を authority として参照してはいけない（DOM = projection のみ）。
+//
+// restoreSettled:
+//   通常は true。loadProj() 開始時だけ false にし、
+//   async restore 完了後に true へ戻す。
+//   false の間は _evaluateBannerState() が早期 return し、
+//   transient phase でのバナー誤表示を防ぐ。
+//   manual ingest は restore transaction ではないため、restoreSettled を操作しない。
+let assetState = {
+  audioLoaded:    false,
+  chordLoaded:    false,
+  restoreSettled: true,   // 通常状態は settled（loadProj 開始時だけ false）
+};
+
 // ----------------------------
 // HELPER FUNCTIONS
 // ----------------------------
 function getCapo(){return parseInt(document.getElementById('capo').value)||0;}
+
+// ── asset loaded authority API ────────────────────────────────────────
+// [ASSET AUTHORITY INVARIANT]
+// バナー表示・ボタン状態は assetState の純粋な projection（UI projection）。
+// DOM class / aEl.src / palette.length を authority として参照してはいけない。
+// この API を通じてのみ assetState を更新し、UI を同期させること。
+// Phase65 で確立。将来の autosave restore / workspace reopen でも同一 API を使う。
+
+/**
+ * setAudioLoaded — audio asset のロード状態を更新し UI を同期する
+ * @param {boolean} loaded
+ * @param {string|null} filename
+ * @param {{ silent?: boolean }} opts
+ *   silent=true: _evaluateBannerState を呼ばない（resetProject 用）
+ */
+function setAudioLoaded(loaded, filename = null, { silent = false } = {}) {
+  assetState.audioLoaded = loaded;
+  const audioBtn = document.getElementById('audio-btn');
+  const tapBtn   = document.getElementById('tap-btn');
+  if (loaded && filename) {
+    audioBtn.textContent = filename;
+    audioBtn.classList.add('loaded');
+    if (tapBtn) tapBtn.disabled = false;
+  } else {
+    audioBtn.textContent = 'クリックして選択';
+    audioBtn.classList.remove('loaded');
+    if (tapBtn) tapBtn.disabled = true;
+  }
+  if (!silent) _evaluateBannerState();
+}
+
+/**
+ * setChordLoaded — chord asset のロード状態を更新し UI を同期する
+ * @param {boolean} loaded
+ * @param {string|null} filename
+ * @param {{ silent?: boolean }} opts
+ *   silent=true: _evaluateBannerState を呼ばない（resetProject 用）
+ */
+function setChordLoaded(loaded, filename = null, { silent = false } = {}) {
+  assetState.chordLoaded = loaded;
+  const chordBtn = document.getElementById('chord-btn');
+  if (loaded && filename) {
+    chordBtn.textContent = filename;
+    chordBtn.classList.add('loaded');
+  } else {
+    chordBtn.textContent = 'JSON / CSV';
+    chordBtn.classList.remove('loaded');
+  }
+  if (!silent) _evaluateBannerState();
+}
+
+/**
+ * _evaluateBannerState — バナー表示要否を assetState から評価する（UI projection）
+ *
+ * [PROJECTION INVARIANT]
+ * バナーの表示/非表示は assetState + project metadata の純粋な投影であり、
+ * DOM 状態を authority として使ってはいけない。
+ * restoreSettled=false の間（restore transaction 中）は評価をスキップし、
+ * transient phase でのバナー誤表示・flicker を防ぐ。
+ *
+ * showReloadBanner は冒頭で既存バナーを remove してから生成するため
+ * 連続呼び出しでも duplicate DOM は発生しない（idempotent）。
+ */
+function _evaluateBannerState() {
+  // restore transaction 中は評価しない（両方の結果が出てから評価する）
+  if (!assetState.restoreSettled) {
+    return;
+  }
+
+  const audioNeeded = !!project.audio         && !assetState.audioLoaded;
+  const chordNeeded = !!project.chord_source  && !assetState.chordLoaded;
+
+  if (!audioNeeded && !chordNeeded) {
+    const banner = document.getElementById('reload-banner');
+    if (banner) banner.remove();
+    return;
+  }
+
+  showReloadBanner(
+    audioNeeded ? project.audio        : null,
+    chordNeeded ? project.chord_source : null,
+  );
+}
 
 // ── 左パネル折りたたみ API ────────────────
 function applyLeftCollapsed() {
@@ -415,7 +515,8 @@ async function loadChordData(data, filename, isRestore = false) {
   // ──────────────────────────────────────────────────────────
 
   project.chord_source=filename;
-  const b=document.getElementById('chord-btn');b.textContent=filename;b.classList.add('loaded');
+  // chord-btn の表示更新は setChordLoaded() が担う（呼び出し側の責務）。
+  // loadChordData は ingest 専用のため DOM 操作を行わない。
   // no_chord 系文字列（N / NC / N.C.）はパレットに含めない。
   // 文字列比較は import 経路のみ（内部 token は isNoChordToken で判定）。
   // normalize後（ドット・括弧除去・大文字化）で比較するため 'N.C.' / '(N.C)' 等も吸収する
@@ -459,16 +560,9 @@ async function loadChordData(data, filename, isRestore = false) {
   }
 
   toast(`コード読み込み: ${palette.length}種`+(data.tempo?` / ${Math.round(data.tempo)}BPM`:'')+(data.key?` / ${data.key}`:''));
-  checkReloadBannerDone();
+  // banner 評価は呼び出し側（setChordLoaded / async IIFE 末尾）が担う。
+  // loadChordData は ingest 専用であり runtime authority の確立は行わない。
   renderImportBtn();
-}
-
-function checkReloadBannerDone(){
-  const banner=document.getElementById('reload-banner');
-  if(!banner)return;
-  const audioOk=aEl.src&&aEl.src!==window.location.href;
-  const chordOk=palette.length>0||!project.chord_source;
-  if(audioOk&&chordOk)banner.remove();
 }
 
 function renderImportBtn(){
@@ -1173,17 +1267,11 @@ function resetProject() {
   const lyricTa = document.getElementById('lyric-ta');
   if (lyricTa) lyricTa.value = '';
   
-  const audioBtn = document.getElementById('audio-btn');
-  const chordBtn = document.getElementById('chord-btn');
-  
-  audioBtn.textContent = 'クリックして選択';
-  audioBtn.classList.remove('loaded');
-  
-  chordBtn.textContent = 'JSON / CSV';
-  chordBtn.classList.remove('loaded');
-  
-  const tapBtn = document.getElementById('tap-btn');
-  if (tapBtn) tapBtn.disabled = true;
+  // asset authority リセット（silent=true で _evaluateBannerState を抑制）
+  // restoreSettled は loadProj 開始時に false にするため、ここでは true に戻す。
+  assetState.restoreSettled = true;
+  setAudioLoaded(false, null, { silent: true });
+  setChordLoaded(false, null, { silent: true });
   
   const linesCont = document.getElementById('lines-cont');
   if (linesCont) linesCont.innerHTML = '';
@@ -1282,21 +1370,14 @@ async function loadProj(data){
   }
 
   updateChartModeAvailability();
-  
-  // Update file buttons
+
+  // ボタン表示: ファイル名をセット（実際のロード済みかは async restore 後に確定）
+  // loaded クラスはここでは付けない。assetState 経由で restore 後に確定させる。
   const audioBtn = document.getElementById('audio-btn');
   const chordBtn = document.getElementById('chord-btn');
-  
-  if (newProject.audio) {
-    audioBtn.textContent = newProject.audio;
-    audioBtn.classList.add('loaded');
-  }
-  
-  if (newProject.chord_source) {
-    chordBtn.textContent = newProject.chord_source;
-    chordBtn.classList.add('loaded');
-  }
-  
+  if (newProject.audio)        audioBtn.textContent = newProject.audio;
+  if (newProject.chord_source) chordBtn.textContent = newProject.chord_source;
+
   refreshEditor();
   renderImportBtn();
   
@@ -1305,48 +1386,43 @@ async function loadProj(data){
     showDiagramPanel(curDiagChord, getCapo(), getDiagCallbacks());
   }
 
-  // IndexedDBからasset復元
+  // IndexedDB から asset 復元
+  // [RESTORE TRANSACTION]
+  //   restoreSettled=false の間は _evaluateBannerState() が評価をスキップする。
+  //   両方のアセットの restore 試行が完了した後に restoreSettled=true にして
+  //   1回だけ banner 評価を行う。これにより transient phase でのバナー誤表示を防ぐ。
+  assetState.restoreSettled = false;
   (async () => {
-    let audioRestored = false;
-    let chordRestored = false;
-
-    // audio復元
+    // audio 復元
     const audioAsset = await loadAsset(project.id, 'audio').catch(() => null);
     if (audioAsset) {
       if (_aURL) URL.revokeObjectURL(_aURL);
       _aURL = URL.createObjectURL(audioAsset.data);
       aEl.src = _aURL;
       aEl.volume = parseFloat(document.getElementById('vol-slider')?.value || 80) / 100;
-      const tapBtn = document.getElementById('tap-btn');
-      if (tapBtn) tapBtn.disabled = false;
-      audioRestored = true;
+      // silent=true: restoreSettled=false なので _evaluateBannerState は走らない
+      setAudioLoaded(true, audioAsset.filename, { silent: true });
     }
 
-    // chord復元
+    // chord 復元
     const chordAsset = await loadAsset(project.id, 'chord').catch(() => null);
     if (chordAsset) {
-      let data;
+      let chordData;
       if (chordAsset.filename.endsWith('.csv')) {
-        data = parseCSV(chordAsset.data, normalizeChordName);
+        chordData = parseCSV(chordAsset.data, normalizeChordName);
       } else {
-        data = parseJSON(chordAsset.data);
+        chordData = parseJSON(chordAsset.data);
       }
-      if (data) {
-        loadChordData(data, chordAsset.filename, true);  // isRestore=true: capo reset をスキップ
-        chordRestored = true;
+      if (chordData) {
+        await loadChordData(chordData, chordAsset.filename, true);  // isRestore=true: capo reset をスキップ
+        // loadChordData = ingest 専用。runtime authority はここで明示的に確立する。
+        setChordLoaded(true, chordAsset.filename, { silent: true });
       }
     }
 
-    // 復元できなかったassetがあればバナー表示
-    const needBanner =
-      (!audioRestored && !!project.audio) ||
-      (!chordRestored && !!project.chord_source);
-    if (needBanner) {
-      showReloadBanner(
-        audioRestored ? null : project.audio,
-        chordRestored ? null : project.chord_source
-      );
-    }
+    // restore transaction 完了 → banner 評価を1回だけ実行
+    assetState.restoreSettled = true;
+    _evaluateBannerState();
   })();
 
   // TOKEN MIGRATION の結果を LocalStorage に即書き戻す。
@@ -1463,14 +1539,9 @@ function setupEventHandlers() {
         _aURL = URL.createObjectURL(file);
         aEl.src = _aURL;
         project.audio = file.name;
-        const b = document.getElementById('audio-btn');
-        b.textContent = file.name;
-        b.classList.add('loaded');
-        const tapBtn = document.getElementById('tap-btn');
-        if (tapBtn) tapBtn.disabled = false;
         aEl.volume = parseFloat(document.getElementById('vol-slider')?.value || 80) / 100;
+        setAudioLoaded(true, file.name);   // assetState 更新 + UI 同期 + banner 評価
         toast(`音声: ${file.name}`);
-        checkReloadBannerDone();
         saveAsset(project.id, 'audio', { data: file, filename: file.name });
       } catch (err) {
         if (err.name === 'AbortError') return;
@@ -1499,6 +1570,7 @@ function setupEventHandlers() {
           if (!data) { toast('JSONエラー'); return; }
         }
         loadChordData(data, file.name);
+        setChordLoaded(true, file.name);   // assetState 更新 + UI 同期 + banner 評価
         saveAsset(project.id, 'chord', { data: text, filename: file.name });
       } catch (err) {
         if (err.name === 'AbortError') return;
@@ -1526,6 +1598,7 @@ function setupEventHandlers() {
         }
       }
       loadChordData(data,f.name);
+      setChordLoaded(true, f.name);   // assetState 更新 + UI 同期 + banner 評価
       saveAsset(project.id, 'chord', { data: ev.target.result, filename: f.name });
     };
     r.readAsText(f,'utf-8');
@@ -1538,12 +1611,9 @@ function setupEventHandlers() {
     const f=e.target.files[0];if(!f)return;
     if(_aURL)URL.revokeObjectURL(_aURL);
     _aURL=URL.createObjectURL(f);aEl.src=_aURL;project.audio=f.name;
-    const b=document.getElementById('audio-btn');b.textContent=f.name;b.classList.add('loaded');
-    const tapBtn = document.getElementById('tap-btn');
-    if(tapBtn) tapBtn.disabled=false;
     aEl.volume=parseFloat(document.getElementById('vol-slider')?.value||80)/100;
+    setAudioLoaded(true, f.name);   // assetState 更新 + UI 同期 + banner 評価
     toast(`音声: ${f.name}`);
-    checkReloadBannerDone();
     saveAsset(project.id, 'audio', { data: f, filename: f.name });
   });
 
@@ -2286,9 +2356,15 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   
   // 自動保存データの復元
+  // lines が空でも title / artist / audio / chord_source があれば復元対象とする。
+  // （lines=[] のプロジェクトも作業中データとして扱う）
   const saved = loadFromLocalStorage();
-  if (saved && saved.lines && saved.lines.length > 0) {
-    if (confirm(`前回の作業「${saved.title || '無題'}」(${saved.lines.length}行) を復元しますか？`)) {
+  const hasSavedData = saved && saved.id && (
+    (saved.lines && saved.lines.length > 0) ||
+    saved.title || saved.artist || saved.audio || saved.chord_source
+  );
+  if (hasSavedData) {
+    if (confirm(`前回の作業「${saved.title || '無題'}」(${(saved.lines||[]).length}行) を復元しますか？`)) {
       loadProj(saved);
       toast('自動保存データを復元しました');
     }
