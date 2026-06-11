@@ -592,21 +592,38 @@ function _setupTooltipEvents() {
   grid.addEventListener('pointerover', e => {
     if (!_tooltipEnabled) return;
 
-    const el = e.target.closest('.chart-chord-name[data-chord]');
-    if (!el) { _hideTooltip(); return; }
+    const to = e.target.closest('.chart-chord-name[data-chord]');
+    if (!to) {
+      _hideTooltip();
+      return;
+    }
 
-    // relatedTarget guard: 同一 chord element 内の子要素間移動は無視
-    if (el.contains(e.relatedTarget)) return;
+    // 移動元も同じ chord-name なら無視（chord 内の細かい移動）
+    const from = e.relatedTarget?.closest?.('.chart-chord-name[data-chord]');
+    if (from === to) return;
 
-    _showTooltip(el.dataset.chord, el.getBoundingClientRect());
+    // carry-forward で span が小節をまたいで広がっている場合、
+    // テキスト表示部分以外はhover無効にする。
+    // scrollWidth = テキストの実際の内容幅（overflow前の幅）を使用。
+    // getBoundingClientRect().width より正確にテキスト幅を反映する。
+    const rect = to.getBoundingClientRect();
+    const MARGIN = 16; // テキスト右側の余白
+    const textZone = to.scrollWidth + MARGIN;
+    if (e.clientX > rect.left + textZone) {
+      _hideTooltip();
+      return;
+    }
+
+    _showTooltip(to.dataset.chord, to.getBoundingClientRect());
   });
 
   grid.addEventListener('pointerout', e => {
-    const el = e.target.closest('.chart-chord-name[data-chord]');
-    if (!el) return;
+    const from = e.target.closest('.chart-chord-name[data-chord]');
+    if (!from) return;
 
-    // relatedTarget guard: chord element 内への移動は無視
-    if (el.contains(e.relatedTarget)) return;
+    // 移動先も同じ chord-name なら無視（chord 内の細かい移動）
+    const to = e.relatedTarget?.closest?.('.chart-chord-name[data-chord]');
+    if (to === from) return;
 
     _hideTooltip();
   });

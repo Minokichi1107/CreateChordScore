@@ -1876,7 +1876,20 @@ function setupEventHandlers() {
       applyRightHidden();
       localStorage.setItem('rightHidden', rightHidden ? '1' : '0');
     }
+
+    // Shift+D: Chart コード図 ON/OFF トグル
+    if (e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      chartDiagHover = !chartDiagHover;
+      localStorage.setItem('cs.chartDiagHover', chartDiagHover ? '1' : '0');
+      setTooltipEnabled(chartDiagHover);
+      toast(`Chart コード図: ${chartDiagHover ? 'ON' : 'OFF'}`);
+    }
+
   });
+
+
 
   // ============================================
   // Perform Mode Events
