@@ -177,6 +177,7 @@ import {
   updateChartPlayback,
   chartState,
   renderChartMode,
+  setTooltipEnabled,
 } from './chartmode.js';
 
 // ════════════════════════════════════════
@@ -247,6 +248,7 @@ let _fileHandle = null;
 
 // Chart Mode 列数（localStorage永続）
 let chartMeasuresPerRow = Number(localStorage.getItem('chartMeasuresPerRow')) || 3;
+let chartDiagHover = localStorage.getItem('cs.chartDiagHover') !== '0'; // デフォルト ON
 
 // モーダル要素
 const mOv = document.getElementById('modal-ov');
@@ -386,13 +388,17 @@ function applyRightHidden() {
 function updateViewMenuChecks() {
   const btnLeft  = document.getElementById('btn-toggle-left');
   const btnRight = document.getElementById('btn-toggle-right');
+  const btnChartDiag = document.getElementById('btn-toggle-chart-diag');
   if (!btnLeft || !btnRight) return;
 
   // 実際の表示状態を表示する（manual stateではない）
   // narrow時はauto-collapseにより manual=false でも closed になりうる
   const leftVisible = !document.body.classList.contains('left-collapsed');
-  btnLeft.textContent  = (leftVisible  ? '✔ ' : '　') + '◧ 左パネル';
-  btnRight.textContent = (!rightHidden ? '✔ ' : '　') + '◨ 右パネル';
+  btnLeft.textContent     = (leftVisible     ? '✔ ' : '　') + '◧ 左パネル';
+  btnRight.textContent    = (!rightHidden     ? '✔ ' : '　') + '◨ 右パネル';
+  if (btnChartDiag) {
+    btnChartDiag.textContent = (chartDiagHover ? '✔ ' : '　') + '♬ Chart コード図';
+  }
 }
 
 window.addEventListener('resize', () => {
@@ -2111,6 +2117,12 @@ function setupEventHandlers() {
     applyRightHidden();
     localStorage.setItem('rightHidden', rightHidden ? '1' : '0');
   });
+  // 既存の btn-toggle-right の下に追加
+  document.getElementById('btn-toggle-chart-diag')?.addEventListener('click', () => {
+    chartDiagHover = !chartDiagHover;
+    localStorage.setItem('cs.chartDiagHover', chartDiagHover ? '1' : '0');
+    setTooltipEnabled(chartDiagHover);
+  });
 
   // ============================================
   // Header Menu Events (Phase29)
@@ -2341,12 +2353,14 @@ window.addEventListener('DOMContentLoaded',()=>{
     // [TIMING INVARIANT] normalized は capo 非依存。
     //   capo 変更では normalized rebuild 不要。capo は UI Projection のみに影響する。
     getNormalized:    () => project.analysis?.normalized ?? null,
-
     getAudioEl:       () => aEl,
     getAudioDuration: () => aEl.duration,
     getCapo:          getCapo,
     transposeChord:   transposeChord,
     seekTo:           (time) => { aEl.currentTime = time; },
+    findChord:        findChord,
+    drawDiagram:      (frets, barre, opts) => drawDiagram(frets, barre, opts),
+    tooltipEnabled:   chartDiagHover,
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）

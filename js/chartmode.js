@@ -48,7 +48,7 @@
  *   normalized の生成責務は analysisLoader.js の loadAnalysis() が持つ。
  *   chartmode.js は project tree を直接読まない（OWNERSHIP INVARIANT）。
  *   normalized は app.js が project.analysis から取り出して注入する。
- *   診断結果は window.__CS_DEBUG__.timing getter（app.js）で参照可能。
+ *   診断結果（analyzeTiming）は window.__TIMING_DEBUG__ に常に書き込む。
  *   repair はデフォルト OFF（experimental）。
  */
 
@@ -85,6 +85,16 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
   // analysis.normalized が存在しない場合（旧データ等）はフォールバックとして
   // analysis 自体を timing source として使う（beats/downbeats はそのまま利用）。
   const cachedNormalized = analysis.normalized;
+
+  // DevTools デバッグ用（将来の issue 報告・A案設計のデータ収集）
+  window.__TIMING_DEBUG__ = {
+    diagnostics: cachedNormalized?.diagnostics ?? null,
+    repair:      cachedNormalized?.repair ?? null,
+    normalized: {
+      beats:     cachedNormalized?.beats ?? analysis.beats ?? [],
+      downbeats: cachedNormalized?.downbeats ?? analysis.downbeats ?? [],
+    },
+  };
 
   // timing: normalized が存在すれば repair済みの beats/downbeats を使う。
   // chords / timeSignature は timing 非依存のため analysis から直接取得する。
@@ -361,6 +371,16 @@ export const chartState = {
   lastScrolledMeasure: -1,
 };
 
+/**
+ * setTooltipEnabled — tooltip の ON/OFF を切り替える
+ * app.js の表示メニューから呼ぶ。
+ * @param {boolean} enabled
+ */
+export function setTooltipEnabled(enabled) {
+  _tooltipEnabled = enabled;
+  if (!enabled) _hideTooltip();
+}
+
 // ────────────────────────────────────────
 // 注入依存
 // ────────────────────────────────────────
@@ -372,6 +392,15 @@ let _getAudioDuration = null;  // () => aEl.duration
 let _getCapo          = null;  // () => number（カポ値）
 let _transposeChord   = null;  // (chord, semitones) => string
 let _seekTo           = null;  // (time: number) => void（app.js が aEl.currentTime を設定）
+let _findChord        = null;  // (chord) => entry（tooltip diagram 用）
+let _drawDiagram      = null;  // (frets, barre, options) => SVG string（tooltip diagram 用）
+
+// ── tooltip state ──────────────────────────────────────────
+// [EPHEMERAL UI] tooltip は chartState に authority を持たない。
+// hover event → render だけで完結する。state 化しない。
+let _tooltipEl        = null;  // single instance tooltip DOM（body直下）
+let _tooltipBound     = false; // event delegation 登録済みフラグ（idempotent guard）
+let _tooltipEnabled   = true;  // ON/OFF（app.js が localStorage から初期化）
 
 // リスナー重複登録防止フラグ（hot reload / re-init 対策）
 let _gridClickSeekBound = false;
@@ -429,7 +458,7 @@ function _rafLoop() {
  *                                           app.js が aEl.currentTime を設定する責務を持つ。
  *                                           chartmode.js は aEl に直接触らない。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled }) {
   _getAnalysis      = getAnalysis;
   _getNormalized    = getNormalized;
   _getAudioEl       = getAudioEl;
@@ -437,38 +466,152 @@ export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudio
   _getCapo          = getCapo;
   _transposeChord   = transposeChord;
   _seekTo           = seekTo ?? null;
-
-  // ツールチップ要素を body 直下に生成（overflow: hidden を突き抜けるため）
-  if (!document.getElementById('chart-tooltip')) {
-    const tip = document.createElement('div');
-    tip.id = 'chart-tooltip';
-    document.body.appendChild(tip);
-  }
-
-  // compact コード名のホバーイベントを chart-grid に委譲
-  const grid = document.getElementById('chart-grid');
-  if (grid) {
-    grid.addEventListener('mousemove', e => {
-      const el = e.target.closest('.chart-chord-name--compact');
-      const tip = document.getElementById('chart-tooltip');
-      if (!tip) return;
-      if (!el) {
-        tip.style.display = 'none';
-        return;
-      }
-      tip.textContent = el.dataset.chord;
-      tip.style.display = 'block';
-      tip.style.left = (e.clientX + 8) + 'px';
-      tip.style.top  = (e.clientY - 28) + 'px';
-    });
-    grid.addEventListener('mouseleave', () => {
-      const tip = document.getElementById('chart-tooltip');
-      if (tip) tip.style.display = 'none';
-    });
-  }
+  _findChord        = findChord  ?? null;
+  _drawDiagram      = drawDiagram ?? null;
+  _tooltipEnabled   = tooltipEnabled ?? true;
 
   // Phase60: click seek イベント登録
   _setupGridClickSeek();
+}
+
+// ────────────────────────────────────────
+// Phase67: hover chord diagram tooltip
+// ────────────────────────────────────────
+//
+// [設計原則]
+//   ephemeral UI: chartState に authority を持たない。
+//   hover event → render だけで完結。state 化しない。
+//   single instance: body 直下に1個だけ tooltip DOM を持つ。
+//   delegation: chart-grid root への pointerover/out で委譲（idempotent）。
+//   data-chord: 表示済み chord 名（projection 済み）を authority とする。
+//              tooltip 側は capo 再適用しない（二重 projection 防止）。
+
+/**
+ * _initTooltip — tooltip DOM を body 直下に生成する
+ * openChartMode() から呼ぶ。
+ */
+function _initTooltip() {
+  if (_tooltipEl) return; // 既に存在する場合はスキップ
+  const el = document.createElement('div');
+  el.className = 'chart-diag-tooltip';
+  el.style.display = 'none';
+  document.body.appendChild(el);
+  _tooltipEl = el;
+}
+
+/**
+ * _destroyTooltip — tooltip DOM を body から削除する
+ * closeChartMode() から呼ぶ。orphan DOM 防止。
+ */
+function _destroyTooltip() {
+  if (_tooltipEl) {
+    _tooltipEl.remove();
+    _tooltipEl = null;
+  }
+}
+
+/**
+ * _showTooltip — tooltip を表示する
+ * @param {string} chord  data-chord から取得した表示済み chord 名
+ * @param {DOMRect} anchorRect  anchor element の getBoundingClientRect()
+ */
+function _showTooltip(chord, anchorRect) {
+  if (!_tooltipEl || !_findChord || !_drawDiagram) return;
+
+  const entry = _findChord(chord);
+  if (!entry || !entry.data?.v?.length) {
+    _hideTooltip();
+    return;
+  }
+
+  // NOTE: tooltip は現在 first variant を使用。
+  // 将来 variant selection policy を統一予定（右パネルとの整合）。
+  const vr = entry.data.v[0];
+  if (!vr) { _hideTooltip(); return; }
+
+  const svg = _drawDiagram(vr.f, vr.b ?? 0, { scale: 0.9 });
+
+  // コード名 title + SVG diagram
+  // title responsibility は tooltip shell 側（renderer に持たせない）
+  const safeChord = chord.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  _tooltipEl.innerHTML = `<div class="chart-diag-tooltip-title">${safeChord}</div>${svg}`;
+
+  // 先に visible にして実サイズを取得（overflow 判定のため）
+  _tooltipEl.style.visibility = 'hidden';
+  _tooltipEl.style.display    = 'block';
+
+  const tipRect = _tooltipEl.getBoundingClientRect();
+  const MARGIN  = 8;
+
+  // 基本位置: anchor の中央下
+  let left = anchorRect.left + (anchorRect.width / 2) - (tipRect.width / 2);
+  let top  = anchorRect.bottom + MARGIN;
+
+  // 右 overflow → 左方向にずらす
+  if (left + tipRect.width > window.innerWidth) {
+    left = window.innerWidth - tipRect.width - MARGIN;
+  }
+  // 左 overflow guard
+  if (left < MARGIN) left = MARGIN;
+  // 下 overflow → anchor の上側へ
+  if (top + tipRect.height > window.innerHeight) {
+    top = anchorRect.top - tipRect.height - MARGIN;
+  }
+  // 上 overflow guard
+  if (top < MARGIN) top = MARGIN;
+
+  _tooltipEl.style.left       = left + 'px';
+  _tooltipEl.style.top        = top  + 'px';
+  _tooltipEl.style.visibility = 'visible';
+}
+
+/**
+ * _hideTooltip — tooltip を非表示にする
+ */
+function _hideTooltip() {
+  if (_tooltipEl) {
+    _tooltipEl.style.display    = 'none';
+    _tooltipEl.style.visibility = 'visible'; // 次回表示用にリセット
+  }
+}
+
+/**
+ * _setupTooltipEvents — chart-grid に tooltip イベントを委譲登録する（idempotent）
+ * openChartMode() → _initTooltip() の後に呼ぶ。
+ *
+ * pointerover/out + relatedTarget guard を使用する。
+ * 理由: pointerenter は bubble しないため delegation 不可。
+ *       pointerover は bubble するため root での委譲と相性が良い。
+ */
+function _setupTooltipEvents() {
+  if (_tooltipBound) return; // idempotent guard
+
+  const grid = document.getElementById('chart-grid');
+  if (!grid) return;
+
+  grid.addEventListener('pointerover', e => {
+    if (!_tooltipEnabled) return;
+
+    const el = e.target.closest('.chart-chord-name[data-chord]');
+    if (!el) { _hideTooltip(); return; }
+
+    // relatedTarget guard: 同一 chord element 内の子要素間移動は無視
+    if (el.contains(e.relatedTarget)) return;
+
+    _showTooltip(el.dataset.chord, el.getBoundingClientRect());
+  });
+
+  grid.addEventListener('pointerout', e => {
+    const el = e.target.closest('.chart-chord-name[data-chord]');
+    if (!el) return;
+
+    // relatedTarget guard: chord element 内への移動は無視
+    if (el.contains(e.relatedTarget)) return;
+
+    _hideTooltip();
+  });
+
+  _tooltipBound = true;
 }
 
 // ────────────────────────────────────────
@@ -555,6 +698,8 @@ export function openChartMode() {
 
   _startRafLoop();  // rAF playback loop 開始（visual update authority）
   _buildTransport();
+  _initTooltip();         // tooltip DOM 生成
+  _setupTooltipEvents();  // event delegation 登録（idempotent）
   // 描画は呼び出し元（app.js）が renderChartMode を責務として持つ
 }
 
@@ -563,6 +708,8 @@ export function openChartMode() {
  */
 export function closeChartMode() {
   _stopRafLoop();  // rAF playback loop 停止（active=false の前に止める）
+  _hideTooltip();  // tooltip 非表示
+  _destroyTooltip(); // tooltip DOM 削除（orphan DOM 防止）
   chartState.active = false;
   chartState.lastScrolledMeasure = -1;
   const overlay = document.getElementById('chart-overlay');
@@ -782,11 +929,14 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
               ? _transposeChord(slot.chord, -capo)
               : slot.chord;
             chordEl.textContent = display;
+            // data-chord: 表示済みchord名（projection済み）を格納する。
+            // tooltip 側は findChord(chord) のみ使用し capo 再適用しない。
+            // （二重 projection 防止 / tooltip は projection authority を持たない）
+            chordEl.dataset.chord = display;
 
             // compact 表示（8文字以上 → font-size 縮小・行高維持）
             if (display.length >= COMPACT_CHORD_LENGTH) {
               chordEl.classList.add('chart-chord-name--compact');
-              chordEl.dataset.chord = display;  // hover tooltip 用
             }
 
             slotEl.appendChild(chordEl);
