@@ -2372,25 +2372,109 @@ window.addEventListener('DOMContentLoaded',()=>{
   refreshEditor();renderPalette();
 });
 
-// ── [TEMP REPAIR] Phase55 project data repair expose ──────
-// 使用後は必ず削除すること
-window.__CS_TRANSPOSE__ = transposeChord;
-window.__CS_REFRESH__   = refreshEditor;
-window.__CS_PROJECT__   = project;
-window.__CS_CHARTSTATE__ = chartState;
-window.__CS_REPAIR__    = (semitones) => {
-  // semitones を明示指定、または capo UI値を使用
-  const n = semitones !== undefined
-    ? semitones
-    : parseInt(document.getElementById('capo').value) || 0;
-  console.log('[repair] semitones =', n, '/ lines =', project.lines.length);
-  project.lines.forEach(line => {
-    line.chords.forEach(c => {
-      if (!c.chord) return;
-      c.chord = transposeChord(c.chord, n);
-    });
-  });
-  refreshEditor();
-  console.log('[repair] complete');
+
+// ════════════════════════════════════════
+// DEBUG API
+// ════════════════════════════════════════
+// [READ ONLY] 観測・診断専用。state mutation 禁止。
+// 使い方（DevTools Console）:
+//   window.__CS_DEBUG__.dumpInvariants()
+//   window.__CS_DEBUG__.timing
+//   window.__CS_DEBUG__.project
+//   window.__CS_DEBUG__.chart
+// 詳細: docs/debug-guide.md
+// ────────────────────────────────────────
+window.__CS_DEBUG__ = {
+
+  get timing() {
+    const a = project?.analysis ?? null;
+    return {
+      raw:           a?.raw                     ?? null,
+      normalized:    a?.normalized              ?? null,
+      diagnostics:   a?.normalized?.diagnostics ?? null,
+      bpm:           a?.bpm                     ?? null,
+      timeSignature: a?.timeSignature           ?? null,
+    };
+  },
+
+  get project() {
+    return {
+      id:           project?.id            ?? null,
+      title:        project?.title         ?? null,
+      artist:       project?.artist        ?? null,
+      hasAnalysis:  project?.hasAnalysis   ?? false,
+      linesCount:   project?.lines?.length ?? 0,
+      audio:        project?.audio         ?? null,
+      chord_source: project?.chord_source  ?? null,
+      capo:         getCapo(),
+      assetState:   { ...assetState },
+    };
+  },
+
+  get chart() {
+    return {
+      active:         chartState?.active ?? false,
+      measuresPerRow: chartMeasuresPerRow,
+    };
+  },
+
+  // [TODO Step3/4] 暫定実装。
+  // 正しい設計: chartmode.js に perfState を持たせ getter projection で expose。
+  perf: {
+    lastRAFDelta: null,
+    longFrames:   0,
+    longFrameLog: [],
+  },
+
+  dumpInvariants() {
+    const snapshot = {
+      project: this.project,
+      timing:  this.timing,
+      chart:   this.chart,
+      perf: {
+        lastRAFDelta: this.perf.lastRAFDelta,
+        longFrames:   this.perf.longFrames,
+        longFrameLog: [...this.perf.longFrameLog],
+      },
+    };
+
+    const { project: p, timing: t, chart: c, perf: pf } = snapshot;
+
+    console.group('=== ChordScore Invariants ===');
+
+    console.group('[Project]');
+    console.log('id:           ', p.id);
+    console.log('title:        ', p.title, '/', p.artist);
+    console.log('hasAnalysis:  ', p.hasAnalysis);
+    console.log('linesCount:   ', p.linesCount);
+    console.groupEnd();
+
+    console.group('[Asset State]');
+    console.log('audioLoaded:   ', p.assetState.audioLoaded,
+                ' ←', p.audio ?? '(none)');
+    console.log('chordLoaded:   ', p.assetState.chordLoaded,
+                ' ←', p.chord_source ?? '(none)');
+    console.log('restoreSettled:', p.assetState.restoreSettled);
+    console.groupEnd();
+
+    console.group('[Chart Mode]');
+    console.log('active:        ', c.active);
+    console.log('measuresPerRow:', c.measuresPerRow);
+    console.groupEnd();
+
+    console.group('[Timing]');
+    console.log('bpm:           ', t.bpm);
+    console.log('timeSignature: ', t.timeSignature);
+    console.log('diagnostics:   ', t.diagnostics);
+    console.groupEnd();
+
+    console.group('[Perf]');
+    console.log('lastRAFDelta:  ', pf.lastRAFDelta, 'ms');
+    console.log('longFrames:    ', pf.longFrames);
+    console.log('longFrameLog:  ', pf.longFrameLog);
+    console.groupEnd();
+
+    console.groupEnd();
+    return snapshot;
+  },
 };
-// ──────────────────────────────────────────────────────────

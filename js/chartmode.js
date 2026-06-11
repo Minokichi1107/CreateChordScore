@@ -48,7 +48,7 @@
  *   normalized の生成責務は analysisLoader.js の loadAnalysis() が持つ。
  *   chartmode.js は project tree を直接読まない（OWNERSHIP INVARIANT）。
  *   normalized は app.js が project.analysis から取り出して注入する。
- *   診断結果（analyzeTiming）は window.__TIMING_DEBUG__ に常に書き込む。
+ *   診断結果は window.__CS_DEBUG__.timing getter（app.js）で参照可能。
  *   repair はデフォルト OFF（experimental）。
  */
 
@@ -85,16 +85,6 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
   // analysis.normalized が存在しない場合（旧データ等）はフォールバックとして
   // analysis 自体を timing source として使う（beats/downbeats はそのまま利用）。
   const cachedNormalized = analysis.normalized;
-
-  // DevTools デバッグ用（将来の issue 報告・A案設計のデータ収集）
-  window.__TIMING_DEBUG__ = {
-    diagnostics: cachedNormalized?.diagnostics ?? null,
-    repair:      cachedNormalized?.repair ?? null,
-    normalized: {
-      beats:     cachedNormalized?.beats ?? analysis.beats ?? [],
-      downbeats: cachedNormalized?.downbeats ?? analysis.downbeats ?? [],
-    },
-  };
 
   // timing: normalized が存在すれば repair済みの beats/downbeats を使う。
   // chords / timeSignature は timing 非依存のため analysis から直接取得する。
