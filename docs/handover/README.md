@@ -10,127 +10,82 @@
 
 ---
 
-## フェーズ完了時（毎回やること）
+## なぜこの運用が必要か
 
-* `handover_phaseXX.md` を作成する
+本プロジェクトは canonical / projection / authority / ownership /
+runtime cache / rebuild responsibility など、
+subsystem boundary を伴う設計判断が積み重なっている。
 
-### handover に書く内容
-
-* 完了したこと（変更ファイル・設計ポイント）
-* 確定した設計原則
-* 積み残し・保留バグ
-* 次フェーズ候補
-* commit message 案
-
-### 更新しないもの（棚卸しまで保留）
-
-* `phase-status.md`
-* `architecture.md`
-* `current-issues.md`
+そのため handover は「何を変更したか」の記録ではなく、
+「なぜその設計判断を採用したか」を保存するための
+continuity document として機能する。
 
 ---
 
-## 5フェーズごと（棚卸し）
+## handover の二層構造
 
-以下をまとめて更新する：
+### 1. micro-log（作業中メモ）
 
-* `phase-status.md` に完了フェーズを追記
-* `architecture.md` を現状に合わせて更新
-* `current-issues.md` のバックログを整理・削除・追加
+**位置づけ:** phase handover の下書き（temporary continuity note）
 
----
+handover_phaseXX.md 内に「## micro-log」セクションを設け、
+作業中に随時追記する。フェーズ完了時に整理して本文へ統合し、
+micro-log セクション自体は削除してよい。
 
-## ブランチ運用
+#### 記録対象の判断基準
 
-* 機能追加: `phaseXX` ブランチ
-* バグ修正: `bugfix/xxx` ブランチ
-* 1フィーチャー1コミット
-* リファクタリングと機能追加の混在禁止
+以下のいずれかに関わる変更のみ記録する：
 
----
+- authority / ownership
+- invariant
+- lifecycle
+- canonical/projection boundary
+- interaction heuristic
+- migration / compatibility
+- future extensibility
 
-## AI レビュー運用
+逆に、typo修正・formatting・trivial rename・
+コメントのみの変更などは記録不要。
 
-| 役割             | 担当      |
-| -------------- | ------- |
-| 設計書・整理・長文構造化   | Claude  |
-| 境界条件・将来破綻・責務監査 | ChatGPT |
-| 違和感・UX・優先順位判断  | 開発者     |
+**判断に迷う場合の基準:**
+「数フェーズ後に『なぜこの設計になっているのか』を
+説明する必要があるか」で判断する。
 
-### 実装フロー
+#### フォーマット例
 
-1. 仕様確認
-2. 提案（設計・図解）
-3. 明示的な実装指示
-4. 実装
-5. 動作確認
+```markdown
+## micro-log
 
----
+- relatedTarget guard を tooltip hover に追加
+- reason: pointerover/out delegation で
+  chord内部移動flickerが発生したため
+- invariant: tooltip state は chartState に持たない
+```
 
-## handover 作成フロー（推奨）
-
-1. Claude
-
-   * 実装
-   * 差分整理
-   * handover draft 作成
-
-2. ChatGPT
-
-   * handover audit
-   * backlog continuity audit
-   * subsystem整合確認
-
-3. 最終版 handover 確定
-
-### handover の役割
-
-handover は単なる「変更履歴」ではなく、
-以下を維持するためのドキュメントとして扱う：
-
-* subsystem continuity
-* backlog continuity
-* architecture continuity
-* 「今回はやらなかった理由」の保存
-
-`current-issues.md` の単純コピーにはしない。
+最低限「reason」と「invariant / authority / ownership のいずれか」
+を残す。完璧な文章でなくてよい。
 
 ---
 
-## handover監査チェック
+### 2. phase handover（正式記録）
 
-### backlog continuity
+**位置づけ:** 設計記録・将来参照用（curated continuity document）
 
-* current-issues の関連項目を再掲したか
-* 今回触った subsystem の未完了事項を書いたか
-* 今回触らなかったが関連性の高い issue を書いたか
+フェーズ完了時に micro-log を見ながら整理する。
 
-### architecture continuity
+#### 重点的に残すもの
 
-* 設計原則の変化を書いたか
-* subsystem boundary の変更を書いたか
-* authority / responsibility の変更を書いたか
+- authority / ownership
+- invariant
+- canonical/projection boundary
+- lifecycle / migration state
+- compatibility policy
+- deferred issue / future risk
 
-### phase continuity
+#### 優先度が低いもの
 
-* 「今回はやらなかった理由」を書いたか
-* 次phase候補の優先順位理由を書いたか
-* 将来フェーズへ分離した理由を書いたか
-
----
-
-## 注意
-
-handover は「今回変更した内容」だけを書くと、
-phase をまたいだ未完了事項や subsystem continuity が失われやすい。
-
-特に以下は抜けやすいため監査対象とする：
-
-* transient preview 系
-* playback authority 系
-* renderer responsibility 系
-* mutation authority 系
-* modal subsystem と editor core の境界
+- 単純な差分列挙・行数変化
+- trivial rename / mechanical refactor detail
 
 ---
 
@@ -142,6 +97,9 @@ phase をまたいだ未完了事項や subsystem continuity が失われやす�
 ## 作業状態
 - ブランチ: xxx
 - 直前作業: PhaseXX完了
+
+## micro-log
+（フェーズ完了時に下記へ整理し、本セクションは削除してよい）
 
 ## 完了したこと
 
@@ -157,3 +115,113 @@ phase をまたいだ未完了事項や subsystem continuity が失われやす�
 ## 運用ルール（変わらず）
 → docs/handover/README.md 参照
 ```
+
+---
+
+## AIの役割について
+
+AIは continuity support / review assistant として利用する。
+最終判断と ownership は開発者が持つ。
+
+具体的な運用フローは本ファイル末尾の Appendix を参照。
+
+---
+
+## 補足: naming / glossary 運用
+
+`docs/naming-glossary.md` を継続運用する。
+命名は semantic boundary の宣言であり、短縮すると設計情報が失われる。
+
+---
+
+## ブランチ運用
+
+- 機能追加: `phaseXX` ブランチ
+- バグ修正: `bugfix/xxx` ブランチ
+- 1フィーチャー1コミット
+- リファクタリングと機能追加の混在禁止
+
+---
+
+## 5フェーズごと（棚卸し）
+
+以下をまとめて更新する：
+
+- `phase-status.md` に完了フェーズを追記
+- `architecture.md` を現状に合わせて更新
+- `current-issues.md` のバックログを整理・削除・追加
+
+---
+---
+
+# Appendix（補助資料・必要時のみ参照）
+
+> 以下は運用補助情報。固定ルールではなく、実験的に調整してよい。
+
+## AIレビュー運用（参考例）
+
+| 役割 | 担当 |
+|---|---|
+| 設計書・整理・長文構造化 | Claude |
+| 境界条件・将来破綻・責務監査 | ChatGPT |
+| 違和感・UX・優先順位判断 | 開発者 |
+
+### 実装フロー
+
+1. 仕様確認
+2. 提案（設計・図解）
+3. 明示的な実装指示
+4. 実装
+5. 動作確認
+
+※ この役割分担は将来変更される可能性がある。変更時は本セクションのみ更新すればよい。
+
+---
+
+## handover作成フロー（推奨）
+
+1. Claude: 実装・差分整理・handover draft作成
+2. ChatGPT: handover audit・backlog continuity audit・subsystem整合確認
+3. 開発者: 最終版handover確定
+
+---
+
+## handover監査チェック
+
+### backlog continuity
+- current-issuesの関連項目を再掲したか
+- 今回触ったsubsystemの未完了事項を書いたか
+- 今回触らなかったが関連性の高いissueを書いたか
+
+### architecture continuity
+- 設計原則の変化を書いたか
+- subsystem boundaryの変更を書いたか
+- authority / responsibilityの変更を書いたか
+
+### phase continuity
+- 「今回はやらなかった理由」を書いたか
+- 次phase候補の優先順位理由を書いたか
+- 将来フェーズへ分離した理由を書いたか
+
+---
+
+## 抜けやすいポイント（既知のpitfall）
+
+handoverは「今回変更した内容」だけを書くと、
+phaseをまたいだ未完了事項やsubsystem continuityが失われやすい。
+
+特に以下は抜けやすいため監査対象とする：
+
+- transient preview系
+- playback authority系
+- renderer responsibility系
+- mutation authority系
+- modal subsystemとeditor coreの境界
+
+---
+
+## 差分適用の実務ルール（Phase66で確立）
+
+- 関数単位で置換する（前後数行だけの部分置換は避ける）
+- 適用後は `node --check` と `git diff` で実コード反映を確認する
+- 1 commit = 1 logical concern（1目的）に制限する（目安: 20箇所超は分割検討）
