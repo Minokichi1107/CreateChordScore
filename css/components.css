@@ -838,3 +838,25 @@
   margin-bottom: 4px;
   text-align: center;
 }
+
+/* ════════════════════════════════════════
+   Phase68: pickup measure projection-empty slot
+   ════════════════════════════════════════ */
+
+/* projection-empty slot: 実beatではない視覚的placeholder。
+   通常の chart-slot--empty とは semantic が異なる（pure visual projection）。
+   hover / active state は付与されない（data-visual-slot-index を持たないため）。 */
+.chart-slot--projection-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  border-left: 1px dashed var(--border-ui);  /* [SAFE] 「空間の質感」を補助 */
+}
+
+/* 休符glyph本体。currentColorでテーマ追従。 */
+.chart-rest-glyph {
+  width: 40%;
+  height: 60%;
+}

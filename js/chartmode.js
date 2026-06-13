@@ -403,6 +403,10 @@ function remapPickupOnsetMap(actualOnsetMap, slotsPerMeasure, leadingOffset) {
  *   empty: { type:'empty', measureIndex, beatIndex }
  *     - 曲頭でまだ chord が現れていない slot
  *     - null / undefined ではなく明示的 semantic
+ *   empty (projection, Phase68): { type:'empty', projectionEmpty:true, measureIndex }
+ *     - pickup measure の visual leading slot
+ *     - beatIndex を持たない（実beatではないため timing authority を持たない）
+ *     - hover / cursor / seek の対象外（render側で data-visual-slot-index を付与しない）
  *
  * 【設計原則】
  *   - この関数の戻り値を GridViewModel に保存しないこと（render 時のみ生成）
@@ -415,11 +419,29 @@ function remapPickupOnsetMap(actualOnsetMap, slotsPerMeasure, leadingOffset) {
  *   単発: 1 / 2拍継続: 2 / 3拍継続: 3 ...
  *   carry count ではないので注意（0始まりではない）
  *
+ * 【Phase68: pickup-aware visual projection】
+ *   pickupCtx?.enabled === true の場合、measure 0（mi===0）のみ以下を行う：
+ *     1. actual slot space（measure.slots / actualSlotIndex）で onsetMap構築
+ *     2. remapPickupOnsetMap() で visual slot space へ圧縮（onsetのみ）
+ *     3. visual slot space 上で leadingOffset 個の projection-empty を先頭に配置
+ *     4. visual slot space 上で carry を再生成
+ *        （IMPORTANT: actual carry を直接 remap しない。
+ *         canonical carry duration は actual slot space に基づくため、
+ *         そのまま visual slot space へ持ち込むと
+ *         圧縮後に duration の重複・伸長が発生する）
+ *
+ *   canonical timing（measure.startTime/endTime, beats, quantize結果）は
+ *   一切変更しない。この関数の戻り値のみが visual slot space を表す
+ *   （pickup measureに限る。他のmeasureは actual === visual）。
+ *
  * @param {object[]} measures       - GridViewModel.measures
  * @param {number}   slotsPerMeasure
+ * @param {object|null} pickupCtx
+ * @param {boolean}     pickupCtx.enabled       - projection適用フラグ（_renderChartGrid側で確定済み）
+ * @param {number}      pickupCtx.leadingOffset - projection-empty slot数（_renderChartGrid側で計算済み）
  * @returns {object[]}  slot semantic 配列（onset | carry | empty）
  */
-export function expandToSlots(measures, slotsPerMeasure) {
+export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
   const result = [];
 
   // onset が最後に現れた slot の情報（carry の source 追跡用）
@@ -429,6 +451,144 @@ export function expandToSlots(measures, slotsPerMeasure) {
 
   for (const measure of measures) {
     const mi = measure.index;
+
+    // ── Phase68: pickup measure（mi===0）の visual projection ──────
+    // pickupCtx.enabled は _renderChartGrid() 側で
+    // mode/isPickup/timeSignature/actualBeats を確認済みの最終フラグ。
+    // leadingOffset も _renderChartGrid() 側で一度だけ計算済み
+    // （chartState.pickupLeadingOffset と同じ値。単一情報源）。
+    const usesPickupProjection = (mi === 0 && pickupCtx?.enabled);
+    const leadingOffset = usesPickupProjection ? pickupCtx.leadingOffset : 0;
+
+    if (usesPickupProjection) {
+      // ════════════════════════════════════════════════════
+      // pickup measure — actual slot space → visual slot space
+      //
+      // canonical timing（measure.slots / quantize結果）は
+      // 一切変更しない。この measure の result[] への push のみが
+      // visual slot space を表す。
+      // ════════════════════════════════════════════════════
+
+      // Step A: actual slot space で onsetMap を構築（既存と同じ手順）
+      const actualOnsetMap = new Map(
+        measure.slots.map(s => [s.slotIndex, resolveCollision(s.onsets)])
+      );
+
+      // Step B: visual slot space へ remap（onsetのみ。collision解決込み）
+      const visualOnsetMap = remapPickupOnsetMap(
+        actualOnsetMap,
+        slotsPerMeasure,
+        leadingOffset
+      );
+
+      // Step C & D: visual slot space 上で result[] を構築
+      // si は visualSlotIndex（0..slotsPerMeasure-1）として扱う。
+      //   0..leadingOffset-1        → projection-empty
+      //   leadingOffset..(N-1)      → visualOnsetMap を参照し
+      //                                onset / carry / empty を再判定
+      //
+      // 【IMPORTANT: carry regeneration】
+      //   visual slot space 内で「直前の visual onset」を追跡する
+      //   ローカル変数（外側の lastOnsetXxx とは独立）を使う。
+      //   canonical carry（actual slot space）は直接 remap しない。
+      //   carry duration は actual slot space に基づくため、
+      //   そのまま visual slot space へ持ち込むと
+      //   圧縮後に duration の重複・伸長が発生する。
+      //   onset ownership のみが projection 対象であり、
+      //   carry ownership は visual slot space で再生成する。
+      let pickupLastOnsetLocal       = null;
+      let pickupLastOnsetChord       = null;
+      let pickupLastOnsetResultIndex = -1;
+
+      for (let si = 0; si < slotsPerMeasure; si++) {
+        if (si < leadingOffset) {
+          // ── projection-empty slot ────────────────────────
+          // 実beatではない（曲のこの時点に対応する time が存在しない）。
+          // beatIndex を持たない（timing authority を持たないことを
+          // データレベルで保証する）。
+          // hover / playback highlight / seek の対象外（render側で
+          // data-visual-slot-index を付与しないことにより保証）。
+          result.push({
+            type: 'empty',
+            projectionEmpty: true,
+            measureIndex: mi,
+          });
+          continue;
+        }
+
+        const onset = visualOnsetMap.get(si);
+
+        if (onset) {
+          // ── visual onset slot ────────────────────────────
+          if (pickupLastOnsetResultIndex >= 0) {
+            const prevSlot = result[pickupLastOnsetResultIndex];
+            prevSlot.durationSlots = result.length - pickupLastOnsetResultIndex;
+          }
+
+          // NOTE: beatIndex is visual slot space under pickup projection.
+          // Do not treat as canonical quantized timing index.
+          // canonical timing authority は measure.slots / actualSlotIndex 側にあり、
+          // この関数はそれを公開しない（pickup measureに限る）。
+          const slotData = {
+            type:          'onset',
+            measureIndex:  mi,
+            beatIndex:     si,
+            chord:         onset.chord,  // canonical（capo 変換しない）
+            durationSlots: 1,            // 暫定値。次の onset 到達時に更新
+          };
+          result.push(slotData);
+
+          pickupLastOnsetLocal       = si;
+          pickupLastOnsetChord       = onset.chord;
+          pickupLastOnsetResultIndex = result.length - 1;
+
+        } else if (pickupLastOnsetChord !== null) {
+          // ── visual carry slot（visual slot space で再生成）──
+          // NOTE: beatIndex is visual slot space under pickup projection.
+          result.push({
+            type:            'carry',
+            measureIndex:    mi,
+            beatIndex:       si,
+            sourceSlotIndex: pickupLastOnsetLocal,  // visual slot space 上の index
+          });
+
+        } else {
+          // ── visual empty slot（projection-empty ではない）──
+          // visualOnsetMap に該当 onset がなく、まだ visual onset も
+          // 現れていない（曲頭で chord 未確定の通常 empty と同義）
+          result.push({
+            type:         'empty',
+            measureIndex: mi,
+            beatIndex:    si,
+          });
+        }
+      }
+
+      // pickup measure の最後の onset の durationSlots を確定
+      if (pickupLastOnsetResultIndex >= 0) {
+        const prevSlot = result[pickupLastOnsetResultIndex];
+        prevSlot.durationSlots = result.length - pickupLastOnsetResultIndex;
+      }
+
+      // ── 次の measure への carry 継承 ──────────────────────
+      // pickup measure の最後の visual onset を「直前の onset」として継承する。
+      //
+      // lastOnsetResultIndex は -1 にリセットする:
+      //   durationSlots の deferred-finalization は
+      //   「次の onset 到達時に直前 onset の durationSlots を確定する」モデル。
+      //   pickup measure 内で durationSlots は確定済みのため、
+      //   次 measure（mi=1）の最初の onset 到達時に
+      //   誤って pickup measure 内の onset を再確定してはならない。
+      lastOnsetMeasureLocal = pickupLastOnsetLocal;
+      lastOnsetChord        = pickupLastOnsetChord;
+      lastOnsetResultIndex  = -1;
+
+      continue; // 次の measure へ
+    }
+
+    // ════════════════════════════════════════════════════
+    // 既存の通常経路（actual slot space === visual slot space）
+    // ════════════════════════════════════════════════════
 
     // onset map: slotIndex → resolved onset
     const onsetMap = new Map(
@@ -1026,9 +1186,56 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
   // 以降の小節は 1, 2, 3 ... と連番（通常と変わらず）
   const isPickup = detectPickupMeasure(measures);
 
+  // ────────────────────────────────────────────────────
+  // Phase68: pickup-aware visual projection の事前計算
+  //
+  // 【projection authority の集約】
+  //   leadingOffset はここで一度だけ計算し、
+  //   - chartState.pickupLeadingOffset（updateChartPlayback が参照）
+  //   - pickupCtx.leadingOffset（expandToSlots が参照）
+  //   の両方に渡す。これにより render と highlight が同じ値を使う。
+  //
+  // 【fail-closed】
+  //   timeSignature.numerator が無い場合は projection を適用しない
+  //   （4/4 等への暗黙fallbackはしない。拍構造不明のまま
+  //    projection すると誤った右詰めになるため）。
+  //
+  // 【適用条件（AND）】
+  //   - model.mode !== 'beat-only'（'full' 相当。'fallback' は既に return 済み）
+  //   - measures[0] が pickup と判定されている（isPickup）
+  //   - 実際の拍数(actualBeats)が基準拍数(referenceBeats)より少ない
+  //
+  // 【非対象（out of scope）】
+  //   mode === 'beat-only' での pickup 対応は別issue
+  //   （canonical measure grouping 自体が pickup を考慮していないため、
+  //    visual projection だけでは解決できない。architecture.md 参照）
+  // ────────────────────────────────────────────────────
+  let pickupLeadingOffset = 0;
+  const numerator = analysis.timeSignature?.numerator;
+
+  if (numerator && model.mode !== 'beat-only' && isPickup && measures[0]) {
+    const beats = analysis.normalized?.beats ?? analysis.beats ?? [];
+    const actualBeats0 = getMeasureBeatCount(measures[0], beats);
+
+    if (shouldApplyPickupProjection({ actualBeats: actualBeats0, referenceBeats: numerator })) {
+      pickupLeadingOffset = computeLeadingOffset({
+        actualBeats: actualBeats0,
+        referenceBeats: numerator,
+        slotsPerMeasure: model.slotsPerMeasure,
+      });
+    }
+  }
+
+  // updateChartPlayback() からの参照用（visual slot remap の単一情報源）
+  chartState.pickupLeadingOffset = pickupLeadingOffset;
+
+  const pickupCtx = (pickupLeadingOffset > 0)
+    ? { enabled: true, leadingOffset: pickupLeadingOffset }
+    : null;
+
   // slot semantic 配列を生成（expandToSlots: onset | carry | empty）
   // chord は複製しない。carry は sourceSlotIndex 参照のみ。
-  const allSlots = expandToSlots(measures, model.slotsPerMeasure);
+  const allSlots = expandToSlots(measures, model.slotsPerMeasure, pickupCtx);
 
   // measure ごとにグループ化（slot.measureIndex でマッピング）
   const slotsByMeasure = new Map();
@@ -1359,14 +1566,27 @@ export function updateChartPlayback(currentTime) {
 
     // 現在の slot をハイライト
     // slot DOM invariant が復活したため、q.slot は常に DOM に対応する（carry 含む）
-    // Phase68: data-slot-index → data-visual-slot-index へ rename。
-    // pickup measure（mode==='full' かつ projection適用時）では
-    // q.slot（canonical actual slot index）を visual slot index へ変換する必要があるが、
-    // それは Step5（pickup projection本体）で追加する。
-    // この時点（Step3）では projection非適用のため q.slot をそのまま使用してよい
-    // （actual === visual）。
+    //
+    // NOTE: Playhead position（上の left%）は canonical timing space のまま。
+    // Pickup projection は discrete slot highlighting のみを remap する。
+    // Continuous visual timeline remapping（playheadの連続補正）は
+    // playback authority と visual projection を結合させてしまうため
+    // Phase68では意図的に対象外とする。
+    //
+    // Phase68: q.measure === 0 かつ pickup projection 適用中の場合のみ、
+    // q.slot（canonical actual slot index）を visual slot index へ変換する。
+    // projectPickupSlotIndex() は expandToSlots() の remapPickupOnsetMap()
+    // と同じ変換式（単一情報源）。
+    let visualSlot = q.slot;
+    if (q.measure === 0 && chartState.pickupLeadingOffset > 0) {
+      visualSlot = projectPickupSlotIndex({
+        actualSlotIndex: q.slot,
+        slotsPerMeasure: model.slotsPerMeasure,
+        leadingOffset:   chartState.pickupLeadingOffset,
+      });
+    }
     const slotEl = measureEl.querySelector(
-      `.chart-slot[data-visual-slot-index="${q.slot}"]`
+      `.chart-slot[data-visual-slot-index="${visualSlot}"]`
     );
     if (slotEl) slotEl.classList.add('chart-slot--active');
 
