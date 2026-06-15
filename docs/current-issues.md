@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase64完了時点
+> 最終更新: Phase70作業中（Phase69完了時点をベース）
 
 ---
 
@@ -46,11 +46,14 @@ token array boundary mutation として実装すること（string splice 禁止
 ※ modal内の小機能として実装すると line mutation が modal subsystem に漏れるため注意。
 
 #### interaction hierarchy 改修
-状態: 部分完了（Phase53）
+状態: 部分完了（Phase53, hover-only削除ボタンはPhase70-Bで確認・完了）
 内容: AddChord modal の操作体系をキーボード主体に変更。
 - insertion cursor 化（`+` → `|` 表示への変更）: **Phase53 で完了**
 - ArrowLeft/Right 行またぎ navigation: **Phase53 で完了**
-- hover-only 削除ボタン（`✕` の表示制御）: 未着手
+- hover-only 削除ボタン（`✕` の表示制御）: **完了（Phase70-B確認）**
+- 既存tokenのキーボード削除・小節線のキーボード挿入: 未着手
+  （Backspace/Delete/separator等のキー割当は本格的なkeyboard-first redesignの
+  一部として設計フェーズで扱う。Phase70-Bでは見送り）
 Phase38-2で設計済み。残作業は chordEntry.js 拡張として実装予定。
 
 ### token / rendering 系
@@ -82,6 +85,11 @@ Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み�
 - mutation 後の chart 再描画タイミング
 備考: Phase64 で 4層 architecture contract が確立したため、設計着手可能な段階。
 
+注意（Phase69で追記）: Phase68/69で確立したprojection layer（canonical timing space ≠
+visual projection space）のboundaryはまだ新しい。ここにsubsystem boundaryを追加する
+Chart Mode並列表示を勢いで実装すると、projection layerを壊すリスクが高い。
+着手前に設計フェーズを必ず挟むこと。
+
 #### Chart Mode に audio controls 追加（mini transport）
 状態: **完了（Phase50）**
 内容: Chart Mode 内に ▶ / シークバー / 速度 / 音量 の mini transport を実装済み。
@@ -95,17 +103,28 @@ playback authority は app.js が持つ（chartmode.js は aEl に直接触ら�
 event delegation により将来の renderer 変更に対して耐性がある。
 
 #### Chart Mode pickup measure 表示補正（Type B 対応）
-状態: **一部完了（Phase61）**
+状態: **numbering完了（Phase61）/ visual projection実装完了・実曲検証待ち（Phase68〜69）**
 内容:
   numbering correction: 完了（小節0 → "0"、以降 1, 2, 3 ...）
-  alignment correction: 未着手（pickup-aware slot projection として将来候補）
+  visual projection（alignment）: 実装完了（Phase68〜69）。
+    canonical timing space ≠ visual projection space の分離を確立し、
+    `projectPickupSlotIndex()` / `projectionEmpty` slot / `data-visual-slot-index` /
+    `chartState.pickupLeadingOffset` により measure 0 の表示位置調整・右詰め配置・
+    playback highlight remapを実装済み（architecture.md §9.5参照）。
+    synthetic test（FORCE_PICKUP_DEBUG）で動作確認済み。
+  実曲pickup検証: 未実施（手元の楽曲が全てpickupなしのため）。
+    projection-empty slot + slot--active の組み合わせを実際のpickup曲で
+    最終確認することが次フェーズ候補の最優先項目。
+  mode==='beat-only'でのpickup対応: 別issue（canonical measure grouping自体が
+    pickupを考慮していないため、visual projectionだけでは解決できない）
 
-pickup-aware measure alignment の影響範囲:
-  measure.pickupOffsetBeats metadata 追加
-  leading empty slot projection
-  right-aligned pickup rendering
-  pickup-aware cursor / seek semantics
-  → slot / cursor / seek 全体に影響するため別フェーズで設計が必要
+pickup-aware measure alignment の影響範囲（解決済み）:
+  measure.pickupOffsetBeats metadata → `chartState.pickupLeadingOffset` として実装
+  leading empty slot projection → `projectionEmpty` slotとして実装
+  right-aligned pickup rendering → `remapPickupOnsetMap()` で実装（右詰め・ceil基準）
+  pickup-aware cursor / seek semantics → projectionEmpty slotはhover/highlight/seek対象外
+    （DOM invariantで保証）。playhead位置（continuous）はremap対象外（discrete slot
+    highlightingのみremap）
 
 #### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
 状態: **classified / instrumented（Phase59）/ Type B 番号補正完了（Phase61）**
@@ -121,7 +140,7 @@ pickup-aware measure alignment の影響範囲:
 現状:
   - normalized timing pipeline 確立済み（buildNormalizedTimingAnalysis）
   - analyzeTiming() / repairDownbeats() 実装済み（repair default OFF）
-  - window.__TIMING_DEBUG__ で DevTools から診断可能
+  - window.__CS_DEBUG__.timing で DevTools から診断可能（Phase66で__TIMING_DEBUG__から移行）
 
 次のアクション候補:
   - Type D: 発生ケース収集後に repair: true で効果検証
@@ -132,29 +151,53 @@ pickup-aware measure alignment の影響範囲:
 内容: `getBeatPosition(t)` を timing.js に追加し、Chart Mode に playhead（beat cursor）を実装。
 measure直下 continuous overlay として分離。`updateChartPlayback()` で left% のみ更新（DOM再生成なし）。
 
+#### Chart Mode hover chord diagram
+状態: **完了（Phase67）**
+内容: Chart Modeのコード名hoverで小型コードダイアグラムをtooltip表示。
+single tooltip instance（body直下・ephemeral UI・chartStateにauthorityを持たない）。
+表示メニュー・`Shift+D`でON/OFF切替（localStorage: `cs.chartDiagHover`）。
+詳細: architecture.md §9.5参照。
+
+#### Chart Mode slot active highlight
+状態: **完了（Phase69）**
+内容: `.chart-slot--active`（outline主体・低alpha）を追加。
+`[data-visual-slot-index]`セレクタによりprojection-aware（visual slot space対象）。
+projectionEmpty slotはDOM invariant（`data-visual-slot-index`不在）により
+構造的にactive対象から除外される（Phase68のexclusion設計が機能していることをaudit済み）。
+
 ### restore lifecycle 系
 
 #### restored asset state synchronization
-状態: 未着手（Phase62から継続・推奨次フェーズ）
+状態: **完了（Phase65設計・Phase66実適用）**
 内容:
-  現象: project restore 後、audio/chord は IndexedDB から正常に復元されているが
-  UI は「〇〇を読み込んでください」バナーが表示される。
+  `assetState {audioLoaded, chordLoaded, restoreSettled}` をasset loaded状態の
+  唯一のauthorityとして導入。manual ingestとIndexedDB restoreを
+  `setAudioLoaded()` / `setChordLoaded()` 経由に統一し、DOM-as-authority
+  アンチパターン（`checkReloadBannerDone()`）を排除。
 
-本質:
-  manual ingest（ユーザーが手動でファイルを選ぶ）と
-  project restore（IndexedDB から自動復元）が別 state 扱いになっている。
-  runtime loaded flags が manual ingest path でしか更新されていない。
+  `restoreSettled` guardにより、loadProj()のasync restore transaction中は
+  `_evaluateBannerState()` の評価をスキップし、restore途中でのバナー誤表示・
+  flickerを防止。
 
-必要:
-  - restore-aware loaded state
-  - ingest / restore state の統合
-  - runtime asset authority の整理
+  また、autosave restore eligibilityを修正
+  （`saved.lines.length > 0` → `saved.id && (lines>0 || title || artist ||
+  audio || chord_source)`）し、metadata-only project（lines=[]）も
+  復元対象に含めた。
 
-将来への影響:
-  autosave restore / workspace reopen / recent project reopen
-  を実装する際に必ず問題になる。
+  詳細: architecture.md §4 assetState参照。
 
-優先度: 中（UX に直結）
+#### beat cursorが一瞬停止して数ビートジャンプする
+状態: 観察中（Phase65で記録・原因未特定）
+内容: 再生中、beat cursorが一瞬停止した後、数ビート先へジャンプすることがある。
+- audio playback自体は正常（カーソル描画のみの問題）
+- 毎回同じ位置で再現しない（ランダム発生）・曲サイズ依存は不明
+
+仮説候補: main thread blockage（autosave serialize / layout reflow）または
+frame scheduling delay。Phase63のrAF化で「通常時は滑らか」になった副作用として
+一時的なstallが目立ちやすくなっている可能性がある。
+
+次のアクション: `__CS_DEBUG__.perf`実装（Phase66-B・perf instrumentation）後に
+`performance.now()`でdt計測・frame timing測定を行う。現時点は現象記録フェーズ。
 
 #### timing model rehydration schema contract
 状態: 未着手（Phase61 hotfix で発覚・Phase64で止血済み）
@@ -170,24 +213,38 @@ measure直下 continuous overlay として分離。`updateChartPlayback()` で l
 
 ### その他将来検討
 
-#### debug API 整理
-状態: 未着手（Phase62で方針決定）
+#### debug observability consolidation
+状態: **完了（Phase66）**
 内容:
-  window.__CS_REPAIR__ 等の TEMP REPAIR タグ付きコードが残留。
-  window.__TIMING_DEBUG__ は有用だが名前がバラバラ。
+  `window.__CS_REPAIR__` 等の TEMP REPAIR タグ付きコードを削除済み。
+  `window.__TIMING_DEBUG__` を廃止し、`window.__CS_DEBUG__` に統合。
 
-方針:
-  Step 1: 仕分け（削除 / 残す / 整理）
-  Step 2: window.__CS_DEBUG__ に統合
-    window.__CS_DEBUG__.timing     タイミング診断
-    window.__CS_DEBUG__.project    プロジェクト状態
-    window.__CS_DEBUG__.chart      Chart Mode 状態
-    window.__CS_DEBUG__.dumpInvariants()  ← 推奨
-      project.id / loaded asset ids / audio authority /
-      chart authority / timing schema を一覧表示
-  Step 3: docs/ にデバッグガイドを作成
+  実装済み構造:
+    window.__CS_DEBUG__.timing          タイミング診断（getter）
+    window.__CS_DEBUG__.project          プロジェクト状態（assetState含む・shallow clone）
+    window.__CS_DEBUG__.chart            Chart Mode 状態
+    window.__CS_DEBUG__.dumpInvariants()  snapshot生成・console出力・return
 
-実装コスト: 小
+  設計原則: debug layerはstateを所有しない（runtime state → getter projection →
+  DevTools）。詳細はarchitecture.md §5.5参照。
+
+#### `__CS_DEBUG__` perf instrumentation（Phase66-B）
+状態: 未着手
+内容:
+  `window.__CS_DEBUG__.perf` は現状暫定実装（debug objectがstateを直接保持・
+  設計原則違反）。
+
+  正式な設計:
+    chartmode.jsに`_perfState`を持たせ、`_rafLoop`で`lastRAFDelta` /
+    `longFrames`を計測。`getPerfState()`をexportし、app.js側を
+    getter projectionに変更する。
+
+  実装しない理由:
+    `_rafLoop`はhot path。instrumentation自体がjitterを生む可能性があり、
+    restore/asset lifecycleが完全安定してから着手する。
+
+  関連: beat cursor stall issue（restore lifecycle系参照）の調査前提。
+  実装コスト: 小
 
 #### カポ範囲拡張（-2 まで対応）
 状態: 未着手
@@ -253,10 +310,12 @@ measure直下 continuous overlay として分離。`updateChartPlayback()` で l
 ## 3. UI/UX課題
 
 ### AddChordモーダルの記号過剰
-状態: 部分対応（Phase53）
+状態: 部分対応（Phase53, hover-only削除ボタンはPhase70-B時点で確認・完了）
 内容: `+` と `×` が多く見づらい・冗長。
 - `+` ボタン → insertion cursor（`|`）への変更: **Phase53 で完了**
-- hover-only 削除ボタン（`✕` 表示制御）: 未着手
+- hover-only 削除ボタン（`✕` 表示制御）: **完了（実装時期不明・Phase70-B確認時点でcomponents.cssに既存）**
+  `.mac-preview-tag-del { opacity:0; pointer-events:none; }` +
+  `:hover` / `:focus-within` で `opacity:1` に切替済み
 - 繰り返し回数「×N回」と削除「×」の視覚的衝突: 未着手
 
 ### 中央パネルの繰り返し表示
@@ -360,11 +419,31 @@ import 追加が漏れ、perform mode 全消失バグとして Step3 動作確�
 UIラベル・状態変数名を整理する。
 時期: パネルレイアウト再設計フェーズで対応。
 
-### debug API 散在（Phase62から継続）
-状態: 未着手
-内容: window.__CS_REPAIR__ / window.__CS_TRANSPOSE__ 等の TEMP REPAIR タグ付きコードが残留。
-window.__TIMING_DEBUG__ は有用だが window.__CS_DEBUG__ への統合が未実施。
-優先度: 小（動作への影響なし・運用改善）
+### debug API 散在
+状態: **完了（Phase66）**
+内容: `window.__CS_REPAIR__` / `window.__CS_TRANSPOSE__` 等の TEMP REPAIR タグ付きコードを削除。
+`window.__TIMING_DEBUG__` を `window.__CS_DEBUG__.timing` getterに統合済み。
+残課題は perf instrumentation（Phase66-B）のみ（「その他将来検討」セクション参照）。
+
+### hover hitbox分離（将来・Phase67から継続）
+状態: 意図的保留
+内容: Chart Mode hover chord diagram（Phase67）では現在scrollWidth guardで
+carry-forward領域の誤hoverを抑制している（interaction heuristic）。
+将来的にlayout span（`.chart-chord-name`）とinteraction span（`.chart-chord-hit`）を
+DOMレベルで分離することで、zoom/font変更耐性・touch long-press対応・
+accessibility改善が見込める。
+
+```html
+<span class="chart-chord-name">       <!-- duration layout責務 -->
+  <span class="chart-chord-hit"        <!-- hover hitbox責務（将来） -->
+        data-chord="Am7">Am7
+  </span>
+</span>
+```
+
+正式なhitbox authorityは未確立。現在のscrollWidth guardは
+「テキスト幅付近のhoverだけ有効にする」暫定的なinteraction narrowingであり、
+layout authorityではない。
 
 ### runtime authority の継続的な明文化（設計知見）
 状態: 継続観察
@@ -381,6 +460,10 @@ window.__TIMING_DEBUG__ は有用だが window.__CS_DEBUG__ への統合が未�
     persistence authority   = analysis.raw のみ serialize（全フェーズ通じて一貫）
     projection authority    = capo依存の変換は Layer 4（chartmode.js render phase）のみ（Phase43〜）
     mutation authority      = project.lines への変更は app.js 経由（初期から一貫）
+    asset loaded authority  = assetState {audioLoaded, chordLoaded, restoreSettled}（Phase65〜66）
+    debug observability     = __CS_DEBUG__ getter projection（state非所有・Phase66）
+    chart visual projection = canonical timing space ≠ visual projection space
+                               （data-visual-slot-index / projectPickupSlotIndex、Phase68〜69）
 
   authority が曖昧になりやすいタイミング:
     - 新しいモジュールが既存モジュールのデータを参照し始めた時

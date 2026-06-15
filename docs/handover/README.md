@@ -22,6 +22,36 @@ continuity document として機能する。
 
 ---
 
+## current-issues.md の状態管理（issue open/close）方針
+
+issue の open/close は **handover作成時に確定する**。
+実装中は current-issues.md を触らない。
+
+```
+実装中
+  └ current-issues.mdは触らない（コード内コメント・micro-logのみでよい）
+        ↓
+handover作成時
+  └ 「今回closeしたissue」「今回新規に積み残したissue」を整理し、
+    current-issues.mdをそこから更新する
+        ↓
+5フェーズ棚卸し
+  └ current-issues.mdのstale項目確認・責務整理
+```
+
+[ISSUE TRUTH SOURCE INVARIANT]
+issueの状態（open/close）のtruth sourceはhandoverであり、
+Chat内の会話記憶に依存してはいけない。
+「実装した記憶はあるがcurrent-issues.mdが古い」というズレは、
+issue closeを実装時に行おうとすることから生じる。
+closeはphase単位（handover作成時）でまとめて確定する。
+
+「いつ実装されたか不明」な既存項目（過去のズレの結果）については、
+発見した時点でcloseすれば十分。実装時期の追跡はGit historyに任せ、
+current-issues.md側で追跡しない。
+
+---
+
 ## handover の二層構造
 
 ### 1. micro-log（作業中メモ）
@@ -107,6 +137,10 @@ micro-log セクション自体は削除してよい。
 |---|---|---|
 
 ## 確定した設計原則
+
+## current-issues.md更新（該当issueがある場合）
+- 今回closeしたissue: （なければ「なし」）
+- 今回新規に積み残したissue: （なければ「なし」）
 
 ## 積み残し・保留バグ
 
