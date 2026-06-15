@@ -50,6 +50,52 @@ closeはphase単位（handover作成時）でまとめて確定する。
 発見した時点でcloseすれば十分。実装時期の追跡はGit historyに任せ、
 current-issues.md側で追跡しない。
 
+### current-issues.md のファイル責務（open issues only）
+
+[FILE SCOPE INVARIANT]
+current-issues.md は **open issuesのみ** を保持する。
+
+```
+書くべきもの:
+  - 未着手
+  - 観察中
+  - 検討中
+  - 意図的保留
+  - 将来候補（設計フェーズ未着手のもの）
+
+書くべきでないもの（別ファイルの責務）:
+  - 完了済み項目の詳細説明      → phase-status.md / handover_phaseXX.md
+  - 実装履歴・「PhaseXXで実装済み」の解説 → phase-status.md
+  - 設計知見・教訓              → architecture.md または README.md
+  - runtime authority一覧       → architecture.md
+  - architecture的解説          → architecture.md
+```
+
+[CLOSE BY DELETION]
+新規にcloseするissueは「状態: 完了（PhaseXX）」と書き残すのではなく、
+**current-issues.mdから削除する**。完了の記録はhandover_phaseXX.mdと
+phase-status.mdに既に残るため、current-issues.md側での「完了」表記は
+二重管理になる。
+
+### 既存の肥大化への対応（移行計画）
+
+現時点（Phase70）のcurrent-issues.mdには、上記の「書くべきでないもの」
+（完了済み・教訓・authority一覧等）が多数残っている。これは歴史的経緯による
+ものであり、Phase70時点で一括整理は行わない（diffが大きくなりすぎる・
+分類設計が固まっていないため）。
+
+```
+Phase70: 方針確定のみ
+  - 新規closeは削除運用へ移行（上記CLOSE BY DELETION）
+  - 既存の「完了済み」表記項目は手をつけない
+
+次の棚卸し（Phase75前後）: 一括移行
+  - 完了済み項目を一括削除
+  - 教訓を architecture.md / README.md へ移管
+  - authority一覧を architecture.md へ集約
+  - backlogをsubsystem別に再圧縮
+```
+
 ---
 
 ## handover の二層構造

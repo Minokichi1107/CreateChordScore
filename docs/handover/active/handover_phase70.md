@@ -152,6 +152,20 @@ handover_phase64の教訓（handover記録あり/実コード未適用）の**�
 詳細はREADME.md「current-issues.md の状態管理（issue open/close）方針」を参照。
 handover_phaseXX.mdテンプレートにも「current-issues.md更新」セクションを追加済み。
 
+### current-issues.md = open issues only（追加方針）
+
+今回の整理（hover-only削除ボタン）でcurrent-issues.md自体の肥大化・責務崩壊
+（未着手/完了/教訓/authority一覧/architecture解説が混在）が露呈した。
+
+READMEに以下を追記:
+- current-issues.mdは**open issuesのみ**（未着手/観察中/検討中/意図的保留/将来候補）
+- 新規closeは「完了」表記を残さず**削除**する（CLOSE BY DELETION）
+- 完了済み・教訓・authority一覧等は phase-status.md / architecture.md の責務
+
+Phase70では既存の肥大化分（多数の「完了済み」項目等）には手をつけない。
+次の棚卸し（Phase75前後）で一括移行（完了済み削除・教訓移管・authority集約・
+backlog再圧縮）を行う方針とした。
+
 ---
 
 ## 積み残し・将来課題
