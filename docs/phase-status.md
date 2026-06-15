@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase64完了時点
+> 最終更新: Phase69完了時点
 
 ---
 
@@ -498,19 +498,68 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - audio MIME タイプ修正（`'audio/*'` → 個別 MIME タイプ・Chrome 要件対応）
 - **教訓**: 「handover に書いてある」と「実コードに反映済み」は別問題。実コード audit が必要。
 
+### Phase65 — restore-aware asset authority normalization
+- `assetState {audioLoaded, chordLoaded, restoreSettled}` を導入（asset loaded状態の唯一のauthority）
+- `setAudioLoaded()` / `setChordLoaded()` / `_evaluateBannerState()` を確立
+- `checkReloadBannerDone()`（DOM-as-authority）を削除
+- `loadChordData` を ingest 専用化（asset authority確立は呼び出し側の責務）
+- `restoreSettled` guard で restore transaction 中の banner flicker を防止
+- autosave restore eligibility 修正（`lines=[]` の metadata-only project も復元対象に）
+- Phase65で設計・差分確定、Phase66で実コードへ統合適用
+
+### Phase66 — debug observability consolidation
+- Phase65 の変更を実コードへ適用
+- TEMP REPAIR ブロック（`__CS_TRANSPOSE__` 等）を削除
+- `window.__CS_DEBUG__` を導入（getter projectionパターン：timing / project / chart / perf / dumpInvariants）
+- `window.__TIMING_DEBUG__` を削除（`__CS_DEBUG__.timing` getterに統合）
+- テスト運用ルール確立（通常テスト と fault injection test の分離）
+- 差分適用ルール確立（関数単位置換・`node --check`・`git diff`必須）
+
+### Phase67 — Chart Mode hover chord diagram
+- Chart Mode のコード名hoverで小型ダイアグラムをtooltip表示
+- single tooltip instance（body直下・lifecycle-bound）
+- ephemeral UI設計（chartStateにtooltip authorityを持たせない）
+- scrollWidth guardでcarry-forward領域の誤hoverを抑制
+- 表示メニューにON/OFF追加・`Shift+D`ショートカット・localStorage永続
+
+### Phase68 — Chart Mode pickup-aware visual projection
+- **canonical timing space ≠ visual projection space** の分離を確立
+- `projectPickupSlotIndex()` を単一変換源として導入
+- `data-slot-index` → `data-visual-slot-index` にrename
+- `projectionEmpty` slot type追加（timing authorityを持たない休符表示）
+- `chartState.pickupLeadingOffset` をprojection authorityとして集約
+- scope: `mode==='full'` のみ（`beat-only`は別issue）
+- synthetic test（FORCE_PICKUP_DEBUG）で動作確認済み・実曲pickup検証は保留
+
+### Phase69 — Chart slot active highlight stabilization
+- `.chart-slot--active` CSS追加（outline主体・低alpha・3テーマ共通）
+- Phase68 projection layerのboundary audit（JS変更なし）
+- `projectionEmpty` exclusionがDOM invariantで構造的に保証されていることを確認
+- 「slot-level projection-aware playback highlighting」の確立
+
 ---
 
 ## 現在地
 
-- Phase64完了
-- Phase60〜64 の主な成果:
-  - Chart Mode click seek 実装（normalized measure model の startTime authority）（Phase60）
-  - 用途別ファイルピッカーフォルダ記憶（PICKER_IDS）（Phase60.5）
-  - Chart Mode pickup measure 番号補正（detectPickupMeasure / getDisplayMeasureNumber）（Phase61）
-  - project identity semantics 確立・新規プロジェクトとして保存（Phase62）
-  - rAF playback loop 導入・playback authority 3層分離（Phase63）
-  - **4層 architecture contract 確立**（Persistence / Runtime Cache / Chart Runtime / UI Projection）（Phase64）
-  - handover記録と実コードの乖離を複数発見・修正（Phase64の重要な成果）
+- Phase69完了
+- Phase65〜69 の主な成果:
+  - asset loaded状態のauthority確立（assetState・Phase65で設計/Phase66で実適用）
+  - `window.__CS_DEBUG__` によるruntime observability layer確立（Phase66）
+  - Chart Mode hover chord diagram（ephemeral UI）（Phase67）
+  - **canonical timing space ≠ visual projection space の分離確立**（Phase68）
+  - projection layer boundary validation・slot active highlighting（Phase69）
+
+---
+
+## Phase60〜64の主な成果（参考）
+
+- Chart Mode click seek 実装（normalized measure model の startTime authority）（Phase60）
+- 用途別ファイルピッカーフォルダ記憶（PICKER_IDS）（Phase60.5）
+- Chart Mode pickup measure 番号補正（detectPickupMeasure / getDisplayMeasureNumber）（Phase61）
+- project identity semantics 確立・新規プロジェクトとして保存（Phase62）
+- rAF playback loop 導入・playback authority 3層分離（Phase63）
+- **4層 architecture contract 確立**（Persistence / Runtime Cache / Chart Runtime / UI Projection）（Phase64）
+- handover記録と実コードの乖離を複数発見・修正（Phase64の重要な成果）
 
 ---
 
@@ -518,13 +567,15 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 
 詳細は `current-issues.md` のバックログを参照。
 
-UX改善系（推奨・実装コスト小〜中）:
-- **restored asset state synchronization**（restore後のバナー誤表示解消・UXに直結）
-- debug API 整理（window.__CS_DEBUG__ 統合・TEMP REPAIR タグ削除）
+優先順位（Phase69 handoverより）:
 
-Chart Mode 拡張系:
-- Chart Mode pickup-aware alignment（pickup offset metadata / leading empty slot・設計フェーズが必要）
-- Chart Mode 並列表示（設計フェーズが必要）
+1. **実曲pickup検証**（コスト低・Phase68/69の最終確認。projection-empty + slot--activeの組み合わせを実際のpickup曲で確認）
+2. **`__CS_DEBUG__` perf instrumentation**（Phase66-B・継続。chartmode.jsに `_perfState` を持たせ getter projection化。beat cursor stall調査の前提）
+3. **Chart Mode並列表示**（設計フェーズが必要。projection layer boundaryに新しいsubsystem boundaryを追加するため、着手前に設計フェーズ必須）
+
+その他継続:
+- mode==='beat-only'でのpickup対応（別issue・将来）
+- beat cursorの一瞬停止・数ビートジャンプ（Phase65で観察・原因未特定）
 
 Issue #45 継続対応:
 - Type A/C: A案（手動修正UI）設計フェーズ（大規模）

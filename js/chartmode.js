@@ -53,6 +53,7 @@
  */
 
 import { createTimingModel } from './timing.js';
+import { setSpeed } from './audio.js';
 
 
 
@@ -752,6 +753,83 @@ let _tooltipEnabled   = true;  // ON/OFF（app.js が localStorage から初期�
 // リスナー重複登録防止フラグ（hot reload / re-init 対策）
 let _gridClickSeekBound = false;
 
+// ── perf instrumentation（Phase70-A）──────────────────────
+// [DEBUG LAYER INVARIANT] runtime state はここ（chartmode.js）が所有する。
+// __CS_DEBUG__.perf は getPerfState() の getter projection のみ（state非所有）。
+//
+// _lastFrameTime: instrumentation内部専用（dt計算用）。
+//   getPerfState() の公開対象外。
+//
+// 計測スコープ: Chart Mode が open 中のみ（_rafLoop と同じ）。
+// open毎に _resetPerfState() でリセットされる
+//   （tab inactive → open 直後の巨大dtがstall判定に混入するのを防ぐため、
+//    リセット後の最初のフレームは dt 計測をスキップする）。
+const LONG_FRAME_THRESHOLD_MS = 33; // 30fps相当（1フレーム遅延の目安）
+const LONG_FRAME_LOG_MAX       = 20; // リングバッファ上限
+
+let _lastFrameTime = null; // performance.now()基準。null = 計測スキップ（リセット直後）
+
+let _perfState = {
+  lastRAFDelta: null,  // 直前フレームのdt（ms）
+  maxRAFDelta:  null,  // セッション内の最大dt（ms）
+  longFrames:   0,     // LONG_FRAME_THRESHOLD_MS超えの累積カウント
+  longFrameLog: [],    // 直近 LONG_FRAME_LOG_MAX 件の { timestamp, delta }
+};
+
+/**
+ * _resetPerfState — perf instrumentation を初期状態へ戻す
+ * openChartMode() から呼ぶ。
+ */
+function _resetPerfState() {
+  _lastFrameTime = null;
+  _perfState = {
+    lastRAFDelta: null,
+    maxRAFDelta:  null,
+    longFrames:   0,
+    longFrameLog: [],
+  };
+}
+
+/**
+ * _recordFrame — _rafLoop から毎フレーム呼ぶ。dtを計測しperfStateへ反映する。
+ * リセット直後（_lastFrameTime===null）の最初のフレームは計測をスキップする。
+ */
+function _recordFrame(now) {
+  if (_lastFrameTime == null) {
+    _lastFrameTime = now;
+    return;
+  }
+  const delta = now - _lastFrameTime;
+  _lastFrameTime = now;
+
+  _perfState.lastRAFDelta = delta;
+  _perfState.maxRAFDelta  = _perfState.maxRAFDelta == null
+    ? delta
+    : Math.max(_perfState.maxRAFDelta, delta);
+
+  if (delta > LONG_FRAME_THRESHOLD_MS) {
+    _perfState.longFrames++;
+    _perfState.longFrameLog.push({ timestamp: now, delta });
+    if (_perfState.longFrameLog.length > LONG_FRAME_LOG_MAX) {
+      _perfState.longFrameLog.shift();
+    }
+  }
+}
+
+/**
+ * getPerfState — perf instrumentation の getter projection（export）
+ *
+ * [DEBUG LAYER INVARIANT] state は所有せず、shallow clone を返す。
+ * longFrameLog は配列のため、参照漏れ防止のため個別にコピーする。
+ */
+export function getPerfState() {
+  return {
+    ..._perfState,
+    longFrameLog: [..._perfState.longFrameLog],
+  };
+}
+// ──────────────────────────────────────────────────────────
+
 // ── rAF playback loop ──────────────────────────────────────
 // Chart Mode が open 中のみ走る描画ループ。
 //
@@ -784,6 +862,7 @@ function _stopRafLoop() {
 
 function _rafLoop() {
   if (!_rafRunning) return;
+  _recordFrame(performance.now());
   const aEl = _getAudioEl?.();
   if (aEl) updateChartPlayback(aEl.currentTime);
   _rafId = requestAnimationFrame(_rafLoop);
@@ -1060,6 +1139,7 @@ export function openChartMode() {
     overlay.hidden = false;
   }
 
+  _resetPerfState(); // perf instrumentation をこのセッション用にリセット（Phase70-A）
   _startRafLoop();  // rAF playback loop 開始（visual update authority）
   _buildTransport();
   _initTooltip();         // tooltip DOM 生成
@@ -1682,15 +1762,23 @@ function _setupTransportEvents(transport) {
   const mainSpeedSel = document.getElementById('speed-sel');
 
   // メイン画面の現在速度を初期値として反映
+  // [UNIT FIX] mainSpeedSel.value は既に percent integer（例: 100）。
+  // playbackRate float（例: 1.0）ではないため *100 してはいけない。
+  // 旧コードは *100 していたため 100→10000→clamp(max=150) で常に150になっていた。
   if (mainSpeedSel) {
-    speedSel.value = Math.round(parseFloat(mainSpeedSel.value) * 100);
+    speedSel.value = Math.round(parseFloat(mainSpeedSel.value));
   }
   speedLabel.textContent = `${speedSel.value}%`;
 
   speedSel.addEventListener('input', () => {
-    aEl.playbackRate       = parseInt(speedSel.value) / 100;
-    speedLabel.textContent = `${speedSel.value}%`;
-    if (mainSpeedSel) mainSpeedSel.value = speedSel.value;  // ✅ 整数同士で同期
+    const pct = parseInt(speedSel.value);
+    speedLabel.textContent = `${pct}%`;
+    // [SPEED UI SYNC] setSpeed()がaEl.playbackRateの設定と、
+    // 通常モード（#speed-sel / #speed-reset）・TAPモード（#tov-speed等）の
+    // 表示同期を一括して行う。Chart→main の value 直代入のみでは
+    // #speed-reset の表示テキストが更新されないため setSpeed() 経由に統一する。
+    // 演奏モード（#perform-speed）は独立UIのため対象外（既存の非同期、Phase70-A範囲外）。
+    setSpeed(pct);
   });
 }
 

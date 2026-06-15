@@ -840,6 +840,26 @@
 }
 
 /* ════════════════════════════════════════
+   Phase69: slot単位のアクティブハイライト（再生中の現在拍）
+   ════════════════════════════════════════ */
+
+/* .chart-measure--active（面）の上に載る二次的・離散的フォーカス。
+   輪郭主体・低alpha（layer competition回避・blue theme過彩度回避）。
+   background は outline の視認補助程度に抑える。
+
+   active ownership:
+     updateChartPlayback() は visual slot index 空間を対象に
+     .chart-slot--active を付与する（[data-visual-slot-index="N"] selector）。
+     projectionEmpty slot は data-visual-slot-index を持たないため、
+     このセレクタには到達しない（DOM invariantによる除外。CSS側でのguard不要）。 */
+.chart-slot--active {
+  outline: 1px solid rgba(var(--color-blue-rgb), .55);
+  outline-offset: -1px;
+  background: rgba(var(--color-blue-rgb), .06);
+  border-radius: 2px;
+}
+
+/* ════════════════════════════════════════
    Phase68: pickup measure projection-empty slot
    ════════════════════════════════════════ */
 

@@ -1,6 +1,6 @@
 # アーキテクチャ概要
 
-> 最終更新: Phase64完了時点
+> 最終更新: Phase69完了時点
 
 ---
 
@@ -212,6 +212,35 @@ UUID は system-wide authority key（analyses / IndexedDB assets / autosave / �
 filename ≠ project identity。
 ```
 
+### assetState（Phase65で確立・Phase66で実適用）
+
+```javascript
+assetState = {
+  audioLoaded:    false,   // audio が使える状態か
+  chordLoaded:    false,   // chord データが使える状態か
+  restoreSettled: true,    // asset restore transaction 完了フラグ
+}
+```
+
+```
+[ASSET AUTHORITY INVARIANT]
+assetState は runtime における asset loaded 状態の唯一の authority（single source of truth）。
+
+DOM state や derived runtime state
+  (button.classList / aEl.src / palette.length 等)
+を authority source として参照してはいけない。
+これらは assetState を「反映する（projection）」だけ。
+```
+
+API（app.js）：
+- `setAudioLoaded(loaded, filename, opts)` / `setChordLoaded(loaded, filename, opts)`
+  state更新 → UI同期 → banner評価 を1箇所に集約。`{silent:true}` で評価抑制可。
+- `_evaluateBannerState()`
+  assetState + project metadataの純粋なUI projection。
+  `restoreSettled=false` の間（loadProj()のasync restore transaction中）は評価をスキップし、
+  transient phaseでのbanner誤表示・flickerを防ぐ。
+- `loadChordData` は ingest 専用。asset authority確立（`setChordLoaded`呼び出し）は呼び出し側の責務。
+
 ---
 
 ## 5. 起動フロー
@@ -239,6 +268,47 @@ loadCustomDiagrams()
 ↓
 restoreFromLocalStorage()
 ```
+
+---
+
+## 5.5 debug observability layer（Phase66で確立）
+
+`window.__CS_DEBUG__` は runtime state の getter projection layer。
+DevTools から runtime state を観測するための唯一の窓口。
+
+```javascript
+window.__CS_DEBUG__ = {
+  get timing()  { /* project.analysis から直接読む */ },
+  get project() { /* project + assetState shallow clone */ },
+  get chart()   { /* chartState + chartMeasuresPerRow */ },
+  perf: { ... }, // [暫定] 将来 getter projection に移行予定（Phase66-B）
+  dumpInvariants() { /* snapshot生成 + console出力 + return snapshot */ },
+};
+```
+
+```
+[DEBUG LAYER INVARIANT]
+  debug layer は state を所有しない。
+  runtime state → getter projection → DevTools
+
+  禁止パターン:
+    window.__CS_DEBUG__.perf.lastRAFDelta = dt;  // ← 書き込み禁止
+
+  これは assetState/DOM の「authority ではなく projection」（Phase65）と同じ思想。
+```
+
+- `assetState` は shallow clone で返す（DevToolsからのmutation防止）
+- `dumpInvariants()` はsnapshotをreturnする（二次解析のため）
+- timing objectはreplace禁止（object自体の再代入はgetter構造を破壊する）
+- `window.__TIMING_DEBUG__`（Phase59〜65）は廃止。timing診断は `__CS_DEBUG__.timing` getterに統合（Phase66）
+- Phase55〜65のTEMP REPAIRブロック（`__CS_TRANSPOSE__` 等）はPhase66で削除済み
+
+### perf instrumentation（Phase66-B・未着手）
+
+`__CS_DEBUG__.perf` は現状暫定実装（state直接保持・設計原則違反）。
+正式には chartmode.js に `_perfState` を持たせ `getPerfState()` をexportし、
+app.js側をgetter projectionに変更する。`_rafLoop`はhot pathのため、
+restore/asset lifecycleが完全安定してから着手する。
 
 ---
 
@@ -553,23 +623,23 @@ Type D は今回調査した4曲では未発生（発生ケース収集中）。
 ### DevTools 診断
 
 ```javascript
-// Phase59時点: window.__TIMING_DEBUG__（chartmode.js が書き込む）
-window.__TIMING_DEBUG__ = {
+// Phase66以降: window.__CS_DEBUG__.timing getter で取得（§5.5参照）
+window.__CS_DEBUG__.timing = {
   raw:         { beats, downbeats },
   diagnostics: analyzeTiming() の結果,
   repair:      repairDownbeats() の結果（repair:false なら null）,
   normalized:  { beats, downbeats },
 }
 
-// 将来: window.__CS_DEBUG__ に統合予定（debug API 整理フェーズ）
+// window.__TIMING_DEBUG__（Phase59〜65）は Phase66 で廃止済み
 ```
 
-### Chart Mode slot DOM invariant（Phase57で確立）
+### Chart Mode slot DOM invariant（Phase57で確立・Phase68でcanonical/visual分離）
 
 ```
 semantic slot:  常に固定（expandToSlots の結果）
-slot DOM:       全 slot（onset / carry / empty）を常に生成する
-active lookup:  data-slot-index 属性経由（逆引き不要）
+slot DOM:       全 slot（onset / carry / empty / projectionEmpty）を常に生成する
+active lookup:  data-visual-slot-index 属性経由（逆引き不要・Phase68でdata-slot-indexからrename）
 
 timing / layout / presentation の3層分離:
   semantic slot  → timing unit
@@ -577,6 +647,112 @@ timing / layout / presentation の3層分離:
   chord label    → visual presentation（--duration-slots CSS変数で幅制御）
   playhead       → measure直下 continuous overlay
 ```
+
+---
+
+## 9.5 Chart Mode projection layer（Phase68〜69で確立）
+
+### canonical timing space ≠ visual projection space
+
+```
+canonical timing space（timing.js / quantize / beats）— authority・変更なし
+  measure.slots[].slotIndex   : actual slot index
+  model.quantize(time)        : { measure, slot }（actual）
+  model.getBeatPosition(time) : 0.0〜1.0（actual空間の比率）
+
+        │ projection adapter（chartmode.js限定）
+        ▼
+
+visual projection space — 表示・interaction・highlight層
+  data-visual-slot-index
+  expandToSlots()の onset/carry/empty/projectionEmpty配置
+  updateChartPlaybackのslot highlight対象
+  hover ownership（Phase67）/ active ownership（Phase69）/ seek target exclusion を含む
+```
+
+```
+[PROJECTION INVARIANT]
+  canonical timing（measure.startTime/endTime, beats, quantize結果）は一切変更しない。
+  projection は measure 0（pickup measure）の表示位置調整に限定される。
+  playhead position（continuous）はremap対象外（discrete slot highlightingのみremap）。
+```
+
+### 単一変換源: projectPickupSlotIndex()
+
+actual slot index → visual slot index の変換は `projectPickupSlotIndex()`（export）に集約する。
+`expandToSlots()`（rendering）と `updateChartPlayback()`（highlight）の両方がこれを使うことで、
+表示と再生位置のズレを防ぐ。右詰め基準（末尾slotが安定するよう ceil を使用）。
+
+### projection authorityの集約
+
+```
+_renderChartGrid() で leadingOffset を一度だけ計算
+    ↓
+chartState.pickupLeadingOffset ─┬→ updateChartPlayback()
+pickupCtx.leadingOffset ────────┴→ expandToSlots()
+```
+
+### carry regeneration invariant
+
+canonical carry（actual slot space）は直接remapしない。
+canonical carry durationはactual slot spaceに基づくため、そのままvisual slot spaceへ
+持ち込むと圧縮後にdurationの重複・伸長が発生する。
+onset ownershipのみがprojection対象であり、carry ownershipはvisual slot spaceで再生成する。
+
+### projectionEmpty slot
+
+```
+projectionEmpty slot は visual slot authority を持たない（data-visual-slot-index 不在）。
+これにより hover / playback highlight / seek の対象外であることが
+DOM invariant として保証される（runtime conditionalによる除外ではない）。
+
+データ表現: { type:'empty', projectionEmpty:true, measureIndex }
+  - beatIndex を持たない（timing authorityを持たないことをデータレベルで保証）
+  - data-visual-slot-index を付与しない（DOM属性レベルで保証）
+  - chart-slot--beat（区切り線）も付与しない
+```
+
+projectionEmpty exclusionのownershipはrender DOM生成側（expandToSlots / _renderChartGrid）にあり、
+playback側（updateChartPlayback）はこのDOM contractを前提として動作する（Phase69 audit済み）。
+
+将来この不可侵性を緩める変更（projectionEmptyへのdata属性追加等）は慎重にレビューすること。
+
+### スコープ境界
+
+Phase68のpickup projectionは `mode==='full'`（downbeats検出成功）限定。
+`mode==='beat-only'` でのpickup対応は別issue
+（canonical measure grouping自体がpickupを考慮していないため、visual projectionだけでは解決できない）。
+
+### .chart-slot--active（Phase69）
+
+outline主体・低alpha（背景alpha .06）。`.chart-slot[data-visual-slot-index="N"]` セレクタを使用し、
+visual slot spaceを対象とするprojection-aware playback highlightingを実現する。
+
+視覚的レイヤー構造（役割分離）：
+```
+1. playhead（continuous motion）       — canonical timing space のまま（measure内 left%）
+2. slot active（離散的 beat focus）    — visual slot space（Phase69で追加）
+3. measure active（broad context）     — .chart-measure--active（背景・border）
+```
+
+### Chart Mode hover chord diagram（Phase67で確立）
+
+```
+ephemeral UI: tooltip は chartState に authority を持たない。
+hover event → render だけで完結。state 化しない。
+
+hover event → _showTooltip(chord, anchorRect)
+            → findChord() → drawDiagram() → innerHTML
+            → position 計算（実サイズで overflow 判定）
+```
+
+- single tooltip instance（body直下・`openChartMode`/`closeChartMode`とlifecycle連動）
+- `data-chord` には `transposeChord(rawChord, -capo)` 済みの表示用chord名を格納
+  （tooltip側はcapoを再適用しない・二重projection防止）
+- event delegation（pointerover/out + relatedTarget guard）でchart-grid rootから委譲
+- hover hitboxはscrollWidthベースのinteraction heuristic（暫定。正式なhitbox authorityは
+  将来のhover hitbox分離フェーズで確立予定）
+- 表示メニュー・`Shift+D`でON/OFF切替（localStorage: `cs.chartDiagHover`、デフォルトON）
 
 ---
 

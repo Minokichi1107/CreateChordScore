@@ -178,6 +178,7 @@ import {
   chartState,
   renderChartMode,
   setTooltipEnabled,
+  getPerfState,
 } from './chartmode.js';
 
 // ════════════════════════════════════════
@@ -2445,12 +2446,11 @@ window.__CS_DEBUG__ = {
     };
   },
 
-  // [TODO Step3/4] 暫定実装。
-  // 正しい設計: chartmode.js に perfState を持たせ getter projection で expose。
-  perf: {
-    lastRAFDelta: null,
-    longFrames:   0,
-    longFrameLog: [],
+  // perf instrumentation（Phase70-A）
+  // chartmode.js が _perfState を所有・getPerfState() で getter projection。
+  // __CS_DEBUG__.perf は state を持たない（timing/project/chart と同じ原則）。
+  get perf() {
+    return getPerfState();
   },
 
   dumpInvariants() {
@@ -2458,11 +2458,7 @@ window.__CS_DEBUG__ = {
       project: this.project,
       timing:  this.timing,
       chart:   this.chart,
-      perf: {
-        lastRAFDelta: this.perf.lastRAFDelta,
-        longFrames:   this.perf.longFrames,
-        longFrameLog: [...this.perf.longFrameLog],
-      },
+      perf:    this.perf,
     };
 
     const { project: p, timing: t, chart: c, perf: pf } = snapshot;
@@ -2497,6 +2493,7 @@ window.__CS_DEBUG__ = {
 
     console.group('[Perf]');
     console.log('lastRAFDelta:  ', pf.lastRAFDelta, 'ms');
+    console.log('maxRAFDelta:   ', pf.maxRAFDelta, 'ms');
     console.log('longFrames:    ', pf.longFrames);
     console.log('longFrameLog:  ', pf.longFrameLog);
     console.groupEnd();
