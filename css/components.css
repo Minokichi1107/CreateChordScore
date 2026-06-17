@@ -121,6 +121,26 @@
 #tov-deselect{font-size:11px;padding:3px 10px;background:var(--surface-overlay);border:1px solid var(--border-ui);border-radius:var(--r-md);color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono)}
 /* SPEED CONTROL CLUSTER */
 .speed-cluster{display:flex;align-items:center;gap:6px} /*欠損していたのを予測で追加したため要確認*/
+/* SPEED RESET BUTTON（Phase71-A仕上げ）
+   既存 #speed-reset は無変更（label兼button・通常モード専用）。
+   TAP/Perform側の新規reset buttonはこのclassで最小限の外観を統一する。
+   handler は setSpeed(100) のみ（canonical mutation trigger）。 */
+.speed-reset-btn{
+  font-family:var(--font-mono);
+  font-size:11px;
+  line-height:1;
+  min-width:28px;
+  padding:2px 6px;
+  border-radius:var(--r-sm);
+  border:1px solid var(--border-ui);
+  background:var(--surface-overlay);
+  color:var(--text-secondary);
+  cursor:pointer;
+}
+.speed-reset-btn:hover{
+  background:var(--surface-hover);
+  color:var(--text-primary);
+}
 /* SCOPE SELECTOR (replace-bar) */
 .scope-selector{display:flex;gap:4px;align-items:center}
 .scope-selector label{display:flex;align-items:center;gap:4px;color:var(--text-muted);font-size:10px;cursor:pointer;white-space:nowrap}
@@ -736,6 +756,7 @@
 }
 
 .chart-speed-cluster {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -762,6 +783,29 @@
   font-size: 11px;
   min-width: 36px;
   text-align: center;
+}
+/* SPEED RESET BUTTON（Phase71-A仕上げ）
+   handler は setSpeed(100) のみ（canonical mutation trigger）。
+   position/z-index/pointer-events: 実クリックのみ無反応になる
+   hitbox問題への対策（dispatchEventでは正常動作するため要監視）。 */
+.chart-speed-reset {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  min-width: 24px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border-ui);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.chart-speed-reset:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
 }
 
 /* ── AddChord: insertion cursor ── */

@@ -1713,6 +1713,7 @@ function _buildTransport() {
       <input id="chart-speed-sel" class="chart-speed-sel" type="range"
              min="50" max="150" value="100" step="1">
       <span id="chart-speed-label" class="chart-speed-label">100%</span>
+      <button id="chart-speed-reset" class="chart-speed-reset" type="button" title="100%にリセット">↺</button>
     </div>
   `;
 
@@ -1759,14 +1760,30 @@ function _setupTransportEvents(transport) {
   // ── 速度スライダー ──
   const speedSel     = transport.querySelector('#chart-speed-sel');
   const speedLabel   = transport.querySelector('#chart-speed-label');
+  const speedReset   = transport.querySelector('#chart-speed-reset');
   const mainSpeedSel = document.getElementById('speed-sel');
 
   // メイン画面の現在速度を初期値として反映
   // [UNIT FIX] mainSpeedSel.value は既に percent integer（例: 100）。
   // playbackRate float（例: 1.0）ではないため *100 してはいけない。
   // 旧コードは *100 していたため 100→10000→clamp(max=150) で常に150になっていた。
+  //
+  // [RANGE MISMATCH GUARD] Chart slider の通常レンジは 50-150（Chart Mode向けに
+  // 意図的に絞った値）。canonical speed authority（setSpeed）は 25-300 を許容するため、
+  // 現在値がこのレンジ外の場合はスライダーのmin/maxを一時的に動的拡張し、
+  // 「表示だけclampされて実際の速度と食い違う」状態を防ぐ。
+  // 通常使用時（50-150の範囲内）はこのガードは発火せず、既存の見た目のまま。
+  //
+  // [NOTE] これはChart Modeを開いた瞬間の初期反映専用。
+  // 開いている間の継続的な同期はsetSpeed()側のChart projection
+  // （audio.js, Phase71-A）が担当する。
   if (mainSpeedSel) {
-    speedSel.value = Math.round(parseFloat(mainSpeedSel.value));
+    const currentPct = Math.round(parseFloat(mainSpeedSel.value));
+    if (Number.isFinite(currentPct)) {
+      if (currentPct > Number(speedSel.max)) speedSel.max = currentPct;
+      if (currentPct < Number(speedSel.min)) speedSel.min = currentPct;
+      speedSel.value = currentPct;
+    }
   }
   speedLabel.textContent = `${speedSel.value}%`;
 
@@ -1774,11 +1791,18 @@ function _setupTransportEvents(transport) {
     const pct = parseInt(speedSel.value);
     speedLabel.textContent = `${pct}%`;
     // [SPEED UI SYNC] setSpeed()がaEl.playbackRateの設定と、
-    // 通常モード（#speed-sel / #speed-reset）・TAPモード（#tov-speed等）の
-    // 表示同期を一括して行う。Chart→main の value 直代入のみでは
-    // #speed-reset の表示テキストが更新されないため setSpeed() 経由に統一する。
-    // 演奏モード（#perform-speed）は独立UIのため対象外（既存の非同期、Phase70-A範囲外）。
+    // 通常モード（#speed-sel / #speed-reset）・TAPモード（#tov-speed等）・
+    // 演奏モード（#perform-speed）・Chart Mode自身の表示同期を一括して行う。
     setSpeed(pct);
+  });
+
+  // ── 速度リセット ──
+  // [SPEED RESET] canonical mutation trigger。setSpeed(100)のみを呼び、
+  // 表示projectionはsetSpeed()内で一括処理される（chart独自reset authorityを作らない）。
+  // setSpeed()がChart自身のUI（#chart-speed-sel/#chart-speed-label）も
+  // projection対象に含むため（audio.js, Phase71-A）、reset後の表示も自動的に揺れない。
+  speedReset.addEventListener('click', () => {
+    setSpeed(100);
   });
 }
 

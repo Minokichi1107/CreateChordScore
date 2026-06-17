@@ -24,6 +24,17 @@ export function fmt(s, tenth = false) {
 // ────────────────────────────────────────
 // 再生速度設定
 // ────────────────────────────────────────
+// [SPEED AUTHORITY] setSpeed() が speed mutation の唯一の正式入口。
+// 各UI（#speed-sel / #chart-speed-sel / #perform-speed 等）は
+// このAPI経由でのみ速度を変更し、変更結果のprojectionも
+// このAPI内で一括して行う（UI = projection only）。
+//
+// [PROGRAMMATIC ASSIGNMENT NOTE]
+// 以下の .value 代入はすべて programmatic assignment であり、
+// <input> の 'input' イベントを再発火させない（ブラウザ標準挙動）。
+// そのため setSpeed() 呼び出しが自己再帰することはない。
+// 将来 custom dispatch / reactive wrapper 等を導入する場合は
+// この前提が崩れる可能性があるため、再帰防止策を別途検討すること。
 export function setSpeed(pct) {
   if (!_audioElement || !_elements) return;
   
@@ -36,6 +47,25 @@ export function setSpeed(pct) {
   // TAPモード側も同期
   if (_elements.tovSpeed) _elements.tovSpeed.value = pct;
   if (_elements.tovSpeedLabel) _elements.tovSpeedLabel.textContent = pct + '%';
+
+  // 演奏モード側も同期（Phase71-A: authority bypass解消）
+  if (_elements.performSpeed) _elements.performSpeed.value = pct;
+  if (_elements.performSpeedLabel) _elements.performSpeedLabel.textContent = pct + '%';
+
+  // Chart Mode側も同期（Phase71-A: projection completeness fix）
+  // Chart Mode は開いている時だけDOMが存在する動的UIのため、
+  // _elements への固定登録ではなく毎回 getElementById で存在確認する。
+  // [RANGE MISMATCH GUARD] Chart slider の通常レンジは50-150。
+  // pctがレンジ外の場合は先にmin/maxを拡張してからvalueを代入する
+  // （拡張せずに代入するとブラウザがclampし、表示と実際のplaybackRateが食い違う）。
+  const chartSpeedSel   = document.getElementById('chart-speed-sel');
+  const chartSpeedLabel = document.getElementById('chart-speed-label');
+  if (chartSpeedSel) {
+    if (pct < Number(chartSpeedSel.min)) chartSpeedSel.min = pct;
+    if (pct > Number(chartSpeedSel.max)) chartSpeedSel.max = pct;
+    chartSpeedSel.value = pct;
+  }
+  if (chartSpeedLabel) chartSpeedLabel.textContent = pct + '%';
 }
 
 // ────────────────────────────────────────

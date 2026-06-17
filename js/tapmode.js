@@ -315,6 +315,12 @@ function _setupEvents() {
     _callbacks.setSpeed(parseInt(e.target.value));
   });
 
+  // 速度リセット（Phase71-A仕上げ）
+  // [SPEED RESET] canonical mutation trigger。setSpeed(100)のみ。
+  document.getElementById('tov-speed-reset').addEventListener('click', () => {
+    _callbacks.setSpeed(100);
+  });
+
   // シークバー
   const tovSeekIn = document.getElementById('tap-ov-seek-in');
   tovSeekIn.addEventListener('mousedown', () => { tovSeeking = true; });
