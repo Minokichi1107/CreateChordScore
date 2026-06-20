@@ -104,6 +104,13 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
   const timeSignature = analysis.timeSignature;
   const chords        = analysis.chords;
 
+  // Phase72-B: repairRule（ユーザーが指定した手動タイミング補正の意図）。
+  // [OWNERSHIP] repairRule の解釈・適用（anchor以降のmeasure再構築）は
+  // timing.js の createTimingModel() 内部（applyAnchorRepair）が責務を持つ。
+  // chartmode.js はここで運ぶだけで、解釈は一切行わない。
+  // normalized（Phase59のdrift repair結果）とは別物・別経路。
+  const repairRule = analysis.repairRule ?? null;
+
   const model = createTimingModel({
     beats,
     downbeats,
@@ -112,6 +119,7 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
     quantizeMode:       'nearest',
     anticipationWindow: 0.5,
     audioDuration,
+    repairRule,
   });
 
   // fallback モード: コード列のみ（グリッドなし）
@@ -743,6 +751,13 @@ let _seekTo           = null;  // (time: number) => void（app.js が aEl.curren
 let _findChord        = null;  // (chord) => entry（tooltip diagram 用）
 let _drawDiagram      = null;  // (frets, barre, options) => SVG string（tooltip diagram 用）
 
+// Phase72-B: manual timing correction コールバック
+// [OWNERSHIP] repairRule の保存・project.analysis 更新・Chart 再描画は
+// app.js が責務を持つ。chartmode.js は「ユーザーが何を選んだか」を
+// コールバック経由で通知するだけで、persistence layer に直接触らない。
+let _onSetRepairRule   = null;  // (beatTime: number) => void
+let _onClearRepairRule = null;  // () => void
+
 // ── tooltip state ──────────────────────────────────────────
 // [EPHEMERAL UI] tooltip は chartState に authority を持たない。
 // hover event → render だけで完結する。state 化しない。
@@ -875,26 +890,34 @@ function _rafLoop() {
  * app.js から依存を注入する。
  *
  * @param {object} deps
- * @param {Function} deps.getAnalysis      - () => project.analysis
- * @param {Function} deps.getAudioEl       - () => aEl
- * @param {Function} deps.getAudioDuration - () => aEl.duration
- * @param {Function} deps.getCapo          - () => number（現在のカポ値）
- * @param {Function} deps.transposeChord   - (chord, semitones) => string
- * @param {Function} [deps.seekTo]         - (time: number) => void（Phase60: click seek）
- *                                           app.js が aEl.currentTime を設定する責務を持つ。
- *                                           chartmode.js は aEl に直接触らない。
+ * @param {Function} deps.getAnalysis        - () => project.analysis
+ * @param {Function} deps.getAudioEl         - () => aEl
+ * @param {Function} deps.getAudioDuration   - () => aEl.duration
+ * @param {Function} deps.getCapo            - () => number（現在のカポ値）
+ * @param {Function} deps.transposeChord     - (chord, semitones) => string
+ * @param {Function} [deps.seekTo]           - (time: number) => void（Phase60: click seek）
+ *                                             app.js が aEl.currentTime を設定する責務を持つ。
+ *                                             chartmode.js は aEl に直接触らない。
+ * @param {Function} [deps.onSetRepairRule]  - (beatTime: number) => void（Phase72-B）
+ *                                             右クリック「ここを小節頭にする」選択時に呼ぶ。
+ *                                             app.js が保存・再描画を担う。
+ * @param {Function} [deps.onClearRepairRule]- () => void（Phase72-B）
+ *                                             右クリック「補正を解除」選択時に呼ぶ。
+ *                                             app.js が null保存・再描画を担う。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled }) {
-  _getAnalysis      = getAnalysis;
-  _getNormalized    = getNormalized;
-  _getAudioEl       = getAudioEl;
-  _getAudioDuration = getAudioDuration;
-  _getCapo          = getCapo;
-  _transposeChord   = transposeChord;
-  _seekTo           = seekTo ?? null;
-  _findChord        = findChord  ?? null;
-  _drawDiagram      = drawDiagram ?? null;
-  _tooltipEnabled   = tooltipEnabled ?? true;
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule }) {
+  _getAnalysis       = getAnalysis;
+  _getNormalized     = getNormalized;
+  _getAudioEl        = getAudioEl;
+  _getAudioDuration  = getAudioDuration;
+  _getCapo           = getCapo;
+  _transposeChord    = transposeChord;
+  _seekTo            = seekTo ?? null;
+  _findChord         = findChord  ?? null;
+  _drawDiagram       = drawDiagram ?? null;
+  _tooltipEnabled    = tooltipEnabled ?? true;
+  _onSetRepairRule   = onSetRepairRule  ?? null;
+  _onClearRepairRule = onClearRepairRule ?? null;
 
   // Phase60: click seek イベント登録
   _setupGridClickSeek();
@@ -1114,6 +1137,198 @@ function _setupGridClickSeek() {
 }
 
 // ────────────────────────────────────────
+// Phase72-B: 右クリックコンテキストメニュー（manual timing correction UI）
+// ────────────────────────────────────────
+//
+// [設計原則]
+//   ephemeral UI: chartState に authority を持たない。
+//   右クリック event → メニュー表示 → 選択 → コールバック通知 で完結。
+//   repairRule の保存・project.analysis 更新・再描画は app.js の責務。
+//
+// [slot → beatTime 変換の根拠]
+//   repairRule.beatTime は raw.beats に実在する値（Phase72-A確定）。
+//   クリックしたスロットが属する「拍の頭」の時刻を求めるため:
+//     1. data-visual-slot-index から「measure内の何拍目か」を計算
+//        （resolutionPerBeat=2なら slot/2 の整数部が拍番号）
+//     2. measure.startTime から beats[] 上の対応インデックスを求める
+//     3. beats[startBeatIdx + beatInMeasure] = beatTime
+//   後半スロット（beat0の0.5秒後等）を右クリックしても、
+//   その拍の頭の時刻が正しく取得される。
+
+let _contextMenuEl      = null;  // single instance（body直下）
+let _contextMenuBound   = false; // idempotent guard
+
+/**
+ * _getBeatTimeFromSlot
+ *
+ * クリックされたスロットから repairRule.beatTime を逆引きする。
+ *
+ * @param {number} measureIndex      - 0-based measure index
+ * @param {number} visualSlotIndex   - 0-based visual slot index（within measure）
+ * @param {object} model             - TimingModel（createTimingModel の戻り値）
+ * @param {number[]} beats           - analysis.beats（raw.beats をsanitize済み）
+ * @param {object} timeSignature     - analysis.timeSignature（{ numerator, denominator }）
+ * @returns {number|null}  beatTime（raw.beats 上の値）または null（逆引き失敗）
+ */
+function _getBeatTimeFromSlot(measureIndex, visualSlotIndex, model, beats, timeSignature) {
+  const measure = model.getMeasure(measureIndex);
+  if (!measure) return null;
+
+  // measure.startTime に対応する beats[] のインデックスを求める
+  // [ASSUMPTION] measure.startTime は必ず beats[] のいずれかと一致する
+  //（applyAnchorRepair が after.push(beats[i]) で生成するため）
+  const EPS = 1e-6;
+  const startBeatIdx = beats.findIndex(b => Math.abs(b - measure.startTime) < EPS);
+  if (startBeatIdx === -1) return null;  // invariant violation
+
+  // [Phase72-B 修正: ChatGPTレビュー指摘対応]
+  // resolutionPerBeat は measure.beatCount（repair後は小節ごとに変わりうる）
+  // からではなく、timeSignature.numerator（固定値）から算出する。
+  // model.slotsPerMeasure = timeSignature.numerator × resolutionPerBeat
+  // （createTimingModel 内で固定の timeSignature を使って算出されているため、
+  //   repairによる不揃い小節があっても resolutionPerBeat 自体は変わらない）
+  const numerator = timeSignature?.numerator || 4;
+  const resolutionPerBeat = model.slotsPerMeasure / numerator;
+
+  // visual slot index → measure 内の拍番号
+  const beatInMeasure = Math.floor(visualSlotIndex / resolutionPerBeat);
+
+  const globalBeatIdx = startBeatIdx + beatInMeasure;
+  return beats[globalBeatIdx] ?? null;
+}
+
+/**
+ * _showContextMenu
+ *
+ * 右クリックメニューを表示する。
+ *
+ * @param {number}   beatTime   - 「ここを小節頭にする」で設定するbeatTime
+ * @param {boolean}  hasRepair  - 現在補正が設定されているか（解除項目の表示制御）
+ * @param {number}   clientX    - クリック位置X（viewport座標）
+ * @param {number}   clientY    - クリック位置Y（viewport座標）
+ */
+function _showContextMenu(beatTime, hasRepair, clientX, clientY) {
+  _hideContextMenu();  // 既存を閉じてから生成
+
+  const menu = document.createElement('div');
+  menu.className = 'chart-context-menu';
+
+  // 「ここを小節頭にする」項目
+  const setItem = document.createElement('div');
+  setItem.className = 'chart-context-item';
+  setItem.textContent = '📍 ここを小節頭にする';
+  setItem.addEventListener('click', () => {
+    _hideContextMenu();
+    _onSetRepairRule?.(beatTime);
+  });
+  menu.appendChild(setItem);
+
+  // 「補正を解除」項目（補正中の場合のみ表示）
+  if (hasRepair) {
+    const clearItem = document.createElement('div');
+    clearItem.className = 'chart-context-item chart-context-item--clear';
+    clearItem.textContent = '🔄 小節補正を解除';
+    clearItem.addEventListener('click', () => {
+      _hideContextMenu();
+      _onClearRepairRule?.();
+    });
+    menu.appendChild(clearItem);
+  }
+
+  // 位置決め（viewport右端・下端からはみ出さないよう調整）
+  menu.style.position = 'fixed';
+  menu.style.zIndex   = '9999';
+  menu.style.left     = clientX + 'px';
+  menu.style.top      = clientY + 'px';
+  document.body.appendChild(menu);
+  _contextMenuEl = menu;
+
+  // 右端・下端 overflow 補正（DOM追加後にサイズが確定するため）
+  const rect = menu.getBoundingClientRect();
+  const MARGIN = 8;
+  if (rect.right > window.innerWidth) {
+    menu.style.left = (clientX - rect.width) + 'px';
+  }
+  if (rect.bottom > window.innerHeight) {
+    menu.style.top = (clientY - rect.height) + 'px';
+  }
+}
+
+/**
+ * _hideContextMenu — コンテキストメニューを非表示にして DOM を削除する
+ */
+function _hideContextMenu() {
+  if (_contextMenuEl) {
+    _contextMenuEl.remove();
+    _contextMenuEl = null;
+  }
+}
+
+/**
+ * _setupContextMenu
+ *
+ * contextmenu イベントを document に委譲登録する（idempotent、一度だけ呼ばれる）。
+ * openChartMode() から呼ぶ。
+ *
+ * [Phase72-B 修正: ChatGPTレビュー指摘対応]
+ *   grid要素に直接 addEventListener する方式は、#chart-grid のDOMが
+ *   何らかの理由で再生成された場合（innerHTML全置換ではなく要素自体の
+ *   差し替えが将来発生した場合）、イベントが古い要素に残ったままになり
+ *   「右クリックメニューが突然出なくなる」不具合になりうる。
+ *   document への委譲に切り替えることで、grid要素のライフサイクルに
+ *   依存しない構造にする。Chart Mode が非アクティブな時は
+ *   chartState.active のガードで無効化する。
+ */
+function _setupContextMenu() {
+  if (_contextMenuBound) return;
+  _contextMenuBound = true;
+
+  // contextmenu イベントを document に委譲登録
+  document.addEventListener('contextmenu', e => {
+    if (!chartState.active) return;       // Chart Mode 非アクティブなら無視
+    if (!_onSetRepairRule) return;         // コールバック未注入なら無視
+
+    // .chart-slot を対象とする（projectionEmpty slot は data-visual-slot-index がないため自然に除外される）
+    const slotEl    = e.target.closest('.chart-slot[data-visual-slot-index]');
+    const measureEl = e.target.closest('.chart-measure[data-measure-index]');
+    if (!slotEl || !measureEl) return;
+
+    e.preventDefault();  // ブラウザ標準メニューを抑制
+
+    const mi             = Number(measureEl.dataset.measureIndex);
+    const visualSlotIdx  = Number(slotEl.dataset.visualSlotIndex);
+    if (!Number.isFinite(mi) || !Number.isFinite(visualSlotIdx)) return;
+
+    const vm = chartState.viewModel;
+    if (!vm?.model || vm.model.mode === 'fallback') return;
+
+    const analysis = _getAnalysis?.();
+    if (!analysis) return;
+
+    // slot → beatTime 逆引き
+    const beatTime = _getBeatTimeFromSlot(mi, visualSlotIdx, vm.model, analysis.beats ?? [], analysis.timeSignature);
+    if (beatTime == null) return;
+
+    const hasRepair = !!analysis.repairRule;
+    _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY);
+  });
+
+  // メニュー外クリックで閉じる
+  document.addEventListener('click', e => {
+    if (_contextMenuEl && !_contextMenuEl.contains(e.target)) {
+      _hideContextMenu();
+    }
+  });
+
+  // Escape でも閉じる
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _contextMenuEl) {
+      _hideContextMenu();
+    }
+  });
+}
+
+// ────────────────────────────────────────
 // Chart Mode 開閉
 // ────────────────────────────────────────
 
@@ -1144,7 +1359,31 @@ export function openChartMode() {
   _buildTransport();
   _initTooltip();         // tooltip DOM 生成
   _setupTooltipEvents();  // event delegation 登録（idempotent）
+  _setupContextMenu();    // Phase72-B: 右クリックメニュー登録（idempotent）
   // 描画は呼び出し元（app.js）が renderChartMode を責務として持つ
+}
+
+/**
+ * rebuildChartViewModel
+ *
+ * Phase72-B: repairRule 変更後に viewModel だけを再構築する。
+ * openChartMode() と異なり、オーバーレイの表示・rAF・transport・
+ * イベント登録は行わない（Chart Mode が既に開いている前提）。
+ *
+ * [使用ケース]
+ *   right-click → 「ここを小節頭にする」または「補正を解除」
+ *   → app.js が repairRule を更新 → この関数で viewModel 再構築
+ *   → renderChartMode() で再描画
+ *
+ * @returns {boolean} 再構築成功:true / analysis なし:false
+ */
+export function rebuildChartViewModel() {
+  const analysis = _getAnalysis?.();
+  if (!analysis) return false;
+
+  const duration = _getAudioDuration?.() || null;
+  chartState.viewModel = buildGridViewModel(analysis, duration);
+  return true;
 }
 
 /**

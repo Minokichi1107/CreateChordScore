@@ -235,7 +235,17 @@ import { buildNormalizedTimingAnalysis } from './timing.js';
  *   - 将来の manual timing edit
  *   capo 変更 / chart open/close では rebuild 不要（capo 非依存）
  *
- * @param {*} analysis - data.analysis（analysis.raw を持つオブジェクト）または raw 直接
+ * 【Phase72-B: repairRule】
+ *   repairRule はユーザーが指定した手動タイミング補正の「意図」
+ *   （{ version, type:'anchorDownbeat', beatTime } または null）。
+ *   raw と同じ階層（analysis.repairRule）で受け取り、戻り値にも
+ *   そのまま含める。normalized（disposable derived cache）とは
+ *   別物として扱う（混同しないこと）。
+ *   実際に repairRule を適用して measures を再構築するのは
+ *   chartmode.js が createTimingModel() を呼ぶ際の責務であり、
+ *   このファイルでは運ぶだけで、解釈・適用は行わない。
+ *
+ * @param {*} analysis - data.analysis（analysis.raw / repairRule を持つオブジェクト）または raw 直接
  * @returns {object|null}
  */
 export async function loadAnalysis(analysis) {
@@ -256,6 +266,12 @@ export async function loadAnalysis(analysis) {
   // chords が array でない → 致命的破損 → null
   if (!Array.isArray(raw.chords)) return null;
 
+  // Phase72-B: repairRule をそのまま運ぶ（解釈はしない）。
+  // 型不一致・欠損は null に正規化する（呼び出し側の判定を単純にするため）。
+  const repairRule = (analysis.repairRule && typeof analysis.repairRule === 'object')
+    ? analysis.repairRule
+    : null;
+
   // ── bpm ──────────────────────────────
   // 0以下・非数値 → null（不明扱い）
   const bpm = typeof raw.bpm === 'number' && Number.isFinite(raw.bpm) && raw.bpm > 0
@@ -273,6 +289,10 @@ export async function loadAnalysis(analysis) {
   // capo 非依存。capo 変更では rebuild 不要。
   // rebuild 条件: analysis 再読込 / repair policy 変更 / 将来の manual timing edit のみ。
   //
+  // [OWNERSHIP] normalized は repairRule を適用しない（Phase59のdrift repair結果のみ）。
+  // repairRule（anchorDownbeat方式）の適用は chartmode.js が
+  // createTimingModel() を呼ぶ際に行う（別の経路・別の関心事）。
+  //
   // timing.js の buildNormalizedTimingAnalysis は analysis オブジェクト全体を受け取る。
   // sanitize 済みの { beats, downbeats, timeSignature, ... } を含むオブジェクトを渡す。
   const sanitizedAnalysis = { beats, downbeats, timeSignature,
@@ -284,6 +304,10 @@ export async function loadAnalysis(analysis) {
     // loadProj() が analysis/{id}.json から復元する際の source of truth。
     // serialize は raw のみ行う（project.js serializeProject 参照）。
     raw,
+
+    // [PERSIST INVARIANT] repairRule = ユーザーの意図。raw と同様に永続化対象。
+    // normalized（disposable cache）とは別フィールド（Phase72-A確定の三層構造）。
+    repairRule,
 
     // derived（sanitize 済み）— raw からの投影
     bpm,
@@ -311,17 +335,34 @@ export async function loadAnalysis(analysis) {
  * 呼び出しタイミングは app.js（orchestration層）が決定する。
  * import時のみ呼ぶこと（loadAnalysis/autosave からは呼ばない）。
  *
+ * 【Phase72-B: repairRule】
+ *   repairRule はユーザーが指定した手動タイミング補正の「意図」
+ *   （{ version, type:'anchorDownbeat', beatTime } または null）。
+ *   raw とは別フィールドとして保存する（normalized とは混同しない）。
+ *
+ * 【再解析時の repairRule 破棄方針（確定）】
+ *   既存呼び出し箇所（新規 import / 旧形式 migration）は
+ *   repairRule 引数を渡さない（デフォルト null）。
+ *   これにより「解析データを再インポートした場合、
+ *   古い repairRule は自動的に破棄される」という運用が、
+ *   呼び出し側の変更なしに実現される。
+ *   理由: 解析データ（raw.beats）が変わった場合、
+ *   古い anchor の beatTime が新しい raw.beats に
+ *   存在しない可能性が高く、repair を引き継ぐ方が危険なため。
+ *
  * @param {string} projectId
- * @param {object} raw        - analysis.raw（不変の生データ）
+ * @param {object} raw                 - analysis.raw（不変の生データ）
+ * @param {object|null} [repairRule]   - Phase72-B: ユーザーの手動補正の意図
  * @returns {Promise<boolean>} 成功:true / 失敗:false
  */
-export async function saveAnalysisFile(projectId, raw) {
+export async function saveAnalysisFile(projectId, raw, repairRule = null) {
   try {
     const payload = {
       version:     1,
       projectId,
       generatedAt: new Date().toISOString(),
       raw,
+      repairRule,
     };
     const res = await fetch('/save-analysis', {
       method:  'POST',
@@ -338,10 +379,16 @@ export async function saveAnalysisFile(projectId, raw) {
  * loadAnalysisFile
  *
  * analysis/{projectId}.json を読み込み、
- * projectId照合・version確認の上で raw を返す。
+ * projectId照合・version確認の上で { raw, repairRule } を返す。
+ *
+ * 【Phase72-B: 戻り値の形が変わった】
+ *   旧: raw を直接返す
+ *   新: { raw, repairRule } を返す（呼び出し箇所は1箇所のみ確認済み・app.js）
+ *   repairRule は未保存（旧形式ファイル等）の場合 null になる。
  *
  * @param {string} projectId
- * @returns {Promise<object|null>} raw / null（missing・mismatch・破損）
+ * @returns {Promise<{ raw: object, repairRule: object|null }|null>}
+ *          null は missing・mismatch・破損
  */
 export async function loadAnalysisFile(projectId) {
   try {
@@ -359,7 +406,10 @@ export async function loadAnalysisFile(projectId) {
     // raw 存在確認
     if (!data.raw || typeof data.raw !== 'object') return null;
 
-    return data.raw;
+    // repairRule: 旧形式ファイル（フィールド自体が無い）は null 扱い
+    const repairRule = data.repairRule ?? null;
+
+    return { raw: data.raw, repairRule };
 
   } catch {
     return null;                       // 破損・parse error → null

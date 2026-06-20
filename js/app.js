@@ -177,6 +177,7 @@ import {
   updateChartPlayback,
   chartState,
   renderChartMode,
+  rebuildChartViewModel,
 } from './chartmode.js';
 
 // ════════════════════════════════════════
@@ -431,15 +432,39 @@ async function loadChordData(data, filename, isRestore = false) {
   if(data.key){const keyEl=document.getElementById('proj-key');if(!keyEl.value)keyEl.value=data.key;}
 
   // Analysis ingestion / normalization layer
-  project.analysis = await loadAnalysis(data.analysis ?? null);
+  //
+  // [Phase72-B hotfix: isRestore=true 時は analysis 処理を完全スキップ]
+  //   不具合: IndexedDB からのコード自動復元（isRestore=true）経路で
+  //   project.analysis を再構築・再保存してしまい、loadProj() の①で
+  //   既に正しく読み込み済みだった repairRule が null で
+  //   上書き保存される事故が発生した（実機テストで発覚）。
+  //
+  //   [OWNERSHIP] analysis（raw / repairRule）の唯一の正本は
+  //   analysis/{id}.json であり、loadProj() がそこから読み込む。
+  //   IndexedDB に保存されているコードJSON内の analysis は
+  //   「インポート時点のスナップショット」に過ぎず、復元時の
+  //   authority にしてはならない。
+  //
+  //   isRestore=true（IndexedDB自動復元）の目的は
+  //   コード進行データ（palette / chord_source 表示名）の復元のみ。
+  //   analysis の復元は loadProj() が既に担当済みのため、
+  //   ここで再度 loadAnalysis() / saveAnalysisFile() を呼ぶ必要はない。
+  if (!isRestore) {
+    project.analysis = await loadAnalysis(data.analysis ?? null);
 
-  // analysis が存在すれば即保存
-  if (data.analysis?.raw) {
-    const ok = await saveAnalysisFile(project.id, data.analysis.raw);
-    if (ok) {
-      project.hasAnalysis = true;
-    } else {
-      console.warn('[analysis] failed to persist analysis file. Chart Mode will not survive reload.');
+    // analysis が存在すれば即保存
+    // [REPAIR DISCARD POLICY 確定] 新規インポート（再解析含む）では
+    // repairRule を渡さない（デフォルト null）。
+    // 解析データ（raw.beats）が変わった場合、古い anchor の beatTime が
+    // 新しい raw.beats に存在しない可能性が高く、repair を引き継ぐ方が
+    // 危険なため、再インポート時は repairRule を破棄する方針（確定）。
+    if (data.analysis?.raw) {
+      const ok = await saveAnalysisFile(project.id, data.analysis.raw);
+      if (ok) {
+        project.hasAnalysis = true;
+      } else {
+        console.warn('[analysis] failed to persist analysis file. Chart Mode will not survive reload.');
+      }
     }
   }
 
@@ -1264,12 +1289,19 @@ async function loadProj(data){
   // analysis load / migration
   if (newProject.hasAnalysis) {
     // 新形式: analysis/{id}.json から load
-    const raw = await loadAnalysisFile(newProject.id);
-    project.analysis = await loadAnalysis(raw ? { raw } : null);
+    // Phase72-B: loadAnalysisFile の戻り値が { raw, repairRule } に変更された。
+    // repairRule（ユーザーの手動タイミング補正の意図）も同じ analysis オブジェクトに
+    // 含めて loadAnalysis() へ渡す（raw と同じ階層・案I の構造）。
+    const fileResult = await loadAnalysisFile(newProject.id);
+    project.analysis = await loadAnalysis(
+      fileResult ? { raw: fileResult.raw, repairRule: fileResult.repairRule } : null
+    );
     if (!project.analysis) showAnalysisMissingBanner();
 
   } else if (data.analysis?.raw) {
     // 旧形式 migration: 埋め込み analysis を外部ファイルへ移行
+    // [REPAIR DISCARD POLICY] 旧形式ファイルには repairRule は存在しないため、
+    // saveAnalysisFile の repairRule 引数は渡さない（デフォルト null）。
     console.info('[analysis] migrating embedded analysis to external file');
     await saveAnalysisFile(newProject.id, data.analysis.raw);
     newProject.hasAnalysis = true;   // ★ newProject も更新
@@ -2285,6 +2317,66 @@ window.addEventListener('DOMContentLoaded',()=>{
     getCapo:          getCapo,
     transposeChord:   transposeChord,
     seekTo:           (time) => { aEl.currentTime = time; },
+
+    // Phase72-B: manual timing correction コールバック
+    // [OWNERSHIP] repairRule の保存・project.analysis 更新・再描画は app.js が持つ。
+    // chartmode.js はユーザーが「何を選んだか」を通知するだけ。
+
+    // 「ここを小節頭にする」: beatTime を受け取り、repairRule を保存して再描画
+    onSetRepairRule: async (beatTime) => {
+      if (!project.analysis) return;
+
+      const prevRepairRule = project.analysis.repairRule ?? null;
+
+      // 既存の補正がある場合は上書き確認
+      if (prevRepairRule) {
+        const confirmed = confirm(
+          `現在の小節補正（${prevRepairRule.beatTime.toFixed(2)}秒）を\n` +
+          `新しい位置（${beatTime.toFixed(2)}秒）に変更します。よろしいですか？`
+        );
+        if (!confirmed) return;
+      }
+
+      const newRepairRule = { version: 1, type: 'anchorDownbeat', beatTime };
+
+      // [Phase72-B 修正: ChatGPTレビュー指摘対応]
+      // 先に保存し、成功を確認してから project.analysis に反映する。
+      // 保存失敗時に「画面だけ補正済みに見えて再読込で消える」という
+      // 不整合（永続化されていないのにメモリ上だけ変わる）を防ぐ。
+      const ok = await saveAnalysisFile(project.id, project.analysis.raw, newRepairRule);
+      if (!ok) {
+        toast('⚠ 保存に失敗しました。補正は反映されていません');
+        return;
+      }
+
+      project.analysis.repairRule = newRepairRule;
+
+      // viewModel を再構築してから再描画
+      // （repairRule が変わるため measures が変わる。renderChartMode だけでは不十分）
+      rebuildChartViewModel();
+      renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+      toast('✅ 小節頭を補正しました');
+    },
+
+    // 「補正を解除」: repairRule を null にして保存・再描画
+    onClearRepairRule: async () => {
+      if (!project.analysis) return;
+
+      // [Phase72-B 修正: ChatGPTレビュー指摘対応]
+      // 先に保存し、成功を確認してから project.analysis に反映する。
+      const ok = await saveAnalysisFile(project.id, project.analysis.raw, null);
+      if (!ok) {
+        toast('⚠ 保存に失敗しました。補正は解除されていません');
+        return;
+      }
+
+      project.analysis.repairRule = null;
+
+      // viewModel を再構築してから再描画
+      rebuildChartViewModel();
+      renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+      toast('↩ 小節補正を解除しました');
+    },
   });
 
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
@@ -2294,9 +2386,29 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   
   // 自動保存データの復元
+  //
+  // [Phase72-B hotfix: Phase65で確立された復元条件の再適用]
+  //   不具合: lines が空（Chart Mode専用プロジェクト等）の場合、
+  //   saved.lines.length > 0 の条件を満たさず自動復元ダイアログが
+  //   出ないことが実機テストで発覚した。
+  //
+  //   調査の結果、この条件式は元々 Phase65 で
+  //   「lines=0 でも title/artist/audio/chord_source があれば
+  //    復元対象に含める」よう修正されていたはずだったが、
+  //   今回作業に使用した app.js には反映されていなかった
+  //   （handover記録と実コードの乖離・current-issues.md記載の
+  //    既知パターンの再発）。
+  //
+  //   lines が空でも title / artist / audio / chord_source の
+  //   いずれかがあれば「作業中だったプロジェクト」とみなし、
+  //   復元対象に含める。
   const saved = loadFromLocalStorage();
-  if (saved && saved.lines && saved.lines.length > 0) {
-    if (confirm(`前回の作業「${saved.title || '無題'}」(${saved.lines.length}行) を復元しますか？`)) {
+  const hasSavedData = saved && saved.id && (
+    (saved.lines && saved.lines.length > 0) ||
+    saved.title || saved.artist || saved.audio || saved.chord_source
+  );
+  if (hasSavedData) {
+    if (confirm(`前回の作業「${saved.title || '無題'}」(${(saved.lines||[]).length}行) を復元しますか？`)) {
       loadProj(saved);
       toast('自動保存データを復元しました');
     }

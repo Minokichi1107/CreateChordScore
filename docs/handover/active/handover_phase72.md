@@ -111,6 +111,13 @@ anchor地点より後ろ: 拍子の拍数（4/4なら4拍）ずつ、
   例: anchor = b6 の場合、新小節1は `[b6 b7 b8 b9]` であり、
   `[b5 b6 b7 b8]`のようにanchorが小節の途中に来てはならない。
   Phase72-B実装時に解釈ミスしやすい点のため明記する。
+- **[BEAT IDENTITY PRESERVATION]** repair適用後もraw.beatsの順序・
+  identity（b0, b1, b2...）は保持される。repairはmeasure grouping
+  のみを変更し、beat自体の再生成・再番号付けは行わない。
+  Phase72-B実装時、「measure rebuild時に新しいbeat配列を生成して
+  beat objectを複製してしまう」事故を防ぐための明記。
+  beat参照は常に既存のraw.beatsオブジェクトをそのまま指す
+  （コピーや再構築をしない）。
 - 「beat grid を作り直す」のではなく「beat grouping を変える」という
   責務の違いを明確にした。raw.beatsの検出結果自体は信頼し続ける。
 - 既存のrepair思想（Phase59〜「演奏の揺れは直さない・自信がないなら触るな」）
@@ -187,6 +194,19 @@ measure indexを直接の参照キーにしてはならない。
 time / beat anchor基準で参照を持つべき。
 これはcorrection authority機能に限らず、measureに依存する
 将来の全機能に影響する原則である。
+
+[FINAL MEASURES PERSISTENCE PROHIBITION]
+repair適用後のfinal measuresはderived runtime projectionであり、
+analysis.json（persistence layer）へ保存してはならない。
+Phase64で確立した「normalizedはraw.beatsから再構築可能な
+disposable derived cache・serialize禁止」という原則の延長として、
+final measuresも同様にrebuild対象であり、persistence対象ではない。
+
+repairRule保存 → rebuild → final measures生成、という流れの後、
+「再計算済みmeasuresも一緒に保存しておけば次回が速いのでは」という
+最適化の誘惑が生じやすいが、これはderived cache persistence
+禁止原則（Phase64）への違反となるため避けること。
+保存して良いのはrepairRule（意図）のみである。
 ```
 
 ---

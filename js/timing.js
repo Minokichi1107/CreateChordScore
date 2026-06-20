@@ -136,6 +136,86 @@ function buildMeasures({ beats, downbeats, timeSignature, mode, audioDuration })
 }
 
 // ────────────────────────────────────────
+// Phase72-B: anchor repair（manual timing correction）
+// ────────────────────────────────────────
+//
+// 【設計原則（Phase72-A確定済み）】
+//   - repairRule は「意図」を保存する。「結果」は保存しない。
+//   - raw.beats / raw.downbeats は絶対に変更しない（pure function）。
+//   - anchor より前の downbeats は一切変更しない（ANCHOR INCLUSIVE RULE）。
+//   - anchor 以降は beatsPerMeasure 単位で再グルーピングする。
+//   - 「解析結果の誤りを自動検出して除外する」処理は行わない
+//     （それ自体が新しい自動推定になり、Phase59の
+//      「自信がないなら触るな」方針に反するため）。
+//   - repairedDownbeats はこの関数が返すだけで、呼び出し側も
+//     どこにも保存しない（runtime限定の disposable 値）。
+
+/**
+ * applyAnchorRepair
+ *
+ * repairRule（ユーザーが指定した「ここを小節頭にする」という意図）を
+ * downbeats に適用し、補正済みの downbeats 配列を生成する。
+ *
+ * 【ANCHOR INCLUSIVE RULE】
+ *   anchor の拍は必ず新しい小節の先頭になる。
+ *   anchor より前の downbeats は一切変更しない（時刻比較のみで判定）。
+ *
+ * 【VALUE SOURCE CONSTRAINT】
+ *   repairRule.beatTime は raw.beats に実在する値である前提
+ *   （Phase72-A確定）。見つからない場合は repairRule 保存時の
+ *   invariant が破壊された状態であり、ユーザー操作の誤りではない。
+ *
+ * 【pure function】
+ *   beats / downbeats を書き換えない。新しい配列を返す。
+ *
+ * @param {number[]} beats          - raw.beats（不変・参照のみ）
+ * @param {number[]} downbeats      - raw.downbeats（不変・参照のみ）
+ * @param {object|null} repairRule  - { version, type, beatTime } または null
+ * @param {object} timeSignature    - { numerator, denominator }
+ * @returns {number[]}  repairedDownbeats
+ *                      （repairRule が null / 型不一致なら downbeats をそのまま返す）
+ */
+function applyAnchorRepair(beats, downbeats, repairRule, timeSignature) {
+  // repairRule なし → 何もしない（素通し）
+  if (!repairRule || repairRule.type !== 'anchorDownbeat') {
+    return downbeats;
+  }
+
+  const anchorTime      = repairRule.beatTime;
+  const beatsPerMeasure = timeSignature?.numerator ?? 4;
+  const EPS              = 1e-6;
+
+  // ① anchor より前の既存 downbeats はそのまま残す（時刻比較のみ）。
+  //    「怪しい downbeat を自動で除外する」判定はここでは行わない
+  //    （それは新しい自動推定であり、repairRule の責務外）。
+  const before = downbeats.filter(d => d < anchorTime - EPS);
+
+  // ② anchor に対応する拍を raw.beats から探す。
+  //    [VALUE SOURCE CONSTRAINT] beatTime は raw.beats に実在する値の
+  //    はずなので、見つからない場合はデータ整合性違反として扱う
+  //    （ユーザーへの通知は行わない。内部不整合のログのみ）。
+  const anchorBeatIdx = beats.findIndex(b => Math.abs(b - anchorTime) < EPS);
+  if (anchorBeatIdx === -1) {
+    console.error(
+      '[applyAnchorRepair] anchor beatTime not found in raw.beats — ' +
+      'repairRule invariant violated (beatTime must reference an existing beat). ' +
+      'Skipping repair for this call.'
+    );
+    return downbeats;
+  }
+
+  // ③ anchor 以降の beats を beatsPerMeasure ごとに区切って
+  //    新しい downbeats として並べる。
+  const after = [];
+  for (let i = anchorBeatIdx; i < beats.length; i += beatsPerMeasure) {
+    after.push(beats[i]);
+  }
+
+  // ④ 前半（変更なし）+ 後半（再生成）をつなげる
+  return [...before, ...after];
+}
+
+// ────────────────────────────────────────
 // スロット境界の構築
 // ────────────────────────────────────────
 
@@ -214,45 +294,101 @@ function quantizeTime(time, {
 
   // ── anticipationWindow チェック ──────
   // nearest が beat頭でなく（slot % resolutionPerBeat !== 0）、
-  // 次の beat 頭スロットが anticipationWindow 以内にある場合は次 beat に吸着
-  const beatIdx    = Math.floor(nearestIdx / resolutionPerBeat);
-  const slotInBeat = nearestIdx % resolutionPerBeat;
+  // 次の beat 頭スロットが anticipationWindow 以内にある場合は次 beat に吸着。
+  //
+  // [Phase72-B 修正]
+  //   旧実装では beatIdx を anticipationWindow チェックの前に一度だけ計算していたが、
+  //   nearestIdx が吸着で更新された場合に beatIdx が古い値のまま残る問題があった。
+  //   修正: nearestIdx 確定後に beatIdx を（再）計算する。
+  //   anticipationWindow チェック内で使う一時的な beatIdx は別名（preBeatIdx）にし、
+  //   最終的な beatIdx は nearestIdx 確定後に求める（下記 resolvedTime の直前）。
+  {
+    const preBeatIdx = Math.floor(nearestIdx / resolutionPerBeat);
+    const slotInBeat = nearestIdx % resolutionPerBeat;
 
-  if (slotInBeat !== 0) {
-    const nextBeatSlotIdx = (beatIdx + 1) * resolutionPerBeat;
-    if (nextBeatSlotIdx < slotTimings.length) {
-      const slotWidth = slotTimings.length > 1
-        ? (slotTimings[1] - slotTimings[0])
-        : 0.1;
-      const distToNextBeat = slotTimings[nextBeatSlotIdx] - time;
-      if (distToNextBeat >= 0 && distToNextBeat < slotWidth * anticipationWindow) {
-        nearestIdx = nextBeatSlotIdx;
+    if (slotInBeat !== 0) {
+      const nextBeatSlotIdx = (preBeatIdx + 1) * resolutionPerBeat;
+      if (nextBeatSlotIdx < slotTimings.length) {
+        const slotWidth = slotTimings.length > 1
+          ? (slotTimings[1] - slotTimings[0])
+          : 0.1;
+        const distToNextBeat = slotTimings[nextBeatSlotIdx] - time;
+        if (distToNextBeat >= 0 && distToNextBeat < slotWidth * anticipationWindow) {
+          nearestIdx = nextBeatSlotIdx;
+        }
       }
     }
   }
 
-  // ── measure / beat / slot に変換（0-based）──
-  // NOTE: measureIdx は time ではなく finalBeatIdx（グローバル beat index）から求める。
-  //       time ベースだと「nearest slot が次小節 beat 頭に吸着したのに
-  //       measureIdx は前小節のまま」というずれが起きるため。
-  const finalBeatIdx    = Math.floor(nearestIdx / resolutionPerBeat);
-  const finalSlotInBeat = nearestIdx % resolutionPerBeat;
+  // nearestIdx 確定後に beatIdx を求める（吸着済みの nearestIdx を使う）
+  const beatIdx = Math.floor(nearestIdx / resolutionPerBeat);
 
-  // グローバル beat index → measure index を逆算
-  let measureIdx = 0;
-  let accBeats   = 0;
+  // ── measure 特定（Phase72-B: measures を直接の authority とする）──
+  // 旧実装は finalBeatIdx（グローバル beat index）を
+  // measures[mi].beatCount の積み上げで逆算していた。
+  // これは「全 measure が timeSignature.numerator 拍固定」という
+  // 暗黙の前提に依存しており、repairRule（Phase72-B）適用後に
+  // measure 長さが不揃いになるケースで measureIdx がズレるバグがあった。
+  //
+  // 修正方針:
+  //   nearestIdx（anticipationWindow 吸着済み）が指す確定時刻を求め、
+  //   その時刻が measures[].startTime/endTime のどの範囲に
+  //   入るかで measureIdx を直接判定する。
+  //   beatCount の積み上げは行わない（measures が唯一の authority）。
+  //
+  // [AUTHORITY] measures（buildMeasures の結果。repairRule 適用後は
+  //   repairedDownbeats から再構築済み）を信頼の起点とする。
+  const resolvedTime = slotTimings[nearestIdx] ?? time;
+
+  let measureIdx = measures.length - 1; // 範囲外（曲末尾超え）は末尾 measure
   for (let mi = 0; mi < measures.length; mi++) {
-    const nextAcc = accBeats + measures[mi].beatCount;
-    if (finalBeatIdx < nextAcc) {
+    const m = measures[mi];
+    if (resolvedTime >= m.startTime && resolvedTime < m.endTime) {
       measureIdx = mi;
       break;
     }
-    accBeats = nextAcc;
-    measureIdx = mi; // 最終小節を超えた場合は末尾小節
+    if (resolvedTime < m.startTime) {
+      // 最初の measure より前（曲頭未満）→ 先頭 measure とする
+      measureIdx = mi;
+      break;
+    }
   }
 
-  const beatInMeasure = finalBeatIdx - accBeats;
-  const slotInMeasure = beatInMeasure * resolutionPerBeat + finalSlotInBeat;
+  const measure = measures[measureIdx];
+
+  // ── measure 内の beat / slot 位置を求める ──
+  // measure.startTime からの経過時間を beats 間隔で数え、
+  // 「このmeasure内で何拍目か」を直接算出する（積み上げ逆算をしない）。
+  // beats は raw のまま（repair対象外）なので、measure.startTime と
+  // 一致する beat のインデックスを起点として使う。
+  // [ASSUMPTION] measure.startTime は必ず raw.beats のいずれかの要素と一致する。
+  // 現在の anchorDownbeat repair では:
+  //   applyAnchorRepair() が after.push(beats[i]) で downbeat を生成するため、
+  //   measure.startTime は常に beats[] 上の実在する値になる。
+  //
+  // [IMPLEMENTATION NOTE] 一致検索は b >= startTime - EPS ではなく
+  //   Math.abs(b - startTime) < EPS（厳密一致）を使う。
+  //   b >= startTime - EPS だと「startTimeより少し後ろの拍」を誤って拾う
+  //   可能性があるため（例: startTime=4.0 の時に beats=[3.9999995, 4.5] があると
+  //   b >= 3.9999994 で 4.5 を先に拾ってしまう）。
+  //   ASSUMPTION に従い「startTime と一致する拍を探す」という意図で実装する。
+  //
+  // [FUTURE RISK] 将来 'shiftTime' 等、beats 上に存在しない時刻を
+  // startTime として持つ別方式の repairRule が追加された場合、
+  // findIndex が -1 を返し、startBeatIdx !== -1 ガードにより
+  // beatInMeasure = 0 にサイレントフォールバックする。
+  // その場合は measure.startBeatIdx を事前計算して持たせる方式に切り替えること。
+  const BEAT_EPS = 1e-6;
+  let beatInMeasure = 0;
+  const startBeatIdx = beats.findIndex(
+    b => Math.abs(b - measure.startTime) < BEAT_EPS
+  );
+  if (startBeatIdx !== -1) {
+    beatInMeasure = beatIdx - startBeatIdx;
+  }
+
+  const finalSlotInBeat = nearestIdx % resolutionPerBeat;
+  const slotInMeasure   = beatInMeasure * resolutionPerBeat + finalSlotInBeat;
 
   const confidence = nearestDist < 0.1 ? 'high' : 'low';
 
@@ -281,6 +417,9 @@ function quantizeTime(time, {
  * @param {string}   [params.quantizeMode]      - "nearest"（現在のみ対応）
  * @param {number}   [params.anticipationWindow]- デフォルト 0.5
  * @param {number}   [params.audioDuration]     - 秒。最終小節 endTime 計算用
+ * @param {object|null} [params.repairRule]     - Phase72-B: { version, type:'anchorDownbeat', beatTime }
+ *                                                 ユーザーが指定した手動タイミング補正の意図。
+ *                                                 null の場合は repair なし（既存動作と同一）。
  * @returns {TimingModel}
  */
 export function createTimingModel({
@@ -291,6 +430,7 @@ export function createTimingModel({
   quantizeMode       = 'nearest',
   anticipationWindow = 0.5,
   audioDuration      = null,
+  repairRule         = null,
 } = {}) {
 
   const mode = determineMode(beats, downbeats);
@@ -305,7 +445,14 @@ export function createTimingModel({
     };
   }
 
-  const measures     = buildMeasures({ beats, downbeats, timeSignature, mode, audioDuration });
+  // Phase72-B: repairRule を downbeats に適用する。
+  // [AUTHORITY] repair の結果は measures に反映される。
+  //   repairedDownbeats 自体はこの関数のローカル変数に留まり、
+  //   呼び出し側（chartmode.js / analysisLoader.js）には公開しない。
+  //   raw.downbeats は変更しない（applyAnchorRepair は pure function）。
+  const repairedDownbeats = applyAnchorRepair(beats, downbeats, repairRule, timeSignature);
+
+  const measures     = buildMeasures({ beats, downbeats: repairedDownbeats, timeSignature, mode, audioDuration });
   const slotTimings  = buildSlotTimings(beats, resolutionPerBeat);
   const slotsPerMeasure = timeSignature.numerator * resolutionPerBeat;
 
