@@ -847,6 +847,21 @@
   font-weight: 600;
 }
 
+/* ── Chart Mode: 補正適用中バッジ（Phase72-C） ───────────── */
+/* surface-selected / border-selected は既存のamber強調token（Phase35）を流用 */
+.chart-header-repair-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--color-amber);
+  background: var(--surface-selected);
+  border: 1px solid var(--border-selected);
+  border-radius: var(--r-sm);
+}
+
 /* 修正済み小節: 黄色ボーダー（信頼度付き補正） */
 .chart-measure--drift-repaired {
   outline: 1.5px solid rgba(255, 184, 64, 0.7);   /* [SAFE] amber */
@@ -881,6 +896,41 @@
   color: var(--text-chord);
   margin-bottom: 4px;
   text-align: center;
+}
+
+/* ── Chart Mode: 右クリックメニュー（Phase72-C） ─────────────
+   .chart-diag-tooltip と同じ性質（bodyに浮かぶephemeral UI）のため
+   同じtokenを使用して統一感を持たせる ────────────────────── */
+.chart-context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 180px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.chart-context-item {
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.chart-context-item:hover {
+  background: var(--surface-hover);
+}
+.chart-context-item--clear {
+  color: var(--color-red);
+}
+.chart-context-divider {
+  height: 1px;
+  margin: 4px 10px;
+  background: var(--border-ui);
 }
 
 /* ════════════════════════════════════════

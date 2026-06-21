@@ -1225,6 +1225,11 @@ function _showContextMenu(beatTime, hasRepair, clientX, clientY) {
 
   // 「補正を解除」項目（補正中の場合のみ表示）
   if (hasRepair) {
+    // Phase72-C: 項目間の区切り線（hasRepairの時のみ必要）
+    const divider = document.createElement('div');
+    divider.className = 'chart-context-divider';
+    menu.appendChild(divider);
+
     const clearItem = document.createElement('div');
     clearItem.className = 'chart-context-item chart-context-item--clear';
     clearItem.textContent = '🔄 小節補正を解除';
@@ -1457,7 +1462,12 @@ function _renderChartHeader(vm, analysis) {
       ? `Capo ${capo} → Concert: ${_transposeChord(key, capo)}`
       : `Capo ${capo}`;
   }
-  el.innerHTML = [bpm, ts, capoInfo, modeWarning].filter(Boolean).join(' &nbsp;|&nbsp; ');
+  // Phase72-C: 補正適用中バッジ（projection only・chartStateに状態を持たせない）
+  const repairBadge = analysis.repairRule
+    ? `<span class="chart-header-repair-badge">📍 小節補正中</span>`
+    : '';
+
+  el.innerHTML = [bpm, ts, capoInfo, repairBadge, modeWarning].filter(Boolean).join(' &nbsp;|&nbsp; ');
 }
 
 /**
