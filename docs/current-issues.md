@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase70作業中（Phase69完了時点をベース）
+> 最終更新: Phase73-A完了時点
 
 ---
 
@@ -265,8 +265,25 @@ frame scheduling delay。Phase63のrAF化で「通常時は滑らか」になっ
 目的: 転回形コードのダイアグラムを自動生成する仕組みの導入
 
 #### プロジェクトDBライブラリタブ追加
-状態: 未着手
-内容: 保存済みプロジェクトをブラウザ内DBで管理・一覧表示するUIの追加（右パネル）
+状態: 設計完了（Phase73-A）・実装未着手
+内容: 保存済みプロジェクトをブラウザ内DBで管理・一覧表示するUIの追加（右パネル）。
+Phase73-AでProject Core Authority / Asset Resolution / Project Switch Lifecycleの
+3原則を確定済み。次は Phase73-B（idb.js拡張・project.js拡張・generation counter実装・
+autosave切替）に進む。
+
+#### CSVコードファイルインポート機能の削除検討
+状態: Deprecated候補
+内容: Sonic Visualiser解析結果のCSV取り込みを想定していたが、精度が実用レベルに
+達せず形骸化している。`csvImporter.js` / chord-btnのCSV分岐 / file picker accept設定の
+削除を将来検討する。優先度は低く、Project DB系列のフェーズが一段落してから着手する。
+
+#### FSA保存ファイルのProject DBへの取り込み導線
+状態: 未設計・Phase73-B非ブロッキング
+内容: 過去に手動保存したproject.jsonファイル群を、どうやってProject DBカタログに
+登録するか。自動スキャンはFSA APIの制約上困難なため、「開いた時に自動登録される」
+程度の現実的な着地になる見込み。Repository層（listProjects/getProject/saveProjectToDB/
+deleteProject）やgeneration counterの実装には依存しない独立した機能のため、
+Phase73-Cで個別に扱う。
 
 #### LAN配信モード（PCサーバー → スマホブラウザ）
 状態: 検討中
@@ -353,6 +370,7 @@ Phase63 で設計・Phase64 で実コード適用（3箇所の適用漏れを修
 
 - `components.css` の `.mac-insert-btn.active` 系（`--color-accent` 未定義問題と紐付き・意図的保留）
 - `idb.js` は最低構成（GC・schema migration・compression なし）
+  - Phase73-B で "projects" object store を追加予定（DB_VERSION インクリメント）
   - asset種類追加: key形式 `${projectId}:${type}` に新typeを追加
   - schema変更: `DB_VERSION` をインクリメントして `onupgradeneeded` を更新
 - `isSepToken` の旧形式互換（`c.chord === '/'` / `type:'sep'`）は barline migration 完了後に削除判断
@@ -464,6 +482,8 @@ layout authorityではない。
     debug observability     = __CS_DEBUG__ getter projection（state非所有・Phase66）
     chart visual projection = canonical timing space ≠ visual projection space
                                （data-visual-slot-index / projectPickupSlotIndex、Phase68〜69）
+    project core authority  = Project DB（IndexedDB "projects" store）が canonical source
+                               （audio/analysis/customDiagramsは既存authority維持・Phase73-A）
 
   authority が曖昧になりやすいタイミング:
     - 新しいモジュールが既存モジュールのデータを参照し始めた時
