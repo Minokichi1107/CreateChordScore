@@ -22,6 +22,9 @@
  * @param {object} raw - 生のプロジェクトデータ（undefined可）
  * @returns {object} invariant保証済みプロジェクト
  */
+
+import { initDB } from './idb.js';
+
 export function normalizeProject(raw = {}) {
   return {
     ...raw,
@@ -267,4 +270,158 @@ export function loadFromLocalStorage() {
 // ────────────────────────────────────────
 export function clearLocalStorage() {
   localStorage.removeItem('cs_auto');
+}
+
+// ════════════════════════════════════════
+// Phase73-B: Project DB Repository
+// ════════════════════════════════════════
+//
+// 【設計原則】
+//   [PROJECT CORE AUTHORITY]
+//   IndexedDB "projects" store が project core data の canonical source。
+//   audio / analysis / customDiagrams は既存 authority のまま（変更なし）。
+//
+//   [DB META SEPARATION]
+//   createdAt / updatedAt / schemaVersion は Repository 層のみで管理する。
+//   serializeProject() には混入しない（FSA Export との差分汚染防止）。
+//
+//   [INTERNAL / PUBLIC 分離]
+//   _getRawRecord(id): 内部専用。生レコード（DBメタ含む）をそのまま返す。
+//   getProject(id):    公開API。DBメタを除いた serializeProject() 互換データを返す。
+//   saveProjectToDB(): 公開API。createdAt 継承のため _getRawRecord() を内部使用。
+// ════════════════════════════════════════
+
+const _STORE_PROJECTS = 'projects';
+const _SCHEMA_VERSION = 1;
+
+// ────────────────────────────────────────
+// _getRawRecord（内部専用）
+//
+// IndexedDB から生レコード（DBメタ情報含む）をそのまま返す。
+// saveProjectToDB() が createdAt を継承するために使う。
+// 公開 getProject() とは分離すること（Phase73-A ChatGPT指摘）。
+// 理由: 将来 getProject() の戻り値形式が変わっても
+//       saveProjectToDB() 内の createdAt 継承ロジックが壊れないため。
+// ────────────────────────────────────────
+async function _getRawRecord(id) {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(_STORE_PROJECTS, 'readonly');
+    const store = tx.objectStore(_STORE_PROJECTS);
+    const req   = store.get(id);
+    req.onsuccess = e => resolve(e.target.result || null);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+// ────────────────────────────────────────
+// saveProjectToDB
+//
+// serializeProject() の出力をそのまま受け取り、
+// DBメタ情報（schemaVersion / createdAt / updatedAt）を付加して保存する。
+//
+// [createdAt 継承ルール]
+//   既存レコードあり → createdAt を継承（初回保存日時を保持）
+//   既存レコードなし → 現在時刻（初回保存）
+//
+// @param {object} project  - app.js の project オブジェクト
+// @param {object} uiState  - { capo, key, tempo }
+// @returns {boolean} 成功: true / 失敗: false
+// ────────────────────────────────────────
+export async function saveProjectToDB(project, uiState) {
+  try {
+    const base     = serializeProject(project, uiState);
+    const now      = Date.now();
+    const existing = await _getRawRecord(base.id);
+
+    const record = {
+      ...base,
+      schemaVersion: _SCHEMA_VERSION,
+      createdAt:     existing?.createdAt ?? now,
+      updatedAt:     now,
+    };
+
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const tx    = db.transaction(_STORE_PROJECTS, 'readwrite');
+      const store = tx.objectStore(_STORE_PROJECTS);
+      const req   = store.put(record);
+      req.onsuccess = () => resolve(true);
+      req.onerror   = e => reject(e.target.error);
+    });
+  } catch (e) {
+    console.error('[saveProjectToDB] failed:', e);
+    return false;
+  }
+}
+
+// ────────────────────────────────────────
+// getProject
+//
+// project.id で1件取得する。
+// 戻り値は serializeProject() 互換データ（DBメタを除いたもの）。
+// loadProj() では deserializeProject(await getProject(id)) として使う。
+//
+// @param {string} id
+// @returns {object|null} serializeProject() 互換データ、または null
+// ────────────────────────────────────────
+export async function getProject(id) {
+  const raw = await _getRawRecord(id);
+  if (!raw) return null;
+
+  // DBメタ（schemaVersion / createdAt / updatedAt）を除いて返す
+  const { schemaVersion: _sv, createdAt: _ca, updatedAt: _ua, ...projectData } = raw;
+  return projectData;
+}
+
+// ────────────────────────────────────────
+// listProjects
+//
+// 全プロジェクトを updatedAt 降順で返す。
+// 将来のライブラリ一覧UI（Phase73-C）で使用する。
+// 各要素は生レコード（DBメタ含む）。
+//
+// @returns {object[]}
+// ────────────────────────────────────────
+export async function listProjects() {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx      = db.transaction(_STORE_PROJECTS, 'readonly');
+    const store   = tx.objectStore(_STORE_PROJECTS);
+    const index   = store.index('by-updatedAt');
+    const results = [];
+
+    // direction: 'prev' で降順（最新が先頭）
+    const req = index.openCursor(null, 'prev');
+    req.onsuccess = e => {
+      const cursor = e.target.result;
+      if (cursor) {
+        results.push(cursor.value);
+        cursor.continue();
+      } else {
+        resolve(results);
+      }
+    };
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+// ────────────────────────────────────────
+// deleteProject
+//
+// project.id で1件削除する。
+// audio / chord（assets store）の削除は deleteAssets() で別途行うこと。
+//
+// @param {string} id
+// @returns {boolean} 成功: true / 失敗: false
+// ────────────────────────────────────────
+export async function deleteProject(id) {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(_STORE_PROJECTS, 'readwrite');
+    const store = tx.objectStore(_STORE_PROJECTS);
+    const req   = store.delete(id);
+    req.onsuccess = () => resolve(true);
+    req.onerror   = e => reject(e.target.error);
+  });
 }

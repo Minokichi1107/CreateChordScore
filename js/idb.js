@@ -19,8 +19,9 @@
 // ════════════════════════════════════════
 
 const DB_NAME = 'ChordScoreDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'assets';
+const STORE_PROJECTS = 'projects';  // Phase73-B追加
 
 let _db = null;
 
@@ -34,9 +35,19 @@ export function initDB() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
 
     req.onupgradeneeded = e => {
-      const db = e.target.result;
+      const db     = e.target.result;
+      const oldVer = e.oldVersion;  // 0=新規インストール / 1=既存ユーザー
+
+      // assets store（v1から継続）
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
+      }
+
+      // projects store（v2で新設）
+      // oldVer < 2 ガード: 既存ユーザーのv1→v2アップグレード時も安全
+      if (oldVer < 2 && !db.objectStoreNames.contains(STORE_PROJECTS)) {
+        const ps = db.createObjectStore(STORE_PROJECTS, { keyPath: 'id' });
+        ps.createIndex('by-updatedAt', 'updatedAt', { unique: false });
       }
     };
 

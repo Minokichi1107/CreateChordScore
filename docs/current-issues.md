@@ -265,11 +265,33 @@ frame scheduling delay。Phase63のrAF化で「通常時は滑らか」になっ
 目的: 転回形コードのダイアグラムを自動生成する仕組みの導入
 
 #### プロジェクトDBライブラリタブ追加
-状態: 設計完了（Phase73-A）・実装未着手
+状態: **実装完了（Phase73-B）・UI未実装（Phase73-C予定）**
 内容: 保存済みプロジェクトをブラウザ内DBで管理・一覧表示するUIの追加（右パネル）。
-Phase73-AでProject Core Authority / Asset Resolution / Project Switch Lifecycleの
-3原則を確定済み。次は Phase73-B（idb.js拡張・project.js拡張・generation counter実装・
-autosave切替）に進む。
+Phase73-BでRepository API・autosave切替・generation counterを実装済み・実機確認済み。
+次はPhase73-C（ライブラリ一覧UI・IndexedDB復元経路への切替）に進む。
+
+#### autosave 復元経路の不整合（Phase73-B 残件）
+状態: 意図的な中間状態・Phase73-C で解消予定
+
+内容:
+  autosave の保存先は IndexedDB（projects store）へ移行済み（Phase73-B）。
+
+  一方で起動時復元は依然として
+  loadFromLocalStorage() → localStorage["cs_auto"]
+  を参照している。
+
+  現状確認済みの動作:
+    - autosave は IndexedDB projects store に保存される
+    - 起動時復元は localStorage の cs_auto を使用する
+    - 実機確認で cs_auto の内容と復元プロジェクトが一致した
+
+  問題:
+    保存先と復元元の authority が分離しているため、
+    最新の autosave 内容と復元内容が一致しない可能性がある。
+
+  解消方法（Phase73-C）:
+    listProjects() で updatedAt 降順の最新プロジェクトを取得し、
+    IndexedDB ベースの復元経路へ統一する。
 
 #### CSVコードファイルインポート機能の削除検討
 状態: Deprecated候補

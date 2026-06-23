@@ -107,7 +107,9 @@ import {
   saveToLocalStorage,
   loadFromLocalStorage,
   clearLocalStorage,
-  PICKER_IDS
+  PICKER_IDS,
+  saveProjectToDB,   // 追加
+  getProject,        // 追加
 } from './project.js';
 
 import {
@@ -260,6 +262,9 @@ const mBtns = document.getElementById('m-btns');
 
 // 自動保存タイマー
 let asT = null;
+
+// [PROJECT SWITCH LIFECYCLE] 非同期load競合防止（Phase73-B）
+let _loadGeneration = 0;
 
 // トーストタイマー
 let toastT = null;
@@ -1069,6 +1074,15 @@ async function saveProject(forceNew = false) {
   }
 }
 
+async function saveProjectNew() {
+  // [PROJECT IDENTITY SEMANTICS] filename ≠ project identity（Phase62）
+  // 新UUIDを発行することで、同一ファイルから派生した別プロジェクトとして扱う。
+  // IndexedDB assets（audio/chord）は旧IDに紐づいたまま残る（意図的）。
+  project.id = crypto.randomUUID();
+  _fileHandle = null;  // 強制的に新規ファイル保存ダイアログを出す
+
+  await saveProject(true);
+}
 
 function showReloadBanner(audioName, chordName){
   // 既存バナーを削除
@@ -1225,6 +1239,12 @@ function resetProject() {
 // ════════════════════════════════════════
 
 async function loadProj(data){
+  // [PROJECT SWITCH LIFECYCLE]
+  // generation採番は「最初の同期処理」として行う（Phase73-A確定事項）。
+  // いかなる await より前に採番すること。
+  // project.id をトークンにしない理由: 同一プロジェクトの連続loadを区別できないため。
+  const myGeneration = ++_loadGeneration;
+
   // Reset existing state
   resetProject();
   
@@ -1293,9 +1313,15 @@ async function loadProj(data){
     // repairRule（ユーザーの手動タイミング補正の意図）も同じ analysis オブジェクトに
     // 含めて loadAnalysis() へ渡す（raw と同じ階層・案I の構造）。
     const fileResult = await loadAnalysisFile(newProject.id);
+
+    if (myGeneration !== _loadGeneration) return;  // [世代チェック①]
+
     project.analysis = await loadAnalysis(
       fileResult ? { raw: fileResult.raw, repairRule: fileResult.repairRule } : null
     );
+
+    if (myGeneration !== _loadGeneration) return;  // [世代チェック②]
+
     if (!project.analysis) showAnalysisMissingBanner();
 
   } else if (data.analysis?.raw) {
@@ -1304,9 +1330,14 @@ async function loadProj(data){
     // saveAnalysisFile の repairRule 引数は渡さない（デフォルト null）。
     console.info('[analysis] migrating embedded analysis to external file');
     await saveAnalysisFile(newProject.id, data.analysis.raw);
+
+    if (myGeneration !== _loadGeneration) return;  // [世代チェック③]
+
     newProject.hasAnalysis = true;   // ★ newProject も更新
     project.hasAnalysis    = true;
     project.analysis = await loadAnalysis(data.analysis);
+
+    if (myGeneration !== _loadGeneration) return;  // [世代チェック④]
 
   } else {
     // analysis なし
@@ -1344,6 +1375,9 @@ async function loadProj(data){
 
     // audio復元
     const audioAsset = await loadAsset(project.id, 'audio').catch(() => null);
+
+    if (myGeneration !== _loadGeneration) return;  // [世代チェック⑤]
+
     if (audioAsset) {
       if (_aURL) URL.revokeObjectURL(_aURL);
       _aURL = URL.createObjectURL(audioAsset.data);
@@ -1356,6 +1390,9 @@ async function loadProj(data){
 
     // chord復元
     const chordAsset = await loadAsset(project.id, 'chord').catch(() => null);
+
+    if (myGeneration !== _loadGeneration) return;  // [世代チェック⑥]
+
     if (chordAsset) {
       let data;
       if (chordAsset.filename.endsWith('.csv')) {
@@ -1381,7 +1418,7 @@ async function loadProj(data){
     }
   })();
 
-  // TOKEN MIGRATION の結果を LocalStorage に即書き戻す。
+  // TOKEN MIGRATION の結果を IndexedDB に即書き戻す。
   // これにより次回の自動保存復元時も migration 済みデータが使われる。
   autoSaveLocal();
 }
@@ -1423,15 +1460,20 @@ if(volSlider&&volBtn){
 // ════════════════════════════════════════
 function autoSaveLocal(){
   clearTimeout(asT);
-  asT = setTimeout(() => {
+  asT = setTimeout(async () => {
     const uiState = getUIState();
-    const projectData = serializeProject(project, uiState);
-    const result = saveToLocalStorage(projectData);
-    if (result.success) {
-      document.getElementById('st-save').textContent = result.timestamp;
-    }
+
+    // [PROJECT CORE AUTHORITY] IndexedDB が canonical source（Phase73-B）
+    // saveToLocalStorage() から saveProjectToDB() に切替。
+    // dual-authority禁止: autosaveの書き込み先は一元化する。
+    await saveProjectToDB(project, uiState);
+
+    const now = new Date();
+    const timestamp = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    document.getElementById('st-save').textContent = timestamp;
   }, 1000);
 }
+
 function updateStatus(){
   document.getElementById('st-lines').textContent=project.lines.length;
   document.getElementById('st-chords').textContent=project.lines.reduce((s,l)=>s+l.chords.length,0);
@@ -1647,6 +1689,9 @@ function setupEventHandlers() {
 
   // Save as
   document.getElementById('btn-saveas').addEventListener('click', () => saveProject(true));
+
+  // 新規プロジェクトとして保存（Phase62: 新UUID発行・lineage分岐）
+  document.getElementById('btn-savenew').addEventListener('click', () => saveProjectNew());
 
   // Open project（Phase60.5: showOpenFilePicker でフォルダ記憶）
   document.getElementById('btn-open').addEventListener('click', async () => {
