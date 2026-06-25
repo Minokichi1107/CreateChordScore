@@ -108,8 +108,10 @@ import {
   loadFromLocalStorage,
   clearLocalStorage,
   PICKER_IDS,
-  saveProjectToDB,   // 追加
-  getProject,        // 追加
+  saveProjectToDB,
+  getProject,
+  listProjects,
+  deleteProject,
 } from './project.js';
 
 import {
@@ -154,7 +156,7 @@ import {
   performState
 } from './perform.js';
 
-import { initDB, saveAsset, loadAsset } from './idb.js';
+import { initDB, saveAsset, loadAsset, deleteAssets } from './idb.js';
 
 import {
   initModals,
@@ -264,6 +266,7 @@ const mBtns = document.getElementById('m-btns');
 let asT = null;
 
 // [PROJECT SWITCH LIFECYCLE] 非同期load競合防止（Phase73-B）
+// 最後に開始されたload requestのみが書き込み権限を持つ。
 let _loadGeneration = 0;
 
 // トーストタイマー
@@ -1458,6 +1461,7 @@ if(volSlider&&volBtn){
 // ════════════════════════════════════════
 // 自動保存
 // ════════════════════════════════════════
+// 変更後
 function autoSaveLocal(){
   clearTimeout(asT);
   asT = setTimeout(async () => {
@@ -1471,6 +1475,10 @@ function autoSaveLocal(){
     const now = new Date();
     const timestamp = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
     document.getElementById('st-save').textContent = timestamp;
+
+    // [LIBRARY SYNC] saveProjectToDB 完了後に fire-and-forget で一覧を更新する。
+    // 保存完了後に発火するが、一覧描画の完了順序までは保証しない。
+    renderLibrary().catch(console.error);
   }, 1000);
 }
 
@@ -2157,11 +2165,44 @@ function setupEventHandlers() {
     
   })();  
 }
+/**
+   * restoreLastProjectOnStartup — 起動時の最終プロジェクト復元
+   * [RESTORE AUTHORITY INVARIANT]
+   *   truth source = IndexedDB "projects" store の updatedAt 最大レコード。
+   *   loadProj() 末尾で autoSaveLocal() が必ず走るため
+   *   updatedAt 最大 = 最後に開いたプロジェクト が成立する。
+   *   将来 autoSaveLocal() を loadProj() から削除・遅延化した場合は
+   *   lastOpenedProjectId を別途持つ設計に移行すること。
+   *   現状は「最後に保存されたプロジェクト」を復元する暫定仕様であり、
+   *   厳密な「last opened project」とは異なる点に注意。
+   */
+
+async function restoreLastProjectOnStartup() {
+  try {
+    const projects = await listProjects();
+    if (projects.length === 0) return;
+    const latest = projects[0];
+    const hasData = latest.id && (
+      (latest.lines && latest.lines.length > 0) ||
+      latest.title || latest.artist || latest.audio || latest.chord_source
+    );
+    if (!hasData) return;
+    if (confirm(`前回の作業「${latest.title || '無題'}」(${(latest.lines || []).length}行) を復元しますか？`)) {
+      const data = await getProject(latest.id);
+      if (data) {
+        await loadProj(data);
+        toast('自動保存データを復元しました');
+      }
+    }
+  } catch (e) {
+    console.warn('[restore] IndexedDB 復元失敗:', e);
+  }
+}
 
 // ----------------------------
 // APP INITIALIZATION
 // ----------------------------
-window.addEventListener('DOMContentLoaded',()=>{
+window.addEventListener('DOMContentLoaded', async () => {
   // 左パネル折りたたみ
   const btnCollapse = document.getElementById('btn-left-collapse');
   // 初期化: localStorage → manual / viewport → auto
@@ -2424,42 +2465,195 @@ window.addEventListener('DOMContentLoaded',()=>{
     },
   });
 
+  // ⑨ Library 初期化（Phase73-C）
+  initLibrary();
+
   // ② カスタムダイアグラム復元（右パネルに現在表示中のコードがあれば再描画）
   loadCustomDiagrams();
   const curDiagChord = document.getElementById('diag-in').value.trim();
   if(curDiagChord) showDiagramPanel(curDiagChord, getCapo(), getDiagCallbacks());
 
-  
-  // 自動保存データの復元
-  //
-  // [Phase72-B hotfix: Phase65で確立された復元条件の再適用]
-  //   不具合: lines が空（Chart Mode専用プロジェクト等）の場合、
-  //   saved.lines.length > 0 の条件を満たさず自動復元ダイアログが
-  //   出ないことが実機テストで発覚した。
-  //
-  //   調査の結果、この条件式は元々 Phase65 で
-  //   「lines=0 でも title/artist/audio/chord_source があれば
-  //    復元対象に含める」よう修正されていたはずだったが、
-  //   今回作業に使用した app.js には反映されていなかった
-  //   （handover記録と実コードの乖離・current-issues.md記載の
-  //    既知パターンの再発）。
-  //
-  //   lines が空でも title / artist / audio / chord_source の
-  //   いずれかがあれば「作業中だったプロジェクト」とみなし、
-  //   復元対象に含める。
-  const saved = loadFromLocalStorage();
-  const hasSavedData = saved && saved.id && (
-    (saved.lines && saved.lines.length > 0) ||
-    saved.title || saved.artist || saved.audio || saved.chord_source
-  );
-  if (hasSavedData) {
-    if (confirm(`前回の作業「${saved.title || '無題'}」(${(saved.lines||[]).length}行) を復元しますか？`)) {
-      loadProj(saved);
-      toast('自動保存データを復元しました');
-    }
-  }
-  refreshEditor();renderPalette();
+  await restoreLastProjectOnStartup();
+  refreshEditor();
+  renderPalette();
 });
+
+// ════════════════════════════════════════
+// LIBRARY — 純粋関数（UI実装は Step 4）
+// ════════════════════════════════════════
+
+/**
+ * getSortedProjects — プロジェクト配列をソートして返す（純粋関数）
+ * @param {object[]} projects
+ * @param {'updatedAt'|'title'|'artist'} sortBy
+ * @returns {object[]}
+ */
+function getSortedProjects(projects, sortBy) {
+  return [...projects].sort((a, b) => {
+    if (sortBy === 'updatedAt') {
+      return (b.updatedAt || 0) - (a.updatedAt || 0);  // 降順（新しい順）
+    }
+    if (sortBy === 'title') {
+      return (a.title || '').localeCompare(b.title || '', 'ja');
+    }
+    if (sortBy === 'artist') {
+      return (a.artist || '').localeCompare(b.artist || '', 'ja');
+    }
+    return 0;
+  });
+}
+
+/**
+ * formatUpdatedAt — updatedAt（ミリ秒）を相対表示に変換
+ * @param {number} ms
+ * @returns {string}
+ */
+function formatUpdatedAt(ms) {
+  if (!ms) return '';
+  const diff = Date.now() - ms;
+  const min  = Math.floor(diff / 60000);
+  const hour = Math.floor(diff / 3600000);
+  const day  = Math.floor(diff / 86400000);
+  if (min < 1)   return 'たった今';
+  if (min < 60)  return `${min}分前`;
+  if (hour < 24) return `${hour}時間前`;
+  if (day < 7)   return `${day}日前`;
+  return new Date(ms).toLocaleDateString('ja-JP');
+}
+
+// ════════════════════════════════════════
+// LIBRARY — UI本体（Phase73-C）
+// ════════════════════════════════════════
+
+// 現在のソート順（localStorage に永続化）
+let _librarySortBy = localStorage.getItem('cs.librarySortBy') || 'updatedAt';
+
+/**
+ * renderLibrary — ライブラリ一覧を描画する
+ */
+async function renderLibrary() {
+  const listEl = document.getElementById('library-list');
+  if (!listEl) return;
+
+  let projects;
+  try {
+    projects = await listProjects();
+  } catch (e) {
+    listEl.innerHTML = '<div class="library-empty">読み込みに失敗しました</div>';
+    return;
+  }
+
+  if (projects.length === 0) {
+    listEl.innerHTML = '<div class="library-empty">保存済みプロジェクトがありません</div>';
+    return;
+  }
+
+  const sorted = getSortedProjects(projects, _librarySortBy);
+  listEl.innerHTML = '';
+
+  for (const p of sorted) {
+    const isCurrent = (p.id === project.id);
+    const item = document.createElement('div');
+    item.className = 'library-item' + (isCurrent ? ' library-item--current' : '');
+    item.dataset.id = p.id;
+
+    // アーティスト名（空欄の場合は非表示）
+    const artistHtml = p.artist
+      ? `<span class="library-item-artist">${p.artist}</span>`
+      : '';
+
+    item.innerHTML = `
+      <div class="library-item-main">
+        <span class="library-item-current-mark">${isCurrent ? '▶' : '\u00a0'}</span>
+        <div class="library-item-info">
+          <div class="library-item-title">${p.title || '無題'}</div>
+          <div class="library-item-meta">
+            ${artistHtml}
+            <span class="library-item-time">${formatUpdatedAt(p.updatedAt)}</span>
+          </div>
+        </div>
+      </div>
+      <button class="library-item-delete"
+        ${isCurrent ? 'disabled title="現在開いているプロジェクトは削除できません"' : 'title="削除"'}>🗑</button>
+    `;
+
+    // クリックで開く（現在のプロジェクトは何もしない）
+    item.querySelector('.library-item-main').addEventListener('click', async () => {
+      if (isCurrent) return;
+      const data = await getProject(p.id).catch(() => null);
+      if (!data) { toast('読み込みに失敗しました'); return; }
+      await loadProj(data);
+      toast(`📂 ${p.title || '無題'} を開きました`);
+      renderLibrary();
+    });
+
+    // 削除ボタン（現在のプロジェクトは disabled）
+    const delBtn = item.querySelector('.library-item-delete');
+    if (!isCurrent) {
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const name = p.title || '無題';
+        if (!confirm(`「${name}」を削除します。\n音声・コードデータも削除されます。\nこの操作は元に戻せません。`)) return;
+        try {
+          await deleteProject(p.id);
+          await deleteAssets(p.id);
+          toast(`🗑 「${name}」を削除しました`);
+          renderLibrary();
+        } catch (err) {
+          toast('削除に失敗しました');
+          console.error('[library] delete error:', err);
+        }
+      });
+    }
+
+    listEl.appendChild(item);
+  }
+}
+
+/**
+ * setRightTab — 右パネルのタブを切り替える
+ * @param {'library'|'diagram'} tab
+ */
+function setRightTab(tab) {
+  const libPanel  = document.getElementById('panel-library');
+  const diagPanel = document.getElementById('panel-diagram');
+  const tabLib    = document.getElementById('tab-library');
+  const tabDiag   = document.getElementById('tab-diagram');
+  if (!libPanel || !diagPanel) return;
+
+  const isLib = (tab === 'library');
+  libPanel.hidden  = !isLib;
+  diagPanel.hidden =  isLib;
+  tabLib?.classList.toggle('active',  isLib);
+  tabDiag?.classList.toggle('active', !isLib);
+  localStorage.setItem('cs.rightTab', tab);
+
+  if (isLib) renderLibrary();
+}
+
+/**
+ * initLibrary — ライブラリの初期化（DOMContentLoaded から呼ぶ）
+ */
+function initLibrary() {
+  // ソート切替
+  document.getElementById('library-sort')?.addEventListener('change', e => {
+    _librarySortBy = e.target.value;
+    localStorage.setItem('cs.librarySortBy', _librarySortBy);
+    renderLibrary();
+  });
+
+  // タブ切替ボタン
+  document.getElementById('tab-library')?.addEventListener('click', () => setRightTab('library'));
+  document.getElementById('tab-diagram')?.addEventListener('click', () => setRightTab('diagram'));
+
+  // 前回のタブ状態を復元（初回は 'library'）
+  const savedTab = localStorage.getItem('cs.rightTab') || 'library';
+  setRightTab(savedTab);
+
+  // ソートの選択状態を復元
+  const sortEl = document.getElementById('library-sort');
+  if (sortEl) sortEl.value = _librarySortBy;
+}
 
 // ── [TEMP REPAIR] Phase55 project data repair expose ──────
 // 使用後は必ず削除すること

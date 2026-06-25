@@ -229,25 +229,52 @@
   </section>
 
   <!-- RIGHT -->
+<!-- 変更後（修正版） -->
   <aside id="panel-right">
-    <div class="phdr">CHORD DIAGRAM<span id="diag-lock-badge">🔒</span></div>
-    <div id="diag-search">
-      <input type="text" id="diag-in" placeholder="コード名を入力 (例: Am7)">
+
+    <!-- タブボタン行 -->
+    <div id="right-tabs">
+      <button id="tab-library" class="right-tab active">LIBRARY</button>
+      <button id="tab-diagram" class="right-tab">DIAGRAM</button>
     </div>
-    <div id="diag-panel">
-      <div id="diag-title"></div>
-      <div id="diag-container"><div class="diag-empty">コードタグをホバーまたは<br>上の入力欄にコード名を入力</div></div>
-    </div>
-    <!-- ⑧ 下部固定登録ボタン -->
-    <div id="diag-footer">
-      <button id="btn-add-diag-bottom">＋ ダイアグラムを手動登録</button>
-      <div id="diag-footer-sub">
-        <button id="btn-diag-undo" disabled>↩ 戻す</button>
-        <button id="btn-diag-export">📤 エクスポート</button>
-        <button id="btn-diag-import">📥 インポート</button>
-        <input type="file" id="file-diag-import" accept=".json" style="display:none">
+
+    <!-- ライブラリパネル（初期表示） -->
+    <div id="panel-library">
+      <div class="library-toolbar">
+        <span class="library-toolbar-label">保存済みプロジェクト</span>
+        <select id="library-sort" class="library-sort-select">
+          <option value="updatedAt">更新日時順</option>
+          <option value="title">タイトル順</option>
+          <option value="artist">アーティスト順</option>
+        </select>
+      </div>
+      <div class="library-list" id="library-list">
+        <!-- JSで動的生成 -->
       </div>
     </div>
+
+    <!-- ダイアグラムパネル（初期は非表示） -->
+    <div id="panel-diagram" hidden>
+      <div class="phdr">CHORD DIAGRAM<span id="diag-lock-badge">🔒</span></div>
+      <div id="diag-search">
+        <input type="text" id="diag-in" placeholder="コード名を入力 (例: Am7)">
+      </div>
+      <div id="diag-panel">
+        <div id="diag-title"></div>
+        <div id="diag-container"><div class="diag-empty">コードタグをホバーまたは<br>上の入力欄にコード名を入力</div></div>
+      </div>
+      <!-- ⑧ 下部固定登録ボタン -->
+      <div id="diag-footer">
+        <button id="btn-add-diag-bottom">＋ ダイアグラムを手動登録</button>
+        <div id="diag-footer-sub">
+          <button id="btn-diag-undo" disabled>↩ 戻す</button>
+          <button id="btn-diag-export">📤 エクスポート</button>
+          <button id="btn-diag-import">📥 インポート</button>
+          <input type="file" id="file-diag-import" accept=".json" style="display:none">
+        </div>
+      </div>
+    </div>
+
   </aside>
 </main>
 
