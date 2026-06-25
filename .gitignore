@@ -43,6 +43,7 @@ resource/projects/
 resource/chords/
 resource/lyrics/
 resource/sample/
+archive/lyric/
 
 # local archive
 docs/finished/
