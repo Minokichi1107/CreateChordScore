@@ -112,6 +112,7 @@ import {
   getProject,
   listProjects,
   deleteProject,
+  importProjectRecords,          // Phase73-D 追加
 } from './project.js';
 
 import {
@@ -1458,13 +1459,81 @@ if(volSlider&&volBtn){
   });
 }
 
+/**
+ * _handleImportProjectFiles — Legacy Project Import の実処理
+ *
+ * app.js 側の責務:
+ *   - File オブジェクトのテキスト読み込み
+ *   - JSON.parse
+ *   - deserializeProject() による正規化
+ *   - importProjectRecords() 呼び出し
+ *   - 結果toast / renderLibrary()
+ *
+ * project.js 側（importProjectRecords）の責務:
+ *   - DB登録・衝突判定・件数集計
+ *
+ * @param {File[]} files
+ */
+async function _handleImportProjectFiles(files) {
+  const projects = [];
+  const uiStates = [];
+  let parseFailures = 0;
+
+  for (const file of files) {
+    try {
+      const text = await file.text();
+      const raw  = JSON.parse(text);
+      const { project: proj, uiState } = deserializeProject(raw);
+      if (!proj.id) throw new Error('id missing');
+      projects.push(proj);
+      uiStates.push(uiState);
+    } catch (e) {
+      console.warn('[import] parse error:', file.name, e);
+      parseFailures++;
+    }
+  }
+
+  const result = await importProjectRecords(projects, uiStates);
+  const totalFailure = result.failure + parseFailures;
+
+  const parts = [];
+  if (result.success  > 0) parts.push(`✅ ${result.success}件登録`);
+  if (result.skip     > 0) parts.push(`⏭ ${result.skip}件スキップ（重複）`);
+  if (totalFailure    > 0) parts.push(`❌ ${totalFailure}件エラー`);
+  toast(parts.join(' / ') || 'インポート完了（0件）');
+
+  renderLibrary().catch(console.error);
+}
+
 // ════════════════════════════════════════
 // 自動保存
 // ════════════════════════════════════════
-// 変更後
 function autoSaveLocal(){
   clearTimeout(asT);
   asT = setTimeout(async () => {
+    // [EMPTY PROJECT GUARD] Phase73-D追補
+    // 起動直後の createEmptyProject() 状態（何も入力されていない）では
+    // DBに書き込まない。ゴミ登録防止。
+    //
+    // hasMeta: title / artist / chord_source は trim() で空白文字列を除外。
+    //          audio はファイルパス文字列のため存在判定のみ。
+    // hasLineContent: line の実スキーマ全フィールドで「内容あり」を判定。
+    //          lines.length > 0 だけでは空行追加を有意データとみなすため使わない。
+    //
+    // ガードを setTimeout 内に置く理由:
+    //   外側（clearTimeout より前）に置くとタイマー競合が生じ、
+    //   正当な保存がキャンセルされる副作用があるため。
+    const hasMeta = !!(
+      project.title?.trim()       ||
+      project.artist?.trim()      ||
+      project.audio               ||
+      project.chord_source?.trim()
+    );
+    const hasLineContent = project.lines.some(l =>
+      l.lyric || l.time != null || l.chords.length > 0 || l.repeat != null
+    );
+    if (!hasMeta && !hasLineContent) return;
+
     const uiState = getUIState();
 
     // [PROJECT CORE AUTHORITY] IndexedDB が canonical source（Phase73-B）
@@ -2164,6 +2233,47 @@ function setupEventHandlers() {
     }
     
   })();  
+
+  // ============================================
+  // Phase73-D: Legacy Project Import
+  // ============================================
+  // UIラベル: 「ライブラリにプロジェクトファイルをインポート…」
+  // 内部機能名: Legacy Project Import
+  // [PICKER_IDS] projectImport を使用（Phase60.5 の方針に準拠）
+  // [AbortError] キャンセルは正常系として return
+  // [FSA fallback] showOpenFilePicker 非対応ブラウザは <input> 経由
+
+  document.getElementById('btn-import-projects').addEventListener('click', async () => {
+    let files = [];
+
+    if (window.showOpenFilePicker) {
+      try {
+        const handles = await window.showOpenFilePicker({
+          id: PICKER_IDS.projectImport,
+          multiple: true,
+          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+        });
+        files = await Promise.all(handles.map(h => h.getFile()));
+      } catch (err) {
+        if (err.name === 'AbortError') return;  // キャンセルは正常
+        document.getElementById('file-import-projects').click();  // fallback
+        return;
+      }
+    } else {
+      document.getElementById('file-import-projects').click();
+      return;
+    }
+
+    await _handleImportProjectFiles(files);
+  });
+
+  document.getElementById('file-import-projects').addEventListener('change', async (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (!files.length) return;
+    await _handleImportProjectFiles(files);
+  });
+  
 }
 /**
    * restoreLastProjectOnStartup — 起動時の最終プロジェクト復元

@@ -299,14 +299,6 @@ Phase73-BでRepository API・autosave切替・generation counterを実装済み�
 達せず形骸化している。`csvImporter.js` / chord-btnのCSV分岐 / file picker accept設定の
 削除を将来検討する。優先度は低く、Project DB系列のフェーズが一段落してから着手する。
 
-#### FSA保存ファイルのProject DBへの取り込み導線
-状態: 未設計・Phase73-B非ブロッキング
-内容: 過去に手動保存したproject.jsonファイル群を、どうやってProject DBカタログに
-登録するか。自動スキャンはFSA APIの制約上困難なため、「開いた時に自動登録される」
-程度の現実的な着地になる見込み。Repository層（listProjects/getProject/saveProjectToDB/
-deleteProject）やgeneration counterの実装には依存しない独立した機能のため、
-Phase73-Cで個別に扱う。
-
 #### LAN配信モード（PCサーバー → スマホブラウザ）
 状態: 検討中
 目的: server.py をLAN開放し、同一Wi-Fi上のスマホからアクセスできるようにする

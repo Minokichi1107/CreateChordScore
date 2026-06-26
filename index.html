@@ -47,9 +47,10 @@
       <button class="dd-item" id="btn-savenew">🆕 新規プロジェクトとして保存</button>
       <button class="dd-item" id="btn-new">✕ 新規 <span class="shortcut">[Alt+N]</span></button>
       <hr>
+      <button class="dd-item" id="btn-import-projects">📥 ライブラリにプロジェクトファイルをインポート…</button>
+      <hr>
       <button class="dd-item" disabled>📚 ライブラリ</button>
-      <button class="dd-item" disabled>⚙ プロジェクト設定</button>
-    </div>
+      <button class="dd-item" disabled>⚙ プロジェクト設定</button>    </div>
   </div>
 
   <div class="menu-group">
@@ -92,9 +93,10 @@
 
 </header>
 
-<input type="file" id="file-chord"   accept=".json,.csv" />
-<input type="file" id="file-audio"   accept="audio/*" />
-<input type="file" id="file-project" accept=".json" />
+<input type="file" id="file-chord"          accept=".json,.csv" />
+<input type="file" id="file-audio"          accept="audio/*" />
+<input type="file" id="file-project"        accept=".json" />
+<input type="file" id="file-import-projects" accept=".json,application/json" multiple />
 
 <main id="app">
   <!-- LEFT -->

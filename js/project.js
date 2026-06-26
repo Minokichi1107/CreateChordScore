@@ -170,10 +170,11 @@ export function createProjectBlob(projectData) {
 // 「その用途で最後に使ったフォルダ」を別々に記憶する。
 // scatter 防止のため必ずこの定数を参照すること。
 export const PICKER_IDS = {
-  audio:       'ccs-audio',        // 音声ファイル
-  chord:       'ccs-chord',        // コードファイル
-  projectOpen: 'ccs-project-open', // プロジェクト読み込み
-  projectSave: 'ccs-project-save', // プロジェクト保存
+  audio:         'ccs-audio',
+  chord:         'ccs-chord',
+  projectOpen:   'ccs-project-open',
+  projectSave:   'ccs-project-save',
+  projectImport: 'ccs-project-import',  // Phase73-D: Legacy Project Import
 };
 
 // ────────────────────────────────────────
@@ -424,4 +425,53 @@ export async function deleteProject(id) {
     req.onsuccess = () => resolve(true);
     req.onerror   = e => reject(e.target.error);
   });
+}
+
+// ────────────────────────────────────────
+// importProjectRecords（Phase73-D: Legacy Project Import）
+//
+// parse・deserialize 済みの project オブジェクト配列を受け取り、
+// DB に一括登録する。
+//
+// [LEGACY IMPORT IDENTITY POLICY]
+//   同一 project.id が既存DBにある場合はスキップ（上書きしない）。
+//   import は lineage merge ではない。
+//
+// [LEGACY IMPORT SCOPE]
+//   対象は project core data のみ。
+//   audio / chord / analysis の移行はスコープ外。
+//
+// 呼び出し元（app.js）の責務:
+//   JSON.parse / deserializeProject() / File読み込み
+// この関数の責務:
+//   衝突確認 / DB保存 / 件数集計
+//
+// @param {object[]} projects  - deserializeProject() で得た project オブジェクトの配列
+// @returns {Promise<{success: number, skip: number, failure: number}>}
+// ────────────────────────────────────────
+export async function importProjectRecords(projects, uiStates) {
+  let success = 0, skip = 0, failure = 0;
+
+  for (let i = 0; i < projects.length; i++) {
+    const proj    = projects[i];
+    const uiState = uiStates[i];
+    try {
+      if (!proj || !proj.id) { failure++; continue; }
+
+      // 既存ID衝突確認
+      const existing = await _getRawRecord(proj.id);
+      if (existing) { skip++; continue; }
+
+      // [既存保存経路を再利用]
+      // saveProjectToDB が serializeProject → DBメタ付与 → db.put() を一本で担う。
+      // key / tempo の書き込みも serializeProject() 経由で保証される。
+      await saveProjectToDB(proj, uiState);
+      success++;
+    } catch (e) {
+      console.error('[importProjectRecords] error:', e, proj?.id);
+      failure++;
+    }
+  }
+
+  return { success, skip, failure };
 }
