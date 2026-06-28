@@ -976,213 +976,202 @@
 }
 
 /* ════════════════════════════════════════
-   Phase73-C: 右パネル タブ & ライブラリ
+   LIBRARY — ライブラリ一覧UI（Phase73-C〜F）
    ════════════════════════════════════════ */
 
-/* ── 右パネルタブ行 ── */
-#right-tabs {
+/* ── 右パネル: flex column で高さをビューポートにフィット ──
+   min-height:0 は flex child が shrink できるようにするために必須。
+   overflow:hidden で子要素のはみ出しを抑止する。 */
+#panel-right {
   display: flex;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border-ui);
-  background: var(--surface-raised);
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
+/* ── 右パネル タブ行 ── */
+#right-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-ui);
+  flex-shrink: 0;
+}
 .right-tab {
   flex: 1;
-  padding: 7px 4px;
+  padding: 6px 4px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
-  background: transparent;
+  background: none;
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: color 0.12s, border-color 0.12s;
+  transition: color 0.1s, border-color 0.1s;
 }
-
 .right-tab:hover {
   color: var(--text-secondary);
 }
-
 .right-tab.active {
   color: var(--text-accent);
   border-bottom-color: var(--text-accent);
 }
 
-/* ── ライブラリパネル全体 ── */
+/* #panel-library は flex column で高さを親に合わせる。
+   flex:1 で親(#panel-right)の残り高さをすべて取る。
+   min-height:0 がないと flex child が shrink できず親からはみ出す。
+   .library-list の overflow-y:auto を効かせるために必須。 */
 #panel-library {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
+#panel-diagram {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
 
-/* ── toolbar（保存済みプロジェクト + ソート） ── */
+/* hidden 属性が flex display に上書きされないよう !important で保護する */
+#panel-library[hidden],
+#panel-diagram[hidden] {
+  display: none !important;
+}
+
+.library-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 4px 0;
+}
+
 .library-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  flex-shrink: 0;
+  gap: 6px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border-ui);
+  flex-shrink: 0;
 }
-
 .library-toolbar-label {
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--text-muted);
-  letter-spacing: 0.05em;
+  flex: 1;
 }
-
-.library-sort-select {
+.library-toolbar select {
   font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-secondary);
+  font-size: 11px;
   background: var(--surface-overlay);
   border: 1px solid var(--border-ui);
   border-radius: var(--r-sm);
+  color: var(--text-secondary);
   padding: 2px 4px;
   cursor: pointer;
 }
 
-/* ── ライブラリ一覧 ── */
-.library-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px 0;
-}
-
-/* 空状態 */
 .library-empty {
-  padding: 20px 12px;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-muted);
+  padding: 16px 12px;
   text-align: center;
 }
 
-/* ── ライブラリ項目 ── */
+/* ── 各アイテム行 ── */
 .library-item {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 8px 6px 10px;
-  border-bottom: 1px solid var(--border-ui);
+  padding: 6px 10px;
   cursor: pointer;
+  border-left: 2px solid transparent; /* 現在行ハイライト用の予約領域 */
   transition: background 0.1s;
 }
-
 .library-item:hover {
   background: var(--surface-hover);
 }
 
-/* 現在開いているプロジェクト */
+/* 現在開いているプロジェクト（Phase73-F） */
 .library-item--current {
-  background: var(--surface-selected);
-  cursor: default;
+  background: var(--surface-playing);
+  border-left-color: var(--text-accent);
 }
-
 .library-item--current:hover {
-  background: var(--surface-selected);
+  background: var(--surface-playing);
 }
 
-/* 項目の左側（▶マーク + 情報） */
 .library-item-main {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
 }
-
 .library-item-current-mark {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text-accent);
   flex-shrink: 0;
   width: 10px;
   text-align: center;
 }
-
 .library-item-info {
   flex: 1;
   min-width: 0;
 }
-
 .library-item-title {
-  font-family: var(--font-mono);
   font-size: 12px;
-  font-weight: 600;
+  font-family: var(--font-mono);
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-.library-item-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  font-family: var(--font-mono);
+.library-item--current .library-item-title {
+  color: var(--text-accent);
+}
+.library-item-artist {
   font-size: 10px;
   color: var(--text-muted);
-  margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
 }
 
-.library-item-time {
-  flex-shrink: 0;
-  color: var(--text-muted);
-}
-
-/* ── 削除ボタン ── */
+/* 削除ボタン */
 .library-item-delete {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  font-size: 13px;
-  line-height: 1;
-  background: transparent;
+  background: none;
   border: none;
-  border-radius: var(--r-sm);
-  color: var(--text-muted);
   cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  border-radius: var(--r-sm);
   opacity: 0;
-  transition: opacity 0.12s, color 0.12s, background 0.12s;
+  transition: opacity 0.1s, color 0.1s;
+  flex-shrink: 0;
 }
-
-/* hover時に削除ボタンを表示 */
-.library-item:hover .library-item-delete {
+.library-item:hover .library-item-delete:not(:disabled) {
   opacity: 1;
 }
-
-.library-item-delete:hover {
+.library-item-delete:not(:disabled):hover {
   color: var(--color-red);
-  background: rgba(var(--color-amber-rgb), 0.08);
 }
-
-/* 現在のプロジェクトの削除ボタンは disabled */
 .library-item-delete:disabled {
-  opacity: 0 !important;
-  cursor: not-allowed;
+  opacity: 0;
+  cursor: default;
+}
+
+/* 読み込み中フィードバック（クリック〜loadProj完了まで）
+   テキスト変更はしない。選択状態のみ視覚的に伝える。
+   pointer-events:none で二重クリックを防止する。 */
+.library-item--loading {
+  background: var(--surface-selected);
+  border-left-color: var(--border-selected);
   pointer-events: none;
-}
-
-/* ── ダイアグラムパネル（既存スタイルへの影響なし） ── */
-#panel-diagram {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* hidden 属性を確実に効かせる（flex が上書きするのを防ぐ） */
-#panel-library[hidden],
-#panel-diagram[hidden] {
-  display: none !important;
 }

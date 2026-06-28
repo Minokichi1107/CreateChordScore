@@ -183,6 +183,7 @@ import {
   chartState,
   renderChartMode,
   rebuildChartViewModel,
+  setTooltipEnabled,
 } from './chartmode.js';
 
 // ════════════════════════════════════════
@@ -270,24 +271,6 @@ let asT = null;
 // 最後に開始されたload requestのみが書き込み権限を持つ。
 let _loadGeneration = 0;
 
-// ── lastOpenedProjectId API（Phase73-E）────────────────
-// [SINGLE WRITE POINT]
-//   lastOpenedProjectId の更新は「プロジェクトを開く責務」を持つ処理のみが行う。
-//   loadProj() 末尾（通常経路）と saveProjectNew()（UUID確定の特殊ケース）の2箇所のみ。
-//   複数UIから直接更新しない。
-const LS_LAST_OPENED = 'cs.lastOpenedProjectId';
-
-function updateLastOpenedProject(id) {
-  if (id) localStorage.setItem(LS_LAST_OPENED, id);
-}
-function getLastOpenedProjectId() {
-  return localStorage.getItem(LS_LAST_OPENED) || null;
-}
-function clearLastOpenedProject() {
-  localStorage.removeItem(LS_LAST_OPENED);
-}
-// ─────────────────────────────────────────────────────
-
 // トーストタイマー
 let toastT = null;
 
@@ -321,6 +304,13 @@ function updateViewMenuChecks() {
   const leftVisible = !document.body.classList.contains('left-collapsed');
   btnLeft.textContent  = (leftVisible  ? '✔ ' : '　') + '◧ 左パネル';
   btnRight.textContent = (!rightHidden ? '✔ ' : '　') + '◨ 右パネル';
+}
+
+// Chart Mode コード図ホバーのチェックマーク更新
+function _updateChartDiagMenu(enabled) {
+  const btn = document.getElementById('btn-toggle-chart-diag');
+  if (!btn) return;
+  btn.textContent = (enabled ? '✔ ' : '　') + '♬ Chart コード図';
 }
 
 window.addEventListener('resize', () => {
@@ -1100,49 +1090,10 @@ async function saveProjectNew() {
   // [PROJECT IDENTITY SEMANTICS] filename ≠ project identity（Phase62）
   // 新UUIDを発行することで、同一ファイルから派生した別プロジェクトとして扱う。
   // IndexedDB assets（audio/chord）は旧IDに紐づいたまま残る（意図的）。
-  //
-  // [SAVE PROJECT NEW SEMANTICS]（Phase73-E）
-  //   saveProjectNew() は現在の編集状態を保持したまま新しい project lineage を作成する。
-  //   analysis は「編集状態の一部」であるため新UUIDへ引き継ぐ。
-  //   （導入経緯: 別名保存で複数プロジェクトが同一 analysis/{id}.json を参照するバグを防ぐため）
-  //   audio/chord asset の継承は将来の設計フェーズで判断する。
-  //
-  // [ANALYSIS COPY SAFETY]
-  //   analysis/{id}.json の内部には projectId フィールドが存在しない。
-  //   ファイル名（UUID）のみがIDとして機能するため、内容はそのまま新UUIDで保存できる。
-
-  // analysis の raw と repairRule を ID 変更前に退避する
-  const analysisRaw        = project.analysis?.raw       ?? null;
-  const analysisRepairRule = project.analysis?.repairRule ?? null;
-
   project.id = crypto.randomUUID();
   _fileHandle = null;  // 強制的に新規ファイル保存ダイアログを出す
 
-  // [ANALYSIS COPY ORDER]（ChatGPTレビュー確認済み・serializaProject確認済み）
-  // saveProject(true) は serializeProject() 経由で hasAnalysis フラグのみ保存する。
-  // analysis 本体（raw/repairRule）には一切アクセスしない。
-  // そのため「プロジェクト保存 → analysis保存」の順が整合性上正しい。
-  //
-  // もし saveProject() がキャンセルされた場合:
-  //   analysis コピーは行われないが、project.id は既に変わっている。
-  //   次回起動時は lastOpenedProjectId → フォールバックで対処できる。
-  // もし saveAnalysisFile() が失敗した場合:
-  //   project は存在し、Chart Mode だけ利用不可になる（再インポートで復旧可能）。
-
-  // ① プロジェクト保存（FSA）
   await saveProject(true);
-
-  // ② analysis を新UUID で保存（旧ファイルはサーバーに残るが参照されなくなる）
-  if (analysisRaw) {
-    const ok = await saveAnalysisFile(project.id, analysisRaw, analysisRepairRule);
-    if (!ok) {
-      console.warn('[saveProjectNew] analysis copy failed for new id:', project.id);
-    }
-  }
-
-  // ③ lastOpenedProjectId 更新
-  // loadProj() を経由しないため、ここだけ個別に更新する（SINGLE WRITE POINT の例外）。
-  updateLastOpenedProject(project.id);
 }
 
 function showReloadBanner(audioName, chordName){
@@ -1482,12 +1433,6 @@ async function loadProj(data){
   // TOKEN MIGRATION の結果を IndexedDB に即書き戻す。
   // これにより次回の自動保存復元時も migration 済みデータが使われる。
   autoSaveLocal();
-
-  // [SINGLE WRITE POINT] loadProj() は「プロジェクトを開いた」唯一の定義。
-  // ライブラリ / ファイル→開く / 起動時復元 のすべての経路がここに集約されるため、
-  // 各UIから個別に更新する必要はない。
-  // [RESTORE TARGET AUTHORITY] 次回起動時はこの値を最優先で復元する。
-  updateLastOpenedProject(project.id);
 }
 
 // ════════════════════════════════════════
@@ -2017,6 +1962,19 @@ function setupEventHandlers() {
       applyRightHidden();
       localStorage.setItem('rightHidden', rightHidden ? '1' : '0');
     }
+
+    // Shift+D: Chart Mode コード図ホバー ON/OFF（Chart Mode 中のみ）
+    if (e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+      if (!chartState.active) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const current = localStorage.getItem('cs.chartDiagHover') !== 'false';
+      const next = !current;
+      localStorage.setItem('cs.chartDiagHover', next ? 'true' : 'false');
+      setTooltipEnabled(next);
+      _updateChartDiagMenu(next);
+      toast(next ? '🎸 コード図ホバー ON' : '🎸 コード図ホバー OFF');
+    }
   });
 
   // ============================================
@@ -2265,6 +2223,16 @@ function setupEventHandlers() {
     localStorage.setItem('rightHidden', rightHidden ? '1' : '0');
   });
 
+  // Chart コード図ホバー トグル（表示メニュー）
+  document.getElementById('btn-toggle-chart-diag')?.addEventListener('click', () => {
+    const current = localStorage.getItem('cs.chartDiagHover') !== 'false';
+    const next = !current;
+    localStorage.setItem('cs.chartDiagHover', next ? 'true' : 'false');
+    setTooltipEnabled(next);
+    _updateChartDiagMenu(next);
+    toast(next ? '🎸 コード図ホバー ON' : '🎸 コード図ホバー OFF');
+  });
+
   // ============================================
   // Header Menu Events (Phase29)
   // ============================================
@@ -2340,59 +2308,32 @@ function setupEventHandlers() {
 }
 /**
    * restoreLastProjectOnStartup — 起動時の最終プロジェクト復元
-   *
-   * [RESTORE TARGET AUTHORITY]（Phase73-E）
-   *   truth source = localStorage["cs.lastOpenedProjectId"]。
-   *   updatedAt はライブラリの並び順・表示にのみ使う。
-   *
-   * [FALLBACK POLICY]
-   *   lastOpenedProjectId が欠落 / DB 上に存在しない場合のみ、
-   *   updatedAt DESC 先頭をフォールバックとして使う。
-   *
-   * [OPEN VS SAVE SEPARATION]
-   *   「現在開いているproject」と「最後にsaveされたproject」は別概念。
-   *   restore authority に updatedAt を直接使わない。
+   * [RESTORE AUTHORITY INVARIANT]
+   *   truth source = IndexedDB "projects" store の updatedAt 最大レコード。
+   *   loadProj() 末尾で autoSaveLocal() が必ず走るため
+   *   updatedAt 最大 = 最後に開いたプロジェクト が成立する。
+   *   将来 autoSaveLocal() を loadProj() から削除・遅延化した場合は
+   *   lastOpenedProjectId を別途持つ設計に移行すること。
+   *   現状は「最後に保存されたプロジェクト」を復元する暫定仕様であり、
+   *   厳密な「last opened project」とは異なる点に注意。
    */
 
 async function restoreLastProjectOnStartup() {
   try {
-    // ① lastOpenedProjectId が存在するか確認
-    const lastId = getLastOpenedProjectId();
-    let targetData = null;
-    let targetTitle = null;
-    let targetLines = 0;
-
-    if (lastId) {
-      // ② DB に存在するか確認（存在しなければフォールバックへ）
-      const data = await getProject(lastId).catch(() => null);
-      if (data && data.id) {
-        targetData  = data;
-        targetTitle = data.title;
-        targetLines = (data.lines || []).length;
+    const projects = await listProjects();
+    if (projects.length === 0) return;
+    const latest = projects[0];
+    const hasData = latest.id && (
+      (latest.lines && latest.lines.length > 0) ||
+      latest.title || latest.artist || latest.audio || latest.chord_source
+    );
+    if (!hasData) return;
+    if (confirm(`前回の作業「${latest.title || '無題'}」(${(latest.lines || []).length}行) を復元しますか？`)) {
+      const data = await getProject(latest.id);
+      if (data) {
+        await loadProj(data);
+        toast('自動保存データを復元しました');
       }
-    }
-
-    // フォールバック: updatedAt DESC 先頭
-    if (!targetData) {
-      const projects = await listProjects();
-      if (projects.length === 0) return;
-      const latest = projects[0];
-      const hasData = latest.id && (
-        (latest.lines && latest.lines.length > 0) ||
-        latest.title || latest.artist || latest.audio || latest.chord_source
-      );
-      if (!hasData) return;
-      const data = await getProject(latest.id).catch(() => null);
-      if (!data) return;
-      targetData  = data;
-      targetTitle = latest.title;
-      targetLines = (latest.lines || []).length;
-    }
-
-    // ③ confirm → loadProj()（loadProj 末尾で updateLastOpenedProject が走る）
-    if (confirm(`前回の作業「${targetTitle || '無題'}」(${targetLines}行) を復元しますか？`)) {
-      await loadProj(targetData);
-      toast('自動保存データを復元しました');
     }
   } catch (e) {
     console.warn('[restore] IndexedDB 復元失敗:', e);
@@ -2604,6 +2545,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     transposeChord:   transposeChord,
     seekTo:           (time) => { aEl.currentTime = time; },
 
+    // Phase67: hover chord diagram（Phase73-F で接続）
+    findChord:        findChord,
+    drawDiagram:      drawDiagram,
+    tooltipEnabled:   localStorage.getItem('cs.chartDiagHover') !== 'false',
+
     // Phase72-B: manual timing correction コールバック
     // [OWNERSHIP] repairRule の保存・project.analysis 更新・再描画は app.js が持つ。
     // chartmode.js はユーザーが「何を選んだか」を通知するだけ。
@@ -2767,10 +2713,7 @@ async function renderLibrary() {
         <span class="library-item-current-mark">${isCurrent ? '▶' : '\u00a0'}</span>
         <div class="library-item-info">
           <div class="library-item-title">${p.title || '無題'}</div>
-          <div class="library-item-meta">
-            ${artistHtml}
-            <span class="library-item-time">${formatUpdatedAt(p.updatedAt)}</span>
-          </div>
+          ${artistHtml ? `<div class="library-item-meta">${artistHtml}</div>` : ''}
         </div>
       </div>
       <button class="library-item-delete"
@@ -2780,11 +2723,24 @@ async function renderLibrary() {
     // クリックで開く（現在のプロジェクトは何もしない）
     item.querySelector('.library-item-main').addEventListener('click', async () => {
       if (isCurrent) return;
-      const data = await getProject(p.id).catch(() => null);
-      if (!data) { toast('読み込みに失敗しました'); return; }
-      await loadProj(data);
-      toast(`📂 ${p.title || '無題'} を開きました`);
-      renderLibrary();
+
+      // [LOADING FEEDBACK] クリック直後にその行を選択状態にしてカーソルをprogressにする。
+      // テキスト書き換えは「画面が落ち着かなくなる」懸念（ChatGPTレビュー）により採用しない。
+      // analysis HTTPリクエスト + IndexedDB復元で体感ラグが発生するため
+      // 「押せた」ことを視覚的に伝えるだけで十分とする。
+      item.classList.add('library-item--loading');
+      document.body.style.cursor = 'progress';
+
+      try {
+        const data = await getProject(p.id).catch(() => null);
+        if (!data) { toast('読み込みに失敗しました'); return; }
+        await loadProj(data);
+        toast(`📂 ${p.title || '無題'} を開きました`);
+        renderLibrary();
+      } finally {
+        document.body.style.cursor = '';
+        item.classList.remove('library-item--loading');
+      }
     });
 
     // 削除ボタン（現在のプロジェクトは disabled）
@@ -2797,11 +2753,6 @@ async function renderLibrary() {
         try {
           await deleteProject(p.id);
           await deleteAssets(p.id);
-          // [LAST OPENED DELETE POLICY] 削除対象が lastOpenedProjectId と一致する場合はクリア。
-          // 次回起動時はフォールバック（updatedAt DESC 先頭）に委ねる。
-          if (p.id === getLastOpenedProjectId()) {
-            clearLastOpenedProject();
-          }
           toast(`🗑 「${name}」を削除しました`);
           renderLibrary();
         } catch (err) {
