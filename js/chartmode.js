@@ -165,9 +165,11 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
       measure.slots.push(slot);
     }
 
-    // onset を追加（collision 対応: 常に配列で持つ）
+    // onset を追加（collision 対応・常に配列で持つ）
+    // [Phase74-C] _id を伝播させる（解析エディタのクリック選択に必要）
     slot.onsets.push({
       chord:      c.chord,
+      id:    c._id ?? null,
       time:       c.start,
       duration:   c.end - c.start,
       confidence: q.confidence,
@@ -542,8 +544,9 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
             type:          'onset',
             measureIndex:  mi,
             beatIndex:     si,
-            chord:         onset.chord,  // canonical（capo 変換しない）
-            durationSlots: 1,            // 暫定値。次の onset 到達時に更新
+            chord:         onset.chord,    // canonical（capo 変換しない）
+            id:       onset.id ?? null,  // [Phase74-C] 編集UIのクリック選択用
+            durationSlots: 1,              // 暫定値。次の onset 到達時に更新
           };
           result.push(slotData);
 
@@ -622,11 +625,11 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
           type:          'onset',
           measureIndex:  mi,
           beatIndex:     si,
-          chord:         onset.chord,  // canonical（capo 変換しない）
-          durationSlots: 1,            // 暫定値。次の onset 到達時に更新
+          chord:         onset.chord,    // canonical（capo 変換しない）
+          id:            onset.id ?? null,  // [Phase74-C] 編集UIのクリック選択用
+          durationSlots: 1,              // 暫定値。次の onset 到達時に更新
         };
         result.push(slotData);
-
         lastOnsetMeasureLocal = si;
         lastOnsetChord        = onset.chord;
         lastOnsetResultIndex  = result.length - 1;
@@ -725,6 +728,11 @@ export const chartState = {
   // _renderChartGrid() 呼び出し毎に再計算・更新される。
   // projection authorityはここに集約される（expandToSlots/updateChartPlayback共通）。
   pickupLeadingOffset: 0,
+
+  // Phase74-C: 解析編集モードの選択状態（表示用）
+  // [OWNERSHIP] 選択の正本は app.js の analysisEditor.selection。
+  // ここはハイライト描画のためのローカル表示状態（描画のたびに app.js から同期される）。
+  selectedChordIds: new Set(),
 };
 
 /**
@@ -737,8 +745,21 @@ export function setTooltipEnabled(enabled) {
   if (!enabled) _hideTooltip();
 }
 
+/**
+ * setSelectedChordIds — 選択中コードのハイライト描画を更新する（Phase74-C）
+ *
+ * [OWNERSHIP] 選択状態の正本は app.js の analysisEditor.selection。
+ * ここは描画用のローカル表示状態を更新するだけ。
+ * 呼び出し後は renderChartMode() で再描画が必要。
+ *
+ * @param {string[]} ids - 選択中の chord._id の配列
+ */
+export function setSelectedChordIds(ids) {
+  chartState.selectedChordIds = new Set(ids);
+}
+
 // ────────────────────────────────────────
-// 注入依存
+// 注入変数
 // ────────────────────────────────────────
 
 let _getAnalysis      = null;  // () => project.analysis（header/fallback 表示用）
@@ -757,6 +778,10 @@ let _drawDiagram      = null;  // (frets, barre, options) => SVG string（toolti
 // コールバック経由で通知するだけで、persistence layer に直接触らない。
 let _onSetRepairRule   = null;  // (beatTime: number) => void
 let _onClearRepairRule = null;  // () => void
+
+// Phase74-C: 解析編集モード連携
+let _onChordSelected   = null;        // (id: string) => void
+let _isEditingAnalysis = () => false; // () => boolean（編集モード中かどうかをapp.jsへ問い合わせる）
 
 // ── tooltip state ──────────────────────────────────────────
 // [EPHEMERAL UI] tooltip は chartState に authority を持たない。
@@ -905,7 +930,7 @@ function _rafLoop() {
  *                                             右クリック「補正を解除」選択時に呼ぶ。
  *                                             app.js が null保存・再描画を担う。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis }) {
   _getAnalysis       = getAnalysis;
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
@@ -918,6 +943,12 @@ export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudio
   _tooltipEnabled    = tooltipEnabled ?? true;
   _onSetRepairRule   = onSetRepairRule  ?? null;
   _onClearRepairRule = onClearRepairRule ?? null;
+
+  // Phase74-C: 解析編集モード連携
+  // [OWNERSHIP] 編集state（analysisEditor）はapp.jsが持つ。
+  // chartmode.jsはクリック検出と選択ハイライト描画のみを担当する。
+  _onChordSelected   = onChordSelected ?? null;
+  _isEditingAnalysis = isEditingAnalysis ?? (() => false);
 
   // Phase60: click seek イベント登録
   _setupGridClickSeek();
@@ -1115,6 +1146,22 @@ function _setupGridClickSeek() {
   _gridClickSeekBound = true;
 
   grid.addEventListener('click', e => {
+
+    // ── Phase74-C: 編集モード中はコード選択を優先する ──
+    if (_isEditingAnalysis() && _onChordSelected) {
+      const chordEl = e.target.closest('.chart-chord-name[data-chord-id]');
+      if (chordEl) {
+        const chordId = chordEl.dataset.chordId;
+        if (chordId) {
+          _onChordSelected(chordId);
+          return;
+        }
+      }
+      // 編集モード中はコード以外のクリックでseekさせない
+      return;
+    }
+
+    // ── 通常時: クリックシーク ──
     if (!_seekTo) return;
 
     // click target ルール: .chart-measure 全域で固定（内部構造変更に依存しない）
@@ -1334,6 +1381,30 @@ function _setupContextMenu() {
 }
 
 // ────────────────────────────────────────
+// Phase74-C: 編集モードトグルボタン
+// ────────────────────────────────────────
+
+/**Phase74-Cに削除予定のためコメントアウト
+ * _setupEditModeBtn — Chart Modeヘッダーに編集モードトグルボタンを追加する
+ *
+ * openChartMode() から呼ぶ（idempotent）。
+ * ボタンは #chart-header 内に1つだけ生成される。
+ * クリック時は app.js 側の beginAnalysisEdit / endAnalysisEdit を
+ * _onChordSelected と同様にコールバック経由で呼ぶのではなく、
+ * ここでは DOM イベントを発火するだけにする。
+ * app.js 側の btn-analysis-edit ハンドラーが実際の処理を担う。
+ */
+
+
+/**
+ * updateChartEditModeUI — 編集モードの状態に合わせてヘッダーUIを更新する
+ *
+ * beginAnalysisEdit / endAnalysisEdit 後に app.js から呼ぶ。
+ * @param {boolean} editing
+ */
+
+
+// ────────────────────────────────────────
 // Chart Mode 開閉
 // ────────────────────────────────────────
 
@@ -1362,10 +1433,10 @@ export function openChartMode() {
   _resetPerfState(); // perf instrumentation をこのセッション用にリセット（Phase70-A）
   _startRafLoop();  // rAF playback loop 開始（visual update authority）
   _buildTransport();
-  _initTooltip();         // tooltip DOM 生成
-  _setupTooltipEvents();  // event delegation 登録（idempotent）
-  _setupContextMenu();    // Phase72-B: 右クリックメニュー登録（idempotent）
-  // 描画は呼び出し元（app.js）が renderChartMode を責務として持つ
+  _initTooltip();
+  _setupTooltipEvents();
+  _setupContextMenu();
+  // 描画は呼び出し側（app.js）が renderChartMode を起点として渡す
 }
 
 /**
@@ -1382,10 +1453,11 @@ export function openChartMode() {
  *
  * @returns {boolean} 再構築成功:true / analysis なし:false
  */
-export function rebuildChartViewModel() {
-  const analysis = _getAnalysis?.();
+export function rebuildChartViewModel(overrideAnalysis = null) {
+  // [Phase74-C] overrideAnalysis が渡された場合はそれを使う（解析編集モード用）。
+  // 通常時は _getAnalysis() で project.analysis を取得する。
+  const analysis = overrideAnalysis ?? _getAnalysis?.();
   if (!analysis) return false;
-
   const duration = _getAudioDuration?.() || null;
   chartState.viewModel = buildGridViewModel(analysis, duration);
   return true;
@@ -1418,13 +1490,13 @@ export function closeChartMode() {
  *
  * @param {{ measuresPerRow?: number }} [options]
  */
-export function renderChartMode({ measuresPerRow = 3 } = {}) {
+export function renderChartMode({ measuresPerRow = 3, editing = false } = {}) {
   if (!chartState.active) return;
 
   const vm = chartState.viewModel;
   const analysis = _getAnalysis?.();
 
-  _renderChartHeader(vm, analysis);
+  _renderChartHeader(vm, analysis, editing);
   _renderChartGrid(vm, analysis, { measuresPerRow });
 }
 
@@ -1433,7 +1505,7 @@ export function renderChartMode({ measuresPerRow = 3 } = {}) {
  *
  * ヘッダー（曲情報・mode警告）を描画する。
  */
-function _renderChartHeader(vm, analysis) {
+function _renderChartHeader(vm, analysis, editing = false) {
   const el = document.getElementById('chart-header-info');
   if (!el) return;
 
@@ -1463,11 +1535,25 @@ function _renderChartHeader(vm, analysis) {
       : `Capo ${capo}`;
   }
   // Phase72-C: 補正適用中バッジ（projection only・chartStateに状態を持たせない）
-  const repairBadge = analysis.repairRule
+const repairBadge = analysis.repairRule
     ? `<span class="chart-header-repair-badge">📍 小節補正中</span>`
     : '';
 
-  el.innerHTML = [bpm, ts, capoInfo, repairBadge, modeWarning].filter(Boolean).join(' &nbsp;|&nbsp; ');
+  // [Phase74-C] 編集中バッジ
+  // app.js から editing 引数で受け取る。chartmode.js は状態を持たない。
+  const editingBadge = editing
+    ? `<span class="chart-header-edit-badge">✎ 編集中</span>`
+    : '';
+
+  el.innerHTML = [bpm, ts, capoInfo, repairBadge, editingBadge, modeWarning].filter(Boolean).join(' &nbsp;|&nbsp; ');
+
+  // [Phase74-C] 編集ボタンのamber色切り替え
+  // ヘッダーに関する表示はすべてこの関数が担当する（責務の一本化）
+  const editBtn = document.getElementById('btn-analysis-edit');
+  if (editBtn) editBtn.classList.toggle('chart-edit-btn--active', editing);
+
+  // transport のカポラベルも同期（renderChartMode 呼び出し毎に追従）
+  _syncCapoLabel();
 }
 
 /**
@@ -1685,12 +1771,24 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
 
             const chordEl = document.createElement('span');
             chordEl.className = 'chart-chord-name';
-
             // display projection: render 時のみ capo 移調（canonical は変更しない）
             const display = (capo !== 0 && _transposeChord)
               ? _transposeChord(slot.chord, -capo)
               : slot.chord;
             chordEl.textContent = display;
+            // data-chord: 表示済みchord名（projection済み）を格納する。
+            // tooltip 側は findChord(chord) のみ使用し、capo 再適用しない
+            // （二重 projection 防止 / tooltip は projection authority を持たない）。
+            chordEl.dataset.chord = display;
+            // [Phase74-C] data-chord-id: 解析エディタのクリック選択用。
+            // raw.chords の _id をそのまま持たせる（projectionしない・編集対象の識別子）。
+            if (slot.id) {
+              chordEl.dataset.chordId = slot.id;
+            }
+            // [Phase74-C] 選択中ハイライト
+            if (slot.id && chartState.selectedChordIds.has(slot.id)) {
+              chordEl.classList.add('chart-chord-name--selected');
+            }
             // data-chord: 表示済みchord名（projection済み）を格納する。
             // tooltip 側は findChord(chord) のみ使用し capo 再適用しない。
             // （二重 projection 防止 / tooltip は projection authority を持たない）
@@ -1937,6 +2035,11 @@ export function updateChartPlayback(currentTime) {
 // seek 競合防止フラグ
 let _isSeeking = false;
 
+// 音量ミュート解除用の退避値（localStorage不使用・session only）
+// [VOLUME AUTHORITY] truth source = aEl.volume。この変数はミュート→解除時の
+// 「復元先」を記憶するだけで、aEl.volume自体の管理は持たない。
+let _previousVolume = 80;  // percent integer（0-100）
+
 /**
  * _buildTransport
  * #chart-header 直後に mini transport を生成する。
@@ -1963,6 +2066,16 @@ function _buildTransport() {
              min="50" max="150" value="100" step="1">
       <span id="chart-speed-label" class="chart-speed-label">100%</span>
       <button id="chart-speed-reset" class="chart-speed-reset" type="button" title="100%にリセット">↺</button>
+    </div>
+    <div class="chart-vol-cluster">
+      <button id="chart-vol-btn" class="chart-vol-btn" title="音量">🔊</button>
+      <input id="chart-vol-sel" class="chart-vol-sel" type="range"
+             min="0" max="100" value="80" step="1" title="音量">
+    </div>
+    <div class="chart-capo-cluster">
+      <button id="chart-capo-down" class="chart-capo-btn" title="カポを下げる">－</button>
+      <span id="chart-capo-label" class="chart-capo-label">Capo 0</span>
+      <button id="chart-capo-up" class="chart-capo-btn" title="カポを上げる">＋</button>
     </div>
   `;
 
@@ -2053,6 +2166,90 @@ function _setupTransportEvents(transport) {
   speedReset.addEventListener('click', () => {
     setSpeed(100);
   });
+
+// ── 音量バー（Phase74-A） ──
+  // [VOLUME AUTHORITY] truth source = aEl.volume のみ。
+  // _previousVolume はミュート解除時の復元先（session only・localStorage不使用）。
+  const volBtn = document.getElementById('chart-vol-btn');
+  const volSel = document.getElementById('chart-vol-sel');
+  if (volSel && volBtn) {
+    // 初期値を現在の aEl.volume に同期
+    const initVol = aEl.muted ? 0 : Math.round(aEl.volume * 100);
+    volSel.value = initVol;
+    _updateChartVolBtn(volBtn, initVol);
+
+    volSel.addEventListener('input', () => {
+      const v = parseInt(volSel.value);
+      aEl.volume = v / 100;
+      aEl.muted  = (v === 0);
+      // [PREVIOUS VOLUME] 非0音量なら常に更新する。
+      // こうすることで「スライダー80→40→ミュート→解除」で40に戻る
+      // 一般的なオーディオプレーヤーと同じ挙動になる（ChatGPT指摘②対応）。
+      if (v > 0) _previousVolume = v;
+      _updateChartVolBtn(volBtn, v);
+    });
+
+    volBtn.addEventListener('click', () => {
+      if (aEl.muted || aEl.volume === 0) {
+        // ミュート解除: 退避値に戻す
+        const r = _previousVolume;
+        aEl.muted    = false;
+        aEl.volume   = r / 100;
+        volSel.value = r;
+        _updateChartVolBtn(volBtn, r);
+      } else {
+        // ミュート: 現在値を退避してからミュート
+        _previousVolume = Math.round(aEl.volume * 100);
+        aEl.muted    = true;
+        aEl.volume   = 0;
+        volSel.value = 0;
+        _updateChartVolBtn(volBtn, 0);
+      }
+    });
+  }
+
+  // ── カポ変更（Phase74-A） ──
+  // [CAPO AUTHORITY] #capo が唯一の authority。
+  // Chart内ボタンは #capo の value を変更して change イベントを発火するだけ。
+  // app.js の既存 capo change ハンドラーが動き、editor / perform / chart が連動する。
+  //
+  // [RANGE] #capo の min/max 属性から読む。未設定時は 0/11 にフォールバック。
+  // ハードコードしないことで将来の -2〜11 拡張時も自動追従する（ChatGPT指摘④対応）。
+  //
+  // [LISTENER SAFETY] _buildTransport() は idempotent（chart-transport 存在時は即 return）
+  // のため、このリスナーは Chart Mode の lifetime で1回しか登録されない。
+  // 重複登録の心配はない（ChatGPT指摘①確認済み）。
+  const capoEl   = document.getElementById('capo');
+  const capoDown = document.getElementById('chart-capo-down');
+  const capoUp   = document.getElementById('chart-capo-up');
+  if (capoEl && capoDown && capoUp) {
+    const getCapoRange = () => ({
+      min: parseInt(capoEl.min !== '' ? capoEl.min : '0'),
+      max: parseInt(capoEl.max !== '' ? capoEl.max : '12'),
+    });
+
+    capoDown.addEventListener('click', () => {
+      const { min } = getCapoRange();
+      const cur = parseInt(capoEl.value) || 0;
+      if (cur <= min) return;
+      capoEl.value = cur - 1;
+      capoEl.dispatchEvent(new Event('change'));
+    });
+
+    capoUp.addEventListener('click', () => {
+      const { max } = getCapoRange();
+      const cur = parseInt(capoEl.value) || 0;
+      if (cur >= max) return;
+      capoEl.value = cur + 1;
+      capoEl.dispatchEvent(new Event('change'));
+    });
+  }
+
+  // カポ変更時に transport 内ラベルを追従させる。
+  // renderChartMode() 経由の同期に加えて、capo change イベントを直接 listen することで
+  // 「capo変更だけ起きて再描画されないケース」でもラベルが正確に追従する。
+  // [LISTENER SAFETY] _buildTransport() idempotent のため重複登録なし。
+  document.getElementById('capo')?.addEventListener('change', _syncCapoLabel);
 }
 
 /**
@@ -2084,6 +2281,27 @@ function _updateTransport(currentTime) {
   if (timeDisplay) {
     timeDisplay.textContent = `${_fmt(currentTime)} / ${_fmt(aEl.duration)}`;
   }
+}
+
+/**
+ * _updateChartVolBtn — 音量値に応じてアイコンを更新（Phase74-A）
+ * @param {HTMLElement} btn
+ * @param {number} val - 0-100
+ */
+function _updateChartVolBtn(btn, val) {
+  const n = parseInt(val);
+  btn.textContent = n === 0 ? '🔇' : n < 40 ? '🔉' : '🔊';
+}
+
+/**
+ * _syncCapoLabel — transport内のカポラベルをエディター側の現在値に同期（Phase74-A）
+ * capo change イベントから呼ばれる。renderChartMode() とは独立して動作する。
+ */
+function _syncCapoLabel() {
+  const label  = document.getElementById('chart-capo-label');
+  const capoEl = document.getElementById('capo');
+  if (!label || !capoEl) return;
+  label.textContent = `Capo ${parseInt(capoEl.value) || 0}`;
 }
 
 /**

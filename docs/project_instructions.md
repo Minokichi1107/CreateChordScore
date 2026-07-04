@@ -86,7 +86,8 @@ raw input → normalizeChordName() → canonical key → findChord() → CHORD_D
 
 ## 既知の危険領域
 
-- **app.js**: オーケストレーター。責務を増やす変更は慎重に
+- **app.js**: オーケストレーター。責務を増やす変更は慎重に。**全文出力禁止・差分のみ**。
+  Phase71でassetState設計・__CS_DEBUG__・Chart Hover接続など大量の実装が古いファイル上書きで消失した実績あり。
 - **CSS theme layer**: components.css にテーマ依存色が残存（.tov-chord-tag 等）。移管作業中
 - **chord lookup**: CHORD_DB 直参照は禁止。findChord() 経由のみ
 - **idb.js**: 最低構成。将来スキーマ変更時は DB_VERSION 更新が必要
@@ -166,3 +167,31 @@ modals.js
   - 33-3: openAddChord / openChordEdit
 
 詳細は添付ナレッジを参照。
+
+---
+
+## Protected Runtime Interfaces（削除・名称変更禁止）
+
+以下はDevTools診断・保守・運用で使用する公開インターフェース。
+削除・名称変更・移動は設計変更として扱い、architecture.mdを更新すること。
+
+| インターフェース | 所有者 | 用途 |
+|---|---|---|
+| `window.__CS_DEBUG__` | app.js | DevTools診断・timing調査 |
+| `window.__CS_DEBUG__.timing` | app.js | ビートズレ診断 |
+| `window.__CS_DEBUG__.project` | app.js | プロジェクト状態確認 |
+| `window.__CS_DEBUG__.perf` | app.js → chartmode.js | パフォーマンス診断 |
+| `assetState` | app.js | audio/chord loaded状態のauthority |
+| `setAudioLoaded()` | app.js | audio asset authority更新 |
+| `setChordLoaded()` | app.js | chord asset authority更新 |
+| `_evaluateBannerState()` | app.js | バナー表示のprojection |
+| `getPerfState()` | chartmode.js | perf instrumentation getter |
+| `chartState` | chartmode.js | Chart Mode runtime state |
+| `window.__CS_REPAIR__` | app.js | 緊急修復ツール |
+
+### フェーズ完了時の確認コマンド
+```powershell
+# 保護対象インターフェースの存在確認（フェーズ完了前に必ず実行）
+Select-String -Path "js\app.js" -Pattern "__CS_DEBUG__|assetState|setAudioLoaded|setChordLoaded" | Select-Object -First 5
+git diff --stat
+```

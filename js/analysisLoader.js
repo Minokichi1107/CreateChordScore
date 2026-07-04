@@ -171,8 +171,45 @@ function sanitizeChords(raw) {
         ? Math.min(1, Math.max(0, item.confidence))
         : 0;
 
-      return { chord: normalizeChordName(item.chord), start, end, confidence };
+      const result = { chord: normalizeChordName(item.chord), start, end, confidence };
+      // _id は永続フィールド。既存値があれば引き継ぐ（sanitize段階では再付与しない）。
+      if (typeof item._id === 'string') result._id = item._id;
+      return result;
     });
+}
+
+// ────────────────────────────────────────
+// chord _id マイグレーション（Phase74-C）
+// ────────────────────────────────────────
+/**
+ * _ensureChordIds — chordイベントに永続IDを付与する
+ *
+ * [ID PERSISTENCE INVARIANT]
+ * chord._id は永続フィールドである。一度付与したら保存対象とし、
+ * 以後の読み込みでは既存の _id をそのまま使う（再採番しない）。
+ * 旧形式（_id無し）のanalysisファイルはここで一度だけ自動付与する。
+ *
+ * 採番方式: 既存IDの最大値+1から連番を振る。
+ * 欠番があっても気にしない（c001, c002, c004 → 次は c005）。
+ *
+ * @param {object[]} chords - sanitizeChords() 済みの配列
+ * @returns {object[]} _id付きの配列
+ */
+function _ensureChordIds(chords) {
+  // 既存の _id から最大の連番を取得（c003 → 3）
+  let maxNum = 0;
+  for (const c of chords) {
+    if (typeof c._id === 'string') {
+      const m = c._id.match(/^c(\d+)$/);
+      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+    }
+  }
+
+  let nextNum = maxNum + 1;
+  return chords.map(c => {
+    if (c._id) return c;  // 既存IDはそのまま保持
+    return { ...c, _id: `c${String(nextNum++).padStart(3, '0')}` };
+  });
 }
 
 // ────────────────────────────────────────
@@ -278,10 +315,17 @@ export async function loadAnalysis(analysis) {
     ? raw.bpm
     : null;
 
-  // ── normalize / sanitize ─────────────
+  // ── normalize / sanitize ──────────────
   const timeSignature = normalizeTimeSignature(raw.timeSignature);
   const beats         = sanitizeTimestamps(raw.beats);
   const downbeats     = sanitizeTimestamps(raw.downbeats);
+
+  // [MIGRATION] loadAnalysis() は旧analysisデータのマイグレーション責務を持つ。
+  // _id は永続フィールドのため、sanitize（runtime view生成）とは別に
+  // ここで raw.chords 自体を書き換える。以降 raw は _id 付きの canonical source として扱う。
+  // [ID PERSISTENCE INVARIANT] 旧形式（_id無し）のanalysisファイルは
+  // ここで一度だけ自動付与する（以後の保存で _id が永続化される）。
+  raw.chords = _ensureChordIds(Array.isArray(raw.chords) ? raw.chords : []);
 
   // ── normalized timing cache ───────────
   // [RUNTIME CACHE] deterministic derived cache。
@@ -299,6 +343,15 @@ export async function loadAnalysis(analysis) {
     chords: sanitizeChords(raw.chords), bpm, meta: normalizeMeta(raw.meta) };
   const normalized = buildNormalizedTimingAnalysis(sanitizedAnalysis, { repair: false });
 
+  // [DATA OWNERSHIP] 2系統のchordsが存在する。役割を混同しないこと。
+  //
+  // raw.chords      — 永続データ（source of truth）。_id付き。
+  //                    Phase74-C 解析エディタの編集対象はこちら。
+  //                    saveAnalysisFile() で永続化されるのもこちら。
+  //
+  // analysis.chords — sanitizeChords() 済みの runtime view（このreturn内の `chords:` フィールド）。
+  //                    表示・計算用の派生データ。直接編集しない。
+  //
   return {
     // [PERSIST INVARIANT] raw = persisted canonical source。
     // loadProj() が analysis/{id}.json から復元する際の source of truth。

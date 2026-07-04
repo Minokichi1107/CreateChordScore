@@ -184,6 +184,8 @@ import {
   renderChartMode,
   rebuildChartViewModel,
   setTooltipEnabled,
+  getPerfState,
+  setSelectedChordIds,
 } from './chartmode.js';
 
 // ════════════════════════════════════════
@@ -251,6 +253,446 @@ let rightHidden = false;  // 右パネル非表示フラグ（localStorage永続
 
 // ファイル保存
 let _fileHandle = null;
+
+// ════════════════════════════════════════
+// ANALYSIS EDITOR（Phase74-C）
+// ════════════════════════════════════════
+/**
+ * 【解析エディタ state】
+ *
+ * [EDITOR INVARIANT]
+ * 編集モード中（analysisEditor.active === true）は
+ * analysis.raw.chords を直接変更してはならない。
+ * すべての編集は analysisEditor.buffer に対して行う。
+ * analysis.raw.chords が更新されるのは
+ * validateAnalysis() を通過した Save 実行時のみである。
+ */
+const analysisEditor = {
+  active:    false,  // 編集モード中かどうか
+  buffer:    null,   // ChordEvent[]（_id付き）の作業コピー
+  history:   [],      // Undo用スナップショットスタック
+  future:    [],       // Redo用スナップショットスタック
+  selection: { chordIds: [] },
+  clipboard: null,    // Phase74-E（コピー＆ペースト）用・現在未使用
+  dirty:     false,   // 未保存変更フラグ
+};
+
+/**
+ * resetAnalysisEditor — analysisEditor を初期状態へ戻す
+ * Cancel / Save成功 / Project切替 / Chart Mode終了、すべてこの関数で統一する。
+ */
+function resetAnalysisEditor() {
+  analysisEditor.active    = false;
+  analysisEditor.buffer    = null;
+  analysisEditor.history   = [];
+  analysisEditor.future    = [];
+  analysisEditor.selection = { chordIds: [] };
+  analysisEditor.clipboard = null;
+  analysisEditor.dirty     = false;
+}
+
+/**
+ * isAnalysisEditing — 編集モード中かどうかを判定する
+ * 将来「ロック」「読み取り専用」等の状態が増えてもこの関数だけ修正すればよい。
+ */
+function isAnalysisEditing() {
+  return analysisEditor.active;
+}
+
+/**
+ * getCurrentChordSource — Chart Modeが参照すべきコードデータを返す
+ *
+ * [SINGLE SWITCH POINT]
+ * Chart Modeのコードデータ参照はこの関数1箇所に集約する。
+ * buildGridViewModel() 等は通常時/編集時の違いを意識しない。
+ */
+function getCurrentChordSource() {
+  return isAnalysisEditing()
+    ? analysisEditor.buffer
+    : (project.analysis?.raw?.chords ?? []);
+}
+
+/**
+ * canBeginAnalysisEdit — 編集開始可能かどうかを判定する
+ * 将来「保存中」「編集ロック中」等の条件が増えてもここに集約する。
+ */
+function canBeginAnalysisEdit() {
+  return !!project.analysis?.raw?.chords;
+}
+
+/**
+ * beginAnalysisEdit — 解析編集モードを開始する
+ *
+ * analysis.raw.chords をディープコピーしてバッファを作る。
+ * 以降の編集はすべて analysisEditor.buffer に対して行われる。
+ */
+function beginAnalysisEdit() {
+  if (!canBeginAnalysisEdit()) {
+    toast('解析データがありません');
+    return;
+  }
+  if (isAnalysisEditing()) return;  // 二重開始ガード
+
+  analysisEditor.active = true;
+  analysisEditor.buffer = structuredClone(project.analysis.raw.chords);
+  analysisEditor.history = [];
+  analysisEditor.future  = [];
+  analysisEditor.selection = { chordIds: [] };
+  analysisEditor.dirty = false;
+
+  _refreshEditorView();
+  toast('🛠 解析編集モードを開始しました');
+}
+
+/**
+ * endAnalysisEdit — 解析編集モードを終了する（Cancel）
+ *
+ * buffer を破棄し、analysis.raw.chords には一切触れない。
+ * Chart Modeは通常表示（raw.chords）へ戻る。
+ */
+function endAnalysisEdit() {
+  if (!isAnalysisEditing()) return;
+
+  resetAnalysisEditor();
+  _refreshEditorView();
+  toast('編集をキャンセルしました');
+}
+
+// [TEMP DEBUG] Phase74-C 動作確認用。実装完了後に削除すること。
+window.__analysisEditorDebug = {
+  beginAnalysisEdit,
+  endAnalysisEdit,
+  saveAnalysisEdit,
+  getCurrentChordSource,
+  updateChord,
+  deleteChord,
+  shiftAll,
+  undoEdit,
+  redoEdit,
+  validateAnalysis,
+  get state() { return analysisEditor; },
+};
+
+// ════════════════════════════════════════
+// ANALYSIS EDITOR - VALIDATION
+// ════════════════════════════════════════
+
+/**
+ * validateAnalysis — 保存前の整合性チェック（Phase74-C）
+ *
+ * チェック項目（最小限）:
+ *   - コード名が空でないか
+ *   - start < end か
+ *   - start が昇順か（直前のコードより開始時刻が早くないか）
+ *
+ * @param {object[]} chords - analysisEditor.buffer
+ * @returns {string[]} エラーメッセージの配列（空配列ならOK）
+ */
+function validateAnalysis(chords) {
+  const errors = [];
+
+  if (!Array.isArray(chords)) {
+    return ['コードデータが不正です'];
+  }
+
+  chords.forEach((c, i) => {
+    if (!c.chord || c.chord.trim() === '') {
+      errors.push(`${i + 1}番目: コード名が空です`);
+    }
+    if (c.start >= c.end) {
+      errors.push(`${i + 1}番目（${c.chord}）: 開始時刻が終了時刻以降になっています`);
+    }
+  });
+
+  for (let i = 1; i < chords.length; i++) {
+    if (chords[i].start < chords[i - 1].start) {
+      errors.push(`${i + 1}番目（${chords[i].chord}）: 直前のコードより開始時刻が早くなっています`);
+    }
+  }
+
+  return errors;
+}
+
+// ════════════════════════════════════════
+// ANALYSIS EDITOR - EDIT API
+// ════════════════════════════════════════
+
+/**
+ * _pushHistory — 編集操作前のスナップショットをhistoryへ積む
+ *
+ * [INVARIANT] すべての編集API（updateChord/deleteChord/shiftAll等）は
+ * buffer書き換えの直前に必ずこれを呼ぶこと。
+ * 新規編集が発生したら future（Redoスタック）は破棄する
+ * （標準的なUndo/Redoの挙動: Undo後に新しい編集をすると、Redo履歴は消える）。
+ */
+function _pushHistory() {
+  analysisEditor.history.push(structuredClone(analysisEditor.buffer));
+  analysisEditor.future = [];
+  analysisEditor.dirty = true;
+}
+
+/**
+ * updateChord — 指定IDのコードのプロパティを更新する
+ * @param {string} id - chord._id
+ * @param {{ chord?: string, start?: number, end?: number }} patch
+ */
+function updateChord(id, patch) {
+  if (!isAnalysisEditing()) return;
+  const c = analysisEditor.buffer.find(c => c._id === id);
+  if (!c) return;  // 存在しないIDなら何もしない（無駄なUndo履歴を防ぐ）
+
+  _pushHistory();
+  Object.assign(c, patch);
+  _refreshEditorView();
+}
+
+/**
+ * deleteChord — 指定IDのコードを削除する
+ * @param {string} id - chord._id
+ */
+function deleteChord(id) {
+  if (!isAnalysisEditing()) return;
+  _pushHistory();
+  analysisEditor.buffer = analysisEditor.buffer.filter(c => c._id !== id);
+  analysisEditor.selection.chordIds = analysisEditor.selection.chordIds.filter(cid => cid !== id);
+  _refreshEditorView();
+}
+
+/**
+ * shiftAll — 全コードの開始・終了時刻を一括でシフトする
+ *
+ * duration（end - start）を保持したままシフトする。
+ * start が 0 未満にならないようガードする（end は duration を保って追従）。
+ *
+ * @param {number} deltaSec - シフト量（秒）。正の値で後ろへ、負の値で前へ。
+ */
+function shiftAll(deltaSec) {
+  if (!isAnalysisEditing()) return;
+  _pushHistory();
+  analysisEditor.buffer.forEach(c => {
+    const duration = c.end - c.start;
+    // [CLAMP NOTE] start が0未満になる場合は0にクランプする。
+    // この時 duration は保持されるが、クランプされた分だけ
+    // 実際のシフト量は deltaSec より小さくなる（意図的な仕様）。
+    c.start = Math.max(0, c.start + deltaSec);
+    c.end   = c.start + duration;
+  });
+  _refreshEditorView();
+}
+
+/**
+ * undoEdit — 直前の編集操作を取り消す
+ */
+function undoEdit() {
+  if (!isAnalysisEditing()) return;
+  if (!analysisEditor.history.length) return;
+  analysisEditor.future.push(structuredClone(analysisEditor.buffer));
+  analysisEditor.buffer = analysisEditor.history.pop();
+  _refreshEditorView();
+}
+
+/**
+ * redoEdit — undoEdit() で取り消した操作をやり直す
+ */
+function redoEdit() {
+  if (!isAnalysisEditing()) return;
+  if (!analysisEditor.future.length) return;
+  analysisEditor.history.push(structuredClone(analysisEditor.buffer));
+  analysisEditor.buffer = analysisEditor.future.pop();
+  _refreshEditorView();
+}
+
+/**
+ * saveAnalysisEdit — 解析編集モードの内容を保存する
+ *
+ * 保存フロー:
+ *   validateAnalysis() で整合性チェック
+ *   ↓ OK
+ *   analysis.raw.chords = buffer のコピー
+ *   saveAnalysisFile() で永続化
+ *   ↓ 成功
+ *   project.analysis（確定済み）で再描画 → その後モード終了
+ *   ↓ 失敗
+ *   編集モードのまま継続（データ消失防止）
+ */
+async function saveAnalysisEdit() {
+  if (!isAnalysisEditing()) return;
+
+  const errors = typeof validateAnalysis === 'function'
+    ? validateAnalysis(analysisEditor.buffer)
+    : [];
+
+  if (errors.length > 0) {
+    toast(`⚠ 保存できません: ${errors[0]}`);
+    return;
+  }
+
+  project.analysis.raw.chords = structuredClone(analysisEditor.buffer);
+
+  const ok = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
+  if (!ok) {
+    toast('⚠ 保存に失敗しました。編集内容は失われていません');
+    return;
+  }
+
+  // [ORDER] 確定済み project.analysis.raw.chords を使って先に再描画してから
+  // モードを終了する。getCurrentChordSource() は raw.chords を見るため、
+  // resetAnalysisEditor() の前後どちらでも同じ結果になるが、
+  // 責務を明確にするため「保存確定→描画→モード終了」の順に固定する。
+  rebuildChartViewModel();
+  resetAnalysisEditor();
+  renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+  toast('✅ 解析データを保存しました');
+}
+
+/**
+ * _refreshEditorView — 編集モード中のChart Mode再描画（UI専用）
+ *
+ * [RESPONSIBILITY] DOM更新・Chart再描画のみを行う。
+ * history / dirty / selection / buffer の変更はここでは行わない
+ * （編集API側の責務）。
+ */
+function _refreshEditorView() {
+  if (!chartState.active) return;
+  if (!project.analysis) return;
+  const liveAnalysis = {
+    ...project.analysis,
+    raw: {
+      ...project.analysis.raw,
+      chords: getCurrentChordSource(),
+    },
+  };
+  rebuildChartViewModel(liveAnalysis);
+  renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
+  
+  // [UI SYNC] 編集パネルも常に同期する（更新経路を1本化）
+  renderAnalysisEditorPanel();
+}
+
+/**
+ * renderAnalysisEditorPanel — 解析編集パネルを描画する（Phase74-C）
+ *
+ * 編集モード中のみ表示。選択中コードのプロパティを編集できるパネルを
+ * chart-grid の下部に固定表示する。
+ *
+ * [OWNERSHIP] DOM生成・イベント結線はこの関数が担う。
+ * 選択状態の正本は analysisEditor.selection。
+ */
+function renderAnalysisEditorPanel() {
+  // [NOTE] innerHTML を毎回再生成するためイベントも毎回再結線する（重複登録なし）
+
+  // パネルコンテナを取得または生成
+  let panel = document.getElementById('analysis-editor-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'analysis-editor-panel';
+    const overlay = document.getElementById('chart-overlay');
+    if (!overlay) return;
+    overlay.appendChild(panel);
+  }
+
+  // 編集モードでなければ非表示
+  if (!isAnalysisEditing()) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+
+  // 選択中コードを取得
+  // ?? null で undefined をnullに正規化（buffer側から消えているケースも安全に扱う）
+  const selectedId = analysisEditor.selection.chordIds[0] ?? null;
+  const chord = selectedId
+    ? (analysisEditor.buffer.find(c => c._id === selectedId) ?? null)
+    : null;
+
+  // ── Phase74-C: 選択コードの情報表示（読み取り専用） ──
+  const chordInfo = chord
+    ? `<div class="aep-chord-info">
+         <span class="aep-chord-name">${chord.chord}</span>
+         <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>
+         <span class="aep-chord-note">※コード名・時刻の編集はPhase74-Dで対応予定</span>
+       </div>`
+    : `<div class="aep-chord-info aep-chord-info--empty">コードをクリックして選択してください</div>`;
+
+  // ── Phase74-C UI ──
+  panel.innerHTML = `
+    <div class="aep-row aep-row--info">
+      <span class="aep-section-label">選択中のコード</span>
+      ${chordInfo}
+    </div>
+    <div class="aep-row aep-row--shift">
+      <span class="aep-section-label">全体シフト</span>
+      <span class="aep-shift-note">全コードのタイミングを一括でずらします</span>
+      <div class="aep-shift-btns">
+        <button class="aep-btn aep-btn--shift" id="aep-shift-m05">← 0.5秒</button>
+        <button class="aep-btn aep-btn--shift" id="aep-shift-m01">← 0.1秒</button>
+        <button class="aep-btn aep-btn--shift" id="aep-shift-p01">→ 0.1秒</button>
+        <button class="aep-btn aep-btn--shift" id="aep-shift-p05">→ 0.5秒</button>
+      </div>
+    </div>
+    <div class="aep-row aep-row--actions">
+      <button class="aep-btn" id="aep-undo">↩ 元に戻す</button>
+      <button class="aep-btn" id="aep-redo">↪ やり直し</button>
+      <span class="aep-spacer"></span>
+      <button class="aep-btn" id="aep-cancel">キャンセル</button>
+      <button class="aep-btn aep-btn--save" id="aep-save"
+        ${analysisEditor.dirty ? '' : 'disabled'}>保存</button>
+    </div>
+  `;
+
+  // ── Phase74-C: イベント結線（全体シフト・Undo/Redo・保存・キャンセル） ──
+  document.getElementById('aep-shift-m05')?.addEventListener('click', () => shiftAll(-0.5));
+  document.getElementById('aep-shift-m01')?.addEventListener('click', () => shiftAll(-0.1));
+  document.getElementById('aep-shift-p01')?.addEventListener('click', () => shiftAll(0.1));
+  document.getElementById('aep-shift-p05')?.addEventListener('click', () => shiftAll(0.5));
+  document.getElementById('aep-undo')?.addEventListener('click', undoEdit);
+  document.getElementById('aep-redo')?.addEventListener('click', redoEdit);
+  document.getElementById('aep-cancel')?.addEventListener('click', () => {
+    if (analysisEditor.dirty && !confirm('変更を破棄しますか？')) return;
+    endAnalysisEdit();
+  });
+  document.getElementById('aep-save')?.addEventListener('click', async () => {
+    await saveAnalysisEdit();
+  });
+
+  // ── Phase74-D 用コード（現在未使用・DOM要素が存在しないため実行されない） ──
+  // [Phase74-D] コード名変更
+  const chordInput = document.getElementById('aep-chord');
+  if (chordInput && chord) {
+    chordInput.addEventListener('change', e => {
+      const val = e.target.value.trim();
+      if (val) updateChord(selectedId, { chord: val });
+    });
+  }
+
+  // [Phase74-D] 開始時刻変更
+  const startInput = document.getElementById('aep-start');
+  if (startInput && chord) {
+    startInput.addEventListener('change', e => {
+      const val = parseFloat(e.target.value);
+      if (Number.isFinite(val)) updateChord(selectedId, { start: val });
+    });
+  }
+
+  // [Phase74-D] 終了時刻変更
+  const endInput = document.getElementById('aep-end');
+  if (endInput && chord) {
+    endInput.addEventListener('change', e => {
+      const val = parseFloat(e.target.value);
+      if (Number.isFinite(val)) updateChord(selectedId, { end: val });
+    });
+  }
+
+  // [Phase74-D] 削除
+  const deleteBtn = document.getElementById('aep-delete');
+  if (deleteBtn && chord) {
+    deleteBtn.addEventListener('click', () => {
+      if (confirm(`「${chord.chord}」を削除しますか？`)) {
+        deleteChord(selectedId);
+      }
+    });
+  }
+}
 
 // Chart Mode 列数（localStorage永続）
 let chartMeasuresPerRow = Number(localStorage.getItem('chartMeasuresPerRow')) || 3;
@@ -1895,10 +2337,14 @@ function setupEventHandlers() {
   // Global Keyboard Shortcuts
   // ============================================
   document.addEventListener('keydown', e => {
-    // Ctrl+S: 保存
-    if (e.ctrlKey && e.key === 's') {
+    // Ctrl+S: 上書き保存 / Ctrl+Shift+S: 名前を付けて保存
+    if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
       e.preventDefault();
-      document.getElementById('btn-save').click();
+      if (e.shiftKey) {
+        document.getElementById('btn-saveas').click();
+      } else {
+        document.getElementById('btn-save').click();
+      }
     }
     
     // Alt+N: 新規作成
@@ -2122,6 +2568,16 @@ function setupEventHandlers() {
 
   document.getElementById('btn-chart-close')
     .addEventListener('click', closeChartMode);
+
+  // Phase74-C: 解析編集モードトグルボタン
+  document.getElementById('btn-analysis-edit')
+    ?.addEventListener('click', () => {
+      if (isAnalysisEditing()) {
+        endAnalysisEdit();
+      } else {
+        beginAnalysisEdit();
+      }
+    });
 
   document.getElementById('chart-col-switcher')
     .addEventListener('click', e => {
@@ -2605,10 +3061,25 @@ window.addEventListener('DOMContentLoaded', async () => {
       project.analysis.repairRule = null;
 
       // viewModel を再構築してから再描画
-      rebuildChartViewModel();
+rebuildChartViewModel();
       renderChartMode({ measuresPerRow: chartMeasuresPerRow });
       toast('↩ 小節補正を解除しました');
     },
+
+    // Phase74-C: 解析編集モード連携
+    // [OWNERSHIP] 選択状態の正本は analysisEditor.selection（app.js）。
+    // chartmode.jsはクリック検出のみ行い、ここへ通知する。
+    onChordSelected: (chordId) => {
+      if (!isAnalysisEditing()) return;
+      analysisEditor.selection.chordIds = [chordId];
+      // [UI SYNC] setSelectedChordIds → _refreshEditorView() で
+      // Chart再描画とPanel更新を一括で行う（更新経路の一本化）。
+      setSelectedChordIds([chordId]);
+      _refreshEditorView();
+    },
+
+    // chartmode.jsが編集モード中かどうかを問い合わせるための関数
+    isEditingAnalysis: () => isAnalysisEditing(),
   });
 
   // ⑨ Library 初期化（Phase73-C）
@@ -2833,3 +3304,85 @@ window.__CS_REPAIR__    = (semitones) => {
   console.log('[repair] complete');
 };
 // ──────────────────────────────────────────────────────────
+// ════════════════════════════════════════
+// DEBUG OBSERVABILITY LAYER（Phase66）
+// [DEBUG LAYER INVARIANT] debug layer は state を所有しない。
+// runtime state → getter projection → DevTools
+// ════════════════════════════════════════
+window.__CS_DEBUG__ = {
+
+  get timing() {
+    const a = project?.analysis ?? null;
+    return {
+      raw:           a?.raw                     ?? null,
+      normalized:    a?.normalized              ?? null,
+      diagnostics:   a?.normalized?.diagnostics ?? null,
+      bpm:           a?.bpm                     ?? null,
+      timeSignature: a?.timeSignature           ?? null,
+    };
+  },
+
+  get project() {
+    return {
+      id:           project?.id            ?? null,
+      title:        project?.title         ?? null,
+      artist:       project?.artist        ?? null,
+      hasAnalysis:  project?.hasAnalysis   ?? false,
+      linesCount:   project?.lines?.length ?? 0,
+      audio:        project?.audio         ?? null,
+      chord_source: project?.chord_source  ?? null,
+      capo:         getCapo(),
+    };
+  },
+
+  get chart() {
+    return {
+      active:         chartState?.active ?? false,
+      measuresPerRow: chartMeasuresPerRow,
+    };
+  },
+
+  get perf() {
+    return getPerfState();
+  },
+
+  dumpInvariants() {
+    const snapshot = {
+      project: this.project,
+      timing:  this.timing,
+      chart:   this.chart,
+      perf:    this.perf,
+    };
+
+    const { project: p, timing: t, chart: c, perf: pf } = snapshot;
+
+    console.group('=== ChordScore Invariants ===');
+
+    console.group('[Project]');
+    console.log('id:           ', p.id);
+    console.log('title:        ', p.title, '/', p.artist);
+    console.log('hasAnalysis:  ', p.hasAnalysis);
+    console.log('linesCount:   ', p.linesCount);
+    console.groupEnd();
+
+    console.group('[Chart Mode]');
+    console.log('active:        ', c.active);
+    console.log('measuresPerRow:', c.measuresPerRow);
+    console.groupEnd();
+
+    console.group('[Timing]');
+    console.log('bpm:           ', t.bpm);
+    console.log('timeSignature: ', t.timeSignature);
+    console.log('diagnostics:   ', t.diagnostics);
+    console.groupEnd();
+
+    console.group('[Perf]');
+    console.log('lastRAFDelta:  ', pf.lastRAFDelta, 'ms');
+    console.log('longFrames:    ', pf.longFrames);
+    console.log('longFrameLog:  ', pf.longFrameLog);
+    console.groupEnd();
+
+    console.groupEnd();
+    return snapshot;
+  },
+};

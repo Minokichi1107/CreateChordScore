@@ -1175,3 +1175,162 @@
   border-left-color: var(--border-selected);
   pointer-events: none;
 }
+
+/* ── Chart Mode: 音量クラスター（Phase74-A） ── */
+.chart-vol-cluster {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.chart-vol-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+.chart-vol-btn:hover { color: var(--text-primary); }
+.chart-vol-sel {
+  width: 64px;
+  height: 5px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 3px;
+  background: var(--chart-seek-track);
+}
+.chart-vol-sel::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--border-ui-strong);
+  cursor: pointer;
+}
+
+/* ── Chart Mode: カポクラスター（Phase74-A） ── */
+.chart-capo-cluster {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  padding: 2px 6px;
+}
+.chart-capo-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 4px;
+  user-select: none;
+}
+.chart-capo-btn:hover { color: var(--text-accent); }
+.chart-capo-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  min-width: 44px;
+  text-align: center;
+}
+
+/* ── Chart Mode: 解析編集ボタン（Phase74-C） ── */
+.chart-edit-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chart-edit-btn:hover {
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+.chart-edit-btn--active {
+  background: rgba(var(--color-amber-rgb), .15);
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+
+/* ── Chart Mode: 解析編集パネル（Phase74-C） ── */
+#analysis-editor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px;
+  border-top: 2px solid var(--color-amber);
+  background: rgba(var(--color-amber-rgb), .06);
+  flex-shrink: 0;
+}
+#analysis-editor-panel[hidden] {
+  display: none !important;
+}
+.aep-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.aep-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.aep-input {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  padding: 4px 8px;
+}
+.aep-input:focus {
+  outline: none;
+  border-color: var(--color-amber);
+}
+.aep-input--num {
+  width: 80px;
+}
+.aep-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.aep-btn--danger {
+  border-color: var(--color-red);
+  color: var(--color-red);
+}
+.aep-btn--danger:hover {
+  background: var(--color-red);
+  color: #fff;
+}
+.aep-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Chart Mode: 選択中コードのハイライト（Phase74-C） ── */
+.chart-chord-name--selected {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
