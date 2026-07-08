@@ -97,7 +97,7 @@ raw input → normalizeChordName() → canonical key → findChord() → CHORD_D
 ## レビュー・設計説明時の用語ルール
 
 専門用語・略称・ローカル関数名は、
-初出時に簡単な補足説明を付記すること。
+初出時に簡潔に補足説明を付記すること。
 説明文は日本語で書くこと。コードコメントも日本語で。
 
 例：
@@ -127,7 +127,7 @@ raw input → normalizeChordName() → canonical key → findChord() → CHORD_D
 新しい設計提案・構造変更を議論する際は、以下を含めること。
 
 **必須**
-- 平易な言葉での説明
+- 簡潔に平易な言葉での説明
 - 図解（ASCIIでよい）
 - 「誰が何を持つか」（ownership）の明示
 

@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase69完了時点
+> 最終更新: Phase74-E完了時点
 
 ---
 
@@ -482,7 +482,7 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 - playback authority 3層分離確立（audio engine / notification / visual update）
 - hotfix: initChartMode への seekTo 注入漏れ修正（Phase60からの既存バグ）
 
-### Phase64 — timing model rehydration redesign
+### Phase64 — timing model rehydration redesign（保存データ復元の再設計）
 - **4層 architecture contract 確立**:
   - Layer 1: Persistence Domain（analysis.raw = 唯一の永続化 canonical source）
   - Layer 2: Runtime Cache（project.analysis.normalized = 永続化禁止・serialize禁止）
@@ -541,13 +541,37 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 
 ## 現在地
 
-- Phase69完了
-- Phase65〜69 の主な成果:
-  - asset loaded状態のauthority確立（assetState・Phase65で設計/Phase66で実適用）
-  - `window.__CS_DEBUG__` によるruntime observability layer確立（Phase66）
-  - Chart Mode hover chord diagram（ephemeral UI）（Phase67）
-  - **canonical timing space ≠ visual projection space の分離確立**（Phase68）
-  - projection layer boundary validation・slot active highlighting（Phase69）
+- Phase74-E完了
+- Project DB機能は一通り完成（IndexedDB Repository・Library UI・Restore Authority）
+- Analysis Editorは基盤完成（表示・選択・Undo/Redo・境界編集）
+- 次フェーズでは単一コード編集機能（追加・削除・コード名編集）に着手予定
+
+---
+
+## Phase70〜74の主な成果
+
+- **Phase70: Chart Mode安定化**
+  デバッグ基盤強化（`__CS_DEBUG__.perf` projection化）・Chart Mode speed同期修正
+- **Phase71: Playback Authority整理**
+  speed authority統一（演奏モードのbypass解消）・reset trigger追加（4UI統一）
+- **Phase72: Timing Correction基盤**
+  Correction Authority設計・repairRule実装（`anchorDownbeat`方式による小節頭の手動補正）
+- **Phase73: Project DB**
+  IndexedDB Project Repository・Library UI・Restore Authority分離
+  （`lastOpenedProjectId`）・Legacy Project Import
+- **Phase74: Analysis Editor基盤**
+  解析編集UI（buffer/history/選択状態）・Undo/Redo・
+  個別コード境界移動（`moveBoundary()`）・キー競合修正
+
+---
+
+## Phase65〜69の主な成果（参考）
+
+- asset loaded状態のauthority確立（assetState・Phase65で設計/Phase66で実適用）
+- `window.__CS_DEBUG__` によるruntime observability layer確立（Phase66）
+- Chart Mode hover chord diagram（ephemeral UI）（Phase67）
+- **canonical timing space ≠ visual projection space の分離確立**（Phase68）
+- projection layer boundary validation・slot active highlighting（Phase69）
 
 ---
 
@@ -567,13 +591,36 @@ setupEventHandlers() 整備・アーキテクチャドキュメント化・コ�
 
 詳細は `current-issues.md` のバックログを参照。
 
-優先順位（Phase69 handoverより）:
+### 最優先：Analysis Editor（解析編集エディタ）の完成
 
-1. **実曲pickup検証**（コスト低・Phase68/69の最終確認。projection-empty + slot--activeの組み合わせを実際のpickup曲で確認）
-2. **`__CS_DEBUG__` perf instrumentation**（Phase66-B・継続。chartmode.jsに `_perfState` を持たせ getter projection化。beat cursor stall調査の前提）
-3. **Chart Mode並列表示**（設計フェーズが必要。projection layer boundaryに新しいsubsystem boundaryを追加するため、着手前に設計フェーズ必須）
+Phase74（C〜E）でChart Mode解析編集の基盤（表示・選択・Undo/Redo・
+個別境界移動）が完成した。区切りは `selection.chordIds` が単数か複数か。
 
-その他継続:
+```
+単一コード編集（次フェーズ）:
+  コード追加 / 削除 / コード名編集 / 境界調整の仕上げ / 削除後の自動選択
+
+複数コード編集（その次）:
+  範囲選択 / Copy・Cut・Paste / 複数削除 / 分割・結合
+  （selection.chordIdsが配列である設計はこのフェーズの複数選択を見据えたもの）
+
+Analysis Editor完成後: ドキュメント整理フェーズ
+  README / architecture.md / current-issues.md / phase-status.md を
+  「Analysis Editor」完成形として一括更新
+
+（必要なら）その後: UXブラッシュアップ
+  操作感・アイコン・配置・ショートカット・細かなバグ修正
+```
+
+フェーズ番号（75/76等）はここでは固定しない。作業の粒度によって
+75A/75B等に分裂する可能性があるため、区切りの名前（単一コード編集 /
+複数コード編集）で管理する。
+
+### その他継続（Phase69以前からの積み残し）
+
+- 実曲pickup検証（コスト低・Phase68/69の最終確認。projection-empty + slot--activeの組み合わせを実際のpickup曲で確認）
+- `__CS_DEBUG__` perf instrumentation（パフォーマンス計測基盤・Phase66-B・継続。chartmode.jsに `_perfState` を持たせ getter projection化。beat cursorが一瞬停止する現象の調査前提）
+- Chart Mode並列表示（設計フェーズが必要。projection layer boundaryに新しいsubsystem boundaryを追加するため、着手前に設計フェーズ必須）
 - mode==='beat-only'でのpickup対応（別issue・将来）
 - beat cursorの一瞬停止・数ビートジャンプ（Phase65で観察・原因未特定）
 
@@ -582,9 +629,9 @@ Issue #45 継続対応:
 - Type D: 発生ケース収集後に B案（repairDownbeats）の有効性検証
 
 将来（大規模設計フェーズが必要）:
-- timing model rehydration schema contract（schema versioning / migration layer）
+- timing model rehydration schema contract（保存データ復元の仕組み・schema versioning / migration層）
 - moveChordAcrossLines（Chart 関連作業後に実装予定）
 - Issue #26: Beat/Grid 対応（bars[] 構造移行）
-- keyboard-first chord entry（insertion model 再設計）
+- keyboard-first chord entry（キーボード操作優先のコード入力・insertion model 再設計）
 - capo projection 統合（destructive model → projection model 移行）
 - app.js 分割（Issue #49）

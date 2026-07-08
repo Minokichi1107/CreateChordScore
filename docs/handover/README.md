@@ -77,24 +77,22 @@ current-issues.md は **open issuesのみ** を保持する。
 phase-status.mdに既に残るため、current-issues.md側での「完了」表記は
 二重管理になる。
 
-### 既存の肥大化への対応（移行計画）
+---
 
-現時点（Phase70）のcurrent-issues.mdには、上記の「書くべきでないもの」
-（完了済み・教訓・authority一覧等）が多数残っている。これは歴史的経緯による
-ものであり、Phase70時点で一括整理は行わない（diffが大きくなりすぎる・
-分類設計が固まっていないため）。
+## テンプレートの使い分け（軽量版／重量版）
 
-```
-Phase70: 方針確定のみ
-  - 新規closeは削除運用へ移行（上記CLOSE BY DELETION）
-  - 既存の「完了済み」表記項目は手をつけない
+handoverには2種類の形式がある。フェーズの性質によって選ぶ。
 
-次の棚卸し（Phase75前後）: 一括移行
-  - 完了済み項目を一括削除
-  - 教訓を architecture.md / README.md へ移管
-  - authority一覧を architecture.md へ集約
-  - backlogをsubsystem別に再圧縮
-```
+| 使う条件 | 形式 |
+|---|---|
+| 変更が単純（バグ修正1件・機能追加1件など） | 軽量版 |
+| 調査プロセスが単純（原因がすぐ分かった） | 軽量版 |
+| 複数の仮説を検証しながら原因を特定した | 重量版 |
+| 設計判断が複数あり、採用理由を残す必要がある | 重量版 |
+| 「今回はやらないこと」を明示する必要がある | 重量版 |
+
+迷った場合は軽量版から書き始めてよい。書いているうちに
+Design Decisions や Findings が必要になったら、重量版へ拡張する。
 
 ---
 
@@ -167,6 +165,8 @@ micro-log セクション自体は削除してよい。
 
 ## handover_phaseXX.md のテンプレート
 
+### 軽量版
+
 ```markdown
 # 引き継ぎ: PhaseXX完了 — タイトル
 
@@ -195,6 +195,24 @@ micro-log セクション自体は削除してよい。
 ## 運用ルール（変わらず）
 → docs/handover/README.md 参照
 ```
+
+---
+
+### 重量版
+
+必要に応じて以下のセクションを追加する。
+完全なテンプレートは `docs/handover/template-heavy.md` を参照。
+
+- Purpose（目的）
+- Scope（今回やったこと）
+- Out of Scope（今回はやらないと決めたこと）
+- Implementation（実装内容・事実）
+- Design Decisions（設計判断・採用理由）
+- Findings（判明した知見・調査プロセスの記録）
+- Remaining Issues（残課題）
+- Next Phase（次フェーズ開始位置）
+- Files Changed（変更ファイル一覧）
+- Micro Log
 
 ---
 

@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase73-A完了時点
+> 最終更新: Phase74-E完了時点
 
 ---
 
@@ -165,9 +165,43 @@ single tooltip instance（body直下・ephemeral UI・chartStateにauthorityを�
 projectionEmpty slotはDOM invariant（`data-visual-slot-index`不在）により
 構造的にactive対象から除外される（Phase68のexclusion設計が機能していることをaudit済み）。
 
+### Chart Mode 解析編集（Analysis Editor）系
+
+#### Analysis Editor（解析結果の手動編集機能）
+状態: 実装中（Phase74-C〜Eで編集基盤・境界編集・Undo整合性まで完成）
+内容: ChordMini解析結果（コードのタイミング）をユーザーが手動修正できる機能。
+Phase72のrepairRule（anchorDownbeat方式・小節頭補正）とは別の、
+コード単位で直接編集する手段。
+
+完了済み:
+  ✓ 編集セッション管理・buffer/history/選択状態
+  ✓ コードクリック選択・ハイライト・編集パネルUI
+  ✓ 個別コード境界移動（ボタン/矢印キー・moveBoundary API）
+  ✓ Undo/Redoと選択状態(_refreshSelection)の整合性
+  ✓ audio.jsの±5秒シークとの矢印キー競合修正
+
+今後の実装:
+  単一コード編集
+    □ コード追加
+    □ コード名編集
+    □ コード削除UI（deleteChord()実装済み・UI未接続）
+    □ 削除後の自動選択（次/前のコードを選ぶ）
+
+  複数コード編集
+    □ 範囲選択
+      ※ selection.chordIds は複数選択を考慮した設計済み。
+    □ Copy / Cut / Paste
+    □ 分割・結合
+
+設計経緯:
+  - Phase74-C: 編集基盤（buffer/history/選択/パネルUI）
+  - Phase74-E: 境界移動・Undo整合性(_refreshSelection)・キー競合修正
+
+全項目完了後、このエントリごと削除する。
+
 ### restore lifecycle 系
 
-#### restored asset state synchronization
+#### 復元時のAsset状態管理整理（restored asset state synchronization）
 状態: **完了（Phase65設計・Phase66実適用）**
 内容:
   `assetState {audioLoaded, chordLoaded, restoreSettled}` をasset loaded状態の
@@ -199,7 +233,7 @@ frame scheduling delay。Phase63のrAF化で「通常時は滑らか」になっ
 次のアクション: `__CS_DEBUG__.perf`実装（Phase66-B・perf instrumentation）後に
 `performance.now()`でdt計測・frame timing測定を行う。現時点は現象記録フェーズ。
 
-#### timing model rehydration schema contract
+#### 保存データ復元の仕組み（timing model rehydration schema contract）
 状態: 未着手（Phase61 hotfix で発覚・Phase64で止血済み）
 内容: restore ordering contract は確立（Phase64）。
 しかし schema versioning / migration layer は未定義のまま。
@@ -243,18 +277,13 @@ frame scheduling delay。Phase63のrAF化で「通常時は滑らか」になっ
     `_rafLoop`はhot path。instrumentation自体がjitterを生む可能性があり、
     restore/asset lifecycleが完全安定してから着手する。
 
-  関連: beat cursor stall issue（restore lifecycle系参照）の調査前提。
+  関連: beat cursorが一瞬停止する現象（restore lifecycle系参照）の調査前提。
   実装コスト: 小
 
 #### カポ範囲拡張（-2 まで対応）
 状態: 未着手
 内容: 現在カポは 0〜11 の範囲のみ。半音下げチューニング用途で -2 まで対応できるようにする。
 方向性: カポ入力UIの範囲変更・移調ロジックの負値対応確認が必要。
-
-#### 名前をつけて保存ショートカット（Ctrl+Shift+S）
-状態: 未着手
-内容: 現在 Ctrl+S は上書き保存。名前をつけて保存（Save As）を Ctrl+Shift+S で追加。
-方向性: 既存の保存処理に Shift 判定を追加するだけで実装可能。
 
 #### CHORD_DB再構造化
 状態: 検討中
@@ -264,34 +293,21 @@ frame scheduling delay。Phase63のrAF化で「通常時は滑らか」になっ
 状態: 検討中
 目的: 転回形コードのダイアグラムを自動生成する仕組みの導入
 
-#### プロジェクトDBライブラリタブ追加
-状態: **実装完了（Phase73-B）・UI未実装（Phase73-C予定）**
-内容: 保存済みプロジェクトをブラウザ内DBで管理・一覧表示するUIの追加（右パネル）。
-Phase73-BでRepository API・autosave切替・generation counterを実装済み・実機確認済み。
-次はPhase73-C（ライブラリ一覧UI・IndexedDB復元経路への切替）に進む。
+#### 開発者支援：解析データのテスト支援機能
+状態: 検討中（Phase74-Cで発案）
+優先度: 低
 
-#### autosave 復元経路の不整合（Phase73-B 残件）
-状態: 意図的な中間状態・Phase73-C で解消予定
+目的:
+保存系・Project DB・Chart Mode編集機能のテストを安全かつ効率的に行うため。
 
-内容:
-  autosave の保存先は IndexedDB（projects store）へ移行済み（Phase73-B）。
+候補:
+- 編集前スナップショットの保存（1つ前の保存状態へ戻す）
+- ChordMini解析直後の状態へリセット
+- analysis.json のエクスポート／インポート
+- テスト用データを簡単に複製できる仕組み（必要なら）
 
-  一方で起動時復元は依然として
-  loadFromLocalStorage() → localStorage["cs_auto"]
-  を参照している。
-
-  現状確認済みの動作:
-    - autosave は IndexedDB projects store に保存される
-    - 起動時復元は localStorage の cs_auto を使用する
-    - 実機確認で cs_auto の内容と復元プロジェクトが一致した
-
-  問題:
-    保存先と復元元の authority が分離しているため、
-    最新の autosave 内容と復元内容が一致しない可能性がある。
-
-  解消方法（Phase73-C）:
-    listProjects() で updatedAt 降順の最新プロジェクトを取得し、
-    IndexedDB ベースの復元経路へ統一する。
+備考:
+現時点では開発者向け機能であり、Project DB・Chart Mode編集機能の完成を優先する。
 
 #### CSVコードファイルインポート機能の削除検討
 状態: Deprecated候補
@@ -377,6 +393,20 @@ Phase63 で設計・Phase64 で実コード適用（3箇所の適用漏れを修
 状態: 未対応（低優先度）
 内容: バックアップバッチ実行 → タブが再起動 → 音声は流れ続けるが止める手段がない。
 原因候補: beforeunload / visibilitychange イベントで aEl.pause() が呼ばれていない。
+
+### ライブラリ：曲を開くと同じアーティスト内で一番上に移動する（退行の疑い）
+
+状態: 再発（過去に修正した認識あり・原因未調査）
+
+内容:
+ライブラリを「アーティスト順」で表示中、曲をクリックして開くと、
+その曲が同じアーティスト内で先頭へ移動して表示される。
+以前修正した認識があるが、現在再発している。
+
+対応方針:
+- [FEATURE REGRESSION POLICY]（Phase73-F）に従い、実装漏れと断定せず、
+  Git履歴・ブランチ差分・マージ履歴を確認して原因を調査する。
+- ドキュメント整理フェーズまでに修正予定。
 
 ---
 
@@ -498,6 +528,7 @@ layout authorityではない。
                                （data-visual-slot-index / projectPickupSlotIndex、Phase68〜69）
     project core authority  = Project DB（IndexedDB "projects" store）が canonical source
                                （audio/analysis/customDiagramsは既存authority維持・Phase73-A）
+    editing buffer authority = analysisEditor.buffer（project.analysisは直接編集しない・Phase74）
 
   authority が曖昧になりやすいタイミング:
     - 新しいモジュールが既存モジュールのデータを参照し始めた時
