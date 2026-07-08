@@ -193,6 +193,15 @@ _audioElement.addEventListener('play', () => {
       }
     }
     
+    // [KEY OWNERSHIP GUARD] Chart Mode解析編集中は、矢印キーの±5秒シークを無効化する
+    // （Chart Mode側の個別移動機能が同じキーを使うため）。
+    if (
+      (e.code === 'ArrowLeft' || e.code === 'ArrowRight') &&
+      _callbacks.isEditingAnalysis?.()
+    ) {
+      return;
+    }
+
     if (e.code === 'ArrowLeft') {
       _audioElement.currentTime = Math.max(0, _audioElement.currentTime - 5);
     }

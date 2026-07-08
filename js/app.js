@@ -173,7 +173,7 @@ import { isSepToken, isNoChordToken } from './tokens.js';
 
 import { initChordEntry, openAddChord } from './chordEntry.js';
 
-import { loadAnalysis, saveAnalysisFile, loadAnalysisFile } from './analysisLoader.js';
+import { loadAnalysis, saveAnalysisFile, loadAnalysisFile, sanitizeChords } from './analysisLoader.js';
 
 import {
   initChartMode,
@@ -272,7 +272,7 @@ const analysisEditor = {
   buffer:    null,   // ChordEvent[]（_id付き）の作業コピー
   history:   [],      // Undo用スナップショットスタック
   future:    [],       // Redo用スナップショットスタック
-  selection: { chordIds: [] },
+  selection: { chordIds: [], boundaryIndex: null }, // [DERIVED CACHE] boundaryIndexは直接書き換えず_refreshSelection()経由で更新すること
   clipboard: null,    // Phase74-E（コピー＆ペースト）用・現在未使用
   dirty:     false,   // 未保存変更フラグ
 };
@@ -286,9 +286,39 @@ function resetAnalysisEditor() {
   analysisEditor.buffer    = null;
   analysisEditor.history   = [];
   analysisEditor.future    = [];
-  analysisEditor.selection = { chordIds: [] };
   analysisEditor.clipboard = null;
   analysisEditor.dirty     = false;
+  _refreshSelection([]);
+}
+
+/**
+ * _refreshSelection — selectionの唯一の同期窓口
+ *
+ * selectionは派生状態。chordIdsだけが入力であり、
+ * boundaryIndexは必ずここで再計算する（他の場所で直接書き換えない）。
+ *
+ * 引数あり: 新しい選択として確定する（クリック選択で使用）
+ * 引数なし: 今のchordIdsをbufferと照合し直す（Undo/Redo/削除後の再同期で使用）
+ */
+function _refreshSelection(chordIds) {
+  const ids = chordIds !== undefined ? chordIds : analysisEditor.selection.chordIds;
+  const chordId = ids[0] ?? null;
+
+  if (!chordId) {
+    analysisEditor.selection.chordIds = [];
+    analysisEditor.selection.boundaryIndex = null;
+    return;
+  }
+
+  const idx = analysisEditor.buffer?.findIndex(c => c._id === chordId) ?? -1;
+  if (idx === -1) {
+    analysisEditor.selection.chordIds = [];
+    analysisEditor.selection.boundaryIndex = null;
+    return;
+  }
+
+  analysisEditor.selection.chordIds = [chordId];
+  analysisEditor.selection.boundaryIndex = analysisEditor.buffer[idx + 1] ? idx : null;
 }
 
 /**
@@ -337,8 +367,8 @@ function beginAnalysisEdit() {
   analysisEditor.buffer = structuredClone(project.analysis.raw.chords);
   analysisEditor.history = [];
   analysisEditor.future  = [];
-  analysisEditor.selection = { chordIds: [] };
   analysisEditor.dirty = false;
+  _refreshSelection([]);
 
   _refreshEditorView();
   toast('🛠 解析編集モードを開始しました');
@@ -354,6 +384,7 @@ function endAnalysisEdit() {
   if (!isAnalysisEditing()) return;
 
   resetAnalysisEditor();
+  setSelectedChordIds([]);
   _refreshEditorView();
   toast('編集をキャンセルしました');
 }
@@ -367,6 +398,8 @@ window.__analysisEditorDebug = {
   updateChord,
   deleteChord,
   shiftAll,
+  moveBoundary,
+  shiftSelectedBoundary,
   undoEdit,
   redoEdit,
   validateAnalysis,
@@ -454,7 +487,9 @@ function deleteChord(id) {
   if (!isAnalysisEditing()) return;
   _pushHistory();
   analysisEditor.buffer = analysisEditor.buffer.filter(c => c._id !== id);
-  analysisEditor.selection.chordIds = analysisEditor.selection.chordIds.filter(cid => cid !== id);
+  // TODO: 削除後は次（なければ前）のコードを自動選択すると使い勝手が良い。
+  // Phase74-Eでは未対応・選択解除のみとする。
+  _refreshSelection();
   _refreshEditorView();
 }
 
@@ -481,6 +516,50 @@ function shiftAll(deltaSec) {
 }
 
 /**
+ * moveBoundary — 境界更新API（境界を変更する唯一の窓口）
+ *
+ * Invariant:
+ *   left.end と right.start は常に同じ値になるよう更新する。
+ *
+ * 範囲チェックはこの関数の責務ではない（呼び出し側が判断する）。
+ *
+ * @returns {number|null} 適用された時刻。境界が存在しなければnull。
+ */
+function moveBoundary(boundaryIndex, newTime) {
+  if (!isAnalysisEditing()) return null;
+  const left  = analysisEditor.buffer[boundaryIndex];
+  const right = analysisEditor.buffer[boundaryIndex + 1];
+  if (!left || !right) return null;
+
+  left.end    = newTime;
+  right.start = newTime;
+  return newTime;
+}
+
+/**
+ * shiftSelectedBoundary — 選択中コードの右側の境界を相対量シフトする（UIコマンド層）
+ * [UI MAPPING] 将来ドラッグ方式に変える際はこの関数だけ差し替えればよい。
+ */
+function shiftSelectedBoundary(deltaSec) {
+  if (!isAnalysisEditing()) return;
+  const boundaryIndex = analysisEditor.selection.boundaryIndex;
+  if (boundaryIndex === null) { toast('コードを選択してください'); return; }
+
+  const left  = analysisEditor.buffer[boundaryIndex];
+  const right = analysisEditor.buffer[boundaryIndex + 1];
+  const proposed = left.end + deltaSec;
+
+  if (proposed <= left.start || proposed >= right.end) {
+    toast('選択したコードの長さが0以下になるため移動できません');
+    return;
+  }
+
+  _pushHistory();
+  moveBoundary(boundaryIndex, proposed);
+  _refreshEditorView();
+}
+
+/**
  * undoEdit — 直前の編集操作を取り消す
  */
 function undoEdit() {
@@ -488,6 +567,7 @@ function undoEdit() {
   if (!analysisEditor.history.length) return;
   analysisEditor.future.push(structuredClone(analysisEditor.buffer));
   analysisEditor.buffer = analysisEditor.history.pop();
+  _refreshSelection();
   _refreshEditorView();
 }
 
@@ -499,6 +579,7 @@ function redoEdit() {
   if (!analysisEditor.future.length) return;
   analysisEditor.history.push(structuredClone(analysisEditor.buffer));
   analysisEditor.buffer = analysisEditor.future.pop();
+  _refreshSelection();
   _refreshEditorView();
 }
 
@@ -528,7 +609,7 @@ async function saveAnalysisEdit() {
   }
 
   project.analysis.raw.chords = structuredClone(analysisEditor.buffer);
-
+  project.analysis.chords = sanitizeChords(project.analysis.raw.chords);
   const ok = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
   if (!ok) {
     toast('⚠ 保存に失敗しました。編集内容は失われていません');
@@ -541,7 +622,9 @@ async function saveAnalysisEdit() {
   // 責務を明確にするため「保存確定→描画→モード終了」の順に固定する。
   rebuildChartViewModel();
   resetAnalysisEditor();
+  setSelectedChordIds([]);
   renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+  renderAnalysisEditorPanel();
   toast('✅ 解析データを保存しました');
 }
 
@@ -555,17 +638,17 @@ async function saveAnalysisEdit() {
 function _refreshEditorView() {
   if (!chartState.active) return;
   if (!project.analysis) return;
+  const currentChords = getCurrentChordSource();
   const liveAnalysis = {
     ...project.analysis,
+    chords: sanitizeChords(currentChords),
     raw: {
       ...project.analysis.raw,
-      chords: getCurrentChordSource(),
+      chords: currentChords,
     },
   };
   rebuildChartViewModel(liveAnalysis);
   renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
-  
-  // [UI SYNC] 編集パネルも常に同期する（更新経路を1本化）
   renderAnalysisEditorPanel();
 }
 
@@ -604,15 +687,28 @@ function renderAnalysisEditorPanel() {
   const chord = selectedId
     ? (analysisEditor.buffer.find(c => c._id === selectedId) ?? null)
     : null;
+  const hasRightBoundary = analysisEditor.selection.boundaryIndex !== null;
 
   // ── Phase74-C: 選択コードの情報表示（読み取り専用） ──
   const chordInfo = chord
     ? `<div class="aep-chord-info">
          <span class="aep-chord-name">${chord.chord}</span>
          <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>
-         <span class="aep-chord-note">※コード名・時刻の編集はPhase74-Dで対応予定</span>
+         <span class="aep-chord-note">※コード名の編集は別フェーズで対応予定</span>
        </div>`
     : `<div class="aep-chord-info aep-chord-info--empty">コードをクリックして選択してください</div>`;
+
+  // ── Phase74-E: 個別移動（選択中コードの右側の境界） ──
+  const boundaryControls = !chord
+    ? `<span class="aep-shift-note">コードを選択してください</span>`
+    : !hasRightBoundary
+      ? `<span class="aep-shift-note">これは最後のコードのため、右側の境界がありません</span>`
+      : `<div class="aep-shift-btns">
+           <button class="aep-btn aep-btn--shift" id="aep-bnd-m05">← 0.5秒</button>
+           <button class="aep-btn aep-btn--shift" id="aep-bnd-m01">← 0.1秒</button>
+           <button class="aep-btn aep-btn--shift" id="aep-bnd-p01">→ 0.1秒</button>
+           <button class="aep-btn aep-btn--shift" id="aep-bnd-p05">→ 0.5秒</button>
+         </div>`;
 
   // ── Phase74-C UI ──
   panel.innerHTML = `
@@ -630,13 +726,17 @@ function renderAnalysisEditorPanel() {
         <button class="aep-btn aep-btn--shift" id="aep-shift-p05">→ 0.5秒</button>
       </div>
     </div>
+    <div class="aep-row aep-row--boundary">
+      <span class="aep-section-label">個別移動（選択中コードの右側の境界）</span>
+      ${boundaryControls}
+    </div>
     <div class="aep-row aep-row--actions">
       <button class="aep-btn" id="aep-undo">↩ 元に戻す</button>
       <button class="aep-btn" id="aep-redo">↪ やり直し</button>
       <span class="aep-spacer"></span>
       <button class="aep-btn" id="aep-cancel">キャンセル</button>
       <button class="aep-btn aep-btn--save" id="aep-save"
-        ${analysisEditor.dirty ? '' : 'disabled'}>保存</button>
+        ${analysisEditor.dirty ? '' : 'disabled'}>保存して閉じる</button>
     </div>
   `;
 
@@ -645,6 +745,10 @@ function renderAnalysisEditorPanel() {
   document.getElementById('aep-shift-m01')?.addEventListener('click', () => shiftAll(-0.1));
   document.getElementById('aep-shift-p01')?.addEventListener('click', () => shiftAll(0.1));
   document.getElementById('aep-shift-p05')?.addEventListener('click', () => shiftAll(0.5));
+  document.getElementById('aep-bnd-m05')?.addEventListener('click', () => shiftSelectedBoundary(-0.5));
+  document.getElementById('aep-bnd-m01')?.addEventListener('click', () => shiftSelectedBoundary(-0.1));
+  document.getElementById('aep-bnd-p01')?.addEventListener('click', () => shiftSelectedBoundary(0.1));
+  document.getElementById('aep-bnd-p05')?.addEventListener('click', () => shiftSelectedBoundary(0.5));
   document.getElementById('aep-undo')?.addEventListener('click', undoEdit);
   document.getElementById('aep-redo')?.addEventListener('click', redoEdit);
   document.getElementById('aep-cancel')?.addEventListener('click', () => {
@@ -2421,6 +2525,16 @@ function setupEventHandlers() {
       _updateChartDiagMenu(next);
       toast(next ? '🎸 コード図ホバー ON' : '🎸 コード図ホバー OFF');
     }
+
+    // ArrowLeft/ArrowRight: 個別移動（解析編集モード中・選択中コードの右境界）
+    if (isAnalysisEditing() && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      const step  = e.shiftKey ? 0.5 : 0.1;
+      const delta = (e.key === 'ArrowLeft') ? -step : step;
+      shiftSelectedBoundary(delta);
+    }
   });
 
   // ============================================
@@ -2567,7 +2681,12 @@ function setupEventHandlers() {
     });
 
   document.getElementById('btn-chart-close')
-    .addEventListener('click', closeChartMode);
+    .addEventListener('click', () => {
+      if (isAnalysisEditing()) {
+        endAnalysisEdit();
+      }
+      closeChartMode();
+    });
 
   // Phase74-C: 解析編集モードトグルボタン
   document.getElementById('btn-analysis-edit')
@@ -2877,7 +2996,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     },
     onMetadataLoad: () => {
       // 必要に応じて追加処理
-    }
+    },
+    // [KEY OWNERSHIP GUARD] Chart Mode解析編集中は、audio.js側の
+    // グローバル矢印キーショートカット（±5秒シーク）を無効化するための問い合わせ窓口。
+    isEditingAnalysis: () => isAnalysisEditing(),
   };
 
   initAudioEngine(aEl, audioElements, audioCallbacks);
@@ -3071,7 +3193,7 @@ rebuildChartViewModel();
     // chartmode.jsはクリック検出のみ行い、ここへ通知する。
     onChordSelected: (chordId) => {
       if (!isAnalysisEditing()) return;
-      analysisEditor.selection.chordIds = [chordId];
+      _refreshSelection([chordId]);
       // [UI SYNC] setSelectedChordIds → _refreshEditorView() で
       // Chart再描画とPanel更新を一括で行う（更新経路の一本化）。
       setSelectedChordIds([chordId]);

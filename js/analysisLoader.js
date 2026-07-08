@@ -149,7 +149,7 @@ function normalizeChordName(name) {
  * @param {*} raw
  * @returns {{ chord: string, start: number, end: number, confidence: number }[]}
  */
-function sanitizeChords(raw) {
+export function sanitizeChords(raw) {
   if (!Array.isArray(raw)) return [];
 
   return raw
