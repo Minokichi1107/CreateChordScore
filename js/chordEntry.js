@@ -10,6 +10,16 @@
  *   - addChord / addSep
  *   - キーボードハンドリング（Enter / Escape / IME guard）
  *   - input変更時のpreview（updateDiagRight相当・unlock後なのでguard不要）
+ *   - showChordSelector(opts): 単一コードを選んで即座に閉じる軽量モーダル（Phase75で新設）
+ *   - buildPaletteHtml(): パレットボタンHTML生成（openAddChord/showChordSelector共通・pure function）
+ *
+ * 【openAddChord() と showChordSelector() の責務の違い（Phase75で明確化）】
+ *   openAddChord() は「複数コードを連続追加し続けられる常駐モーダル」
+ *     （insertAtカーソル・プレビュー一覧・小節線追加を持つ、行編集そのものを担うサブシステム）。
+ *   showChordSelector() は「1つ選んで即座に閉じる」ことだけが責務。
+ *     小節線追加・連続追加・カーソル移動は一切持たない。
+ *   両者の責務が本質的に異なるため、無理に一方が他方を呼ぶ構造にはしていない。
+ *   共通化するのは本当に共通な部分（パレットHTML生成・入力バリデーション）のみに限定する。
  *
  * 【持たないもの】
  *   - project.lines の直接参照・変更（getLines() 経由のみ）
@@ -136,6 +146,41 @@ function isNoChordInput(v) {
  */
 function isChordLikeInput(v) {
   return /^[A-G](#|♯|b|♭)?/.test(v.trim());
+}
+
+// ────────────────────────────────────────
+// PALETTE HTML（pure function・Phase75で抽出）
+// ────────────────────────────────────────
+/**
+ * buildPaletteHtml
+ *
+ * パレット（楽曲で既に使われているコード一覧）のボタンHTML文字列を生成する。
+ * openAddChord() と showChordSelector() の両方から呼ばれる、唯一の共通部分。
+ *
+ * 【pure function であることの意図】
+ *   DOM操作・イベント登録は一切行わない（HTML文字列を組み立てるだけ）。
+ *   クリック時の処理は inline onclick 経由で window 上のハンドラ名を呼ぶ形とし、
+ *   「どの関数を呼ぶか」は呼び出し元（onClickHandlerName）が決める。
+ *   これにより UI ロジック（何が起きるか）は openAddChord / showChordSelector それぞれが持ち、
+ *   このヘルパーは「表示」だけに責務を絞る。
+ *
+ * @param {string[]} palette - パレットのコード名一覧
+ * @param {number} transpose - パレット表示用の移調量（paletteTranspose）
+ * @param {string} onClickHandlerName - window に生やされたクリックハンドラ名（例: '_mac_add'）
+ * @returns {string} HTML文字列（パレットが空なら空文字）
+ */
+function buildPaletteHtml(palette, transpose, onClickHandlerName) {
+  if (!palette.length) return '';
+  return `<div class="modal-section">
+        <div class="modal-field-label">楽曲のコードから選択:</div>
+        <div class="mac-palette-list">
+          ${palette.map(c => {
+            const d = _transposeChord(c, transpose);
+            return `<button class="pal-chord" style="font-size:11px"
+              onclick="${onClickHandlerName}('${d.replace(/'/g, "\\'").replace(/\//g, '\\/')}')">${d}</button>`;
+          }).join('')}
+        </div>
+      </div>`;
 }
 
 // ────────────────────────────────────────
@@ -323,18 +368,7 @@ function renderModalPreview() {
   // ── パレット HTML ──
   const palette = _getPalette();
   const paletteTranspose = _getPaletteTranspose();
-  const palHtml = palette.length
-    ? `<div class="modal-section">
-        <div class="modal-field-label">楽曲のコードから選択:</div>
-        <div class="mac-palette-list">
-          ${palette.map(c => {
-            const d = _transposeChord(c, paletteTranspose);
-            return `<button class="pal-chord" style="font-size:11px"
-              onclick="_mac_add('${d.replace(/'/g, "\\'").replace(/\//g, '\\/')}')">${d}</button>`;
-          }).join('')}
-        </div>
-      </div>`
-    : '';
+  const palHtml = buildPaletteHtml(palette, paletteTranspose, '_mac_add');
 
   // NOTE: inline onclick の制約上 window 汚染を許容（Phase39-2で改善予定）
   window._mac_add = (ch) => addChord(ch);
@@ -403,6 +437,120 @@ function renderModalPreview() {
     },
       buttons: (close) => [
       _mkMBtn('完了', 'ok', () => { _clearSavedDiagState?.(); close(); }),
+    ],
+  });
+}
+
+// ────────────────────────────────────────
+// SHOW CHORD SELECTOR（Phase75で新設）
+// ────────────────────────────────────────
+/**
+ * showChordSelector — 単一コードを選ぶための軽量モーダル。
+ *
+ * 【責務】
+ *   - テキスト入力 + パレットから「1つだけ」コードを選ぶ
+ *   - Enter / パレットクリック / 「決定」ボタン → 確定 → onSelect() → モーダルを閉じる
+ *   - Escape / 「キャンセル」ボタン → onCancel() のみ呼び、状態は一切変更しない
+ *
+ * 【openAddChord() との違い（ファイル冒頭コメント参照）】
+ *   小節線追加・連続追加・カーソル移動は持たない。1回選んだら閉じるだけ。
+ *   Analysis Editor（コード追加・コード名変更）から利用される想定だが、
+ *   「コードを1つ選ぶ」という汎用UIとして他の用途でも再利用できる。
+ *
+ * 【バリデーション方針（重要・Phase75で確認済み）】
+ *   isChordLikeInput() / isNoChordInput() は openAddChord() と完全に同じものを使う。
+ *   normalizeChordName() 等の追加正規化はここでは行わない。
+ *   理由: このプロジェクトの既存設計（Phase20・A案）は
+ *     「保存時は正規化しない・CHORD_DB参照時にのみ normalizeChordName() を通す」
+ *   という on-the-fly normalize 方式。showChordSelector() だけ別ルールにすると、
+ *   Analysis Editorで入力したコードだけ品質基準が変わってしまうため、
+ *   既存と全く同じバリデーション（大文字ルート必須）をそのまま踏襲する。
+ *
+ * 【no_chord入力の扱い】
+ *   N / NC / N.C. / (N.C) 等は isNoChordInput() で判定し、
+ *   { name: 'N' }（文字列）として onSelect に渡す。
+ *   openAddChord() の { type:'no_chord' } token（project.lines用）とは別物。
+ *   Analysis Editorのchordはtoken streamではなく { chord, start, end, _id } という
+ *   フラットな構造のため、name フィールドに 'N' という文字列を渡す形が正しい
+ *   （normalizeChordName() が 'N' をそのまま通す既存仕様と整合する）。
+ *
+ * @param {object} opts
+ * @param {string} [opts.title='コードを選択'] - モーダルタイトル
+ * @param {string} [opts.initialChord=''] - 入力欄の初期値
+ * @param {(chord: {name: string}) => void} opts.onSelect - 確定時に呼ばれる（{name}を渡す）
+ * @param {() => void} [opts.onCancel] - キャンセル時に呼ばれる（状態変更は呼び出し元の責務・ここでは何もしない）
+ */
+export function showChordSelector({
+  title = 'コードを選択',
+  initialChord = '',
+  onSelect,
+  onCancel,
+} = {}) {
+  const palette = _getPalette();
+  const paletteTranspose = _getPaletteTranspose();
+  const palHtml = buildPaletteHtml(palette, paletteTranspose, '_cs_pick');
+
+  function commit(ch) {
+    if (!ch) return;
+
+    if (isNoChordInput(ch)) {
+      onSelect?.({ name: 'N' });
+      _closeModal();
+      return;
+    }
+
+    // domain validation: openAddChord() と同一基準（大文字ルート必須）
+    if (!isChordLikeInput(ch)) return;
+    onSelect?.({ name: ch });
+    _closeModal();
+  }
+
+  // NOTE: inline onclick の制約上 window 汚染を許容（openAddChordの_mac_addと同じ理由）
+  window._cs_pick = (ch) => commit(ch);
+
+  _openModal({
+    title,
+    body: `
+      <div class="modal-input-row modal-section" style="gap:6px">
+        <input type="text" id="cs-input" class="mi"
+          placeholder="コード名 (例: Am7)" autocomplete="off"
+          lang="en" inputmode="latin"
+          value="${String(initialChord).replace(/"/g, '&quot;')}"
+          style="font-size:15px;letter-spacing:1px;flex:1;ime-mode:disabled">
+        <button id="cs-ok-btn" class="sm-btn green"
+          style="white-space:nowrap;font-size:13px">決定</button>
+      </div>
+      ${palHtml}
+    `,
+    onOpen: () => {
+      const inp = document.getElementById('cs-input');
+
+      document.getElementById('cs-ok-btn')?.addEventListener('click', () => {
+        commit(inp?.value.trim());
+      });
+
+      if (inp) {
+        inp.focus();
+        inp.select();
+
+        let justComposed = false;
+        inp.addEventListener('compositionend', () => {
+          justComposed = true;
+          setTimeout(() => { justComposed = false; }, 0);
+        });
+
+        inp.addEventListener('keydown', e => {
+          if (e.key === 'Escape') { onCancel?.(); _closeModal(); return; }
+          if (e.key === 'Enter') {
+            if (e.isComposing || justComposed) return;
+            e.preventDefault();
+            commit(inp.value.trim());
+          }
+        });
+      }
+    },
+    buttons: (close) => [
+      _mkMBtn('キャンセル', 'cancel', () => { onCancel?.(); close(); }),
     ],
   });
 }

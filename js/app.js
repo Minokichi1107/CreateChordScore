@@ -171,7 +171,7 @@ import {
 
 import { isSepToken, isNoChordToken } from './tokens.js';
 
-import { initChordEntry, openAddChord } from './chordEntry.js';
+import { initChordEntry, openAddChord, showChordSelector } from './chordEntry.js';
 
 import { loadAnalysis, saveAnalysisFile, loadAnalysisFile, sanitizeChords } from './analysisLoader.js';
 
@@ -399,6 +399,7 @@ window.__analysisEditorDebug = {
   deleteChord,
   shiftAll,
   moveBoundary,
+  splitChord,
   shiftSelectedBoundary,
   undoEdit,
   redoEdit,
@@ -480,17 +481,55 @@ function updateChord(id, patch) {
 }
 
 /**
- * deleteChord — 指定IDのコードを削除する
+ * deleteChord — 指定コードを削除し、時間領域を隣接コードへ吸収する
+ *
+ * [DELETE INVARIANTS] この関数が保証すること
+ *   1. コードは最低1件残す（残り1件の場合は削除せず何もしない）。
+ *   2. 通常は左隣が時間を吸収する（left.end = 削除対象.end）。
+ *   3. 削除対象が先頭コードの場合のみ、右隣が吸収する（right.start = 削除対象.start）。
+ *   4. 隙間や重なりを作らない（吸収後、隣接コード同士は連続する）。
+ *   5. Undo単位はこの関数全体で1回（_pushHistory()をここで1回だけ呼ぶ）。
+ *   6. 吸収したコードを自動選択する。削除は選択の継続先が一意に決まる操作
+ *      （吸収した側を選ぶ以外の選択肢がない）ため、_refreshSelection() と
+ *      setSelectedChordIds() の両方をこの関数自身が呼ぶ（呼び出し側に委ねない。
+ *      Phase75のsplitChord()利用箇所で発生した「setSelectedChordIds()呼び忘れ」
+ *      バグの再発を構造的に防ぐため）。
+ *
  * @param {string} id - chord._id
+ * @returns {string|null} 吸収したコードの_id。削除しなかった場合はnull。
  */
 function deleteChord(id) {
-  if (!isAnalysisEditing()) return;
-  _pushHistory();
-  analysisEditor.buffer = analysisEditor.buffer.filter(c => c._id !== id);
-  // TODO: 削除後は次（なければ前）のコードを自動選択すると使い勝手が良い。
-  // Phase74-Eでは未対応・選択解除のみとする。
-  _refreshSelection();
+  if (!isAnalysisEditing()) return null;
+
+  const idx = analysisEditor.buffer.findIndex(c => c._id === id);
+  if (idx === -1) return null;
+
+  // [INVARIANT 1] 最低1件は残す
+  if (analysisEditor.buffer.length <= 1) {
+    toast('最後の1つのコードは削除できません');
+    return null;
+  }
+
+  const target = analysisEditor.buffer[idx];
+  _pushHistory();  // [INVARIANT 5] Undo単位はここで1回のみ
+
+  // [INVARIANT 2・3] 先頭コードのみ右隣が吸収・それ以外は左隣が吸収
+  const absorbing = idx === 0
+    ? analysisEditor.buffer[idx + 1]
+    : analysisEditor.buffer[idx - 1];
+
+  if (idx === 0) {
+    absorbing.start = target.start;  // [INVARIANT 4] 右隣の開始を前へ伸ばす
+  } else {
+    absorbing.end = target.end;      // [INVARIANT 4] 左隣の終了を後ろへ伸ばす
+  }
+
+  analysisEditor.buffer.splice(idx, 1);
+
+  _refreshSelection([absorbing._id]);   // [INVARIANT 6] パネル表示用の選択情報
+  setSelectedChordIds([absorbing._id]); // [INVARIANT 6] Chart Mode側のハイライト表示用の選択情報
   _refreshEditorView();
+  return absorbing._id;
 }
 
 /**
@@ -534,6 +573,75 @@ function moveBoundary(boundaryIndex, newTime) {
   left.end    = newTime;
   right.start = newTime;
   return newTime;
+}
+
+/**
+ * splitChord — 指定コードを splitTime で2つに分割する（コード追加の実体・Phase75）
+ *
+ * [SPLIT INVARIANTS] この関数が保証すること
+ *   1. splitTime が対象コードの (start, end) の範囲外（両端含む）なら、
+ *      何もせず null を返す（duration 0 のコードを作らない）。
+ *   2. 左側コードは元の _id・chord名を維持する（end だけ splitTime に書き換わる）。
+ *   3. 右側コードは新しい _id（crypto.randomUUID()）を持つ新規オブジェクトとして生成される。
+ *   4. 右側コードの chord名は左側と同じ値をコピーする
+ *      （呼び出し側が showChordSelector() → updateChord() で直後に上書きする前提。
+ *      この関数自身はコード名の確定処理を持たない）。
+ *   5. 左右のコードは時間的に隙間なく連続する（left.end === right.start === splitTime）。
+ *   6. Undo単位はこの関数全体で1回（_pushHistory()をここで1回だけ呼ぶ。
+ *      呼び出し側で追加の_pushHistory()を呼ばないこと）。
+ *   7. buffer の配列長が変わる操作のため、_refreshSelection() を呼ぶ（[AE-4]）。
+ *      ただし選択自体を新しいコードへ切り替えるかどうかは呼び出し側の責務
+ *      （呼び出し側は返り値の chordId を使って改めて _refreshSelection([id]) すること）。
+ *
+ * @param {string} chordId - 分割対象のコードの _id
+ * @param {number} splitTime - 分割点の時刻（秒）
+ * @returns {string|null} 新しく生成された右側コードの _id。失敗時は null。
+ */
+function splitChord(chordId, splitTime) {
+  if (!isAnalysisEditing()) return null;
+
+  const idx = analysisEditor.buffer.findIndex(c => c._id === chordId);
+  if (idx === -1) return null;
+
+  const target = analysisEditor.buffer[idx];
+  // [INVARIANT 1] 範囲チェック（両端含む＝duration 0を防ぐ）
+  if (!(splitTime > target.start && splitTime < target.end)) return null;
+
+  _pushHistory();  // [INVARIANT 6] Undo単位はここで1回のみ
+
+  // [INVARIANT 3・4] 右側は新規_id・chord名は左側からコピー
+  const rightChord = { ...target, _id: crypto.randomUUID(), start: splitTime };
+  // [INVARIANT 2・5] 左側はend更新のみ。right.start === splitTime === left.end
+  target.end = splitTime;
+
+  analysisEditor.buffer.splice(idx + 1, 0, rightChord);
+
+  _refreshSelection();  // [INVARIANT 7・AE-4] buffer長が変わったため選択キャッシュを再同期
+  _refreshEditorView();
+  return rightChord._id;
+}
+
+/**
+ * openChordRenameSelector — コード名変更ダイアログを開く（Phase75）
+ *
+ * [SINGLE ENTRY POINT] 「変更」ボタン・将来のコード名クリックの両方が
+ * この関数を呼ぶだけで済むよう、ロジックをここに1箇所集約する。
+ *
+ * @param {object} chord - analysisEditor.buffer 内のコードオブジェクト（_id/chordを持つ）
+ */
+function openChordRenameSelector(chord) {
+  if (!chord) return;
+  showChordSelector({
+    title: 'コード名を変更',
+    initialChord: chord.chord,
+    onSelect: (selected) => {
+      updateChord(chord._id, { chord: selected.name });
+      // [NOTE] 変更は既存コードの上書きのみ。buffer長は変わらないため
+      // selection（chordIds/boundaryIndex）はどちらも変化しない
+      // （splitChordのような_refreshSelection()呼び出しは不要）。
+    },
+    // onCancel省略: 何も呼ばれないため状態は一切変化しない
+  });
 }
 
 /**
@@ -694,7 +802,6 @@ function renderAnalysisEditorPanel() {
     ? `<div class="aep-chord-info">
          <span class="aep-chord-name">${chord.chord}</span>
          <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>
-         <span class="aep-chord-note">※コード名の編集は別フェーズで対応予定</span>
        </div>`
     : `<div class="aep-chord-info aep-chord-info--empty">コードをクリックして選択してください</div>`;
 
@@ -709,6 +816,15 @@ function renderAnalysisEditorPanel() {
            <button class="aep-btn aep-btn--shift" id="aep-bnd-p01">→ 0.1秒</button>
            <button class="aep-btn aep-btn--shift" id="aep-bnd-p05">→ 0.5秒</button>
          </div>`;
+
+  // ── Phase75: 編集アクション（追加・変更・削除） ──
+  const editActions = !chord
+    ? `<span class="aep-shift-note">コードを選択してください</span>`
+    : `<div class="aep-shift-btns">
+         <button class="aep-btn" id="aep-add">＋ 追加</button>
+         <button class="aep-btn" id="aep-rename">✎ 変更</button>
+         <button class="aep-btn aep-btn--danger" id="aep-delete-chord">🗑 削除</button>
+       </div>`;
 
   // ── Phase74-C UI ──
   panel.innerHTML = `
@@ -730,6 +846,10 @@ function renderAnalysisEditorPanel() {
       <span class="aep-section-label">個別移動（選択中コードの右側の境界）</span>
       ${boundaryControls}
     </div>
+    <div class="aep-row aep-row--edit">
+      <span class="aep-section-label">編集</span>
+      ${editActions}
+    </div>
     <div class="aep-row aep-row--actions">
       <button class="aep-btn" id="aep-undo">↩ 元に戻す</button>
       <button class="aep-btn" id="aep-redo">↪ やり直し</button>
@@ -749,6 +869,28 @@ function renderAnalysisEditorPanel() {
   document.getElementById('aep-bnd-m01')?.addEventListener('click', () => shiftSelectedBoundary(-0.1));
   document.getElementById('aep-bnd-p01')?.addEventListener('click', () => shiftSelectedBoundary(0.1));
   document.getElementById('aep-bnd-p05')?.addEventListener('click', () => shiftSelectedBoundary(0.5));
+  document.getElementById('aep-add')?.addEventListener('click', () => {
+    if (!chord) return;
+    // 初期実装: 均等2分割のみ（将来カーソル位置分割を追加する場合もsplitChord()自体は変更不要）
+    const splitTime = (chord.start + chord.end) / 2;
+    showChordSelector({
+      title: 'コードを追加',
+      initialChord: chord.chord,
+      onSelect: (selected) => {
+        const newId = splitChord(selectedId, splitTime);
+        if (!newId) return;  // 万一splitTimeが不正だった場合は何もしない
+        updateChord(newId, { chord: selected.name });
+        _refreshSelection([newId]);   // ① パネル表示用の選択情報
+        setSelectedChordIds([newId]); // ② Chart Mode側のハイライト表示用の選択情報（同期漏れ修正）
+        _refreshEditorView();
+      },
+      // onCancel省略: 何も呼ばれず、splitChord()にも到達しないため状態は一切変化しない
+    });
+  });
+  document.getElementById('aep-rename')?.addEventListener('click', () => {
+    if (!chord) return;
+    openChordRenameSelector(chord);
+  });
   document.getElementById('aep-undo')?.addEventListener('click', undoEdit);
   document.getElementById('aep-redo')?.addEventListener('click', redoEdit);
   document.getElementById('aep-cancel')?.addEventListener('click', () => {
@@ -759,43 +901,11 @@ function renderAnalysisEditorPanel() {
     await saveAnalysisEdit();
   });
 
-  // ── Phase74-D 用コード（現在未使用・DOM要素が存在しないため実行されない） ──
-  // [Phase74-D] コード名変更
-  const chordInput = document.getElementById('aep-chord');
-  if (chordInput && chord) {
-    chordInput.addEventListener('change', e => {
-      const val = e.target.value.trim();
-      if (val) updateChord(selectedId, { chord: val });
-    });
-  }
-
-  // [Phase74-D] 開始時刻変更
-  const startInput = document.getElementById('aep-start');
-  if (startInput && chord) {
-    startInput.addEventListener('change', e => {
-      const val = parseFloat(e.target.value);
-      if (Number.isFinite(val)) updateChord(selectedId, { start: val });
-    });
-  }
-
-  // [Phase74-D] 終了時刻変更
-  const endInput = document.getElementById('aep-end');
-  if (endInput && chord) {
-    endInput.addEventListener('change', e => {
-      const val = parseFloat(e.target.value);
-      if (Number.isFinite(val)) updateChord(selectedId, { end: val });
-    });
-  }
-
-  // [Phase74-D] 削除
-  const deleteBtn = document.getElementById('aep-delete');
-  if (deleteBtn && chord) {
-    deleteBtn.addEventListener('click', () => {
-      if (confirm(`「${chord.chord}」を削除しますか？`)) {
-        deleteChord(selectedId);
-      }
-    });
-  }
+  document.getElementById('aep-delete-chord')?.addEventListener('click', () => {
+    if (!chord) return;
+    // [NOTE] 確認ダイアログなし・即削除（Undo/Redoが正式な復旧手段。Phase75で確定）
+    deleteChord(chord._id);
+  });
 }
 
 // Chart Mode 列数（localStorage永続）
