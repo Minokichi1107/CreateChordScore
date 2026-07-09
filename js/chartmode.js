@@ -780,7 +780,8 @@ let _onSetRepairRule   = null;  // (beatTime: number) => void
 let _onClearRepairRule = null;  // () => void
 
 // Phase74-C: 解析編集モード連携
-let _onChordSelected   = null;        // (id: string) => void
+// Phase76-A: 第2引数にshiftKey押下有無を追加（範囲選択用）
+let _onChordSelected   = null;        // (id: string, isShiftKey: boolean) => void
 let _isEditingAnalysis = () => false; // () => boolean（編集モード中かどうかをapp.jsへ問い合わせる）
 
 // ── tooltip state ──────────────────────────────────────────
@@ -1153,7 +1154,7 @@ function _setupGridClickSeek() {
       if (chordEl) {
         const chordId = chordEl.dataset.chordId;
         if (chordId) {
-          _onChordSelected(chordId);
+          _onChordSelected(chordId, e.shiftKey);
           return;
         }
       }

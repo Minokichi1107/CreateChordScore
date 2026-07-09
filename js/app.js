@@ -272,7 +272,9 @@ const analysisEditor = {
   buffer:    null,   // ChordEvent[]（_id付き）の作業コピー
   history:   [],      // Undo用スナップショットスタック
   future:    [],       // Redo用スナップショットスタック
-  selection: { chordIds: [], boundaryIndex: null }, // [DERIVED CACHE] boundaryIndexは直接書き換えず_refreshSelection()経由で更新すること
+  // [DERIVED CACHE] chordIds以外は直接書き換えず_refreshSelection()経由で更新すること
+  // anchorChordId: Shift+クリック範囲選択の起点（Phase76-A）。単一選択時は選択中コードと同じ。
+  selection: { chordIds: [], boundaryIndex: null, anchorChordId: null },
   clipboard: null,    // Phase74-E（コピー＆ペースト）用・現在未使用
   dirty:     false,   // 未保存変更フラグ
 };
@@ -292,33 +294,87 @@ function resetAnalysisEditor() {
 }
 
 /**
- * _refreshSelection — selectionの唯一の同期窓口
+ * _refreshSelection — selectionの唯一の同期窓口（Phase76-Aで複数選択対応に拡張）
  *
- * selectionは派生状態。chordIdsだけが入力であり、
- * boundaryIndexは必ずここで再計算する（他の場所で直接書き換えない）。
+ * selectionは派生状態。chordIds（と明示されたanchorChordId）だけが入力であり、
+ * boundaryIndex・実際に反映されるchordIds・anchorChordIdの解決は必ずここで行う
+ * （他の場所で直接書き換えない）。
  *
- * 引数あり: 新しい選択として確定する（クリック選択で使用）
- * 引数なし: 今のchordIdsをbufferと照合し直す（Undo/Redo/削除後の再同期で使用）
+ * [INVARIANT] chordIdsはbuffer上の時系列順に正規化して格納する
+ * （逆順クリックで渡された場合も並び替える）。
+ * [INVARIANT] boundaryIndexは単一選択時のみ意味を持つ値。
+ * 複数選択時は常にnullにする（個別移動UIは単一選択専用のため）。
+ *
+ * @param {string[]} [chordIds] - 新しい選択として確定するID配列。
+ *   省略時は今のchordIdsをbufferと照合し直すだけ（Undo/Redo/削除後の再同期用）。
+ * @param {string|null} [anchorChordId] - 範囲選択の起点を明示的に設定したい場合のみ指定する
+ *   （通常クリック時）。省略時は「既存anchorが新しい選択に含まれていればそれを維持し、
+ *   含まれていなければ選択の末尾を新しいanchorにする」というフォールバックで解決する
+ *   （Shift+クリックで既存anchorを保ったまま範囲を広げるケースに対応）。
  */
-function _refreshSelection(chordIds) {
+function _refreshSelection(chordIds, anchorChordId) {
   const ids = chordIds !== undefined ? chordIds : analysisEditor.selection.chordIds;
-  const chordId = ids[0] ?? null;
+  const buffer = analysisEditor.buffer;
 
-  if (!chordId) {
+  // [INVARIANT] buffer上の時系列順に正規化し、buffer上に実在しないIDは除外する
+  const validIds = buffer ? buffer.filter(c => ids.includes(c._id)).map(c => c._id) : [];
+
+  if (validIds.length === 0) {
     analysisEditor.selection.chordIds = [];
     analysisEditor.selection.boundaryIndex = null;
+    analysisEditor.selection.anchorChordId = null;
     return;
   }
 
-  const idx = analysisEditor.buffer?.findIndex(c => c._id === chordId) ?? -1;
-  if (idx === -1) {
-    analysisEditor.selection.chordIds = [];
+  analysisEditor.selection.chordIds = validIds;
+
+  // boundaryIndex: 単一選択時のみ算出。複数選択時はnull固定（個別移動UI無効化のため）
+  if (validIds.length === 1) {
+    const idx = buffer.findIndex(c => c._id === validIds[0]);
+    analysisEditor.selection.boundaryIndex = buffer[idx + 1] ? idx : null;
+  } else {
     analysisEditor.selection.boundaryIndex = null;
+  }
+
+  // anchorChordId解決
+  const currentAnchor = analysisEditor.selection.anchorChordId;
+  if (anchorChordId !== undefined) {
+    analysisEditor.selection.anchorChordId = anchorChordId;
+  } else if (currentAnchor && validIds.includes(currentAnchor)) {
+    // 既存anchorが新しい選択範囲に含まれる場合は維持する
+    // （Shift+クリックで範囲を広げても起点は変わらない）
+  } else {
+    analysisEditor.selection.anchorChordId = validIds[validIds.length - 1];
+  }
+}
+
+/**
+ * selectChordRange — Shift+クリックによる範囲選択（UIコマンド層・Phase76-A）
+ *
+ * anchorChordIdからtargetChordIdまでのbuffer上の連続区間を選択する。
+ * 逆順（後ろ→前へのShiftクリック）にも対応する（内部で時系列順に正規化される）。
+ *
+ * [NOTE] anchorが見つからない場合（bufferから消えている等）は、
+ * 通常クリックと同じ単一選択にフォールバックする。
+ *
+ * @param {string} anchorChordId
+ * @param {string} targetChordId
+ */
+function selectChordRange(anchorChordId, targetChordId) {
+  const buffer = analysisEditor.buffer;
+  const i1 = buffer?.findIndex(c => c._id === anchorChordId) ?? -1;
+  const i2 = buffer?.findIndex(c => c._id === targetChordId) ?? -1;
+
+  if (i1 === -1 || i2 === -1) {
+    _refreshSelection([targetChordId], targetChordId);
     return;
   }
 
-  analysisEditor.selection.chordIds = [chordId];
-  analysisEditor.selection.boundaryIndex = analysisEditor.buffer[idx + 1] ? idx : null;
+  const lo = Math.min(i1, i2);
+  const hi = Math.max(i1, i2);
+  const ids = buffer.slice(lo, hi + 1).map(c => c._id);
+  // anchorChordIdは明示せず省略する → 既存anchor（anchorChordId、hi/lo内に含まれる）を維持
+  _refreshSelection(ids);
 }
 
 /**
@@ -401,6 +457,7 @@ window.__analysisEditorDebug = {
   moveBoundary,
   splitChord,
   shiftSelectedBoundary,
+  selectChordRange,
   undoEdit,
   redoEdit,
   validateAnalysis,
@@ -790,24 +847,36 @@ function renderAnalysisEditorPanel() {
   panel.hidden = false;
 
   // 選択中コードを取得
-  // ?? null で undefined をnullに正規化（buffer側から消えているケースも安全に扱う）
-  const selectedId = analysisEditor.selection.chordIds[0] ?? null;
+  // [Phase76-A] 複数選択時はselectedId/chordをnullのまま扱う
+  // （単一選択専用の操作＝境界移動・追加・変更・単体削除は複数選択時には出さない。
+  //  複数選択専用の操作＝複数削除・Copy/Cut/Paste・Mergeは今後のPhaseで追加する）。
+  const selectedIds = analysisEditor.selection.chordIds;
+  const isMultiSelect = selectedIds.length > 1;
+  const selectedId = !isMultiSelect ? (selectedIds[0] ?? null) : null;
   const chord = selectedId
     ? (analysisEditor.buffer.find(c => c._id === selectedId) ?? null)
     : null;
   const hasRightBoundary = analysisEditor.selection.boundaryIndex !== null;
 
   // ── Phase74-C: 選択コードの情報表示（読み取り専用） ──
+  // Phase76-A: 複数選択時は「N件選択中」を表示する
   const chordInfo = chord
     ? `<div class="aep-chord-info">
          <span class="aep-chord-name">${chord.chord}</span>
          <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>
        </div>`
-    : `<div class="aep-chord-info aep-chord-info--empty">コードをクリックして選択してください</div>`;
+    : isMultiSelect
+      ? `<div class="aep-chord-info">${selectedIds.length}件選択中</div>`
+      : `<div class="aep-chord-info aep-chord-info--empty">コードをクリックして選択してください</div>`;
+
+  // 単一選択専用の操作に対する注記（複数選択中/未選択で文言を分ける）
+  const singleOnlyNote = isMultiSelect
+    ? `<span class="aep-shift-note">複数選択中はこの操作は使えません（単一選択でのみ有効）</span>`
+    : `<span class="aep-shift-note">コードを選択してください</span>`;
 
   // ── Phase74-E: 個別移動（選択中コードの右側の境界） ──
   const boundaryControls = !chord
-    ? `<span class="aep-shift-note">コードを選択してください</span>`
+    ? singleOnlyNote
     : !hasRightBoundary
       ? `<span class="aep-shift-note">これは最後のコードのため、右側の境界がありません</span>`
       : `<div class="aep-shift-btns">
@@ -819,7 +888,7 @@ function renderAnalysisEditorPanel() {
 
   // ── Phase75: 編集アクション（追加・変更・削除） ──
   const editActions = !chord
-    ? `<span class="aep-shift-note">コードを選択してください</span>`
+    ? singleOnlyNote
     : `<div class="aep-shift-btns">
          <button class="aep-btn" id="aep-add">＋ 追加</button>
          <button class="aep-btn" id="aep-rename">✎ 変更</button>
@@ -3299,14 +3368,23 @@ rebuildChartViewModel();
     },
 
     // Phase74-C: 解析編集モード連携
+    // Phase76-A: Shift+クリックによる範囲選択（連続区間のみ）に対応
     // [OWNERSHIP] 選択状態の正本は analysisEditor.selection（app.js）。
-    // chartmode.jsはクリック検出のみ行い、ここへ通知する。
-    onChordSelected: (chordId) => {
+    // chartmode.jsはクリック検出（+shiftKey）のみ行い、ここへ通知する。
+    onChordSelected: (chordId, isShiftKey) => {
       if (!isAnalysisEditing()) return;
-      _refreshSelection([chordId]);
+
+      const anchorId = analysisEditor.selection.anchorChordId;
+      if (isShiftKey && anchorId) {
+        selectChordRange(anchorId, chordId);
+      } else {
+        // 通常クリック: 単一選択・起点(anchor)をクリックしたコードへ更新
+        _refreshSelection([chordId], chordId);
+      }
+
       // [UI SYNC] setSelectedChordIds → _refreshEditorView() で
       // Chart再描画とPanel更新を一括で行う（更新経路の一本化）。
-      setSelectedChordIds([chordId]);
+      setSelectedChordIds(analysisEditor.selection.chordIds);
       _refreshEditorView();
     },
 
