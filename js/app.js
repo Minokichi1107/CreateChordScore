@@ -458,6 +458,11 @@ window.__analysisEditorDebug = {
   splitChord,
   shiftSelectedBoundary,
   selectChordRange,
+  deleteSelection,
+  copySelection,
+  cutSelection,
+  pasteSelection,
+  mergeSelection,
   undoEdit,
   redoEdit,
   validateAnalysis,
@@ -538,15 +543,64 @@ function updateChord(id, patch) {
 }
 
 /**
+ * _isNoChordEntry — Analysis Editorのbufferエントリがno_chord（無音）プレースホルダーか判定
+ *
+ * ChordMini解析結果には無音区間が chord:'N'（表記ゆれ含む）という
+ * 通常のコードエントリと同じ形（{chord, start, end, _id}）で入っている。
+ * 表記ゆれの正規化ロジックは既存のimportChordJson内の同種処理と揃えてある
+ * （括弧・ドット・空白除去→大文字化→'N'/'NC'と比較）。
+ *
+ * [NOTE] project.lines側のtoken semantic（{type:'no_chord'}）とは別物。
+ * Analysis Editorのbufferは常に文字列chordプロパティを持つフラットな配列であり、
+ * ここではその文字列を見て判定する。
+ */
+function _isNoChordEntry(c) {
+  if (!c || !c.chord) return false;
+  const normalized = String(c.chord).trim().toUpperCase()
+    .replace(/\./g, '').replace(/\s/g, '').replace(/[()]/g, '');
+  return normalized === 'N' || normalized === 'NC';
+}
+
+/**
+ * _pickAbsorbingNeighbor — 削除ブロックの吸収先を決定する（Phase76-Bで確定）
+ *
+ * [設計変更の経緯]
+ * 当初は「削除対象がbuffer先頭（index 0）かどうか」で吸収方向を決めていたが、
+ * 曲頭のno_chord（無音）プレースホルダーがbuffer[0]に存在するケースで、
+ * 「ユーザーが最初の実コードから選択して削除した」つもりが「先頭ではない」
+ * と判定され、無音コードに左吸収されて実コードが消えたように見えるバグとして発覚。
+ * （Phase76-Bの複数削除テストで発見・ChatGPTレビューで方針確定）
+ *
+ * [新ルール] 「index 0かどうか」ではなく「左隣が吸収可能な実コードかどうか」で判定する。
+ *   左隣が実コード → 左吸収（従来通り。大半のケースはこちら）
+ *   左隣がno_chord、または左隣が存在しない → 右吸収
+ *   右隣も存在しない（左右どちらも使えない） → 消去法で左隣を採用
+ *     （no_chordであっても、他に吸収先の選択肢がないため）
+ *
+ * @param {Array} buffer
+ * @param {number} lo - 削除ブロック先頭のindex
+ * @param {number} hi - 削除ブロック末尾のindex（単一削除の場合は lo と同じ値を渡す）
+ * @returns {{ absorbing: object, direction: 'left'|'right' }}
+ */
+function _pickAbsorbingNeighbor(buffer, lo, hi) {
+  const left = lo > 0 ? buffer[lo - 1] : null;
+  const right = hi < buffer.length - 1 ? buffer[hi + 1] : null;
+
+  if (left && !_isNoChordEntry(left)) return { absorbing: left, direction: 'left' };
+  if (right) return { absorbing: right, direction: 'right' };
+  return { absorbing: left, direction: 'left' }; // 右もない場合の最終フォールバック
+}
+
+/**
  * deleteChord — 指定コードを削除し、時間領域を隣接コードへ吸収する
  *
  * [DELETE INVARIANTS] この関数が保証すること
  *   1. コードは最低1件残す（残り1件の場合は削除せず何もしない）。
- *   2. 通常は左隣が時間を吸収する（left.end = 削除対象.end）。
- *   3. 削除対象が先頭コードの場合のみ、右隣が吸収する（right.start = 削除対象.start）。
- *   4. 隙間や重なりを作らない（吸収後、隣接コード同士は連続する）。
- *   5. Undo単位はこの関数全体で1回（_pushHistory()をここで1回だけ呼ぶ）。
- *   6. 吸収したコードを自動選択する。削除は選択の継続先が一意に決まる操作
+ *   2. 吸収方向は _pickAbsorbingNeighbor() が決める
+ *      （左隣が実コードなら左吸収・no_chordや先頭なら右吸収。Phase76-Bで確定）。
+ *   3. 隙間や重なりを作らない（吸収後、隣接コード同士は連続する）。
+ *   4. Undo単位はこの関数全体で1回（_pushHistory()をここで1回だけ呼ぶ）。
+ *   5. 吸収したコードを自動選択する。削除は選択の継続先が一意に決まる操作
  *      （吸収した側を選ぶ以外の選択肢がない）ため、_refreshSelection() と
  *      setSelectedChordIds() の両方をこの関数自身が呼ぶ（呼び出し側に委ねない。
  *      Phase75のsplitChord()利用箇所で発生した「setSelectedChordIds()呼び忘れ」
@@ -568,25 +622,319 @@ function deleteChord(id) {
   }
 
   const target = analysisEditor.buffer[idx];
-  _pushHistory();  // [INVARIANT 5] Undo単位はここで1回のみ
+  _pushHistory();  // [INVARIANT 4] Undo単位はここで1回のみ
 
-  // [INVARIANT 2・3] 先頭コードのみ右隣が吸収・それ以外は左隣が吸収
-  const absorbing = idx === 0
-    ? analysisEditor.buffer[idx + 1]
-    : analysisEditor.buffer[idx - 1];
+  // [INVARIANT 2] 吸収方向の決定（Phase76-B: index0判定 → 実コード判定に変更）
+  const { absorbing, direction } = _pickAbsorbingNeighbor(analysisEditor.buffer, idx, idx);
 
-  if (idx === 0) {
-    absorbing.start = target.start;  // [INVARIANT 4] 右隣の開始を前へ伸ばす
+  if (direction === 'left') {
+    absorbing.end = target.end;      // [INVARIANT 3] 左隣の終了を後ろへ伸ばす
   } else {
-    absorbing.end = target.end;      // [INVARIANT 4] 左隣の終了を後ろへ伸ばす
+    absorbing.start = target.start;  // [INVARIANT 3] 右隣の開始を前へ伸ばす
   }
 
   analysisEditor.buffer.splice(idx, 1);
 
-  _refreshSelection([absorbing._id]);   // [INVARIANT 6] パネル表示用の選択情報
-  setSelectedChordIds([absorbing._id]); // [INVARIANT 6] Chart Mode側のハイライト表示用の選択情報
+  _refreshSelection([absorbing._id]);   // [INVARIANT 5] パネル表示用の選択情報
+  setSelectedChordIds([absorbing._id]); // [INVARIANT 5] Chart Mode側のハイライト表示用の選択情報
   _refreshEditorView();
   return absorbing._id;
+}
+
+/**
+ * deleteSelection — 選択中コードをまとめて削除する（Phase76-B）
+ *
+ * [DESIGN] 範囲選択（selectChordRange）は常にbuffer上の連続区間しか作らない
+ * という前提の上に立つ操作。選択範囲を「1つの連続ブロック」として扱い、
+ * deleteChord()と同じ吸収ルールを拡張して適用する。
+ *
+ * [DELETE SELECTION INVARIANTS] この関数が保証すること
+ *   1. 選択が単一（1件）の場合は deleteChord() にそのまま委譲する
+ *      （吸収ルールの実装を1箇所に保つ・Phase75からのロジック重複を避ける）。
+ *   2. 選択範囲は buffer 上で連続していることを前提とするが、
+ *      万一崩れていた場合は防御的に検知し、削除せずtoastで知らせる
+ *      （selectChordRangeの前提が壊れた場合の安全弁）。
+ *   3. 削除後、最低1件はコードを残す（残らない場合は削除せず何もしない）。
+ *   4. 吸収方向は _pickAbsorbingNeighbor() が決める
+ *      （左隣が実コードなら左吸収・no_chordや先頭なら右吸収。deleteChord()と同じ判定を共有する）。
+ *   5. Undo単位はこの関数全体で1回。
+ *   6. 吸収したコードを自動選択する（selection/chartState両方をこの関数が同期する。
+ *      呼び出し側に委ねない設計はdeleteChord()と同じ・Phase75の教訓を踏襲）。
+ *
+ * @returns {string|null} 吸収したコードの_id。削除しなかった場合はnull。
+ */
+function deleteSelection() {
+  if (!isAnalysisEditing()) return null;
+
+  const selectedIds = analysisEditor.selection.chordIds;
+  if (selectedIds.length === 0) return null;
+  if (selectedIds.length === 1) return deleteChord(selectedIds[0]); // [INVARIANT 1]
+
+  const buffer = analysisEditor.buffer;
+  const indices = selectedIds
+    .map(id => buffer.findIndex(c => c._id === id))
+    .filter(i => i !== -1)
+    .sort((a, b) => a - b);
+
+  if (indices.length === 0) return null;
+
+  const lo = indices[0];
+  const hi = indices[indices.length - 1];
+
+  // [INVARIANT 2] 連続区間であることの防御的確認
+  if (hi - lo + 1 !== indices.length) {
+    toast('選択範囲が連続していないため削除できません');
+    return null;
+  }
+
+  const removeCount = hi - lo + 1;
+
+  // [INVARIANT 3] 最低1件は残す
+  if (buffer.length - removeCount < 1) {
+    toast('すべてのコードは削除できません');
+    return null;
+  }
+
+  const blockStart = buffer[lo];
+  const blockEnd = buffer[hi];
+  _pushHistory(); // [INVARIANT 5] Undo単位はここで1回のみ
+
+  // [INVARIANT 4] 吸収方向の決定（Phase76-B: index0判定 → 実コード判定に変更）
+  const { absorbing, direction } = _pickAbsorbingNeighbor(buffer, lo, hi);
+
+  if (direction === 'left') {
+    absorbing.end = blockEnd.end;
+  } else {
+    absorbing.start = blockStart.start;
+  }
+
+  buffer.splice(lo, removeCount);
+
+  _refreshSelection([absorbing._id], absorbing._id); // [INVARIANT 6]
+  setSelectedChordIds([absorbing._id]);               // [INVARIANT 6]
+  _refreshEditorView();
+  return absorbing._id;
+}
+
+/**
+ * copySelection — 選択中コードをクリップボードへコピーする（Phase76-C）
+ *
+ * [DESIGN] クリップボードには絶対時刻ではなく「コード名」と「選択範囲全体に対する
+ * 相対的な長さの比率（ratio）」を保存する。これにより、Paste先の時間枠の長さが
+ * コピー元と異なっていても、比率を保ったまま自然に伸縮して配置できる（Phase76設計より）。
+ *
+ * [NOTE] Copyはbufferを読み取るだけの操作（読み取り専用）。
+ * 選択がbuffer上で連続している前提はPaste側の責務であり、ここではチェックしない。
+ *
+ * clipboard構造:
+ *   { version: 1, chords: [{ chord, ratio }, ...] }
+ *   version: 将来のフィールド追加（sourceDuration等）に備えた互換性用。現状は未使用。
+ *
+ * @returns {boolean} コピーが成功したか（選択が空・不正な場合はfalse）
+ */
+function copySelection() {
+  if (!isAnalysisEditing()) return false;
+
+  const selectedIds = analysisEditor.selection.chordIds;
+  if (selectedIds.length === 0) return false;
+
+  const buffer = analysisEditor.buffer;
+  // selection.chordIdsは既にbuffer上の時系列順（_refreshSelectionで正規化済み）
+  const selectedChords = selectedIds
+    .map(id => buffer.find(c => c._id === id))
+    .filter(Boolean);
+
+  if (selectedChords.length === 0) return false;
+
+  const totalDuration = selectedChords.reduce((sum, c) => sum + (c.end - c.start), 0);
+  if (totalDuration <= 0) {
+    toast('コピーできません（不正な時間データです）');
+    return false;
+  }
+
+  analysisEditor.clipboard = {
+    version: 1,
+    chords: selectedChords.map(c => ({
+      chord: c.chord,
+      ratio: (c.end - c.start) / totalDuration,
+    })),
+  };
+
+  toast(`${selectedChords.length}件コピーしました`);
+  return true;
+}
+
+/**
+ * cutSelection — 選択中コードを切り取る（Copy + Delete・Phase76-D）
+ *
+ * [DESIGN] cutSelection()自体は独自ロジックを持たない。
+ * copySelection() と deleteSelection() を内部で呼ぶだけ（ChatGPTレビューで確定した方針）。
+ * こうすることで、Copy/Deleteそれぞれの修正がそのままCutにも反映される。
+ *
+ * [INVARIANT] Copyが失敗した場合はDeleteを行わない
+ * （「コピーだけ失敗して削除は実行された」という中途半端な状態を作らないため）。
+ *
+ * [NOTE] Undo履歴にはdeleteSelection()（内部的にはdeleteChord()）の
+ * _pushHistory()による1回分だけが積まれる。Copy自体は状態を変更しないため
+ * Undo対象にならない（copySelection()と同じ理由）。
+ *
+ * @returns {string|null} 吸収したコードの_id（deleteSelectionの戻り値をそのまま返す）。
+ *   何もしなかった場合はnull。
+ */
+function cutSelection() {
+  if (!isAnalysisEditing()) return null;
+  if (analysisEditor.selection.chordIds.length === 0) return null;
+
+  const copied = copySelection();
+  if (!copied) return null; // [INVARIANT] コピー失敗時はDeleteを実行しない
+
+  return deleteSelection();
+}
+
+/**
+ * pasteSelection — クリップボードの内容を選択中コードの時間枠へ「置き換え」で貼り付ける（Phase76-E）
+ *
+ * [DESIGN] Paste = Replace専用（Insertではない）。選択中コード（単一・複数どちらでも）の
+ * 時間枠全体を、クリップボードのコード列で置き換える。将来「挿入貼り付け」が欲しくなっても
+ * それは別コマンド（Paste Insert等）として追加する（ChatGPTレビューで確定した方針）。
+ *
+ * クリップボードの各コードはratio（コピー時点での相対時間比率）を持つため、
+ * 貼り付け先の枠の長さがコピー元と異なっていても、比率を保ったまま伸縮して配置される。
+ *
+ * [INVARIANT] 選択範囲はbuffer上で連続していることが前提（selectChordRangeの保証）。
+ * 崩れていた場合は防御的に検知し、貼り付けずtoastで知らせる（deleteSelectionと同じ考え方）。
+ * [INVARIANT] 最後に生成するコードのendは浮動小数点誤差を避けるため、
+ * 貼り付け先の枠のendへ直接合わせる（ratio計算の累積誤差を最後だけ吸収する）。
+ * [INVARIANT] 貼り付け後、新しく生成されたコード群を自動選択する
+ * （deleteChord/deleteSelectionと同じ「選択の継続先が一意に決まる操作は
+ * 関数自身が選択同期を担う」という方針）。
+ * [INVARIANT] Undo単位はこの関数全体で1回。
+ *
+ * @returns {string[]|null} 新しく生成されたコードの_id配列。失敗した場合はnull。
+ */
+function pasteSelection() {
+  if (!isAnalysisEditing()) return null;
+
+  const clipboard = analysisEditor.clipboard;
+  if (!clipboard || !clipboard.chords || clipboard.chords.length === 0) {
+    toast('コピーされたコードがありません');
+    return null;
+  }
+
+  const selectedIds = analysisEditor.selection.chordIds;
+  if (selectedIds.length === 0) return null;
+
+  const buffer = analysisEditor.buffer;
+  const indices = selectedIds
+    .map(id => buffer.findIndex(c => c._id === id))
+    .filter(i => i !== -1)
+    .sort((a, b) => a - b);
+
+  if (indices.length === 0) return null;
+
+  const lo = indices[0];
+  const hi = indices[indices.length - 1];
+
+  // [INVARIANT] 連続区間であることの防御的確認
+  if (hi - lo + 1 !== indices.length) {
+    toast('選択範囲が連続していないため貼り付けできません');
+    return null;
+  }
+
+  const targetStart = buffer[lo].start;
+  const targetEnd = buffer[hi].end;
+  const targetDuration = targetEnd - targetStart;
+
+  if (targetDuration <= 0) {
+    toast('貼り付けできません（不正な時間データです）');
+    return null;
+  }
+
+  _pushHistory();
+
+  // クリップボードのratioを貼り付け先の枠の長さへ配分し、新しいコード群を生成
+  let cursor = targetStart;
+  const newChords = clipboard.chords.map((entry, i) => {
+    const isLast = i === clipboard.chords.length - 1;
+    const start = cursor;
+    // [INVARIANT] 最後のコードだけtargetEndへ直接合わせ、誤差の蓄積を吸収する
+    const end = isLast ? targetEnd : cursor + entry.ratio * targetDuration;
+    cursor = end;
+    return {
+      chord: entry.chord,
+      start,
+      end,
+      confidence: 1,
+      _id: crypto.randomUUID(),
+    };
+  });
+
+  buffer.splice(lo, hi - lo + 1, ...newChords);
+
+  const newIds = newChords.map(c => c._id);
+  _refreshSelection(newIds, newIds[newIds.length - 1]); // [INVARIANT] 新しいコード群を自動選択
+  setSelectedChordIds(newIds);
+  _refreshEditorView();
+  return newIds;
+}
+
+/**
+ * mergeSelection — 連続する複数選択コードを1つに結合する（Phase76-F・Phase76最後の機能）
+ *
+ * [DESIGN] 結合対象は連続選択のみ（selectChordRangeの前提と同じ）。
+ * 結合後のコード名は先頭コードの名前を自動採用する。気に入らなければ
+ * 続けて「変更」ボタン（openChordRenameSelector、Phase75）でリネームできる。
+ *
+ * [INVARIANT] 確認ダイアログなし・即実行。Undo/Redoが正式な復旧手段
+ * （deleteChord等、Phase75から一貫した方針）。
+ * [INVARIANT] 選択が2件未満の場合は何もしない（結合する対象がないため）。
+ * [INVARIANT] 結合後、新しく生成された1件を自動選択する。
+ * [INVARIANT] Undo単位はこの関数全体で1回。
+ *
+ * @returns {string|null} 結合後の新しいコードの_id。結合しなかった場合はnull。
+ */
+function mergeSelection() {
+  if (!isAnalysisEditing()) return null;
+
+  const selectedIds = analysisEditor.selection.chordIds;
+  if (selectedIds.length < 2) return null; // [INVARIANT] 結合には2件以上必要
+
+  const buffer = analysisEditor.buffer;
+  const indices = selectedIds
+    .map(id => buffer.findIndex(c => c._id === id))
+    .filter(i => i !== -1)
+    .sort((a, b) => a - b);
+
+  if (indices.length < 2) return null;
+
+  const lo = indices[0];
+  const hi = indices[indices.length - 1];
+
+  // [INVARIANT] 連続区間であることの防御的確認（deleteSelection/pasteSelectionと同じ考え方）
+  if (hi - lo + 1 !== indices.length) {
+    toast('選択範囲が連続していないため結合できません');
+    return null;
+  }
+
+  const first = buffer[lo];
+  const last = buffer[hi];
+
+  _pushHistory();
+
+  const merged = {
+    chord: first.chord,       // [DESIGN] 先頭コードの名前を自動採用
+    start: first.start,
+    end: last.end,
+    confidence: 1,
+    _id: crypto.randomUUID(),
+  };
+
+  buffer.splice(lo, hi - lo + 1, merged);
+
+  _refreshSelection([merged._id], merged._id); // [INVARIANT] 結合結果を自動選択
+  setSelectedChordIds([merged._id]);
+  _refreshEditorView();
+  return merged._id;
 }
 
 /**
@@ -887,13 +1235,35 @@ function renderAnalysisEditorPanel() {
          </div>`;
 
   // ── Phase75: 編集アクション（追加・変更・削除） ──
-  const editActions = !chord
-    ? singleOnlyNote
-    : `<div class="aep-shift-btns">
+  // Phase76-B: 複数選択時は複数削除ボタンを表示する
+  // Phase76-C: コピーは単一選択・複数選択どちらでも使える
+  // Phase76-D: 切り取り（Cut）も単一・複数どちらでも使える。cutSelection()が内部で
+  //            単一/複数を吸収するため、ボタンidは共通の #aep-cut を両方で使う
+  // Phase76-E: 貼り付け（Paste）はclipboardに内容がある場合のみ表示する。
+  //            pasteSelection()も単一/複数を内部で吸収するため #aep-paste を共通で使う
+  const hasClipboard = !!(analysisEditor.clipboard && analysisEditor.clipboard.chords?.length);
+  const pasteBtn = hasClipboard
+    ? `<button class="aep-btn" id="aep-paste">📄 貼り付け</button>`
+    : '';
+
+  const editActions = chord
+    ? `<div class="aep-shift-btns">
          <button class="aep-btn" id="aep-add">＋ 追加</button>
          <button class="aep-btn" id="aep-rename">✎ 変更</button>
+         <button class="aep-btn" id="aep-copy">📋 コピー</button>
+         <button class="aep-btn" id="aep-cut">✂ 切り取り</button>
+         ${pasteBtn}
          <button class="aep-btn aep-btn--danger" id="aep-delete-chord">🗑 削除</button>
-       </div>`;
+       </div>`
+    : isMultiSelect
+      ? `<div class="aep-shift-btns">
+           <button class="aep-btn" id="aep-copy">📋 コピー（${selectedIds.length}件）</button>
+           <button class="aep-btn" id="aep-cut">✂ 切り取り（${selectedIds.length}件）</button>
+           ${pasteBtn}
+           <button class="aep-btn" id="aep-merge">🔗 結合（${selectedIds.length}件）</button>
+           <button class="aep-btn aep-btn--danger" id="aep-delete-selection">🗑 削除（${selectedIds.length}件）</button>
+         </div>`
+      : `<span class="aep-shift-note">コードを選択してください</span>`;
 
   // ── Phase74-C UI ──
   panel.innerHTML = `
@@ -974,6 +1344,29 @@ function renderAnalysisEditorPanel() {
     if (!chord) return;
     // [NOTE] 確認ダイアログなし・即削除（Undo/Redoが正式な復旧手段。Phase75で確定）
     deleteChord(chord._id);
+  });
+  document.getElementById('aep-delete-selection')?.addEventListener('click', () => {
+    // [NOTE] 確認ダイアログなし・即削除（deleteChord()と同じ方針。Phase76-B）
+    deleteSelection();
+  });
+  document.getElementById('aep-copy')?.addEventListener('click', () => {
+    copySelection();
+    // [NOTE] Copyはbufferを変更しないためUndo履歴には積まれない。
+    // 選択状態も変えないため_refreshEditorView()等の呼び出しは不要
+    // （copySelection()内のtoast表示のみで完結する）。
+  });
+  document.getElementById('aep-cut')?.addEventListener('click', () => {
+    // [NOTE] cutSelection()内部でcopySelection()→deleteSelection()の順に呼ぶため、
+    // 選択状態・Chart表示の同期はdeleteSelection()（またはdeleteChord()）側が担う。
+    cutSelection();
+  });
+  document.getElementById('aep-paste')?.addEventListener('click', () => {
+    // [NOTE] 選択状態・Chart表示の同期はpasteSelection()自身が担う
+    pasteSelection();
+  });
+  document.getElementById('aep-merge')?.addEventListener('click', () => {
+    // [NOTE] 確認ダイアログなし・即実行（deleteChord等と同じ方針。Phase76-F）
+    mergeSelection();
   });
 }
 
@@ -2703,6 +3096,32 @@ function setupEventHandlers() {
       setTooltipEnabled(next);
       _updateChartDiagMenu(next);
       toast(next ? '🎸 コード図ホバー ON' : '🎸 コード図ホバー OFF');
+    }
+
+    // Phase76-G: 選択中コードの操作ショートカット（範囲選択・Copy/Cut/Paste・削除）
+    // [NOTE] copySelection/cutSelection/pasteSelection/deleteSelectionは単一選択も
+    // 内部で吸収するため、単一選択時にもこのショートカットがそのまま使える
+    // （Phase75の単一削除に、今回初めてDelete/Backspaceキーが付いたことになる）。
+    if (isAnalysisEditing()) {
+      const tag = document.activeElement?.tagName;
+      const inTextInput = tag === 'INPUT' || tag === 'TEXTAREA';
+
+      if (!inTextInput && e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        copySelection();
+      }
+      if (!inTextInput && e.ctrlKey && (e.key === 'x' || e.key === 'X')) {
+        e.preventDefault();
+        cutSelection();
+      }
+      if (!inTextInput && e.ctrlKey && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        pasteSelection();
+      }
+      if (!inTextInput && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault();
+        deleteSelection();
+      }
     }
 
     // ArrowLeft/ArrowRight: 個別移動（解析編集モード中・選択中コードの右境界）
