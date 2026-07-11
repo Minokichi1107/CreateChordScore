@@ -458,6 +458,7 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
   // onset が最後に現れた slot の情報（carry の source 追跡用）
   let lastOnsetMeasureLocal = null;  // measure 内 slot index（measure local）
   let lastOnsetChord        = null;  // onset chord（carry 検証用）
+  let lastOnsetId           = null;  // [Phase77] onset の _id（carryへのdata-chord-id伝播用）
   let lastOnsetResultIndex  = -1;   // result[] 内の onset slot index（durationSlots 更新用）
 
   for (const measure of measures) {
@@ -509,6 +510,7 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
       //   carry ownership は visual slot space で再生成する。
       let pickupLastOnsetLocal       = null;
       let pickupLastOnsetChord       = null;
+      let pickupLastOnsetId          = null;  // [Phase77] carryへのdata-chord-id伝播用
       let pickupLastOnsetResultIndex = -1;
 
       for (let si = 0; si < slotsPerMeasure; si++) {
@@ -552,6 +554,7 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
 
           pickupLastOnsetLocal       = si;
           pickupLastOnsetChord       = onset.chord;
+          pickupLastOnsetId          = onset.id ?? null;
           pickupLastOnsetResultIndex = result.length - 1;
 
         } else if (pickupLastOnsetChord !== null) {
@@ -562,6 +565,7 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
             measureIndex:    mi,
             beatIndex:       si,
             sourceSlotIndex: pickupLastOnsetLocal,  // visual slot space 上の index
+            sourceChordId:   pickupLastOnsetId,     // [Phase77] 解析エディタのクリック選択用
           });
 
         } else {
@@ -593,6 +597,7 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
       //   誤って pickup measure 内の onset を再確定してはならない。
       lastOnsetMeasureLocal = pickupLastOnsetLocal;
       lastOnsetChord        = pickupLastOnsetChord;
+      lastOnsetId           = pickupLastOnsetId;  // [Phase77] 次measureのcarryへ継承
       lastOnsetResultIndex  = -1;
 
       continue; // 次の measure へ
@@ -632,6 +637,7 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
         result.push(slotData);
         lastOnsetMeasureLocal = si;
         lastOnsetChord        = onset.chord;
+        lastOnsetId           = onset.id ?? null;
         lastOnsetResultIndex  = result.length - 1;
 
       } else if (lastOnsetChord !== null) {
@@ -642,6 +648,7 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
           measureIndex:    mi,
           beatIndex:       si,
           sourceSlotIndex: lastOnsetMeasureLocal,  // measure local（0始まり）
+          sourceChordId:   lastOnsetId,            // [Phase77] 解析エディタのクリック選択用（小節またぎ含む）
         });
 
       } else {
@@ -733,6 +740,12 @@ export const chartState = {
   // [OWNERSHIP] 選択の正本は app.js の analysisEditor.selection。
   // ここはハイライト描画のためのローカル表示状態（描画のたびに app.js から同期される）。
   selectedChordIds: new Set(),
+
+  // Phase77後半: editPoint（挿入位置）マーカー（表示用）
+  // [OWNERSHIP] 正本は app.js の analysisEditor.selection.editPoint。
+  // { measureIndex, slotIndex } または null。
+  // TODO(Phase78): [BOUNDARY DECORATOR] へ統合予定（暫定実装）。
+  editPointMarker: null,
 };
 
 /**
@@ -756,6 +769,19 @@ export function setTooltipEnabled(enabled) {
  */
 export function setSelectedChordIds(ids) {
   chartState.selectedChordIds = new Set(ids);
+}
+
+/**
+ * setEditPointMarker — editPointマーカー（表示用）を更新する
+ *
+ * [OWNERSHIP] 正本は app.js の analysisEditor.selection.editPoint。
+ * ここは描画用のローカル表示状態を更新するだけ。
+ * 呼び出し後は renderChartMode() で再描画が必要。
+ *
+ * @param {{measureIndex: number, slotIndex: number}|null} marker
+ */
+export function setEditPointMarker(marker) {
+  chartState.editPointMarker = marker ?? null;
 }
 
 // ────────────────────────────────────────
@@ -783,6 +809,10 @@ let _onClearRepairRule = null;  // () => void
 // Phase76-A: 第2引数にshiftKey押下有無を追加（範囲選択用）
 let _onChordSelected   = null;        // (id: string, isShiftKey: boolean) => void
 let _isEditingAnalysis = () => false; // () => boolean（編集モード中かどうかをapp.jsへ問い合わせる）
+// Phase77後半: editPoint（挿入位置）確定リクエスト
+// ownerIdはコード起因のクリック時のみ渡す（空セルクリック時はnull＝
+// 時刻ベースでbuffer側がオーナーを特定する）
+let _onEditPointRequested = null; // (ownerId: string|null, measureIndex: number, slotIndex: number) => void
 
 // ── tooltip state ──────────────────────────────────────────
 // [EPHEMERAL UI] tooltip は chartState に authority を持たない。
@@ -931,7 +961,7 @@ function _rafLoop() {
  *                                             右クリック「補正を解除」選択時に呼ぶ。
  *                                             app.js が null保存・再描画を担う。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested }) {
   _getAnalysis       = getAnalysis;
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
@@ -950,6 +980,7 @@ export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudio
   // chartmode.jsはクリック検出と選択ハイライト描画のみを担当する。
   _onChordSelected   = onChordSelected ?? null;
   _isEditingAnalysis = isEditingAnalysis ?? (() => false);
+  _onEditPointRequested = onEditPointRequested ?? null;
 
   // Phase60: click seek イベント登録
   _setupGridClickSeek();
@@ -1149,15 +1180,43 @@ function _setupGridClickSeek() {
   grid.addEventListener('click', e => {
 
     // ── Phase74-C: 編集モード中はコード選択を優先する ──
+    // [Phase77] onset（.chart-chord-name）・carry（.chart-slot、小節またぎ含む）の
+    // 両方をdata-chord-id属性のみで判定する（DOM構造への依存をなくす）。
+    // [Phase77後半] 二段階クリックモデル：
+    //   1クリック目 → 選択（従来通り）
+    //   既に単独選択中のコードへの2クリック目 → editPoint（挿入位置）へ移行
+    //   data-chord-idを持たない空セル（曲頭の無音区間等）→ 直接editPointへ
+    //   （空セルには「選択」という概念が無いため2段階を経ない）
     if (_isEditingAnalysis() && _onChordSelected) {
-      const chordEl = e.target.closest('.chart-chord-name[data-chord-id]');
+      const chordEl   = e.target.closest('[data-chord-id]');
+      const slotEl    = e.target.closest('.chart-slot[data-visual-slot-index]');
+      const measureEl = e.target.closest('.chart-measure[data-measure-index]');
+      const measureIndex = measureEl ? Number(measureEl.dataset.measureIndex)   : null;
+      const slotIndex    = slotEl    ? Number(slotEl.dataset.visualSlotIndex)   : null;
+
       if (chordEl) {
         const chordId = chordEl.dataset.chordId;
         if (chordId) {
+          const isSameSingleSelection = !e.shiftKey
+            && chartState.selectedChordIds.size === 1
+            && chartState.selectedChordIds.has(chordId);
+          if (isSameSingleSelection && _onEditPointRequested
+              && measureIndex !== null && slotIndex !== null) {
+            _onEditPointRequested(chordId, measureIndex, slotIndex);
+            return;
+          }
           _onChordSelected(chordId, e.shiftKey);
           return;
         }
       }
+
+      // data-chord-idを持たない＝空セル（曲頭の無音区間等）。
+      // オーナーはtime基準でapp.js側のbufferが特定するためownerId=nullで渡す。
+      if (_onEditPointRequested && measureIndex !== null && slotIndex !== null) {
+        _onEditPointRequested(null, measureIndex, slotIndex);
+        return;
+      }
+
       // 編集モード中はコード以外のクリックでseekさせない
       return;
     }
@@ -1243,6 +1302,50 @@ function _getBeatTimeFromSlot(measureIndex, visualSlotIndex, model, beats, timeS
 
   const globalBeatIdx = startBeatIdx + beatInMeasure;
   return beats[globalBeatIdx] ?? null;
+}
+
+/**
+ * _getExactTimeFromSlot — グリッド座標（measureIndex, visualSlotIndex）から
+ * サブビート精度の実時刻を算出する（Phase77後半・editPoint用）。
+ *
+ * _getBeatTimeFromSlot() との違い：
+ *   _getBeatTimeFromSlot()は拍単位に丸める（repairRule.beatTimeがraw.beats[]の
+ *   実在値でなければならないという別の制約のため）。
+ *   本関数はeditPoint（挿入位置指定）用に、小節の開始/終了時刻を
+ *   スロット比率で線形補間し、サブビート位置を保持する。
+ *
+ * [KNOWN LIMITATION] pickup小節（visual slot space ≠ canonical slot space）では
+ * 厳密な逆変換ではなく近似値になる（projectPickupSlotIndexの逆関数が未実装のため）。
+ * 実曲でのpickup検証は既存のOpen Item（current-issues.md参照）と同様、未実施。
+ *
+ * @param {number} measureIndex
+ * @param {number} visualSlotIndex
+ * @param {object} model - TimingModel（createTimingModel の戻り値）
+ * @returns {number|null}
+ */
+function _getExactTimeFromSlot(measureIndex, visualSlotIndex, model) {
+  const measure = model.getMeasure(measureIndex);
+  if (!measure) return null;
+  const slotsPerMeasure = model.slotsPerMeasure;
+  if (!slotsPerMeasure) return null;
+  const ratio = visualSlotIndex / slotsPerMeasure;
+  return measure.startTime + (measure.endTime - measure.startTime) * ratio;
+}
+
+/**
+ * getTimeForGridPosition — app.js側から呼び出すための公開ラッパー。
+ * [OWNERSHIP] TimingModelの生成・保持はchartmode.jsの責務（app.jsは直接触らない）。
+ * editPointは{measureIndex, slotIndex}のみを保持し（[EDIT POINT AUTHORITY]）、
+ * splitTimeが必要なコマンド実行の直前に、この関数を都度呼び出して算出する。
+ *
+ * @param {number} measureIndex
+ * @param {number} visualSlotIndex
+ * @returns {number|null}
+ */
+export function getTimeForGridPosition(measureIndex, visualSlotIndex) {
+  const vm = chartState.viewModel;
+  if (!vm?.model || vm.model.mode === 'fallback') return null;
+  return _getExactTimeFromSlot(measureIndex, visualSlotIndex, vm.model);
 }
 
 /**
@@ -1499,6 +1602,31 @@ export function renderChartMode({ measuresPerRow = 3, editing = false } = {}) {
 
   _renderChartHeader(vm, analysis, editing);
   _renderChartGrid(vm, analysis, { measuresPerRow });
+  _applyEditPointMarker();
+}
+
+/**
+ * _applyEditPointMarker — chartState.editPointMarker をDOMへ反映する（暫定実装）
+ *
+ * [Phase77後半・暫定] 現状は毎回の再描画後にclass付け替えのみを行う簡易実装。
+ * TODO(Phase78): [BOUNDARY DECORATOR] へ統合し、境界ハンドル等と統一的に扱う。
+ */
+function _applyEditPointMarker() {
+  document.querySelectorAll('.chart-slot--edit-point')
+    .forEach(el => el.classList.remove('chart-slot--edit-point'));
+
+  const marker = chartState.editPointMarker;
+  if (!marker) return;
+
+  const measureEl = document.querySelector(
+    `.chart-measure[data-measure-index="${marker.measureIndex}"]`
+  );
+  if (!measureEl) return;
+
+  const slotEl = measureEl.querySelector(
+    `.chart-slot[data-visual-slot-index="${marker.slotIndex}"]`
+  );
+  if (slotEl) slotEl.classList.add('chart-slot--edit-point');
 }
 
 /**
@@ -1806,9 +1934,17 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
 
           case 'carry':
             // carry slot: DOM は生成するが chord label を持たない。
-            // onset の chord label が CSS で carry 領域へ伸びるため視覚的に継続して見える。
+            // onset の chord label が CSS で carry 領域へ伸びるため視覚的に継続して見える
+            // （同一小節内はこれで既にクリック可能）。
             // opacity ではなく class のみ（opacity は子要素に継承されるため使わない）。
             slotEl.classList.add('chart-slot--carry');
+            // [Phase77] 小節をまたぐ継続セルは onset の chord label DOM が届かないため、
+            // このslot自身にdata-chord-idを持たせて選択可能にする。
+            // ハイライト表示（chart-chord-name--selected相当）は今回のスコープ外
+            // （クリック可否のみを対象とする）。
+            if (slot.sourceChordId) {
+              slotEl.dataset.chordId = slot.sourceChordId;
+            }
             break;
 
           case 'empty':

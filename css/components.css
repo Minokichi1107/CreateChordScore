@@ -1323,14 +1323,56 @@
   background: var(--color-red);
   color: #fff;
 }
+/* Phase77後半: Add Here用の強調ボタン。既存のsemantic色（amber）を流用する。 */
+.aep-btn--primary {
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+.aep-btn--primary:hover {
+  background: var(--color-amber);
+  color: var(--surface-base);
+}
 .aep-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* [Phase77後半・確定] .aep-boundary-group/.aep-boundary-row/.aep-boundary-side-label は
+   右端境界移動の撤去に伴い未使用化したため削除した。
+   個別移動・範囲シフトともに既存の aep-shift-btns / aep-shift-note（別CSSファイル定義）を
+   そのまま再利用する1行構成に戻している。 */
 
 /* ── Chart Mode: 選択中コードのハイライト（Phase74-C） ── */
 .chart-chord-name--selected {
   outline: 2px solid var(--color-amber);
   outline-offset: 1px;
   border-radius: 2px;
+}
+/* Phase77: 個別移動（左側の境界）のハンドル表示。
+   moveBoundary()が動かす対象は「選択中コードの左端（＝前のコードとの境界）」。
+   [BOUNDARY VISUAL AUTHORITY]
+     boundaryIndex（app.js側のRuntime Authority）が「動く境界」の唯一の正本。
+     Chart Modeの描画は、この境界を常に「選択中コードの左端」として提示する。
+     隣接コード側（前のコード）の表示には動きを強調する演出を意図的に付けない
+     （座標の再計算自体は避けられないが、視線を引く表現は選択中コード側にのみ持たせる）。
+   ::before は .chart-chord-name の position:absolute を基準に配置される
+   （position:relative を別途足さなくても、absolute要素はそれ自体が
+     子要素の配置基準になるため）。 */
+.chart-chord-name--selected::before {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  bottom: -3px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--color-amber);
+}
+
+/* Phase77後半: editPoint（挿入位置）マーカー（暫定実装）。
+   TODO(Phase78): [BOUNDARY DECORATOR] へ統合し、境界ハンドルと統一的な見た目にする。
+   現時点ではセル全体を破線枠+背景色でハイライトする最小限の表現に留める。 */
+.chart-slot--edit-point {
+  outline: 2px dashed var(--color-amber);
+  outline-offset: -2px;
+  background: rgba(var(--color-amber-rgb), .15);
 }

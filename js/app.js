@@ -186,6 +186,8 @@ import {
   setTooltipEnabled,
   getPerfState,
   setSelectedChordIds,
+  setEditPointMarker,
+  getTimeForGridPosition,
 } from './chartmode.js';
 
 // ════════════════════════════════════════
@@ -267,14 +269,98 @@ let _fileHandle = null;
  * analysis.raw.chords が更新されるのは
  * validateAnalysis() を通過した Save 実行時のみである。
  */
+/**
+ * [SELECTION STRUCTURE OVERVIEW]（editPoint実装前の整理・Phase77後半で確定）
+ * selectionが保持する情報を役割ごとに整理する。
+ *
+ *   chordIds       [DERIVED CACHE] 選択対象そのもの（唯一の入力に近い値）。
+ *                   buffer上の時系列順に正規化済み。他の全フィールドは
+ *                   これとbufferから_refreshSelection()が導出する。
+ *   anchorChordId  [DERIVED CACHE] Shift+クリック範囲選択の起点（Phase76-A）。
+ *                   単一選択時はchordIds[0]と同じ。
+ *   boundaryIndex   [SELECTION EDIT TARGETS] 選択範囲の左側の境界（個別移動対象）。
+ *                   ↑ chordIdsが変われば自動的に再計算される派生値。
+ *                   選択範囲が曲の先頭を含む場合はnull。
+ *                   [Phase77後半・仕様確定] 右側の境界を動かす操作は、
+ *                   ユーザー体験として冗長と判断し実装しない
+ *                   （範囲シフトで同等以上のことができるため）。
+ *   editPoint       [SELECTION EDIT TARGETS]（Phase77後半で実装）
+ *                   挿入系コマンド（＋追加・現時点では貼り付け挿入は未実装）の対象位置。
+ *                   { ownerId, measureIndex, slotIndex } または null。
+ *                   chordIdsとは排他（どちらか一方のみ有効。setEditPoint()/
+ *                   _refreshSelection()の両方が、もう一方を必ずクリアする）。
+ *
+ * この4種のフィールドはすべて「今どこを編集しようとしているか」を表す
+ * 派生状態であり、chordIds（と明示的なanchorChordId）以外は
+ * _refreshSelection()経由でのみ更新する。永続化は一切しない
+ * （[SELECTION EDIT TARGETS]参照）。
+ */
+/**
+ * [BOUNDARY EDIT AUTHORITY]（Phase77で確立・Phase77後半で「右端」を廃止）
+ * 個別移動（境界編集）は、常に「選択範囲の左側の境界」を編集する。
+ * これは「境界そのもの」の編集であり、境界を動かすとそれを挟む両側の要素
+ * （left.end / right.start）が対等に更新される（どちらか一方が「主」で
+ * どちらかが「従」という関係ではない）。
+ *
+ * 単一選択（範囲の長さ1）は特別扱いではなく、この一般化の中の1ケースにすぎない
+ * （boundaryIndexは選択範囲の最初のコードのindexをfirstIdxとした時、
+ * 常にfirstIdx-1を指す。範囲が曲の先頭を含む場合はnull）。
+ *
+ * [Phase77後半・設計判断] 当初「右側の境界」も同様に実装したが、
+ * ユーザー視点で冗長と判断し撤去した。範囲全体を平行移動したい場合は
+ * shiftSelectionRange()（[RANGE SHIFT AUTHORITY]）を使う。
+ *
+ * moveBoundary(boundaryIndex, newTime)自体は「境界を挟む2要素」という汎用処理のみを持ち、
+ * どちらが「選択中」かという意味付けは持たない（意味付けは_refreshSelection()の
+ * boundaryIndex算出のみが担う）。
+ *
+ * [SELECTION EDIT TARGETS]
+ * selection.boundaryIndex・selection.editPoint は、現在編集対象と
+ * なっている位置を表す一時的なUI状態である。これらは派生情報であり、
+ * 現在のchordIdsやTimingModelから再計算可能である場合は再計算を優先し、
+ * 永続化の対象とはしない。
+ *
+ * [EDIT POINT AUTHORITY]（Phase77後半で確立）
+ * selection.editPoint は「挿入系コマンドの対象位置」を表す唯一の状態である。
+ * editPoint は ownerId と visual グリッド座標 (measureIndex, slotIndex) のみを保持する。
+ * 実時刻（splitTime）は保持しない。splitTime はコマンド実行時に
+ * getTimeForGridPosition()（chartmode.js）経由でTimingModelから都度算出する。
+ * これにより、pickup projection・TimingModel更新後も editPoint が
+ * 古い時刻を保持することを防ぐ。
+ * chordIdsとeditPointは排他（どちらか一方のみ有効。setEditPoint()/_refreshSelection()
+ * の両方が、もう一方を必ずクリアする）。
+ *
+ * [EDIT POINT LIFETIME]（Phase77後半で確立）
+ * editPoint は永続化されない一時的なUI状態（ephemeral UI state）である。
+ * 以下のいずれかが起きた時点で必ずクリアされる：
+ *   ・選択（chordIds）が変化した時（_refreshSelection()経由）
+ *   ・project切替・Chart Modeの再構築
+ * コマンド（＋追加・貼り付け等）はeditPointを消費してよいが、
+ * シリアライズ（保存・Undo履歴のスナップショット等）の対象にしてはならない。
+ *
+ * [RANGE SHIFT AUTHORITY]（Phase77後半で確立）
+ * shiftSelectionRange(deltaSec) は、選択範囲全体を「中身の長さを保ったまま」
+ * 平行移動する。境界編集（moveBoundary）と異なり、選択範囲内部の各要素は
+ * すべて同じ量だけ平行移動するだけで、個々の長さは変化しない。
+ * 選択範囲の外側2つの境界（前の隣接コードとの間・次の隣接コードとの間）だけが
+ * 実際に伸縮する。範囲が曲の先頭または末尾を含む場合は実行不可
+ * （吸収先の隣接コードが存在しないため）。
+ * 内部実装はmoveBoundary()を再利用する（境界更新の唯一の窓口という原則を維持）。
+ *
+ * TODO(Phase78): [BOUNDARY DECORATOR]
+ * Chart Mode上のハンドル・editPointマーカーは「コード要素の装飾」ではなく
+ * 「編集対象位置（Boundary / EditPoint）の視覚表現」として扱う。
+ * 描画ロジックを編集機能から独立させ、chartmode.js内に
+ * Boundary Decoratorとして責務を分離する（境界ハンドル・editPointマーカーを
+ * 同じ描画システムで統一的に扱う）。今回（Phase77）は機能実装のみ行う。
+ */
 const analysisEditor = {
   active:    false,  // 編集モード中かどうか
   buffer:    null,   // ChordEvent[]（_id付き）の作業コピー
   history:   [],      // Undo用スナップショットスタック
   future:    [],       // Redo用スナップショットスタック
-  // [DERIVED CACHE] chordIds以外は直接書き換えず_refreshSelection()経由で更新すること
-  // anchorChordId: Shift+クリック範囲選択の起点（Phase76-A）。単一選択時は選択中コードと同じ。
-  selection: { chordIds: [], boundaryIndex: null, anchorChordId: null },
+  // selection: 各フィールドの役割は上記コメント群参照。
+  selection: { chordIds: [], boundaryIndex: null, anchorChordId: null, editPoint: null },
   clipboard: null,    // Phase74-E（コピー＆ペースト）用・現在未使用
   dirty:     false,   // 未保存変更フラグ
 };
@@ -302,8 +388,9 @@ function resetAnalysisEditor() {
  *
  * [INVARIANT] chordIdsはbuffer上の時系列順に正規化して格納する
  * （逆順クリックで渡された場合も並び替える）。
- * [INVARIANT] boundaryIndexは単一選択時のみ意味を持つ値。
- * 複数選択時は常にnullにする（個別移動UIは単一選択専用のため）。
+ * [INVARIANT]（Phase77後半で確定）boundaryIndexは単一選択・複数選択のどちらでも
+ * 意味を持つ（選択範囲の左側の境界）。選択範囲が曲の先頭を含む場合はnull。
+ * 右側の境界は対象外（範囲シフトshiftSelectionRange()で代替）。
  *
  * @param {string[]} [chordIds] - 新しい選択として確定するID配列。
  *   省略時は今のchordIdsをbufferと照合し直すだけ（Undo/Redo/削除後の再同期用）。
@@ -315,6 +402,10 @@ function resetAnalysisEditor() {
 function _refreshSelection(chordIds, anchorChordId) {
   const ids = chordIds !== undefined ? chordIds : analysisEditor.selection.chordIds;
   const buffer = analysisEditor.buffer;
+
+  // [EDIT POINT LIFETIME] selection（chordIds）が変化する経路は常にここを通るため、
+  // editPointのクリアもここに集約する（chordIdsとeditPointは排他）。
+  analysisEditor.selection.editPoint = null;
 
   // [INVARIANT] buffer上の時系列順に正規化し、buffer上に実在しないIDは除外する
   const validIds = buffer ? buffer.filter(c => ids.includes(c._id)).map(c => c._id) : [];
@@ -328,12 +419,16 @@ function _refreshSelection(chordIds, anchorChordId) {
 
   analysisEditor.selection.chordIds = validIds;
 
-  // boundaryIndex: 単一選択時のみ算出。複数選択時はnull固定（個別移動UI無効化のため）
-  if (validIds.length === 1) {
-    const idx = buffer.findIndex(c => c._id === validIds[0]);
-    analysisEditor.selection.boundaryIndex = buffer[idx + 1] ? idx : null;
-  } else {
-    analysisEditor.selection.boundaryIndex = null;
+  // [Phase77後半・確定] boundaryIndexは「選択範囲の左側の境界」のみ。
+  // 単一選択は「範囲の長さ1」として自動的に同じロジックで扱われる（特別扱い不要）。
+  // 右側の境界を動かす操作は冗長と判断し廃止（範囲シフトで代替可能）。
+  // [SELECTION EDIT TARGETS]
+  // boundaryIndexは現在編集対象となっている位置を表す一時的なUI状態（派生情報）である。
+  // chordIdsとbufferから常に再計算可能であり、永続化の対象にしない
+  // （editPoint導入時も同じ原則を適用する）。
+  {
+    const firstIdx = buffer.findIndex(c => c._id === validIds[0]);
+    analysisEditor.selection.boundaryIndex = firstIdx > 0 ? firstIdx - 1 : null;
   }
 
   // anchorChordId解決
@@ -457,6 +552,10 @@ window.__analysisEditorDebug = {
   moveBoundary,
   splitChord,
   shiftSelectedBoundary,
+  shiftSelectionRange,
+  setEditPoint,
+  clearEditPoint,
+  addChordAtEditPoint,
   selectChordRange,
   deleteSelection,
   copySelection,
@@ -981,6 +1080,93 @@ function moveBoundary(boundaryIndex, newTime) {
 }
 
 /**
+ * setEditPoint — editPoint（挿入位置）を確定する（UIコマンド層）
+ * [Phase77後半] chartmode.jsのクリックハンドラから呼ばれる。
+ *
+ * @param {string|null} ownerId - クリックされたセルのオーナーコードid。
+ *   コードクリック起因（2回目クリック）ならchartmode.js側で確定済みの値を渡す。
+ *   空セルクリック（data-chord-idを持たないセル）の場合はnullを渡し、
+ *   この関数側で時刻からbufferを検索してオーナーを特定する。
+ * @param {number} measureIndex
+ * @param {number} slotIndex
+ */
+function setEditPoint(ownerId, measureIndex, slotIndex) {
+  if (!isAnalysisEditing()) return;
+
+  let resolvedOwnerId = ownerId;
+  if (!resolvedOwnerId) {
+    // 空セルクリック: クリック位置の実時刻を求め、その時刻を含むbufferエントリを
+    // オーナーとする（buffer上は必ずどこかのエントリに属している。
+    // 曲頭の無音区間等も'N'エントリとして実在するため）。
+    const time = getTimeForGridPosition(measureIndex, slotIndex);
+    if (time == null) { toast('この位置の時刻を取得できませんでした'); return; }
+    const owner = analysisEditor.buffer.find(c => time >= c.start && time < c.end);
+    if (!owner) { toast('この位置には既存データがありません'); return; }
+    resolvedOwnerId = owner._id;
+  }
+
+  // chordIdsとeditPointは排他。_refreshSelection([])経由ではなく直接クリアする
+  // （_refreshSelection()を呼ぶとeditPoint自体も道連れでクリアされてしまうため）。
+  analysisEditor.selection.chordIds = [];
+  analysisEditor.selection.boundaryIndex = null;
+  analysisEditor.selection.anchorChordId = null;
+  analysisEditor.selection.editPoint = { ownerId: resolvedOwnerId, measureIndex, slotIndex };
+
+  // [UI SYNC] chartmode.js側の選択キャッシュも同時にクリアする
+  // （Phase75の「選択の二重管理・同期漏れ」の教訓を踏まえ、この関数自身が両方を担う）。
+  setSelectedChordIds([]);
+  _refreshEditorView();
+}
+
+/**
+ * clearEditPoint — editPointを解除する（Escキー等から呼ばれる）
+ */
+function clearEditPoint() {
+  if (analysisEditor.selection.editPoint === null) return;
+  analysisEditor.selection.editPoint = null;
+  _refreshEditorView();
+}
+
+/**
+ * addChordAtEditPoint — editPointの位置へ新規コードを1件挿入する（Add Here本体）
+ * [Phase77後半]
+ *
+ * 実体はPhase75の「追加」ボタン（aep-add）と同じ splitChord() → updateChord() の
+ * 組み合わせ。違いは splitTime が「選択中コードの中間点固定」ではなく、
+ * editPointのグリッド座標から都度算出した時刻になる点のみ。
+ *
+ * [CANCEL INVARIANT] showChordSelector()でキャンセルした場合、splitChord()自体が
+ * 呼ばれないため、bufferもeditPointも一切変化しない
+ * （「編集操作はユーザーの確定操作でのみ状態を変更する」というPhase74以来の方針）。
+ */
+function addChordAtEditPoint() {
+  const editPoint = analysisEditor.selection.editPoint;
+  if (!editPoint) return;
+
+  const owner = analysisEditor.buffer.find(c => c._id === editPoint.ownerId);
+  if (!owner) { toast('この位置には既存データがありません'); return; }
+
+  const splitTime = getTimeForGridPosition(editPoint.measureIndex, editPoint.slotIndex);
+  if (splitTime == null) { toast('この位置の時刻を取得できませんでした'); return; }
+
+  showChordSelector({
+    title: 'コードを追加',
+    initialChord: owner.chord,
+    onSelect: (selected) => {
+      const newId = splitChord(owner._id, splitTime);
+      if (!newId) { toast('この位置には追加できません（時間が足りません）'); return; }
+      updateChord(newId, { chord: selected.name });
+      // 成功時: 新規コードを単独選択する（[EDIT POINT LIFETIME] により
+      // _refreshSelection()経由でeditPointは自動的にクリアされる）。
+      _refreshSelection([newId]);
+      setSelectedChordIds([newId]);
+      _refreshEditorView();
+    },
+    // onCancel省略: 何も呼ばれず、splitChord()にも到達しないためeditPointは維持される
+  });
+}
+
+/**
  * splitChord — 指定コードを splitTime で2つに分割する（コード追加の実体・Phase75）
  *
  * [SPLIT INVARIANTS] この関数が保証すること
@@ -1050,11 +1236,23 @@ function openChordRenameSelector(chord) {
 }
 
 /**
- * shiftSelectedBoundary — 選択中コードの右側の境界を相対量シフトする（UIコマンド層）
+ * shiftSelectedBoundary — 選択範囲の左側の境界を相対量シフトする（UIコマンド層）
+ * [Phase77後半・確定] 右側の境界を動かす操作は撤去した（ユーザー視点で冗長と判断）。
+ * 範囲全体を平行移動したい場合はshiftSelectionRange()を使う。
+ * 単一選択時は「範囲の長さ1」として同じロジックで扱われる（特別扱いなし）。
  * [UI MAPPING] 将来ドラッグ方式に変える際はこの関数だけ差し替えればよい。
+ *
+ * @param {number} deltaSec - シフト量（秒）。矢印キー/ボタン共通で使用。
  */
 function shiftSelectedBoundary(deltaSec) {
   if (!isAnalysisEditing()) return;
+  // [Phase77後半・確定] 個別移動は単一選択専用（UIも単一選択時のみ表示）。
+  // 複数選択時は「選択範囲の先頭コードだけ動く」という違和感が生じるため、
+  // 範囲シフト（shiftSelectionRange）へ誘導する。
+  if (analysisEditor.selection.chordIds.length > 1) {
+    toast('複数選択中は範囲シフトをご利用ください');
+    return;
+  }
   const boundaryIndex = analysisEditor.selection.boundaryIndex;
   if (boundaryIndex === null) { toast('コードを選択してください'); return; }
 
@@ -1069,6 +1267,65 @@ function shiftSelectedBoundary(deltaSec) {
 
   _pushHistory();
   moveBoundary(boundaryIndex, proposed);
+  _refreshEditorView();
+}
+
+/**
+ * shiftSelectionRange — 選択範囲全体を「中身の長さを保ったまま」平行移動する（UIコマンド層）
+ * [RANGE SHIFT AUTHORITY]（Phase77後半で確立）
+ * shiftSelectedBoundary()（境界そのものを編集＝選択範囲内の長さが変わる）とは異なり、
+ * 選択範囲内の各要素は全て同じ量だけ平行移動するだけで、個々の長さは変化しない。
+ * 実際に伸縮するのは選択範囲の外側2つの境界（前後の隣接コードとの間）のみ。
+ *
+ * 選択範囲が曲の先頭または末尾を含む場合は実行不可（吸収先の隣接コードが
+ * 存在しないため。timeline全体が常に隙間なく連続しているという不変条件を守るには、
+ * 両端に吸収先が必要）。
+ *
+ * 内部実装はmoveBoundary()を再利用する（[BOUNDARY EDIT AUTHORITY]：
+ * 境界更新の唯一の窓口という原則を維持するため）。
+ *
+ * @param {number} deltaSec - シフト量（秒）。正で後ろへ、負で前へ。
+ */
+function shiftSelectionRange(deltaSec) {
+  if (!isAnalysisEditing()) return;
+  const ids = analysisEditor.selection.chordIds;
+  if (ids.length === 0) { toast('コードを選択してください'); return; }
+  // [Phase77後半・確定] 範囲シフトは複数選択専用（UIも複数選択時のみ表示）。
+  // 単一コードの伸縮は個別移動（shiftSelectedBoundary）でカバーする。
+  if (ids.length === 1) { toast('単一選択中は個別移動をご利用ください'); return; }
+
+  const buffer = analysisEditor.buffer;
+  const firstIdx = buffer.findIndex(c => c._id === ids[0]);
+  const lastIdx  = buffer.findIndex(c => c._id === ids[ids.length - 1]);
+
+  if (firstIdx <= 0 || lastIdx >= buffer.length - 1) {
+    toast('曲の端のコードを含むため、これ以上移動できません');
+    return;
+  }
+
+  const prevChord = buffer[firstIdx - 1];
+  const nextChord = buffer[lastIdx + 1];
+  const newBlockStart = buffer[firstIdx].start + deltaSec;
+  const newBlockEnd   = buffer[lastIdx].end + deltaSec;
+
+  if (newBlockStart <= prevChord.start || newBlockEnd >= nextChord.end) {
+    toast('隣のコードがこれ以上短くできないため移動できません');
+    return;
+  }
+
+  _pushHistory();
+
+  // 選択範囲内部を丸ごとdeltaSecだけ平行移動。
+  // 内部の要素同士の境界は全要素が同じ量だけ動くため自動的に連続性が保たれる。
+  for (let i = firstIdx; i <= lastIdx; i++) {
+    buffer[i].start += deltaSec;
+    buffer[i].end   += deltaSec;
+  }
+  // 外側2つの境界はmoveBoundary()を再利用して更新する
+  // （内部ループで既に同じ値になっているが、更新経路を1箇所に統一するため呼び出す）。
+  moveBoundary(firstIdx - 1, newBlockStart);
+  moveBoundary(lastIdx, newBlockEnd);
+
   _refreshEditorView();
 }
 
@@ -1151,6 +1408,11 @@ async function saveAnalysisEdit() {
 function _refreshEditorView() {
   if (!chartState.active) return;
   if (!project.analysis) return;
+  // [Phase77後半] editPointマーカー（表示用）を同期。
+  // ここに集約することで、setEditPoint()/clearEditPoint()/_refreshSelection()
+  // どの経路からeditPointが変化しても、次のrenderChartMode()呼び出し前に
+  // 必ず最新状態へ同期される（Phase75の「選択の二重管理・同期漏れ」の教訓）。
+  setEditPointMarker(analysisEditor.selection.editPoint);
   const currentChords = getCurrentChordSource();
   const liveAnalysis = {
     ...project.analysis,
@@ -1194,6 +1456,41 @@ function renderAnalysisEditorPanel() {
   }
   panel.hidden = false;
 
+  // ── Phase77後半: editPointモード（他の全ての行より優先して分岐・早期return） ──
+  // [Phase77後半・確定] editPoint中は「編集位置」「＋ Add Here」「キャンセル」の
+  // 最小限のUIのみ表示する。個別移動・範囲シフト・編集（変更/削除等）は非表示にし、
+  // 「ボタンが多すぎて何ができるか分からない」問題（実機確認で指摘済み）を再発させない。
+  // 貼り付け（Paste Insert）ボタンはPhase78で実装する時に追加する（今回は作らない）。
+  {
+    const editPoint = analysisEditor.selection.editPoint;
+    if (editPoint) {
+      const owner = analysisEditor.buffer.find(c => c._id === editPoint.ownerId);
+      const time = getTimeForGridPosition(editPoint.measureIndex, editPoint.slotIndex);
+      const posLabel = owner
+        ? `${owner.chord} の途中（${time != null ? time.toFixed(3) : '?'}秒）`
+        : '不明な位置';
+
+      panel.innerHTML = `
+        <div class="aep-row">
+          <span class="aep-section-label">編集位置</span>
+          <span class="aep-chord-info">${posLabel}</span>
+        </div>
+        <div class="aep-row">
+          <button class="aep-btn aep-btn--primary" id="aep-add-here">＋ Add Here</button>
+          <button class="aep-btn" id="aep-editpoint-cancel">キャンセル</button>
+        </div>
+      `;
+
+      document.getElementById('aep-add-here')?.addEventListener('click', () => {
+        addChordAtEditPoint();
+      });
+      document.getElementById('aep-editpoint-cancel')?.addEventListener('click', () => {
+        clearEditPoint();
+      });
+      return;
+    }
+  }
+
   // 選択中コードを取得
   // [Phase76-A] 複数選択時はselectedId/chordをnullのまま扱う
   // （単一選択専用の操作＝境界移動・追加・変更・単体削除は複数選択時には出さない。
@@ -1204,7 +1501,21 @@ function renderAnalysisEditorPanel() {
   const chord = selectedId
     ? (analysisEditor.buffer.find(c => c._id === selectedId) ?? null)
     : null;
-  const hasRightBoundary = analysisEditor.selection.boundaryIndex !== null;
+  // [Phase77後半・確定] 個別移動＝単一選択専用／範囲シフト＝複数選択専用に出し分ける。
+  // 理由：個別移動は内部的に「選択範囲の先頭コード1つ」だけを操作するため、
+  // 複数選択時に使うと「先頭だけ動く」という違和感が生じる（実機確認で発覚）。
+  // 範囲シフトは単一選択でも動作しうるが、単一コードの伸縮は個別移動で
+  // 十分カバーできるため、両方を同時に出す必要はないと判断した。
+  const hasLeftBoundary = analysisEditor.selection.boundaryIndex !== null;
+  // 範囲シフトは選択範囲が曲の先頭・末尾を含まない時のみ有効
+  // （shiftSelectionRange()内のガードと対応する表示用フラグ）
+  const firstSelId = selectedIds[0];
+  const lastSelId  = selectedIds[selectedIds.length - 1];
+  const firstSelIdx = firstSelId ? analysisEditor.buffer.findIndex(c => c._id === firstSelId) : -1;
+  const lastSelIdx  = lastSelId  ? analysisEditor.buffer.findIndex(c => c._id === lastSelId)  : -1;
+  const canRangeShift = isMultiSelect
+    && firstSelIdx > 0
+    && lastSelIdx < analysisEditor.buffer.length - 1;
 
   // ── Phase74-C: 選択コードの情報表示（読み取り専用） ──
   // Phase76-A: 複数選択時は「N件選択中」を表示する
@@ -1217,21 +1528,30 @@ function renderAnalysisEditorPanel() {
       ? `<div class="aep-chord-info">${selectedIds.length}件選択中</div>`
       : `<div class="aep-chord-info aep-chord-info--empty">コードをクリックして選択してください</div>`;
 
-  // 単一選択専用の操作に対する注記（複数選択中/未選択で文言を分ける）
-  const singleOnlyNote = isMultiSelect
-    ? `<span class="aep-shift-note">複数選択中はこの操作は使えません（単一選択でのみ有効）</span>`
-    : `<span class="aep-shift-note">コードを選択してください</span>`;
+  // ── Phase74-E: 個別移動（単一選択専用・Phase77後半で複数選択時は無効化） ──
+  const boundaryControls = isMultiSelect
+    ? `<span class="aep-shift-note">複数選択中はこの操作は使えません（範囲シフトをご利用ください）</span>`
+    : !chord
+      ? `<span class="aep-shift-note">コードを選択してください</span>`
+      : !hasLeftBoundary
+        ? `<span class="aep-shift-note">先頭のコードを含むため境界がありません</span>`
+        : `<div class="aep-shift-btns">
+             <button class="aep-btn aep-btn--shift" id="aep-bnd-m05">← 0.5秒</button>
+             <button class="aep-btn aep-btn--shift" id="aep-bnd-m01">← 0.1秒</button>
+             <button class="aep-btn aep-btn--shift" id="aep-bnd-p01">→ 0.1秒</button>
+             <button class="aep-btn aep-btn--shift" id="aep-bnd-p05">→ 0.5秒</button>
+           </div>`;
 
-  // ── Phase74-E: 個別移動（選択中コードの右側の境界） ──
-  const boundaryControls = !chord
-    ? singleOnlyNote
-    : !hasRightBoundary
-      ? `<span class="aep-shift-note">これは最後のコードのため、右側の境界がありません</span>`
+  // ── [RANGE SHIFT AUTHORITY]: 範囲シフト（複数選択専用） ──
+  const rangeShiftControls = !isMultiSelect
+    ? `<span class="aep-shift-note">複数選択中のみ利用できます（範囲選択してください）</span>`
+    : !canRangeShift
+      ? `<span class="aep-shift-note">曲の端のコードを含むため、これ以上移動できません</span>`
       : `<div class="aep-shift-btns">
-           <button class="aep-btn aep-btn--shift" id="aep-bnd-m05">← 0.5秒</button>
-           <button class="aep-btn aep-btn--shift" id="aep-bnd-m01">← 0.1秒</button>
-           <button class="aep-btn aep-btn--shift" id="aep-bnd-p01">→ 0.1秒</button>
-           <button class="aep-btn aep-btn--shift" id="aep-bnd-p05">→ 0.5秒</button>
+           <button class="aep-btn aep-btn--shift" id="aep-rng-m05">← 0.5秒</button>
+           <button class="aep-btn aep-btn--shift" id="aep-rng-m01">← 0.1秒</button>
+           <button class="aep-btn aep-btn--shift" id="aep-rng-p01">→ 0.1秒</button>
+           <button class="aep-btn aep-btn--shift" id="aep-rng-p05">→ 0.5秒</button>
          </div>`;
 
   // ── Phase75: 編集アクション（追加・変更・削除） ──
@@ -1282,8 +1602,12 @@ function renderAnalysisEditorPanel() {
       </div>
     </div>
     <div class="aep-row aep-row--boundary">
-      <span class="aep-section-label">個別移動（選択中コードの右側の境界）</span>
+      <span class="aep-section-label">個別移動</span>
       ${boundaryControls}
+    </div>
+    <div class="aep-row aep-row--boundary">
+      <span class="aep-section-label">範囲シフト</span>
+      ${rangeShiftControls}
     </div>
     <div class="aep-row aep-row--edit">
       <span class="aep-section-label">編集</span>
@@ -1308,6 +1632,10 @@ function renderAnalysisEditorPanel() {
   document.getElementById('aep-bnd-m01')?.addEventListener('click', () => shiftSelectedBoundary(-0.1));
   document.getElementById('aep-bnd-p01')?.addEventListener('click', () => shiftSelectedBoundary(0.1));
   document.getElementById('aep-bnd-p05')?.addEventListener('click', () => shiftSelectedBoundary(0.5));
+  document.getElementById('aep-rng-m05')?.addEventListener('click', () => shiftSelectionRange(-0.5));
+  document.getElementById('aep-rng-m01')?.addEventListener('click', () => shiftSelectionRange(-0.1));
+  document.getElementById('aep-rng-p01')?.addEventListener('click', () => shiftSelectionRange(0.1));
+  document.getElementById('aep-rng-p05')?.addEventListener('click', () => shiftSelectionRange(0.5));
   document.getElementById('aep-add')?.addEventListener('click', () => {
     if (!chord) return;
     // 初期実装: 均等2分割のみ（将来カーソル位置分割を追加する場合もsplitChord()自体は変更不要）
@@ -3063,6 +3391,14 @@ function setupEventHandlers() {
         unlockDiag();
         return;
       }
+      // [Phase77後半] editPoint中のEsc → State0へ（editPoint解除）。
+      // 追加ダイアログ（showChordSelector）を開いている間のEscはmodal-ov側で
+      // 先に処理されるため、ここに到達するのは「editPointは立っているが
+      // ダイアログは開いていない」状態のみ（[EDIT POINT LIFETIME]参照）。
+      if (isAnalysisEditing() && analysisEditor.selection.editPoint !== null) {
+        clearEditPoint();
+        return;
+      }
     }
 
     // Shift+BracketLeft: 左パネル トグル
@@ -3124,7 +3460,7 @@ function setupEventHandlers() {
       }
     }
 
-    // ArrowLeft/ArrowRight: 個別移動（解析編集モード中・選択中コードの右境界）
+    // ArrowLeft/ArrowRight: 個別移動（解析編集モード中・選択中コードの左境界・Phase77で右境界から変更）
     if (isAnalysisEditing() && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
@@ -3809,6 +4145,13 @@ rebuildChartViewModel();
 
     // chartmode.jsが編集モード中かどうかを問い合わせるための関数
     isEditingAnalysis: () => isAnalysisEditing(),
+
+    // Phase77後半: editPoint（挿入位置）確定リクエスト
+    // [OWNERSHIP] editPointの正本は analysisEditor.selection（app.js）。
+    // chartmode.jsはクリック検出（二段階クリックモデルの判定）のみ行い、ここへ通知する。
+    onEditPointRequested: (ownerId, measureIndex, slotIndex) => {
+      setEditPoint(ownerId, measureIndex, slotIndex);
+    },
   });
 
   // ⑨ Library 初期化（Phase73-C）
