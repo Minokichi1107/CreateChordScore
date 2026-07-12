@@ -1341,6 +1341,177 @@
    個別移動・範囲シフトともに既存の aep-shift-btns / aep-shift-note（別CSSファイル定義）を
    そのまま再利用する1行構成に戻している。 */
 
+/* ── Phase78 Sprint1: Footer 4 Groups構成 ──
+   [DECORATOR/GROUP NOTE] .aep-row は既存の基本レイアウト（flex/gap/wrap）を提供する
+   ベースクラスとして維持し、.aep-group はその上に乗る意味付けクラスとして扱う。
+   4つのGroup（Selection/Navigation/Primary/Workspace）は同一の.aep-groupを共有し、
+   variant（--primary/--workspace等）だけを切り替える構成にしている
+   （ChatGPTレビュー④「Group3だけ特別扱いしない」を反映）。 */
+.aep-group {
+  padding: 4px 0;
+}
+.aep-group--action-row {
+  /* [実機フィードバック反映] Primary ActionとWorkspaceを1行にまとめる。
+     amber背景の有無で「対象固有の操作」と「編集セッションの共通操作」を区別する。
+     flex/align-itemsは.aep-row（併記クラス）由来のものをそのまま使う。 */
+}
+.aep-group--primary,
+.aep-group--workspace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.aep-group--primary {
+  /* 新規token追加はせず、既存のsurface-selected/border-selected（amber系semantic token）を
+     「強調」の意味で転用する。ui-rules.md §7の「Component alias許容条件」に照らし、
+     既存Semantic層で表現できる場合は新規tokenを作らない方針を優先した。 */
+  background: var(--surface-selected);
+  border: 1px solid var(--border-selected);
+  border-radius: var(--r-md);
+  padding: 6px 10px;
+}
+.aep-group--workspace {
+  opacity: 0.82;
+}
+.aep-group-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border-ui);
+  margin: 0 2px;
+}
+.aep-spacer {
+  flex: 1 1 auto;
+}
+
+/* シフトボタンのキャプション（「全体」「開始位置」「範囲」等）。
+   [実機フィードバック反映] ホバー前でも矢印ボタンの対象が区別できるようにする。 */
+.aep-shift-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.aep-shift-caption {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+/* [実機フィードバック反映] 全体シフトは「常に効く操作」であることを示すため、
+   個別移動／範囲シフト（amber箱の中の小さいボタン）より一回り大きくし、
+   枠線をamberにして視覚的に区別する。新規tokenは追加せず既存のcolor-amberを使う。 */
+.aep-btn--shift-lg {
+  font-size: 13px;
+  padding: 6px 12px;
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+.aep-btn--shift-lg:hover {
+  background: var(--color-amber);
+  color: var(--surface-base);
+}
+
+/* 選択解除ボタン（×バッジ）。Group1（Selection）内、コード名の右に添える想定。 */
+.aep-btn--clear {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--r-sm);
+}
+.aep-btn--clear:hover {
+  color: var(--color-red);
+  background: var(--surface-overlay);
+}
+
+/* その他▼メニュー（低頻度コマンドの格納先。将来の拡張ポイント。ネイティブ<details>を利用） */
+.aep-overflow {
+  position: relative;
+}
+.aep-overflow > summary {
+  list-style: none;
+}
+.aep-overflow > summary::-webkit-details-marker {
+  display: none;
+}
+.aep-overflow[open] > summary {
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+.aep-overflow-menu {
+  position: absolute;
+  /* [実機フィードバック反映] フッターは画面下部にあるため、下向きに開くと
+     画面外に見切れる。上向き（summaryの上）に開くよう変更する。 */
+  bottom: calc(100% + 4px);
+  top: auto;
+  left: 0;
+  z-index: 20;
+  min-width: 190px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: var(--shadow-sm);
+}
+.aep-overflow-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.aep-overflow-item:hover {
+  background: var(--surface-selected);
+}
+.aep-overflow-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.aep-overflow-item:disabled:hover {
+  background: transparent;
+}
+.aep-shortcut {
+  color: var(--text-muted);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.aep-overflow-divider {
+  height: 1px;
+  background: var(--border-ui);
+  margin: 4px 2px;
+}
+
+/* [実機フィードバック反映] 「編集終了」「保存して閉じる」がUndo/Redoと
+   見分けがつかなかったため区別する。既存のsemantic色（green=完了・肯定的操作）を
+   保存ボタンに転用し、編集終了はborderを強めて「セッションを閉じる」操作として
+   視覚的に独立させる（新規token追加なし）。 */
+.aep-btn--end {
+  border-color: var(--text-secondary);
+}
+.aep-btn--save {
+  border-color: var(--color-green);
+  color: var(--color-green);
+}
+.aep-btn--save:hover:not(:disabled) {
+  background: var(--color-green);
+  color: var(--surface-base);
+}
+
 /* ── Chart Mode: 選択中コードのハイライト（Phase74-C） ── */
 .chart-chord-name--selected {
   outline: 2px solid var(--color-amber);

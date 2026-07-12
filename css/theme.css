@@ -336,6 +336,10 @@ body[data-theme="silver"] {
   /* --- status colors --- */
   --color-green: #167a3e;
   --color-amber: #a86400;
+  /* [Phase78 Sprint1] --color-amber-rgb がテーマ非依存だったため追加。
+     ui-rules.md §6（alpha値はRGB変数+呼び出し側alphaで扱う）に合わせ、
+     このテーマのamber値(#a86400)に対応するRGBを明示する。 */
+  --color-amber-rgb: 168,100,0;
   --color-red:   #ff7c7c;
 
   /* --- perform text --- */
@@ -547,6 +551,8 @@ body[data-theme="blue"] {
 
   /* --- status colors --- */
   --color-amber: #a06000;
+  /* [Phase78 Sprint1] silverテーマと同様の理由で追加。#a06000 に対応するRGB。 */
+  --color-amber-rgb: 160,96,0;
   --color-red:   #ff7c7c;
 
   /* --- perform text --- */

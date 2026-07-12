@@ -746,6 +746,17 @@ export const chartState = {
   // { measureIndex, slotIndex } または null。
   // TODO(Phase78): [BOUNDARY DECORATOR] へ統合予定（暫定実装）。
   editPointMarker: null,
+
+  // [Phase78.1 Hotfix] 直前にクリックしたセルの記録。
+  // [UI INTERACTION CACHE — NOT AN AUTHORITY]
+  // これは selection や editPoint のような正本ではなく、クリックハンドラが
+  // 「同じセルへの2回目のクリックかどうか」を判定するためだけのUI判定専用キャッシュ。
+  // 継続セル（同一chordIdが複数小節にまたがる）で、chordIdだけを条件にすると
+  // 別のセルをクリックしただけでも「同じコードへの2回目」と誤判定され、
+  // 意図せずeditPointへ入ってしまう不具合があったため、
+  // slotIndex/measureIndexまで一致する場合のみ「同じセル」とみなすようにする。
+  // { chordId, slotIndex, measureIndex } または null。
+  _lastClickedSlot: null,
 };
 
 /**
@@ -1189,17 +1200,55 @@ function _setupGridClickSeek() {
     //   （空セルには「選択」という概念が無いため2段階を経ない）
     if (_isEditingAnalysis() && _onChordSelected) {
       const chordEl   = e.target.closest('[data-chord-id]');
-      const slotEl    = e.target.closest('.chart-slot[data-visual-slot-index]');
       const measureEl = e.target.closest('.chart-measure[data-measure-index]');
-      const measureIndex = measureEl ? Number(measureEl.dataset.measureIndex)   : null;
-      const slotIndex    = slotEl    ? Number(slotEl.dataset.visualSlotIndex)   : null;
+      const measureIndex = measureEl ? Number(measureEl.dataset.measureIndex) : null;
+
+      // [Phase78.2 Hotfix] slotIndexをDOM祖先(closest)からではなく、
+      // クリック座標から算出するよう変更する。
+      //
+      // 理由: onsetのコード名ラベル(.chart-chord-name)はCSSで
+      // --duration-slots 個分の幅までposition:absoluteで右へ伸びる
+      // （同一小節内で複数拍にまたがって視覚的に表示されるため）。
+      // しかしDOM構造上は、そのラベルは常にonset自身のslot（通常beatIndex=0）
+      // の子要素のままである。
+      // そのため、視覚的に離れた拍（例: 4拍目）をクリックしても、
+      // closest('.chart-slot[data-visual-slot-index]')で辿ると
+      // 必ずonset自身のslotIndexに解決されてしまい、
+      // 同一小節内でのeditPoint位置指定が常にonset付近になる
+      // バグがあった（実機フィードバックで発覚。「時間が足りません」の頻発として現れていた）。
+      //
+      // [PROJECTION INVARIANT維持] projectionEmpty slot（pickup小節の
+      // 先頭埋め草）は、クリック座標がその領域に入った場合は
+      // 従来通りslotIndexをnullのまま扱い、interaction対象外にする
+      // （architecture.md §9.5の不可侵性を維持する）。
+      let slotIndex = null;
+      if (measureEl && !e.target.closest('.chart-slot--projection-empty')) {
+        const spm = chartState.viewModel?.model?.slotsPerMeasure;
+        if (spm) {
+          const rect = measureEl.getBoundingClientRect();
+          const ratio = (e.clientX - rect.left) / rect.width;
+          slotIndex = Math.min(Math.max(Math.floor(ratio * spm), 0), spm - 1);
+        }
+      }
 
       if (chordEl) {
         const chordId = chordEl.dataset.chordId;
         if (chordId) {
+          // [Phase78.1 Hotfix] 継続セル（同一chordIdが複数小節にまたがる）で、
+          // 別のセルをクリックしただけなのにeditPointへ入ってしまう不具合を修正。
+          // 「同じコード」だけでなく「直前クリックと同じセル（slotIndex/measureIndex）」
+          // である場合のみ、2クリック目＝editPointとみなす。
+          const last = chartState._lastClickedSlot;
           const isSameSingleSelection = !e.shiftKey
             && chartState.selectedChordIds.size === 1
-            && chartState.selectedChordIds.has(chordId);
+            && chartState.selectedChordIds.has(chordId)
+            && last
+            && last.chordId === chordId
+            && last.slotIndex === slotIndex
+            && last.measureIndex === measureIndex;
+
+          chartState._lastClickedSlot = { chordId, slotIndex, measureIndex };
+
           if (isSameSingleSelection && _onEditPointRequested
               && measureIndex !== null && slotIndex !== null) {
             _onEditPointRequested(chordId, measureIndex, slotIndex);

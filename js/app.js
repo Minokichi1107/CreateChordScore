@@ -566,6 +566,7 @@ window.__analysisEditorDebug = {
   redoEdit,
   validateAnalysis,
   get state() { return analysisEditor; },
+  get editorMode() { return deriveEditorMode(analysisEditor.selection); }, // [Phase78 Sprint1]
 };
 
 // ════════════════════════════════════════
@@ -1436,8 +1437,154 @@ function _refreshEditorView() {
  * [OWNERSHIP] DOM生成・イベント結線はこの関数が担う。
  * 選択状態の正本は analysisEditor.selection。
  */
+// ============================================================
+// Phase78 Sprint1: Footer構造刷新
+// 設計原則は docs/design/phase78-footer-redesign.md 参照。
+// ============================================================
+
+/**
+ * [EDITOR MODE PROJECTION]
+ * UI Rendering only. Business logic must not branch on editorMode.
+ *
+ * editorMode は selection から導出される Projection である。
+ * selection が唯一の Authority のまま変わらない。
+ * editorMode 自体を state として保持・シリアライズしてはならない
+ * （呼び出しの都度この関数で再計算する）。
+ */
+function deriveEditorMode(selection) {
+  if (selection.editPoint) return 'edit-point';
+  if (selection.chordIds.length === 1) return 'single';
+  if (selection.chordIds.length >= 2) return 'multi';
+  return 'idle';
+}
+
+/**
+ * [SELECTION CLEAR]
+ * 「選択解除」ボタンの唯一の窓口。
+ * ユーザーには「コードを選んでいる」「位置を選んでいる」の区別しか見えないため、
+ * どちらの状態でも同じ「選択解除」という1つの操作として振る舞う
+ * （内部的にはeditPoint/選択の解除経路が異なるだけ）。
+ */
+function clearCurrentSelection() {
+  if (analysisEditor.selection.editPoint) {
+    clearEditPoint();
+  } else {
+    _refreshSelection([]);
+    setSelectedChordIds([]);
+  }
+}
+
+/**
+ * [ACTION REGISTRY]
+ * Group3（Primary Action）の"ボタン群"をmode別に宣言的に定義する。
+ * 新しいコマンドを追加する際は、この定義に追加するだけでよく、
+ * renderPrimaryActionGroup() 自体は変更不要にする。
+ *
+ * 個別移動／範囲シフトのボタンは「利用不可の理由」を含む複数の表示状態を持つ
+ * 専用UIのため、このRegistryには含めず _renderShiftControls() で別途描画する。
+ */
+function getGroup3Actions(mode, ctx) {
+  const { isMultiSelect, selectedIds, hasClipboard } = ctx;
+  const n = selectedIds.length;
+
+  const COPY  = { id: 'aep-copy',  icon: '📋', label: isMultiSelect ? `コピー（${n}件）` : 'コピー', shortcut: 'Ctrl+C' };
+  const CUT   = { id: 'aep-cut',   icon: '✂',  label: isMultiSelect ? `切り取り（${n}件）` : '切り取り', shortcut: 'Ctrl+X' };
+  const PASTE = { id: 'aep-paste', icon: '📄', label: '貼り付け', shortcut: 'Ctrl+V', disabled: !hasClipboard };
+  const MERGE = { id: 'aep-merge', icon: '🔗', label: `結合（${n}件）`, shortcut: 'Ctrl+J' };
+
+  switch (mode) {
+    case 'single':
+      return {
+        primary: [
+          { id: 'aep-add',          icon: '＋', label: '追加', title: 'コードを追加' },
+          { id: 'aep-rename',       icon: '✎',  label: '変更', title: 'コード名を変更' },
+          { id: 'aep-delete-chord', icon: '🗑', label: '削除', title: 'このコードを削除', danger: true },
+        ],
+        // [Phase75由来] 結合(Merge)は単一選択では意味を持たない操作のため、
+        // 単一選択時のその他▼には含めない（グレーアウトではなく非表示）。
+        overflow: [COPY, CUT, PASTE],
+      };
+    case 'multi':
+      return {
+        primary: [
+          { id: 'aep-delete-selection', icon: '🗑', label: `削除（${n}件）`, title: '選択したコードを削除', danger: true },
+        ],
+        overflow: [COPY, CUT, PASTE, { divider: true }, MERGE],
+      };
+    case 'edit-point':
+      return {
+        primary: [
+          { id: 'aep-add-here', icon: '＋', label: 'Add Here', title: 'この位置にコードを追加', primary: true },
+        ],
+        overflow: [],
+      };
+    default: // idle
+      return { primary: [], overflow: [] };
+  }
+}
+
+function _renderActionButton(a) {
+  const cls = ['aep-btn'];
+  if (a.danger) cls.push('aep-btn--danger');
+  if (a.primary) cls.push('aep-btn--primary');
+  const title = a.title || a.label;
+  return `<button class="${cls.join(' ')}" id="${a.id}" title="${title}" aria-label="${title}" ${a.disabled ? 'disabled' : ''}>${a.icon} ${a.label}</button>`;
+}
+
+function _renderOverflowItem(a) {
+  if (a.divider) return `<div class="aep-overflow-divider"></div>`;
+  return `<button class="aep-overflow-item" id="${a.id}" ${a.disabled ? 'disabled' : ''}>
+      <span>${a.icon} ${a.label}</span>
+      <span class="aep-shortcut">${a.shortcut || ''}</span>
+    </button>`;
+}
+
+// [BOUNDARY DECORATOR仮実装・Sprint2でDecorator Layerへ統合予定]
+// 個別移動／範囲シフトは「利用不可の理由」を持つため専用描画にする。
+// 数字は表示せず矢印アイコン＋ツールチップで秒数を伝える（設計原則1）。
+// caption: ホバー前でも「全体」「開始位置」「範囲」等の区別ができるよう添える短い見出し
+// （実機フィードバックにより追加。ツールチップだけに頼ると初見で意味が伝わらないため）。
+function _renderShiftControls(prefix, note, caption, variant) {
+  if (note) return `<span class="aep-shift-note">${note}</span>`;
+  const captionHtml = caption ? `<span class="aep-shift-caption">${caption}</span>` : '';
+  // variant='global': 全体シフト（常に効く操作）を少し大きく・amber強調にし、
+  // Primary Action内の個別移動／範囲シフトと見た目で区別する（実機フィードバック反映）。
+  const sizeCls = variant === 'global' ? ' aep-btn--shift-lg' : '';
+  return `<div class="aep-shift-group">
+      ${captionHtml}
+      <div class="aep-shift-btns">
+        <button class="aep-btn aep-btn--shift${sizeCls}" id="${prefix}-mbig"   title="大きく前へ移動（0.5秒）"   aria-label="大きく前へ移動（0.5秒）">◀◀</button>
+        <button class="aep-btn aep-btn--shift${sizeCls}" id="${prefix}-msmall" title="少し前へ移動（0.1秒）"     aria-label="少し前へ移動（0.1秒）">◀</button>
+        <button class="aep-btn aep-btn--shift${sizeCls}" id="${prefix}-psmall" title="少し後ろへ移動（0.1秒）"   aria-label="少し後ろへ移動（0.1秒）">▶</button>
+        <button class="aep-btn aep-btn--shift${sizeCls}" id="${prefix}-pbig"   title="大きく後ろへ移動（0.5秒）" aria-label="大きく後ろへ移動（0.5秒）">▶▶</button>
+      </div>
+    </div>`;
+}
+
+function _bindShiftControls(prefix, fn) {
+  document.getElementById(`${prefix}-mbig`)?.addEventListener('click', () => fn(-0.5));
+  document.getElementById(`${prefix}-msmall`)?.addEventListener('click', () => fn(-0.1));
+  document.getElementById(`${prefix}-psmall`)?.addEventListener('click', () => fn(0.1));
+  document.getElementById(`${prefix}-pbig`)?.addEventListener('click', () => fn(0.5));
+}
+
+// その他▼メニューの外側クリックで閉じるための1回限りのリスナー登録
+// （renderAnalysisEditorPanel()はinnerHTMLを毎回再生成するため、
+//   document.addEventListenerを都度登録すると重複するのでフラグで防止する）
+let _aepOverflowCloseHandlerBound = false;
+function _ensureAepOverflowCloseHandler() {
+  if (_aepOverflowCloseHandlerBound) return;
+  _aepOverflowCloseHandlerBound = true;
+  document.addEventListener('click', (e) => {
+    document.querySelectorAll('#analysis-editor-panel details.aep-overflow[open]').forEach(d => {
+      if (!d.contains(e.target)) d.open = false;
+    });
+  });
+}
+
 function renderAnalysisEditorPanel() {
   // [NOTE] innerHTML を毎回再生成するためイベントも毎回再結線する（重複登録なし）
+  _ensureAepOverflowCloseHandler();
 
   // パネルコンテナを取得または生成
   let panel = document.getElementById('analysis-editor-panel');
@@ -1456,59 +1603,18 @@ function renderAnalysisEditorPanel() {
   }
   panel.hidden = false;
 
-  // ── Phase77後半: editPointモード（他の全ての行より優先して分岐・早期return） ──
-  // [Phase77後半・確定] editPoint中は「編集位置」「＋ Add Here」「キャンセル」の
-  // 最小限のUIのみ表示する。個別移動・範囲シフト・編集（変更/削除等）は非表示にし、
-  // 「ボタンが多すぎて何ができるか分からない」問題（実機確認で指摘済み）を再発させない。
-  // 貼り付け（Paste Insert）ボタンはPhase78で実装する時に追加する（今回は作らない）。
-  {
-    const editPoint = analysisEditor.selection.editPoint;
-    if (editPoint) {
-      const owner = analysisEditor.buffer.find(c => c._id === editPoint.ownerId);
-      const time = getTimeForGridPosition(editPoint.measureIndex, editPoint.slotIndex);
-      const posLabel = owner
-        ? `${owner.chord} の途中（${time != null ? time.toFixed(3) : '?'}秒）`
-        : '不明な位置';
+  const selection = analysisEditor.selection;
+  const mode = deriveEditorMode(selection);
 
-      panel.innerHTML = `
-        <div class="aep-row">
-          <span class="aep-section-label">編集位置</span>
-          <span class="aep-chord-info">${posLabel}</span>
-        </div>
-        <div class="aep-row">
-          <button class="aep-btn aep-btn--primary" id="aep-add-here">＋ Add Here</button>
-          <button class="aep-btn" id="aep-editpoint-cancel">キャンセル</button>
-        </div>
-      `;
-
-      document.getElementById('aep-add-here')?.addEventListener('click', () => {
-        addChordAtEditPoint();
-      });
-      document.getElementById('aep-editpoint-cancel')?.addEventListener('click', () => {
-        clearEditPoint();
-      });
-      return;
-    }
-  }
-
-  // 選択中コードを取得
-  // [Phase76-A] 複数選択時はselectedId/chordをnullのまま扱う
-  // （単一選択専用の操作＝境界移動・追加・変更・単体削除は複数選択時には出さない。
-  //  複数選択専用の操作＝複数削除・Copy/Cut/Paste・Mergeは今後のPhaseで追加する）。
-  const selectedIds = analysisEditor.selection.chordIds;
+  const selectedIds = selection.chordIds;
   const isMultiSelect = selectedIds.length > 1;
   const selectedId = !isMultiSelect ? (selectedIds[0] ?? null) : null;
   const chord = selectedId
     ? (analysisEditor.buffer.find(c => c._id === selectedId) ?? null)
     : null;
-  // [Phase77後半・確定] 個別移動＝単一選択専用／範囲シフト＝複数選択専用に出し分ける。
-  // 理由：個別移動は内部的に「選択範囲の先頭コード1つ」だけを操作するため、
-  // 複数選択時に使うと「先頭だけ動く」という違和感が生じる（実機確認で発覚）。
-  // 範囲シフトは単一選択でも動作しうるが、単一コードの伸縮は個別移動で
-  // 十分カバーできるため、両方を同時に出す必要はないと判断した。
-  const hasLeftBoundary = analysisEditor.selection.boundaryIndex !== null;
-  // 範囲シフトは選択範囲が曲の先頭・末尾を含まない時のみ有効
-  // （shiftSelectionRange()内のガードと対応する表示用フラグ）
+
+  // [Phase77後半・確定] 個別移動＝単一選択専用／範囲シフト＝複数選択専用。
+  const hasLeftBoundary = selection.boundaryIndex !== null;
   const firstSelId = selectedIds[0];
   const lastSelId  = selectedIds[selectedIds.length - 1];
   const firstSelIdx = firstSelId ? analysisEditor.buffer.findIndex(c => c._id === firstSelId) : -1;
@@ -1517,125 +1623,94 @@ function renderAnalysisEditorPanel() {
     && firstSelIdx > 0
     && lastSelIdx < analysisEditor.buffer.length - 1;
 
-  // ── Phase74-C: 選択コードの情報表示（読み取り専用） ──
-  // Phase76-A: 複数選択時は「N件選択中」を表示する
-  const chordInfo = chord
-    ? `<div class="aep-chord-info">
-         <span class="aep-chord-name">${chord.chord}</span>
-         <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>
-       </div>`
-    : isMultiSelect
-      ? `<div class="aep-chord-info">${selectedIds.length}件選択中</div>`
-      : `<div class="aep-chord-info aep-chord-info--empty">コードをクリックして選択してください</div>`;
+  const capo = getCapo();
 
-  // ── Phase74-E: 個別移動（単一選択専用・Phase77後半で複数選択時は無効化） ──
-  const boundaryControls = isMultiSelect
-    ? `<span class="aep-shift-note">複数選択中はこの操作は使えません（範囲シフトをご利用ください）</span>`
-    : !chord
-      ? `<span class="aep-shift-note">コードを選択してください</span>`
-      : !hasLeftBoundary
-        ? `<span class="aep-shift-note">先頭のコードを含むため境界がありません</span>`
-        : `<div class="aep-shift-btns">
-             <button class="aep-btn aep-btn--shift" id="aep-bnd-m05">← 0.5秒</button>
-             <button class="aep-btn aep-btn--shift" id="aep-bnd-m01">← 0.1秒</button>
-             <button class="aep-btn aep-btn--shift" id="aep-bnd-p01">→ 0.1秒</button>
-             <button class="aep-btn aep-btn--shift" id="aep-bnd-p05">→ 0.5秒</button>
-           </div>`;
+  // ── Group 1: Selection ──
+  let selectionInfo;
+  if (mode === 'edit-point') {
+    const owner = analysisEditor.buffer.find(c => c._id === selection.editPoint.ownerId);
+    const time = getTimeForGridPosition(selection.editPoint.measureIndex, selection.editPoint.slotIndex);
+    // [Phase78 Sprint1 バグ修正] Layer4 Projection漏れ。owner.chordを生のまま表示していたため
+    // capo設定時にグリッド表示（変換後）とラベル（生データ）で異なるコード名が出ていた。
+    const ownerName = owner ? transposeChord(owner.chord, -capo) : '不明';
+    selectionInfo = `<span class="aep-chord-info">${owner ? `${ownerName} の途中（${time != null ? time.toFixed(3) : '?'}秒）` : '不明な位置'}</span>`;
+  } else if (mode === 'single') {
+    // [Phase78 Sprint1 バグ修正] 同上。chord.chordを生のまま表示していた。
+    selectionInfo = `<span class="aep-chord-name">${transposeChord(chord.chord, -capo)}</span>
+      <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>`;
+  } else if (mode === 'multi') {
+    selectionInfo = `<span class="aep-chord-info">${selectedIds.length}件選択中</span>`;
+  } else {
+    selectionInfo = `<span class="aep-chord-info aep-chord-info--empty">クリックして編集</span>`;
+  }
+  const clearBtn = mode === 'idle'
+    ? ''
+    : `<button class="aep-btn--clear" id="aep-clear-selection" title="選択を解除" aria-label="選択を解除">✕</button>`;
 
-  // ── [RANGE SHIFT AUTHORITY]: 範囲シフト（複数選択専用） ──
-  const rangeShiftControls = !isMultiSelect
-    ? `<span class="aep-shift-note">複数選択中のみ利用できます（範囲選択してください）</span>`
-    : !canRangeShift
-      ? `<span class="aep-shift-note">曲の端のコードを含むため、これ以上移動できません</span>`
-      : `<div class="aep-shift-btns">
-           <button class="aep-btn aep-btn--shift" id="aep-rng-m05">← 0.5秒</button>
-           <button class="aep-btn aep-btn--shift" id="aep-rng-m01">← 0.1秒</button>
-           <button class="aep-btn aep-btn--shift" id="aep-rng-p01">→ 0.1秒</button>
-           <button class="aep-btn aep-btn--shift" id="aep-rng-p05">→ 0.5秒</button>
-         </div>`;
+  // ── Group 2: Navigation（全体シフト・常時固定） ──
+  // [実機フィードバック反映] Selection行と同じ行に統合し、行数を圧縮する。
+  const navigationGroup = _renderShiftControls('aep-shift', null, '全体', 'global');
 
-  // ── Phase75: 編集アクション（追加・変更・削除） ──
-  // Phase76-B: 複数選択時は複数削除ボタンを表示する
-  // Phase76-C: コピーは単一選択・複数選択どちらでも使える
-  // Phase76-D: 切り取り（Cut）も単一・複数どちらでも使える。cutSelection()が内部で
-  //            単一/複数を吸収するため、ボタンidは共通の #aep-cut を両方で使う
-  // Phase76-E: 貼り付け（Paste）はclipboardに内容がある場合のみ表示する。
-  //            pasteSelection()も単一/複数を内部で吸収するため #aep-paste を共通で使う
-  const hasClipboard = !!(analysisEditor.clipboard && analysisEditor.clipboard.chords?.length);
-  const pasteBtn = hasClipboard
-    ? `<button class="aep-btn" id="aep-paste">📄 貼り付け</button>`
-    : '';
+  // ── Group 3: Primary Action（mode依存） ──
+  // [実機フィードバック反映] 以前は独立した1行だったが、右にWorkspaceを並べ
+  // 1行（action-row）に統合する。amber背景の有無で「対象固有」と「共通操作」を区別する。
+  let primaryInner = '';
+  if (mode === 'single') {
+    const shift = _renderShiftControls('aep-bnd', !hasLeftBoundary ? '先頭のコードを含むため境界がありません' : null, '開始位置');
+    const { primary, overflow } = getGroup3Actions('single', { isMultiSelect, selectedIds, hasClipboard: !!(analysisEditor.clipboard?.chords?.length) });
+    primaryInner = `<div class="aep-group aep-group--primary">
+        ${shift}
+        <div class="aep-group-divider"></div>
+        ${primary.map(_renderActionButton).join('')}
+        ${_renderOverflowMenu(overflow)}
+      </div>`;
+  } else if (mode === 'multi') {
+    const shift = _renderShiftControls('aep-rng', !canRangeShift ? '曲の端のコードを含むため、これ以上移動できません' : null, '範囲');
+    const { primary, overflow } = getGroup3Actions('multi', { isMultiSelect, selectedIds, hasClipboard: !!(analysisEditor.clipboard?.chords?.length) });
+    primaryInner = `<div class="aep-group aep-group--primary">
+        ${shift}
+        <div class="aep-group-divider"></div>
+        ${primary.map(_renderActionButton).join('')}
+        ${_renderOverflowMenu(overflow)}
+      </div>`;
+  } else if (mode === 'edit-point') {
+    const { primary } = getGroup3Actions('edit-point', { isMultiSelect: false, selectedIds: [], hasClipboard: false });
+    primaryInner = `<div class="aep-group aep-group--primary">
+        ${primary.map(_renderActionButton).join('')}
+      </div>`;
+  }
+  // idle: Primaryは非表示（primaryInner = ''のまま）
 
-  const editActions = chord
-    ? `<div class="aep-shift-btns">
-         <button class="aep-btn" id="aep-add">＋ 追加</button>
-         <button class="aep-btn" id="aep-rename">✎ 変更</button>
-         <button class="aep-btn" id="aep-copy">📋 コピー</button>
-         <button class="aep-btn" id="aep-cut">✂ 切り取り</button>
-         ${pasteBtn}
-         <button class="aep-btn aep-btn--danger" id="aep-delete-chord">🗑 削除</button>
-       </div>`
-    : isMultiSelect
-      ? `<div class="aep-shift-btns">
-           <button class="aep-btn" id="aep-copy">📋 コピー（${selectedIds.length}件）</button>
-           <button class="aep-btn" id="aep-cut">✂ 切り取り（${selectedIds.length}件）</button>
-           ${pasteBtn}
-           <button class="aep-btn" id="aep-merge">🔗 結合（${selectedIds.length}件）</button>
-           <button class="aep-btn aep-btn--danger" id="aep-delete-selection">🗑 削除（${selectedIds.length}件）</button>
-         </div>`
-      : `<span class="aep-shift-note">コードを選択してください</span>`;
-
-  // ── Phase74-C UI ──
-  panel.innerHTML = `
-    <div class="aep-row aep-row--info">
-      <span class="aep-section-label">選択中のコード</span>
-      ${chordInfo}
-    </div>
-    <div class="aep-row aep-row--shift">
-      <span class="aep-section-label">全体シフト</span>
-      <span class="aep-shift-note">全コードのタイミングを一括でずらします</span>
-      <div class="aep-shift-btns">
-        <button class="aep-btn aep-btn--shift" id="aep-shift-m05">← 0.5秒</button>
-        <button class="aep-btn aep-btn--shift" id="aep-shift-m01">← 0.1秒</button>
-        <button class="aep-btn aep-btn--shift" id="aep-shift-p01">→ 0.1秒</button>
-        <button class="aep-btn aep-btn--shift" id="aep-shift-p05">→ 0.5秒</button>
-      </div>
-    </div>
-    <div class="aep-row aep-row--boundary">
-      <span class="aep-section-label">個別移動</span>
-      ${boundaryControls}
-    </div>
-    <div class="aep-row aep-row--boundary">
-      <span class="aep-section-label">範囲シフト</span>
-      ${rangeShiftControls}
-    </div>
-    <div class="aep-row aep-row--edit">
-      <span class="aep-section-label">編集</span>
-      ${editActions}
-    </div>
-    <div class="aep-row aep-row--actions">
-      <button class="aep-btn" id="aep-undo">↩ 元に戻す</button>
-      <button class="aep-btn" id="aep-redo">↪ やり直し</button>
-      <span class="aep-spacer"></span>
-      <button class="aep-btn" id="aep-cancel">キャンセル</button>
-      <button class="aep-btn aep-btn--save" id="aep-save"
+  // ── Group 4: Workspace（全mode共通表示。Phase78で常時表示に変更） ──
+  const workspaceInner = `<div class="aep-group aep-group--workspace">
+      <button class="aep-btn" id="aep-undo" title="元に戻す" aria-label="元に戻す">↩ 元に戻す</button>
+      <button class="aep-btn" id="aep-redo" title="やり直し" aria-label="やり直し">↪ やり直し</button>
+      <div class="aep-group-divider"></div>
+      <button class="aep-btn aep-btn--end" id="aep-cancel" title="編集を終了して閉じます" aria-label="編集終了">編集終了</button>
+      <button class="aep-btn aep-btn--save" id="aep-save" title="変更を保存して閉じます" aria-label="保存して閉じる"
         ${analysisEditor.dirty ? '' : 'disabled'}>保存して閉じる</button>
+    </div>`;
+
+  panel.innerHTML = `
+    <div class="aep-row aep-group aep-group--selection">
+      ${selectionInfo}
+      ${clearBtn}
+      <span class="aep-spacer"></span>
+      ${navigationGroup}
+    </div>
+    <div class="aep-row aep-group--action-row">
+      ${primaryInner}
+      <span class="aep-spacer"></span>
+      ${workspaceInner}
     </div>
   `;
 
-  // ── Phase74-C: イベント結線（全体シフト・Undo/Redo・保存・キャンセル） ──
-  document.getElementById('aep-shift-m05')?.addEventListener('click', () => shiftAll(-0.5));
-  document.getElementById('aep-shift-m01')?.addEventListener('click', () => shiftAll(-0.1));
-  document.getElementById('aep-shift-p01')?.addEventListener('click', () => shiftAll(0.1));
-  document.getElementById('aep-shift-p05')?.addEventListener('click', () => shiftAll(0.5));
-  document.getElementById('aep-bnd-m05')?.addEventListener('click', () => shiftSelectedBoundary(-0.5));
-  document.getElementById('aep-bnd-m01')?.addEventListener('click', () => shiftSelectedBoundary(-0.1));
-  document.getElementById('aep-bnd-p01')?.addEventListener('click', () => shiftSelectedBoundary(0.1));
-  document.getElementById('aep-bnd-p05')?.addEventListener('click', () => shiftSelectedBoundary(0.5));
-  document.getElementById('aep-rng-m05')?.addEventListener('click', () => shiftSelectionRange(-0.5));
-  document.getElementById('aep-rng-m01')?.addEventListener('click', () => shiftSelectionRange(-0.1));
-  document.getElementById('aep-rng-p01')?.addEventListener('click', () => shiftSelectionRange(0.1));
-  document.getElementById('aep-rng-p05')?.addEventListener('click', () => shiftSelectionRange(0.5));
+  // ── イベント結線 ──
+  document.getElementById('aep-clear-selection')?.addEventListener('click', clearCurrentSelection);
+  _bindShiftControls('aep-shift', shiftAll);
+  _bindShiftControls('aep-bnd', shiftSelectedBoundary);
+  _bindShiftControls('aep-rng', shiftSelectionRange);
+
   document.getElementById('aep-add')?.addEventListener('click', () => {
     if (!chord) return;
     // 初期実装: 均等2分割のみ（将来カーソル位置分割を追加する場合もsplitChord()自体は変更不要）
@@ -1667,7 +1742,6 @@ function renderAnalysisEditorPanel() {
   document.getElementById('aep-save')?.addEventListener('click', async () => {
     await saveAnalysisEdit();
   });
-
   document.getElementById('aep-delete-chord')?.addEventListener('click', () => {
     if (!chord) return;
     // [NOTE] 確認ダイアログなし・即削除（Undo/Redoが正式な復旧手段。Phase75で確定）
@@ -1677,25 +1751,34 @@ function renderAnalysisEditorPanel() {
     // [NOTE] 確認ダイアログなし・即削除（deleteChord()と同じ方針。Phase76-B）
     deleteSelection();
   });
-  document.getElementById('aep-copy')?.addEventListener('click', () => {
-    copySelection();
-    // [NOTE] Copyはbufferを変更しないためUndo履歴には積まれない。
-    // 選択状態も変えないため_refreshEditorView()等の呼び出しは不要
-    // （copySelection()内のtoast表示のみで完結する）。
+  document.getElementById('aep-add-here')?.addEventListener('click', () => {
+    addChordAtEditPoint();
   });
-  document.getElementById('aep-cut')?.addEventListener('click', () => {
-    // [NOTE] cutSelection()内部でcopySelection()→deleteSelection()の順に呼ぶため、
-    // 選択状態・Chart表示の同期はdeleteSelection()（またはdeleteChord()）側が担う。
-    cutSelection();
+  // その他▼メニュー内の項目（クリック後にメニューを閉じる）
+  panel.querySelectorAll('.aep-overflow-item').forEach(btn => {
+    const handlers = {
+      'aep-copy':  () => copySelection(),
+      'aep-cut':   () => cutSelection(),
+      'aep-paste': () => pasteSelection(),
+      'aep-merge': () => mergeSelection(),
+    };
+    const fn = handlers[btn.id];
+    if (!fn) return;
+    btn.addEventListener('click', () => {
+      fn();
+      btn.closest('details.aep-overflow')?.removeAttribute('open');
+    });
   });
-  document.getElementById('aep-paste')?.addEventListener('click', () => {
-    // [NOTE] 選択状態・Chart表示の同期はpasteSelection()自身が担う
-    pasteSelection();
-  });
-  document.getElementById('aep-merge')?.addEventListener('click', () => {
-    // [NOTE] 確認ダイアログなし・即実行（deleteChord等と同じ方針。Phase76-F）
-    mergeSelection();
-  });
+}
+
+function _renderOverflowMenu(items) {
+  if (!items.length) return '';
+  return `<details class="aep-overflow">
+      <summary class="aep-btn" title="その他の操作" aria-label="その他の操作">その他 ▾</summary>
+      <div class="aep-overflow-menu">
+        ${items.map(_renderOverflowItem).join('')}
+      </div>
+    </details>`;
 }
 
 // Chart Mode 列数（localStorage永続）
