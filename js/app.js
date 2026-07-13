@@ -561,6 +561,9 @@ window.__analysisEditorDebug = {
   copySelection,
   cutSelection,
   pasteSelection,
+  pasteAbsolute,
+  getPasteOrigin,
+  buildPastePlan,
   mergeSelection,
   undoEdit,
   redoEdit,
@@ -826,9 +829,20 @@ function deleteSelection() {
  * [NOTE] Copyはbufferを読み取るだけの操作（読み取り専用）。
  * 選択がbuffer上で連続している前提はPaste側の責務であり、ここではチェックしない。
  *
- * clipboard構造:
- *   { version: 1, chords: [{ chord, ratio }, ...] }
- *   version: 将来のフィールド追加（sourceDuration等）に備えた互換性用。現状は未使用。
+ * clipboard構造（Phase79でversion 2へ拡張）:
+ *   {
+ *     version: 2,
+ *     totalDurationSec,     // コピー範囲全体の長さ（秒）。曲末チェック等に使う
+ *     chords: [{ chord, ratio, offsetSec, durationSec }, ...]
+ *   }
+ *   ratio                : 範囲に合わせて貼り付け（pasteSelection・Ctrl+Shift+V）が使う。
+ *                           選択範囲全体に対する相対的な長さの比率（Phase76由来・変更なし）。
+ *   offsetSec/durationSec : そのまま貼り付け（pasteAbsolute・Ctrl+V、Phase79）が使う。
+ *                           コピー範囲先頭からの相対時刻・長さ（秒）。
+ *   [DESIGN] 秒で保存する理由（Phase79設計レビューで確定）:
+ *   TimingModelはimmutable・BPM変更機能は存在せず・clipboardはセッション限定のため、
+ *   このプロジェクトでは秒が実質的なcanonicalとして扱える。将来「曲を跨ぐPaste」等が
+ *   必要になった場合は、その時点でversionを上げて拍ベースの情報を追加する。
  *
  * @returns {boolean} コピーが成功したか（選択が空・不正な場合はfalse）
  */
@@ -852,11 +866,16 @@ function copySelection() {
     return false;
   }
 
+  const rangeStart = selectedChords[0].start;
+
   analysisEditor.clipboard = {
-    version: 1,
+    version: 2,
+    totalDurationSec: totalDuration,
     chords: selectedChords.map(c => ({
       chord: c.chord,
       ratio: (c.end - c.start) / totalDuration,
+      offsetSec: c.start - rangeStart,
+      durationSec: c.end - c.start,
     })),
   };
 
@@ -976,6 +995,178 @@ function pasteSelection() {
   setSelectedChordIds(newIds);
   _refreshEditorView();
   return newIds;
+}
+
+/**
+ * getPasteOrigin — 「そのまま貼り付け」の起点となる実時刻を返す（Phase79）
+ *
+ * [PASTE ORIGIN DEFINITION]
+ * Paste Origin = editPoint、または選択中コードの中でbuffer上最も早い
+ * コードの開始時刻（chord.start）。表示上の見た目（DOM上のセル境界・視覚的な
+ * 左端）とは無関係の、データ上の実時刻である。
+ * editPointの場合は getTimeForGridPosition()（chartmode.js）の戻り値を
+ * その都度算出して使う（[EDIT POINT AUTHORITY]と同じ方式）。
+ *
+ * [SELECTION EDIT TARGETS]
+ * selectionもeditPointも、この関数にとっては同じ「起点」でしかない
+ * （Phase79設計レビューで確定した原則）。範囲に合わせて貼り付け
+ * （pasteSelection）は逆に範囲そのものが必要なため、この関数を使わない。
+ *
+ * @returns {number|null} 起点の実時刻（秒）。idle等で取得できない場合はnull。
+ */
+function getPasteOrigin() {
+  const selection = analysisEditor.selection;
+  if (selection.editPoint) {
+    return getTimeForGridPosition(selection.editPoint.measureIndex, selection.editPoint.slotIndex);
+  }
+  if (selection.chordIds.length > 0) {
+    // chordIdsは_refreshSelectionでbuffer上の時系列順に正規化済みのため、
+    // 先頭が「選択中で最も早いコード」になる。
+    const buffer = analysisEditor.buffer;
+    const first = buffer.find(c => c._id === selection.chordIds[0]);
+    return first ? first.start : null;
+  }
+  return null; // idle
+}
+
+/**
+ * buildPastePlan — 「そのまま貼り付け」の適用計画を作る（純粋関数・Phase79）
+ *
+ * [DESIGN] Paste Plan（検証と適用の分離）
+ * この関数はbufferを一切変更しない。曲末チェック等の検証を行い、
+ * 「適用すればこうなる」という計画だけを返す。実際の反映は
+ * commitPastePlan() が担う（[CANCEL INVARIANT]と同じ、確定操作のみが
+ * 状態を変えるという方針をPasteにも踏襲する）。
+ *
+ * [DESIGN] 上書き方式（5分類・ChatGPTレビューで確定）
+ *   完全内包                                → 削除
+ *   左だけ重なる（開始側にまたがる）            → end短縮
+ *   右だけ重なる（終了側にまたがる）            → start移動
+ *   貼付範囲が既存コード内部に完全に収まる（分断） → 既存コードを前後2つへ分割
+ *   範囲外                                  → 変更なし
+ *
+ * [ID POLICY]（分断ケース限定）
+ * 分断は実質的に「既存コード1件を2件の新規コードへ置き換える」操作である。
+ * splitChord()（左側は元_idを維持）とは意図が異なり、front/back両方に
+ * 新規_idを発行し、元の_idはbufferから消滅させる（ChatGPTレビューで確定）。
+ *
+ * [GUARD] 貼り付け区間が曲の終端（buffer末尾のend）を超える場合は
+ * 中止する。部分的にだけ適用することはしない。
+ *
+ * @param {number|null} originTime - getPasteOrigin() の戻り値
+ * @param {object} clipboard - { version, totalDurationSec, chords:[{chord, offsetSec, durationSec}] }
+ * @returns {{ok:true, buffer:object[], newIds:string[]} | {ok:false, reason:string}}
+ */
+function buildPastePlan(originTime, clipboard) {
+  if (originTime == null) {
+    return { ok: false, reason: 'この位置には貼り付けできません' };
+  }
+  if (!clipboard || !clipboard.chords || clipboard.chords.length === 0) {
+    return { ok: false, reason: 'コピーされたコードがありません' };
+  }
+
+  const EPS = 1e-6; // 浮動小数点誤差による意図しない極小分割・判定ブレを防ぐ
+
+  const buffer = analysisEditor.buffer;
+  // [DEFINITION] 曲の終端 = buffer最後のエントリのend
+  // （bufferは常に曲頭〜曲末を隙間なくカバーする、Phase74以来のinvariant）。
+  const songEnd = buffer[buffer.length - 1].end;
+
+  const pasteStart = originTime;
+  const pasteEnd = pasteStart + clipboard.totalDurationSec;
+
+  if (pasteEnd > songEnd + EPS) {
+    return { ok: false, reason: 'この位置には貼り付けできません（時間が足りません）' };
+  }
+
+  // 貼り付け区間の新規コード列（コピー時点のoffsetSec/durationSecをそのまま復元）
+  const newChords = clipboard.chords.map(entry => ({
+    chord: entry.chord,
+    start: pasteStart + entry.offsetSec,
+    end: pasteStart + entry.offsetSec + entry.durationSec,
+    confidence: 1,
+    _id: crypto.randomUUID(),
+  }));
+  // [INVARIANT] 浮動小数点誤差の蓄積を避けるため、最後のコードのendはpasteEndへ直接合わせる
+  newChords[newChords.length - 1].end = pasteEnd;
+
+  // 既存bufferとの重なりを5分類で処理する（上書き方式）
+  const survivors = [];
+  for (const c of buffer) {
+    const fullyInside = c.start >= pasteStart - EPS && c.end <= pasteEnd + EPS;
+    if (fullyInside) continue; // 完全内包 → 削除
+
+    const overlapsStart = c.start < pasteStart - EPS && c.end > pasteStart + EPS;
+    const overlapsEnd = c.start < pasteEnd - EPS && c.end > pasteEnd + EPS;
+
+    if (overlapsStart && overlapsEnd) {
+      // [分断] 貼り付け区間が1件のコードの内部に完全に収まる。
+      // [ID POLICY] 前後どちらも新規_idを発行する（元の_idは再利用しない）。
+      survivors.push({ ...c, _id: crypto.randomUUID(), end: pasteStart });
+      survivors.push({ ...c, _id: crypto.randomUUID(), start: pasteEnd });
+      continue;
+    }
+    if (overlapsStart) {
+      survivors.push({ ...c, end: pasteStart }); // 左だけ重なる → end短縮
+      continue;
+    }
+    if (overlapsEnd) {
+      survivors.push({ ...c, start: pasteEnd }); // 右だけ重なる → start移動
+      continue;
+    }
+    survivors.push(c); // 範囲外 → 変更なし
+  }
+
+  const merged = [...survivors, ...newChords].sort((a, b) => a.start - b.start);
+
+  return { ok: true, buffer: merged, newIds: newChords.map(c => c._id) };
+}
+
+/**
+ * commitPastePlan — buildPastePlan()の結果をbufferへ適用する（Phase79）
+ *
+ * [UNDO INVARIANT]
+ * 内部では複数コードの削除・短縮・移動・追加を行うが、Undo履歴には
+ * 適用前のスナップショット1件のみを記録する（_pushHistory()をここで1回だけ呼ぶ）。
+ * 将来のDuplicate/Pattern Insert等も同じ原則を踏襲する。
+ */
+function commitPastePlan(plan) {
+  _pushHistory();
+  analysisEditor.buffer = plan.buffer;
+  _refreshSelection(plan.newIds, plan.newIds[plan.newIds.length - 1]);
+  setSelectedChordIds(plan.newIds);
+  _refreshEditorView();
+}
+
+/**
+ * pasteAbsolute — 「そのまま貼り付け」（Ctrl+V・Phase79）
+ *
+ * [DESIGN] コピー時点の拍位置・長さをそのまま復元して貼り付ける（上書き方式）。
+ * 起点はgetPasteOrigin()（editPoint／選択コードの開始位置）。
+ * 既存の「範囲に合わせて貼り付け」（pasteSelection・Ctrl+Shift+V）とは別の
+ * 貼り付けアルゴリズムとして共存する（Clipboardは共通、読み取り方だけが違う）。
+ *
+ * @returns {string[]|null} 新しく生成されたコードの_id配列。失敗時はnull。
+ */
+function pasteAbsolute() {
+  if (!isAnalysisEditing()) return null;
+
+  const clipboard = analysisEditor.clipboard;
+  if (!clipboard || !clipboard.chords || clipboard.chords.length === 0) {
+    toast('コピーされたコードがありません');
+    return null;
+  }
+
+  const origin = getPasteOrigin();
+  const plan = buildPastePlan(origin, clipboard);
+  if (!plan.ok) {
+    toast(plan.reason);
+    return null;
+  }
+
+  commitPastePlan(plan);
+  toast(`${plan.newIds.length}件貼り付けました`);
+  return plan.newIds;
 }
 
 /**
@@ -1489,7 +1680,11 @@ function getGroup3Actions(mode, ctx) {
 
   const COPY  = { id: 'aep-copy',  icon: '📋', label: isMultiSelect ? `コピー（${n}件）` : 'コピー', shortcut: 'Ctrl+C' };
   const CUT   = { id: 'aep-cut',   icon: '✂',  label: isMultiSelect ? `切り取り（${n}件）` : '切り取り', shortcut: 'Ctrl+X' };
-  const PASTE = { id: 'aep-paste', icon: '📄', label: '貼り付け', shortcut: 'Ctrl+V', disabled: !hasClipboard };
+  // [Phase79] 貼り付けを2種類に分離。
+  // PASTE_ABS   = そのまま貼り付け（コピー時点の拍位置・長さを維持・上書き方式・pasteAbsolute）
+  // PASTE_FIT   = 範囲に合わせて貼り付け（選択範囲へ比率で再配置・既存pasteSelection・改名のみ）
+  const PASTE_ABS = { id: 'aep-paste-absolute', icon: '📌', label: 'そのまま貼り付け', shortcut: 'Ctrl+V', disabled: !hasClipboard };
+  const PASTE_FIT = { id: 'aep-paste', icon: '📄', label: '範囲に合わせて貼り付け', shortcut: 'Ctrl+Shift+V', disabled: !hasClipboard };
   const MERGE = { id: 'aep-merge', icon: '🔗', label: `結合（${n}件）`, shortcut: 'Ctrl+J' };
 
   switch (mode) {
@@ -1502,19 +1697,21 @@ function getGroup3Actions(mode, ctx) {
         ],
         // [Phase75由来] 結合(Merge)は単一選択では意味を持たない操作のため、
         // 単一選択時のその他▼には含めない（グレーアウトではなく非表示）。
-        overflow: [COPY, CUT, PASTE],
+        overflow: [COPY, CUT, PASTE_ABS, PASTE_FIT],
       };
     case 'multi':
       return {
         primary: [
           { id: 'aep-delete-selection', icon: '🗑', label: `削除（${n}件）`, title: '選択したコードを削除', danger: true },
         ],
-        overflow: [COPY, CUT, PASTE, { divider: true }, MERGE],
+        overflow: [COPY, CUT, PASTE_ABS, PASTE_FIT, { divider: true }, MERGE],
       };
     case 'edit-point':
       return {
         primary: [
           { id: 'aep-add-here', icon: '＋', label: 'Add Here', title: 'この位置にコードを追加', primary: true },
+          // [Phase79] editPoint中は「範囲」が無いため、そのまま貼り付けのみ有効。
+          { id: 'aep-paste-absolute-primary', icon: '📌', label: 'そのまま貼り付け', title: 'コピーした内容をこの位置へそのまま貼り付け', disabled: !hasClipboard },
         ],
         overflow: [],
       };
@@ -1674,7 +1871,7 @@ function renderAnalysisEditorPanel() {
         ${_renderOverflowMenu(overflow)}
       </div>`;
   } else if (mode === 'edit-point') {
-    const { primary } = getGroup3Actions('edit-point', { isMultiSelect: false, selectedIds: [], hasClipboard: false });
+    const { primary } = getGroup3Actions('edit-point', { isMultiSelect: false, selectedIds: [], hasClipboard: !!(analysisEditor.clipboard?.chords?.length) });
     primaryInner = `<div class="aep-group aep-group--primary">
         ${primary.map(_renderActionButton).join('')}
       </div>`;
@@ -1683,8 +1880,8 @@ function renderAnalysisEditorPanel() {
 
   // ── Group 4: Workspace（全mode共通表示。Phase78で常時表示に変更） ──
   const workspaceInner = `<div class="aep-group aep-group--workspace">
-      <button class="aep-btn" id="aep-undo" title="元に戻す" aria-label="元に戻す">↩ 元に戻す</button>
-      <button class="aep-btn" id="aep-redo" title="やり直し" aria-label="やり直し">↪ やり直し</button>
+      <button class="aep-btn" id="aep-undo" title="元に戻す（Ctrl+Z）" aria-label="元に戻す">↩ 元に戻す</button>
+      <button class="aep-btn" id="aep-redo" title="やり直し（Ctrl+Y）" aria-label="やり直し">↪ やり直し</button>
       <div class="aep-group-divider"></div>
       <button class="aep-btn aep-btn--end" id="aep-cancel" title="編集を終了して閉じます" aria-label="編集終了">編集終了</button>
       <button class="aep-btn aep-btn--save" id="aep-save" title="変更を保存して閉じます" aria-label="保存して閉じる"
@@ -1754,11 +1951,18 @@ function renderAnalysisEditorPanel() {
   document.getElementById('aep-add-here')?.addEventListener('click', () => {
     addChordAtEditPoint();
   });
+  // [Phase79] editPointモードのPrimary Actionに直接置かれる「そのまま貼り付け」
+  // （single/multiモードでは.aep-overflow-item側のaep-paste-absoluteとして
+  // 下のhandlersマップで扱う。IDを分けているのはモード間でのDOM重複を避けるため）。
+  document.getElementById('aep-paste-absolute-primary')?.addEventListener('click', () => {
+    pasteAbsolute();
+  });
   // その他▼メニュー内の項目（クリック後にメニューを閉じる）
   panel.querySelectorAll('.aep-overflow-item').forEach(btn => {
     const handlers = {
       'aep-copy':  () => copySelection(),
       'aep-cut':   () => cutSelection(),
+      'aep-paste-absolute': () => pasteAbsolute(),
       'aep-paste': () => pasteSelection(),
       'aep-merge': () => mergeSelection(),
     };
@@ -3441,7 +3645,9 @@ function setupEventHandlers() {
     }
 
     // Ctrl+Z: import undo
-    if (e.ctrlKey && e.key === 'z') {
+    // [Phase79] 解析編集モード中はAnalysis Editor自身のUndo（下のisAnalysisEditing()
+    // ブロック内・Ctrl+Z）が対象となるため、こちらは対象外とする（キー競合防止）。
+    if (e.ctrlKey && e.key === 'z' && !isAnalysisEditing()) {
       if (importUndoStack.length) {
         e.preventDefault();
         project.lines = importUndoStack.pop();
@@ -3533,13 +3739,33 @@ function setupEventHandlers() {
         e.preventDefault();
         cutSelection();
       }
-      if (!inTextInput && e.ctrlKey && (e.key === 'v' || e.key === 'V')) {
+      // [Phase79] Ctrl+V＝そのまま貼り付け（起点のみ必要・pasteAbsolute）
+      //           Ctrl+Shift+V＝範囲に合わせて貼り付け（範囲が必要・pasteSelection）
+      if (!inTextInput && e.ctrlKey && !e.shiftKey && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        pasteAbsolute();
+      }
+      if (!inTextInput && e.ctrlKey && e.shiftKey && (e.key === 'v' || e.key === 'V')) {
         e.preventDefault();
         pasteSelection();
       }
       if (!inTextInput && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault();
         deleteSelection();
+      }
+      // [Phase79] Undo/Redoのキーボードショートカット。
+      // 上の「Ctrl+Z: import undo」ブロックは解析編集モード中は無効化済みのため競合しない。
+      // Redoは Ctrl+Y（Windows定番）・Ctrl+Shift+Z（Mac/一部Webアプリ定番）の両方に対応する。
+      if (!inTextInput && e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        undoEdit();
+      }
+      if (!inTextInput && e.ctrlKey && (
+        (e.key === 'y' || e.key === 'Y') ||
+        (e.shiftKey && (e.key === 'z' || e.key === 'Z'))
+      )) {
+        e.preventDefault();
+        redoEdit();
       }
     }
 
