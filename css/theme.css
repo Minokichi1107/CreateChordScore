@@ -50,6 +50,31 @@
   --color-amber: #ffb840;
   --color-red:   #ff7c7c;
 
+  /* [Sprint2-1] Selection Highlight専用トークン。
+     色の役割を「緑（成功・保存）」とは分離し、「選択状態」という意味を持たせる。
+     実機フィードバックでdarkは背景をより鮮やかに（.22→.34）調整。
+     silver/blueはこの直後・別ブロックで上書き（明るい背景向けに別の色・濃度が必要）。
+     背景色はcolor-selection-bg（rgba完成形）として持つ。--surface-selected等の
+     既存パターン（テーマごとにrgba()を直接持つ）に合わせた。 */
+  --color-selection: #7FFFD4;
+  --color-selection-rgb: 127,255,212;
+  --color-selection-bg: rgba(127,255,212,.44);
+
+  /* [Sprint2-1] EditPointマーカー専用トークン。
+     旧実装はamberを流用していたが、Selection Highlightと混同されるため分離した。
+     --color-blueは既にPlayback Active（.chart-slot--active）で使用中のため
+     避け、黄色系を採用する。
+     [実機フィードバック] 当初の#FFE066はamber(#ffb840)と印象が近く区別しづらい
+     との指摘を受け、より緑寄り・彩度の高い純色の黄色（#FFEB3B）へ変更したが、
+     silver/blueテーマ向けに暗く調整した黄色は「茶色」に見えてしまい、
+     amberとの区別が付かないという指摘が繰り返し発生した（暗い黄色は
+     知覚的に茶色化するという色の物理的な性質による構造的な問題）。
+     この問題を根本的に回避するため、色相を黄色系から紫系へ変更した。
+     紫は暗くしても茶色化せず、amber/selection(緑)/blue(再生位置)の
+     いずれとも被らない。 */
+  --color-edit-point: #C77DFF;
+  --color-edit-point-bg: rgba(199,125,255,.22);
+
   /* RGB values for alpha composition [SAFE] alpha調整用。直接使用禁止 */
   --color-green-rgb: 61,220,132;
   --color-amber-rgb: 255,184,64;
@@ -340,6 +365,19 @@ body[data-theme="silver"] {
      ui-rules.md §6（alpha値はRGB変数+呼び出し側alphaで扱う）に合わせ、
      このテーマのamber値(#a86400)に対応するRGBを明示する。 */
   --color-amber-rgb: 168,100,0;
+  /* [Sprint2-1] Silverテーマは背景が明るいため、dark/blue共通の#7FFFD4は
+     コントラストが弱く「蛍光感」より「白っぽさ」が勝ってしまう。
+     明度・彩度を落としたAquamarine寄りの緑に調整する。
+     背景の不透明度は実機フィードバックで「ちょうどいい」と確認済みのため.22を維持。 */
+  --color-selection: #2EA87D;
+  --color-selection-rgb: 46,168,125;
+  --color-selection-bg: rgba(46,168,125,.22);
+
+  /* [Sprint2-1] EditPointを紫系へ変更（暗い黄色は茶色化しamberと区別
+     つかなくなるという根本問題のため、dark共通ブロックのコメント参照）。
+     Silverの明るい背景向けに、暗めの紫を採用する。 */
+  --color-edit-point: #8B3FD1;
+  --color-edit-point-bg: rgba(139,63,209,.18);
   --color-red:   #ff7c7c;
 
   /* --- perform text --- */
@@ -542,7 +580,13 @@ body[data-theme="blue"] {
 
   /* --- text --- */
   --text-primary:   #0e1e30;
-  --text-secondary: #d1e3ff;
+  /* [Sprint2-1] 元は#d1e3ff（text-chordとほぼ同値）だった明らかな設定ミス。
+     text-secondaryは明るいページ背景（surface-overlay等）の上で使う前提の
+     トークンだが、text-chord用の値（濃いsurface-chord背景専用の薄色）が
+     誤って入っていたため、フッターのボタン文字等が背景に埋もれていた。
+     silver（primary→secondary→mutedの順に明るくなる階調）と同じ考え方で
+     text-primaryとtext-mutedの中間の濃さに修正した。 */
+  --text-secondary: #1c3854;
   --text-muted:     #2a4a6a;
   --text-chord:     #c8e0ff;
   --text-accent:    #0a3080;
@@ -553,6 +597,30 @@ body[data-theme="blue"] {
   --color-amber: #a06000;
   /* [Phase78 Sprint1] silverテーマと同様の理由で追加。#a06000 に対応するRGB。 */
   --color-amber-rgb: 160,96,0;
+  /* [Sprint2-1] Blueテーマに--color-greenの上書きが存在せず、darkテーマの
+     明るい緑(#3ddc84)をそのまま継承していた。Blueの明るい水色背景
+     （surface-overlay: #a8c8e8）に対して明るい緑は明度差が小さく、
+     「保存して閉じる」ボタンの文字が有効状態（disabled解除後）でも
+     埋もれる原因になっていた（実機フィードバックで確認・再修正）。
+     silverと同様、暗めの緑へ上書きする。
+     [実機フィードバック] 当初#073D1Fまで暗くしたところ、青系の背景に
+     囲まれることで知覚的に「青いボタン」に見えてしまう問題が発生した
+     （暗く彩度の低い色は周囲の色相の影響を受けやすいため）。
+     彩度を保ったまま、暗すぎない値へ再調整した。 */
+  --color-green: #0F8A3D;
+  --color-green-rgb: 15,138,61;
+  /* [Sprint2-1] Blueテーマもsilverと同じく背景が明るいため、dark基準の#7FFFD4は
+     コントラストが弱くコード名の文字が埋もれてしまう（実機フィードバックで確認）。
+     silverと同じ理由・同程度の調整値を適用する。 */
+  --color-selection: #1F8F68;
+  --color-selection-rgb: 31,143,104;
+  --color-selection-bg: rgba(31,143,104,.22);
+
+  /* [Sprint2-1] EditPointを紫系へ変更（黄色系は暗くすると茶色化し
+     amberと区別つかなくなる根本問題のため。dark共通ブロック参照）。
+     Blueの明るい背景向けに、silverと同程度の暗めの紫を採用する。 */
+  --color-edit-point: #8034C2;
+  --color-edit-point-bg: rgba(128,52,194,.18);
   --color-red:   #ff7c7c;
 
   /* --- perform text --- */

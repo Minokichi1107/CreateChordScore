@@ -747,6 +747,12 @@ export const chartState = {
   // TODO(Phase78): [BOUNDARY DECORATOR] へ統合予定（暫定実装）。
   editPointMarker: null,
 
+  // [Sprint2-2] Boundary Handle（個別移動の左端ハンドル）の表示対象chordId。
+  // [OWNERSHIP] 正本は app.js の analysisEditor.selection（chordIds/boundaryIndex）。
+  // ここは描画用のローカル表示状態。単一選択かつ個別移動可能な場合のみ非null。
+  // 対象chordの最初のslot（onset）の左端にハンドルを描画する。
+  boundaryHandleChordId: null,
+
   // [Phase78.1 Hotfix] 直前にクリックしたセルの記録。
   // [UI INTERACTION CACHE — NOT AN AUTHORITY]
   // これは selection や editPoint のような正本ではなく、クリックハンドラが
@@ -793,6 +799,20 @@ export function setSelectedChordIds(ids) {
  */
 export function setEditPointMarker(marker) {
   chartState.editPointMarker = marker ?? null;
+}
+
+/**
+ * setBoundaryHandleTarget — Boundary Handle（個別移動の左端ハンドル）の表示対象を更新する
+ * [Sprint2-2]
+ *
+ * [OWNERSHIP] 正本は app.js の analysisEditor.selection（chordIds/boundaryIndex）。
+ * ここは描画用のローカル表示状態を更新するだけ。
+ * 呼び出し後は renderChartMode() で再描画が必要。
+ *
+ * @param {string|null} chordId - ハンドルを表示する対象chordの_id。非表示ならnull。
+ */
+export function setBoundaryHandleTarget(chordId) {
+  chartState.boundaryHandleChordId = chordId ?? null;
 }
 
 // ────────────────────────────────────────
@@ -1651,31 +1671,6 @@ export function renderChartMode({ measuresPerRow = 3, editing = false } = {}) {
 
   _renderChartHeader(vm, analysis, editing);
   _renderChartGrid(vm, analysis, { measuresPerRow });
-  _applyEditPointMarker();
-}
-
-/**
- * _applyEditPointMarker — chartState.editPointMarker をDOMへ反映する（暫定実装）
- *
- * [Phase77後半・暫定] 現状は毎回の再描画後にclass付け替えのみを行う簡易実装。
- * TODO(Phase78): [BOUNDARY DECORATOR] へ統合し、境界ハンドル等と統一的に扱う。
- */
-function _applyEditPointMarker() {
-  document.querySelectorAll('.chart-slot--edit-point')
-    .forEach(el => el.classList.remove('chart-slot--edit-point'));
-
-  const marker = chartState.editPointMarker;
-  if (!marker) return;
-
-  const measureEl = document.querySelector(
-    `.chart-measure[data-measure-index="${marker.measureIndex}"]`
-  );
-  if (!measureEl) return;
-
-  const slotEl = measureEl.querySelector(
-    `.chart-slot[data-visual-slot-index="${marker.slotIndex}"]`
-  );
-  if (slotEl) slotEl.classList.add('chart-slot--edit-point');
 }
 
 /**
@@ -1904,7 +1899,8 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
       // chord label の幅拡張は grid-column: span ではなく CSS変数 --duration-slots で行う。
       // これにより Grid 折り返しが発生しない。
       const measureSlots = slotsByMeasure.get(mi) ?? [];
-      for (const slot of measureSlots) {
+      for (let si = 0; si < measureSlots.length; si++) {
+        const slot = measureSlots[si];
         const slotEl = document.createElement('div');
         slotEl.className = 'chart-slot';
 
@@ -1963,9 +1959,15 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
             if (slot.id) {
               chordEl.dataset.chordId = slot.id;
             }
-            // [Phase74-C] 選択中ハイライト
+            // [Phase74-C] 選択中コードの文字強調（Sprint2-1でchart-chord-name--selected-textへ改名）
             if (slot.id && chartState.selectedChordIds.has(slot.id)) {
-              chordEl.classList.add('chart-chord-name--selected');
+              chordEl.classList.add('chart-chord-name--selected-text');
+            }
+            // [Sprint2-2] Boundary Handle（個別移動の左端ハンドル）
+            // 境界は常に「対象コードの先頭（onset）」に一致するため、
+            // Selection Highlightと違いprev/next判定は不要（このslot自身に付与するだけでよい）。
+            if (slot.id && slot.id === chartState.boundaryHandleChordId) {
+              slotEl.classList.add('chart-slot--boundary-handle');
             }
             // data-chord: 表示済みchord名（projection済み）を格納する。
             // tooltip 側は findChord(chord) のみ使用し capo 再適用しない。
@@ -1989,8 +1991,8 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
             slotEl.classList.add('chart-slot--carry');
             // [Phase77] 小節をまたぐ継続セルは onset の chord label DOM が届かないため、
             // このslot自身にdata-chord-idを持たせて選択可能にする。
-            // ハイライト表示（chart-chord-name--selected相当）は今回のスコープ外
-            // （クリック可否のみを対象とする）。
+            // [Sprint2-1] carryセルへのハイライト表示は、この後のSelection Highlight
+            // ブロック（switch文の外）で一律に適用する（onset/carry共通処理）。
             if (slot.sourceChordId) {
               slotEl.dataset.chordId = slot.sourceChordId;
             }
@@ -2002,6 +2004,36 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
             break;
 
           // 将来: case 'simile': / case 'repeat-start': 等をここに追加
+        }
+
+        // ── Selection Highlight（Sprint2-1） ──
+        // 選択は「コード単位」を表現する。onset/carryを問わずownerIdを用いて判定する。
+        // 小節内でのみisFirst/isLastを判定する（小節をまたぐ場合は小節ごとに枠を
+        // 区切り、背景色だけ連続させる。architecture.md §9.5のprojectionEmpty
+        // 不可侵性を維持するため、typeが'empty'/'projectionEmpty'のslotは
+        // ownerIdがundefinedになり自然に対象外となる）。
+        const ownerId = slot.type === 'onset' ? slot.id : slot.sourceChordId;
+        if (ownerId && chartState.selectedChordIds.has(ownerId)) {
+          const prev = si > 0 ? measureSlots[si - 1] : null;
+          const next = si < measureSlots.length - 1 ? measureSlots[si + 1] : null;
+          const prevOwner = prev ? (prev.type === 'onset' ? prev.id : prev.sourceChordId) : null;
+          const nextOwner = next ? (next.type === 'onset' ? next.id : next.sourceChordId) : null;
+          slotEl.classList.add('chart-slot--selected');
+          if (prevOwner !== ownerId) slotEl.classList.add('chart-slot--selected-start');
+          if (nextOwner !== ownerId) slotEl.classList.add('chart-slot--selected-end');
+        }
+
+        // ── EditPoint Marker（Sprint2-2で post-hoc DOM patch から統合） ──
+        // [旧実装] _applyEditPointMarker() が renderChartMode() の最後に
+        // document.querySelectorAll() でDOM全体から該当セルを検索していた
+        // （Phase77由来の暫定実装）。Selection Highlight・Boundary Handleと
+        // 実装方式を揃えるため、このslotループ内で直接判定する方式へ統一した。
+        // [対象] editPointMarkerはprojectionEmptyを指さない（クリックハンドラ側で
+        // 除外済み・architecture.md §9.5）ため、この位置（continueより後）で
+        // 判定してよい。
+        const marker = chartState.editPointMarker;
+        if (marker && marker.measureIndex === mi && marker.slotIndex === slot.beatIndex) {
+          slotEl.classList.add('chart-slot--edit-point');
         }
 
         slotsEl.appendChild(slotEl);
@@ -2498,4 +2530,4 @@ function _fmt(sec) {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
-}
+}

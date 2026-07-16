@@ -589,6 +589,63 @@
   /* 特別なスタイルなし */
 }
 
+/* ── Analysis Editor: Selection Highlight（Sprint2-1） ──
+   [仕様] コード単位の選択を表現する。セル単位の選択を表現するものではない。
+   onset/carryを問わず、選択中コードに属するslot全体へ適用する
+   （carryセルへのハイライトは従来スコープ外だったが、今回のSprint2-1で対応）。
+   小節をまたぐ場合は小節ごとに枠を区切る（isFirst/isLastは小節内でリセットされる。
+   背景色は連続させることで「同じコードが続いている」ことを表現する）。
+   projectionEmpty slotは対象外（architecture.md §9.5の不可侵性を維持）。 */
+.chart-slot--selected {
+  /* [Sprint2-1] 選択専用トークン --color-selection / --color-selection-bg を使用
+     （実機フィードバックでamber → 青系 → 緑系Aquamarineへ変遷。
+     背景はテーマごとに完成済みのrgba値を持つ--color-selection-bgを使う。
+     theme.css参照）。 */
+  background: var(--color-selection-bg);
+  border-top: 1.5px solid var(--color-selection);
+  border-bottom: 1.5px solid var(--color-selection);
+}
+.chart-slot--selected-start {
+  border-left: 1.5px solid var(--color-selection);
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+.chart-slot--selected-end {
+  border-right: 1.5px solid var(--color-selection);
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+/* ── Analysis Editor: Boundary Handle（Sprint2-2） ──
+   [仕様] 個別移動（shiftSelectedBoundary）で動かせる境界の位置を示す。
+   [色] 当初--color-selectionを流用する案だったが、実機フィードバックで
+   Selection Highlightの背景（同系色）に線が埋もれて視認しづらいことが判明。
+   --color-amberへ変更した。amberはSelection Highlight・EditPointの両方が
+   検討の末に不採用とした色（amber→緑/amber→紫の変遷）であり、現在どちらの
+   用途とも衝突しない空きトークンのため、新規token追加なしで流用できる。
+   常に対象コードの先頭（onset slot）に付与される（Selection Highlightと違い
+   prev/next判定は不要。境界は定義上「対象コードの開始位置」と一致するため）。
+   [当たり判定] 見た目は中央の2pxのみだが、要素自体は6px幅を確保しておく。
+   現時点ではpointer-events: noneで見た目のみ（クリック/ドラッグ操作は
+   将来のSprint2-2以降で実装予定・イベント入口はrequestBoundaryShift()に
+   一本化済み）。 */
+.chart-slot--boundary-handle::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -3px;
+  width: 6px;
+  background: linear-gradient(
+    to right,
+    transparent 0, transparent 2px,
+    var(--color-amber) 2px, var(--color-amber) 4px,
+    transparent 4px, transparent 6px
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
 /* コード名
    Phase57（修正版）: slot DOM invariant 復活。
    onset slot に --duration-slots CSS変数を設定し、label がその分だけ右へ広がる。
@@ -959,12 +1016,18 @@
 
 /* projection-empty slot: 実beatではない視覚的placeholder。
    通常の chart-slot--empty とは semantic が異なる（pure visual projection）。
-   hover / active state は付与されない（data-visual-slot-index を持たないため）。 */
+   hover / active state は付与されない（data-visual-slot-index を持たないため）。
+   [Sprint2-1] 色をtext-secondaryからtext-mutedへ変更。
+   blueテーマのtext-secondary(#d1e3ff)は本来コード名背景（濃い紺）の上で
+   使う薄い色として定義されており、明るいページ背景の上では休符アイコンが
+   埋もれてしまっていた（実機フィードバックで発覚）。text-mutedは
+   3テーマとも「地の背景に対して適切なコントラストを持つ」値のため、
+   この用途（薄暗いページ背景の上に描く）に合っている。 */
 .chart-slot--projection-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   opacity: 0.7;
   border-left: 1px dashed var(--border-ui);  /* [SAFE] 「空間の質感」を補助 */
 }
@@ -1512,38 +1575,66 @@
   color: var(--surface-base);
 }
 
-/* ── Chart Mode: 選択中コードのハイライト（Phase74-C） ── */
-.chart-chord-name--selected {
-  outline: 2px solid var(--color-amber);
-  outline-offset: 1px;
-  border-radius: 2px;
-}
-/* Phase77: 個別移動（左側の境界）のハンドル表示。
-   moveBoundary()が動かす対象は「選択中コードの左端（＝前のコードとの境界）」。
-   [BOUNDARY VISUAL AUTHORITY]
-     boundaryIndex（app.js側のRuntime Authority）が「動く境界」の唯一の正本。
-     Chart Modeの描画は、この境界を常に「選択中コードの左端」として提示する。
-     隣接コード側（前のコード）の表示には動きを強調する演出を意図的に付けない
-     （座標の再計算自体は避けられないが、視線を引く表現は選択中コード側にのみ持たせる）。
-   ::before は .chart-chord-name の position:absolute を基準に配置される
-   （position:relative を別途足さなくても、absolute要素はそれ自体が
-     子要素の配置基準になるため）。 */
-.chart-chord-name--selected::before {
-  content: '';
-  position: absolute;
-  left: -3px;
-  top: -3px;
-  bottom: -3px;
-  width: 3px;
-  border-radius: 999px;
-  background: var(--color-amber);
+/* ── Chart Mode: 選択中コードの文字強調（Phase74-C・Sprint2-1で責務分離） ──
+   [Sprint2-1] 旧chart-chord-name--selectedは「文字強調」と「Boundary Handle
+   （個別移動の左端ハンドル）」の2つの責務を1つのクラスが兼ねていた。
+   セル全体のハイライト（chart-slot--selected）を新設したことを機に、
+   このクラスは文字強調のみに責務を絞る。
+   Boundary Handle（::before部分）は削除した。Sprint2-2で
+   chart-boundary-handle として独立実装する予定（architecture上は未着手）。
+   [Sprint2-1追記] outlineはchart-slot--selectedのセル全体枠と二重に見えるため
+   撤去。文字色の強調のみに留める（実機フィードバックで確定）。 */
+.chart-chord-name--selected-text {
+  color: var(--color-selection);
+  font-weight: 600;
 }
 
-/* Phase77後半: editPoint（挿入位置）マーカー（暫定実装）。
-   TODO(Phase78): [BOUNDARY DECORATOR] へ統合し、境界ハンドルと統一的な見た目にする。
-   現時点ではセル全体を破線枠+背景色でハイライトする最小限の表現に留める。 */
+/* Sprint2-2: editPoint（挿入位置）マーカー。B案採用（ChatGPTレビュー+実機比較で確定）。
+   [統一方針] Boundary Handle（境界=amber・静止した縦線）と区別するため、
+   EditPointは「テキストカーソル」のメタファーを採用する:
+     ・上部に▼（挿入位置の目印。ここに矢印が刺さるイメージ）
+     ・縦線はWord/VSCode的なカーソル点滅を模し、ゆっくりフェードする
+       （高速ON/OFFではなくease-in-outの呼吸するような点滅にすることで、
+       編集中の視認性と目の疲れにくさを両立する）
+   色は--color-edit-point（紫）のまま。Selection Highlight（緑・面）・
+   Boundary Handle（amber・線のみ）とは色・形の両方で区別できる。
+   [対象] projectionEmptyは指さない（既存invariant・chartmode.js側で保証）。 */
 .chart-slot--edit-point {
-  outline: 2px dashed var(--color-amber);
-  outline-offset: -2px;
-  background: rgba(var(--color-amber-rgb), .15);
+  position: relative;
+}
+.chart-slot--edit-point::before {
+  /* 縦線本体（フェード点滅） */
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -1px;
+  width: 2px;
+  background: var(--color-edit-point);
+  pointer-events: none;
+  z-index: 3;
+  animation: chart-edit-point-blink 1.2s ease-in-out infinite;
+}
+.chart-slot--edit-point::after {
+  /* 上部の▼（挿入位置の目印。点滅させず常時表示） */
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: -6px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--color-edit-point);
+  pointer-events: none;
+  z-index: 3;
+}
+@keyframes chart-edit-point-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .15; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-slot--edit-point::before {
+    animation: none;
+  }
 }

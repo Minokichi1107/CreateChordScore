@@ -187,6 +187,7 @@ import {
   getPerfState,
   setSelectedChordIds,
   setEditPointMarker,
+  setBoundaryHandleTarget,
   getTimeForGridPosition,
 } from './chartmode.js';
 
@@ -308,7 +309,7 @@ let _fileHandle = null;
  *
  * [Phase77後半・設計判断] 当初「右側の境界」も同様に実装したが、
  * ユーザー視点で冗長と判断し撤去した。範囲全体を平行移動したい場合は
- * shiftSelectionRange()（[RANGE SHIFT AUTHORITY]）を使う。
+ * shiftSelectionRange()（[FORWARD WALL MODEL]）を使う。
  *
  * moveBoundary(boundaryIndex, newTime)自体は「境界を挟む2要素」という汎用処理のみを持ち、
  * どちらが「選択中」かという意味付けは持たない（意味付けは_refreshSelection()の
@@ -338,14 +339,17 @@ let _fileHandle = null;
  * コマンド（＋追加・貼り付け等）はeditPointを消費してよいが、
  * シリアライズ（保存・Undo履歴のスナップショット等）の対象にしてはならない。
  *
- * [RANGE SHIFT AUTHORITY]（Phase77後半で確立）
- * shiftSelectionRange(deltaSec) は、選択範囲全体を「中身の長さを保ったまま」
- * 平行移動する。境界編集（moveBoundary）と異なり、選択範囲内部の各要素は
- * すべて同じ量だけ平行移動するだけで、個々の長さは変化しない。
- * 選択範囲の外側2つの境界（前の隣接コードとの間・次の隣接コードとの間）だけが
- * 実際に伸縮する。範囲が曲の先頭または末尾を含む場合は実行不可
- * （吸収先の隣接コードが存在しないため）。
+ * [FORWARD WALL MODEL]（Phase77後半で導入・Phase79後半で複数回改訂・最終形）
+ * shiftSelectionRange(deltaSec) は、選択範囲全体を平行移動する。境界編集
+ * （moveBoundary）と異なり、選択範囲内部の各要素は基本的に同じ量だけ平行移動
+ * するだけで、個々の長さは変化しない。可変なのは選択範囲の直前のコード
+ * （prevChord.endのみ）と選択範囲の末尾コード（tailChord.startのみ）の2箇所だけで、
+ * それ以外（選択範囲内部・nextChord）は方向に関わらず一切変更しない。
+ * 左右で「どこを触るか」が変わらないため、追加の状態管理（Origin-Anchored方式）
+ * を持たずに実現している。
+ * 範囲が曲の先頭または末尾を含む場合は実行不可（prevChord/tailChordが存在しないため）。
  * 内部実装はmoveBoundary()を再利用する（境界更新の唯一の窓口という原則を維持）。
+ * 詳細はshiftSelectionRange()本体のdocstringを参照。
  *
  * TODO(Phase78): [BOUNDARY DECORATOR]
  * Chart Mode上のハンドル・editPointマーカーは「コード要素の装飾」ではなく
@@ -552,6 +556,7 @@ window.__analysisEditorDebug = {
   moveBoundary,
   splitChord,
   shiftSelectedBoundary,
+  requestBoundaryShift,
   shiftSelectionRange,
   setEditPoint,
   clearEditPoint,
@@ -1463,17 +1468,98 @@ function shiftSelectedBoundary(deltaSec) {
 }
 
 /**
- * shiftSelectionRange — 選択範囲全体を「中身の長さを保ったまま」平行移動する（UIコマンド層）
- * [RANGE SHIFT AUTHORITY]（Phase77後半で確立）
- * shiftSelectedBoundary()（境界そのものを編集＝選択範囲内の長さが変わる）とは異なり、
- * 選択範囲内の各要素は全て同じ量だけ平行移動するだけで、個々の長さは変化しない。
- * 実際に伸縮するのは選択範囲の外側2つの境界（前後の隣接コードとの間）のみ。
+ * requestBoundaryShift — Boundary Handle操作の唯一の入口（UI起点の一本化）
+ * [Sprint2-2]
  *
- * 選択範囲が曲の先頭または末尾を含む場合は実行不可（吸収先の隣接コードが
- * 存在しないため。timeline全体が常に隙間なく連続しているという不変条件を守るには、
- * 両端に吸収先が必要）。
+ * 現時点では shiftSelectedBoundary() への薄い委譲のみ。
+ * 矢印キー・ボタン・（将来の）ドラッグのすべてがこの関数を経由することで、
+ * 将来ドラッグ操作を追加する際にこの関数だけを変更すれば済むようにする
+ * （矢印キー・ボタン側のコードは触らずに済む）。
  *
- * 内部実装はmoveBoundary()を再利用する（[BOUNDARY EDIT AUTHORITY]：
+ * @param {number} deltaSec - シフト量（秒）
+ */
+function requestBoundaryShift(deltaSec) {
+  shiftSelectedBoundary(deltaSec);
+}
+
+/**
+ * _getBoundaryHandleChordId — Boundary Handle（個別移動の左端ハンドル）の
+ * 表示対象chordIdを導出する（純粋関数・selectionから計算するのみ）。
+ * [Sprint2-2]
+ *
+ * 個別移動（shiftSelectedBoundary）が有効な条件と一致させる：
+ *   ・単一選択であること（複数選択は範囲シフトが対象・Boundary Handleは出さない）
+ *   ・boundaryIndexが存在すること（選択範囲が曲の先頭を含む場合はnull）
+ *
+ * @returns {string|null}
+ */
+function _getBoundaryHandleChordId() {
+  const { chordIds, boundaryIndex } = analysisEditor.selection;
+  if (chordIds.length !== 1 || boundaryIndex === null) return null;
+  return chordIds[0];
+}
+
+/**
+ * _getMinSlotDuration — 指定時刻が属する小節の「1スロット分の時間長」を返す。
+ * [UI Constraint] shiftSelectionRange()専用のヘルパー。
+ * Chart ModeのresolveCollision()は、1スロット内で複数onsetが衝突した場合
+ * durationの長い方を採用する。範囲シフトでprevChord/tailChordを理論上
+ * ゼロ近くまで縮めると、この衝突解決により描画対象から脱落し、選択
+ * ハイライト等も表示できなくなる。Forward Wall Model自体の仕様ではなく、
+ * 現行のChart Modeレンダラーとの整合性を保つための制約として、
+ * ここで最小残存長を計算する。
+ * Chart Modeが未表示・fallbackモード等で取得できない場合はnullを返し、
+ * 呼び出し側でEPSへフォールバックする。
+ */
+function _getMinSlotDuration(atTime) {
+  const model = chartState.viewModel?.model;
+  if (!model || typeof model.quantize !== 'function' || typeof model.getMeasure !== 'function') return null;
+  const q = model.quantize(atTime);
+  if (!q || q.measure == null || q.measure < 0) return null;
+  const measure = model.getMeasure(q.measure);
+  if (!measure || !model.slotsPerMeasure) return null;
+  return (measure.endTime - measure.startTime) / model.slotsPerMeasure;
+}
+
+/**
+ * shiftSelectionRange — 選択範囲全体を平行移動する（UIコマンド層）
+ * [FORWARD WALL MODEL]（Phase79後半で確立・複数回の改訂を経て最終形）
+ *
+ * [DESIGN] prevChord.start と tailChord.end を固定し、prevChord.end と
+ * tailChord.start のみを可変とすることで、追加の状態管理を持たずに
+ * 範囲シフトを実現する。nextChordは常に不変。
+ *
+ *   可変なのは「選択範囲の直前のコード（prevChord）」と「選択範囲の末尾
+ *   コード（tailChord）」の2つだけ。それ以外（選択範囲内部・nextChord）は
+ *   方向に関わらず一切変更しない。左右で「どこを触るか」が変わらない。
+ *
+ *   右方向シフト（deltaSec > 0）:
+ *     prevChord.end   : 伸びる（吸収）
+ *     選択範囲の内部    : 完全に長さを保ったまま平行移動
+ *     tailChord.start : 右へ移動（endは固定＝縮む）
+ *     nextChord        : 一切変更しない
+ *
+ *   左方向シフト（deltaSec < 0）:
+ *     prevChord.end   : 左へ移動（startは固定＝縮む）
+ *     選択範囲の内部    : 完全に長さを保ったまま平行移動
+ *     tailChord.start : 左へ移動（吸収）
+ *     nextChord        : 一切変更しない
+ *
+ * 右→左（またはその逆）の単純な往復では数値が元に戻るが、これは
+ * Undo/Split/Delete/Paste/Merge等、他の編集操作と組み合わせた場合の
+ * 挙動まで保証するものではない。
+ *
+ * [内部境界の自動一致] 選択範囲内部の最後の要素（例: C#m）とtailChord（D）の
+ * 境界は、両方に同じactualDeltaを加算するだけで自動的に一致する
+ * （moveBoundary()の追加呼び出しは不要。同一の浮動小数点値に同一のdeltaを
+ * 加算すれば結果もビット単位で一致するため）。
+ *
+ * [UI Constraint] 最低1スロット分の長さを残す（_getMinSlotDuration参照）。
+ *
+ * [INVARIANT] chordIdsはbuffer上の時系列順に正規化済み（_refreshSelection参照）のため、
+ * ids[0] / ids[ids.length-1] をそのままfirst/lastとして利用できる（毎回のsort不要）。
+ *
+ * 境界更新にはmoveBoundary()を再利用する（[BOUNDARY EDIT AUTHORITY]：
  * 境界更新の唯一の窓口という原則を維持するため）。
  *
  * @param {number} deltaSec - シフト量（秒）。正で後ろへ、負で前へ。
@@ -1487,6 +1573,7 @@ function shiftSelectionRange(deltaSec) {
   if (ids.length === 1) { toast('単一選択中は個別移動をご利用ください'); return; }
 
   const buffer = analysisEditor.buffer;
+  // [INVARIANT] chordIdsはbuffer上の時系列順に正規化済み（_refreshSelection参照）
   const firstIdx = buffer.findIndex(c => c._id === ids[0]);
   const lastIdx  = buffer.findIndex(c => c._id === ids[ids.length - 1]);
 
@@ -1495,28 +1582,39 @@ function shiftSelectionRange(deltaSec) {
     return;
   }
 
-  const prevChord = buffer[firstIdx - 1];
-  const nextChord = buffer[lastIdx + 1];
-  const newBlockStart = buffer[firstIdx].start + deltaSec;
-  const newBlockEnd   = buffer[lastIdx].end + deltaSec;
+  const EPS = 1e-6;
+  const prevChord = buffer[firstIdx - 1]; // 入口（endのみ可変）
+  const tailChord = buffer[lastIdx];      // 出口（startのみ可変）
 
-  if (newBlockStart <= prevChord.start || newBlockEnd >= nextChord.end) {
-    toast('隣のコードがこれ以上短くできないため移動できません');
-    return;
-  }
+  const isForward = deltaSec > 0;
+  const limitChord = isForward ? tailChord : prevChord;
+  const limitLen = limitChord.end - limitChord.start;
+
+  // [UI Constraint] Chart Modeとの整合性のため最低1スロット分は残す
+  const minRemaining = _getMinSlotDuration(limitChord.start) ?? EPS;
+
+  const actualDelta = isForward
+    ? Math.min(deltaSec, Math.max(0, limitLen - minRemaining))
+    : Math.max(deltaSec, -Math.max(0, limitLen - minRemaining));
+
+  if (actualDelta === 0) return; // 壁に到達済み・トーストなしで静かに無視
 
   _pushHistory();
 
-  // 選択範囲内部を丸ごとdeltaSecだけ平行移動。
-  // 内部の要素同士の境界は全要素が同じ量だけ動くため自動的に連続性が保たれる。
-  for (let i = firstIdx; i <= lastIdx; i++) {
-    buffer[i].start += deltaSec;
-    buffer[i].end   += deltaSec;
+  // 選択範囲の内部（先頭〜末尾-1）を平行移動。方向による分岐は無い。
+  for (let i = firstIdx; i < lastIdx; i++) {
+    buffer[i].start += actualDelta;
+    buffer[i].end   += actualDelta;
   }
-  // 外側2つの境界はmoveBoundary()を再利用して更新する
-  // （内部ループで既に同じ値になっているが、更新経路を1箇所に統一するため呼び出す）。
-  moveBoundary(firstIdx - 1, newBlockStart);
-  moveBoundary(lastIdx, newBlockEnd);
+  tailChord.start += actualDelta; // 出口: startのみ更新（endは不変）
+  moveBoundary(firstIdx - 1, buffer[firstIdx].start); // 入口: prevChord.endのみ更新
+
+  // [INVARIANT CHECK] actualDeltaはlimitLenでクランプ済みのため、
+  // ここで負の長さになることは理論上あり得ない。もし発生したらactualDelta計算自体の
+  // バグなので、黙って修正せずthrowして早期発見する（Defensive Clampは意図的に採用しない）。
+  if (tailChord.end - tailChord.start < -EPS || prevChord.end - prevChord.start < -EPS) {
+    throw new Error('[FORWARD WALL MODEL] invariant violated: negative chord length');
+  }
 
   _refreshEditorView();
 }
@@ -1605,6 +1703,11 @@ function _refreshEditorView() {
   // どの経路からeditPointが変化しても、次のrenderChartMode()呼び出し前に
   // 必ず最新状態へ同期される（Phase75の「選択の二重管理・同期漏れ」の教訓）。
   setEditPointMarker(analysisEditor.selection.editPoint);
+  // [Sprint2-2] Boundary Handle（個別移動の左端ハンドル）の表示対象を同期。
+  // editPointMarkerと同じ理由でここに集約する（Phase75の「選択の二重管理・
+  // 同期漏れ」の教訓：ミューテーション箇所ごとに呼ぶと呼び忘れが起きるため、
+  // 唯一の再描画経路であるここでまとめて同期する）。
+  setBoundaryHandleTarget(_getBoundaryHandleChordId());
   const currentChords = getCurrentChordSource();
   const liveAnalysis = {
     ...project.analysis,
@@ -1678,14 +1781,14 @@ function getGroup3Actions(mode, ctx) {
   const { isMultiSelect, selectedIds, hasClipboard } = ctx;
   const n = selectedIds.length;
 
-  const COPY  = { id: 'aep-copy',  icon: '📋', label: isMultiSelect ? `コピー（${n}件）` : 'コピー', shortcut: 'Ctrl+C' };
-  const CUT   = { id: 'aep-cut',   icon: '✂',  label: isMultiSelect ? `切り取り（${n}件）` : '切り取り', shortcut: 'Ctrl+X' };
+  const COPY  = { id: 'aep-copy',  icon: '📋', label: isMultiSelect ? `コピー（${n}）` : 'コピー', shortcut: 'Ctrl+C' };
+  const CUT   = { id: 'aep-cut',   icon: '✂',  label: isMultiSelect ? `切り取り（${n}）` : '切り取り', shortcut: 'Ctrl+X' };
   // [Phase79] 貼り付けを2種類に分離。
-  // PASTE_ABS   = そのまま貼り付け（コピー時点の拍位置・長さを維持・上書き方式・pasteAbsolute）
+  // PASTE_ABS   = 貼り付け上書き（コピー時点の拍位置・長さを維持・上書き方式・pasteAbsolute）
   // PASTE_FIT   = 範囲に合わせて貼り付け（選択範囲へ比率で再配置・既存pasteSelection・改名のみ）
-  const PASTE_ABS = { id: 'aep-paste-absolute', icon: '📌', label: 'そのまま貼り付け', shortcut: 'Ctrl+V', disabled: !hasClipboard };
+  const PASTE_ABS = { id: 'aep-paste-absolute', icon: '📑', label: '貼り付け上書き', shortcut: 'Ctrl+V', disabled: !hasClipboard };
   const PASTE_FIT = { id: 'aep-paste', icon: '📄', label: '範囲に合わせて貼り付け', shortcut: 'Ctrl+Shift+V', disabled: !hasClipboard };
-  const MERGE = { id: 'aep-merge', icon: '🔗', label: `結合（${n}件）`, shortcut: 'Ctrl+J' };
+  const MERGE = { id: 'aep-merge', icon: '🔗', label: `結合（${n}）`, shortcut: 'Ctrl+J' };
 
   switch (mode) {
     case 'single':
@@ -1702,16 +1805,18 @@ function getGroup3Actions(mode, ctx) {
     case 'multi':
       return {
         primary: [
-          { id: 'aep-delete-selection', icon: '🗑', label: `削除（${n}件）`, title: '選択したコードを削除', danger: true },
+          { id: 'aep-delete-selection', icon: '🗑', label: `削除（${n}）`, title: '選択したコードを削除', danger: true },
         ],
         overflow: [COPY, CUT, PASTE_ABS, PASTE_FIT, { divider: true }, MERGE],
       };
     case 'edit-point':
       return {
         primary: [
-          { id: 'aep-add-here', icon: '＋', label: 'Add Here', title: 'この位置にコードを追加', primary: true },
-          // [Phase79] editPoint中は「範囲」が無いため、そのまま貼り付けのみ有効。
-          { id: 'aep-paste-absolute-primary', icon: '📌', label: 'そのまま貼り付け', title: 'コピーした内容をこの位置へそのまま貼り付け', disabled: !hasClipboard },
+          { id: 'aep-add-here', icon: '＋', label: '挿入', title: 'この位置にコードを追加', primary: true },
+          // [Phase79] editPoint中は「範囲」が無いため、貼り付け上書きのみ有効。
+          // PASTE_ABSの定義（icon/label）をそのまま流用し、id/titleのみeditPoint用に上書きする
+          // （表記の唯一の定義元をPASTE_ABSに一本化し、single/multiとeditPointでラベルがズレるのを防ぐ）
+          { ...PASTE_ABS, id: 'aep-paste-absolute-primary', title: 'コピーした内容をこの位置へ貼り付け（上書き）' },
         ],
         overflow: [],
       };
@@ -1836,7 +1941,7 @@ function renderAnalysisEditorPanel() {
     selectionInfo = `<span class="aep-chord-name">${transposeChord(chord.chord, -capo)}</span>
       <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>`;
   } else if (mode === 'multi') {
-    selectionInfo = `<span class="aep-chord-info">${selectedIds.length}件選択中</span>`;
+    selectionInfo = `<span class="aep-chord-info">${selectedIds.length}コード選択中</span>`;
   } else {
     selectionInfo = `<span class="aep-chord-info aep-chord-info--empty">クリックして編集</span>`;
   }
@@ -1905,7 +2010,7 @@ function renderAnalysisEditorPanel() {
   // ── イベント結線 ──
   document.getElementById('aep-clear-selection')?.addEventListener('click', clearCurrentSelection);
   _bindShiftControls('aep-shift', shiftAll);
-  _bindShiftControls('aep-bnd', shiftSelectedBoundary);
+  _bindShiftControls('aep-bnd', requestBoundaryShift);
   _bindShiftControls('aep-rng', shiftSelectionRange);
 
   document.getElementById('aep-add')?.addEventListener('click', () => {
@@ -3690,6 +3795,23 @@ function setupEventHandlers() {
       }
     }
 
+    // Enter: editPoint中 → Add Here（addChordAtEditPoint）をキーボードから起動
+    // [設計] addChordAtEditPoint()自体はshowChordSelector()（確認ダイアログ）を
+    // 開くだけで、この時点でbuffer/editPointは一切変化しない（[CANCEL INVARIANT]）。
+    // そのためEnter一発で呼んでも「うっかり確定」のリスクはない。
+    // modal-ov が開いている間（ダイアログ内でコード名を確定するEnter）は
+    // ここでは何もしない（Escapeの分岐と同じ判断基準・二重発火防止）。
+    if (e.key === 'Enter') {
+      if (document.getElementById('modal-ov').classList.contains('open')) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (isAnalysisEditing() && analysisEditor.selection.editPoint !== null) {
+        e.preventDefault();
+        addChordAtEditPoint();
+        return;
+      }
+    }
+
     // Shift+BracketLeft: 左パネル トグル
     // Shift+BracketRight: 右パネル トグル
     // （e.code基準でJIS/US差を吸収。INPUT/TEXTAREA中は無視）
@@ -3769,14 +3891,28 @@ function setupEventHandlers() {
       }
     }
 
-    // ArrowLeft/ArrowRight: 個別移動（解析編集モード中・選択中コードの左境界・Phase77で右境界から変更）
+    // ArrowLeft/ArrowRight: 選択対象に応じて自動切り替え（Sprint2で確定）
+    //   単一選択 → 個別移動（shiftSelectedBoundary・Phase77で右境界から左境界へ変更）
+    //   複数選択 → 範囲シフト（shiftSelectionRange・Forward Wall Model）
+    //   Shift併用 → 歩幅を0.1秒→0.5秒に拡大（対象は変わらない。ボタンの
+    //              [←0.5秒][←0.1秒][→0.1秒][→0.5秒]と同じ刻み幅に統一）
+    //   Ctrl+Shift併用 → 全体移動（shiftAll）。曲全体に影響する操作のため、
+    //              誤操作防止の観点であえて重い修飾キーの組み合わせにした
+    //              （選択数に関わらず全体移動を優先する）
     if (isAnalysisEditing() && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       e.preventDefault();
       const step  = e.shiftKey ? 0.5 : 0.1;
       const delta = (e.key === 'ArrowLeft') ? -step : step;
-      shiftSelectedBoundary(delta);
+
+      if (e.ctrlKey && e.shiftKey) {
+        shiftAll(delta);
+      } else if (analysisEditor.selection.chordIds.length > 1) {
+        shiftSelectionRange(delta);
+      } else {
+        requestBoundaryShift(delta);
+      }
     }
   });
 
