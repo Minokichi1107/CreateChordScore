@@ -188,6 +188,7 @@ import {
   setSelectedChordIds,
   setEditPointMarker,
   setBoundaryHandleTarget,
+  setSearchMatches,
   getTimeForGridPosition,
 } from './chartmode.js';
 
@@ -367,6 +368,17 @@ const analysisEditor = {
   selection: { chordIds: [], boundaryIndex: null, anchorChordId: null, editPoint: null },
   clipboard: null,    // Phase74-E（コピー＆ペースト）用・現在未使用
   dirty:     false,   // 未保存変更フラグ
+  // [Phase80] Search（検索）。ChatGPTレビューで確定した設計：
+  //   query          … ユーザー入力（Derived Cacheではない）
+  //   matches        … Derived Cache（buffer + queryから常に再計算できる）
+  //   activeIndex    … matches内の現在フォーカスindex
+  //   open           … 検索バーの表示/非表示（ephemeral UI state）
+  //   focusRequested … 「開いた直後の1回だけ」フォーカスするための一時フラグ
+  //                    （毎回自動フォーカスすると、ユーザーが別セルをクリックした
+  //                    直後の再描画でフォーカスを奪い返してしまうため）
+  // ownershipはanalysisEditor配下に置く（buffer検索専用。通常Editor検索・
+  // ライブラリ検索等が将来追加されても、この構造なら衝突しない）。
+  search: { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false },
 };
 
 /**
@@ -380,6 +392,8 @@ function resetAnalysisEditor() {
   analysisEditor.future    = [];
   analysisEditor.clipboard = null;
   analysisEditor.dirty     = false;
+  analysisEditor.search    = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
+  setSearchMatches([]);
   _refreshSelection([]);
 }
 
@@ -523,6 +537,8 @@ function beginAnalysisEdit() {
   analysisEditor.history = [];
   analysisEditor.future  = [];
   analysisEditor.dirty = false;
+  analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
+  setSearchMatches([]);
   _refreshSelection([]);
 
   _refreshEditorView();
@@ -573,6 +589,14 @@ window.__analysisEditorDebug = {
   undoEdit,
   redoEdit,
   validateAnalysis,
+  searchChords,
+  openSearchBar,
+  closeSearchBar,
+  searchGoToNext,
+  searchGoToPrev,
+  replaceCurrentMatch,
+  replaceCurrentAndAdvance,
+  replaceAllMatches,
   get state() { return analysisEditor; },
   get editorMode() { return deriveEditorMode(analysisEditor.selection); }, // [Phase78 Sprint1]
 };
@@ -1233,6 +1257,157 @@ function mergeSelection() {
   return merged._id;
 }
 
+// ════════════════════════════════════════
+// ANALYSIS EDITOR - SEARCH（Phase80）
+// ════════════════════════════════════════
+//
+// [ENGINE / UI 分離]（ChatGPTレビューで確定）
+//   searchChords()      … Search Engine（pure function）。「見つける」だけ。
+//   searchGoToNext/Prev … UI層。「そこへ移動する」（選択+シーク）はAnalysis
+//                          Editorの責務であり、Engine自体には持たせない。
+//   これにより将来、歌詞検索・ライブラリ検索等が同じsearchChords()の
+//   考え方（buffer→matchIds）を再利用しやすくなる。
+
+/**
+ * searchChords — buffer内から完全一致するコードを検索する（Search Engine・pure function）
+ *
+ * [対象] analysisEditor.buffer の chord文字列（正本）のみ。capo変換後の
+ * 表示名（transposeChord適用後）は対象外（Sprint2-2 handoverで確定済みの方針）。
+ * 大文字小文字は区別しない（trim + toUpperCase比較）。
+ *
+ * @param {Array} buffer - analysisEditor.buffer
+ * @param {string} query - 検索文字列
+ * @returns {string[]} 一致したchordの_id配列（buffer順）
+ */
+function searchChords(buffer, query) {
+  const q = String(query ?? '').trim();
+  if (!q || !buffer) return [];
+  const qUpper = q.toUpperCase();
+  return buffer
+    .filter(c => String(c.chord ?? '').toUpperCase() === qUpper)
+    .map(c => c._id);
+}
+
+/**
+ * openSearchBar / closeSearchBar — 検索バーの表示切替（Ctrl+F / ✕ボタン / Escape）
+ */
+function openSearchBar() {
+  if (!isAnalysisEditing()) return;
+  analysisEditor.search.open = true;
+  analysisEditor.search.focusRequested = true;
+  _refreshEditorView();
+}
+function closeSearchBar() {
+  analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
+  setSearchMatches([]);
+  _refreshEditorView();
+}
+
+/**
+ * _activateSearchMatch — 検索結果のうちindex番目を「選択+シーク」する（UI層）
+ *
+ * [設計] 検索結果のクリック/Next/Prevは、既存のselection authorityと
+ * seek機構（aEl.currentTime）にそのまま乗せる。検索専用の選択・シーク機構は
+ * 新設しない（既存のinitChartMode注入のseekTo callbackと同じ書き方で
+ * aEl.currentTimeを直接設定する）。
+ *
+ * @param {number} index - matches配列内のindex（範囲外はラップアラウンド）
+ */
+function _activateSearchMatch(index) {
+  const { matches } = analysisEditor.search;
+  if (!matches.length) return;
+  const clamped = ((index % matches.length) + matches.length) % matches.length;
+  analysisEditor.search.activeIndex = clamped;
+  const id = matches[clamped];
+  _refreshSelection([id]);
+  setSelectedChordIds([id]);
+  const chord = analysisEditor.buffer.find(c => c._id === id);
+  if (chord) aEl.currentTime = chord.start;
+  _refreshEditorView();
+}
+
+function searchGoToNext() {
+  const { activeIndex } = analysisEditor.search;
+  _activateSearchMatch(activeIndex === null ? 0 : activeIndex + 1);
+}
+function searchGoToPrev() {
+  const { activeIndex } = analysisEditor.search;
+  _activateSearchMatch(activeIndex === null ? 0 : activeIndex - 1);
+}
+
+/**
+ * replaceCurrentMatch — 現在フォーカス中の検索結果1件を置換する
+ *
+ * [設計] updateChord()をそのまま呼ぶ。updateChord()は既にbuffer authorityへの
+ * 唯一の書き込み窓口（_pushHistory→Object.assign→_refreshEditorView）として
+ * Phase74-Cで確立済みのため、置換専用の別ロジックを重複させない。
+ */
+function replaceCurrentMatch(newName) {
+  if (!isAnalysisEditing()) return;
+  if (!String(newName ?? '').trim()) return; // 空文字での置換は行わない
+  const { matches, activeIndex } = analysisEditor.search;
+  if (activeIndex === null || !matches[activeIndex]) return;
+  updateChord(matches[activeIndex], { chord: newName });
+}
+
+/**
+ * replaceCurrentAndAdvance — 現在の検索結果を置換し、次/前のヒットへ移動する
+ * （Phase80・実機フィードバックにより常設の置換欄からEnter/Shift+Enterで
+ * 呼べるようにした。ボタンからの「置換」もこの関数を通す＝direction:1固定）。
+ *
+ * [既知の簡略化] 置換によりコード名がqueryと一致しなくなった場合、matchesは
+ * 1つ前に詰まる（削除したのと同じ効果）。そのため置換前と同じactiveIndexが
+ * 自然に「次のヒット」を指すようになる（forward方向は正しく動作する）。
+ * backward（Shift+Enter）方向でこの「詰まり」が起きた場合、本来の「前へ」より
+ * 1つ手前が飛ばされる可能性がある。個人用ツールの利用頻度に対して、
+ * 削除前のindex集合を保持する厳密な再計算を行うコストは見合わないため、
+ * この簡略化を許容する。
+ *
+ * @param {1|-1} direction - 1: 置換して次へ／-1: 置換して前へ
+ */
+function replaceCurrentAndAdvance(direction) {
+  if (!isAnalysisEditing()) return;
+  const { matches, activeIndex, replaceText } = analysisEditor.search;
+  if (activeIndex === null || !matches[activeIndex] || !String(replaceText ?? '').trim()) return;
+  const targetId = matches[activeIndex];
+  replaceCurrentMatch(replaceText); // buffer更新 → _refreshEditorView()でmatches再計算・クランプ済み
+  const stillMatches = analysisEditor.search.matches.includes(targetId);
+  const newIndex = analysisEditor.search.activeIndex;
+  if (stillMatches) {
+    // 置換後も同じクエリに一致する（例: 大文字小文字の書き直しのみ等）→ 明示的に前後へ移動
+    _activateSearchMatch(newIndex + direction);
+  } else if (analysisEditor.search.matches.length) {
+    // 上記[既知の簡略化]参照。クランプ済みのactiveIndexをそのままアクティブ化する
+    // （選択+シークをその位置に同期させるため）。
+    _activateSearchMatch(newIndex ?? 0);
+  }
+}
+
+/**
+ * replaceAllMatches — 検索でヒットした全コードを一括置換する
+ *
+ * [UNDO INVARIANT] Undo単位はこの関数全体で1回。updateChord()をループ呼びしない
+ * （ループ呼びするとヒット件数分Undo履歴が積まれ、Paste/Merge等で確立した
+ * 「一括操作はUndo 1回」という既存原則が崩れるため。commitPastePlan()と同じ
+ * 「_pushHistory()を1回だけ呼び、bufferへ直接書き込む」パターンを踏襲する）。
+ *
+ * @param {string} newName
+ * @returns {number} 置換した件数
+ */
+function replaceAllMatches(newName) {
+  if (!isAnalysisEditing()) return 0;
+  if (!String(newName ?? '').trim()) return 0; // 空文字での置換は行わない
+  const { matches } = analysisEditor.search;
+  if (!matches.length) return 0;
+  const targetIds = new Set(matches);
+  _pushHistory();
+  for (const c of analysisEditor.buffer) {
+    if (targetIds.has(c._id)) c.chord = newName;
+  }
+  _refreshEditorView();
+  return targetIds.size;
+}
+
 /**
  * shiftAll — 全コードの開始・終了時刻を一括でシフトする
  *
@@ -1708,6 +1883,18 @@ function _refreshEditorView() {
   // 同期漏れ」の教訓：ミューテーション箇所ごとに呼ぶと呼び忘れが起きるため、
   // 唯一の再描画経路であるここでまとめて同期する）。
   setBoundaryHandleTarget(_getBoundaryHandleChordId());
+  // [Phase80] 検索結果（Derived Cache）を同期。matchesはquery+bufferから
+  // 常に再計算できるキャッシュのため、唯一の再描画経路であるここで
+  // まとめて再計算する（Boundary Handle/EditPointMarkerと同じ理由。
+  // ミューテーション箇所ごとに個別に呼ぶと呼び忘れが起きるため）。
+  if (analysisEditor.search.open) {
+    analysisEditor.search.matches = searchChords(analysisEditor.buffer, analysisEditor.search.query);
+    if (analysisEditor.search.activeIndex !== null
+        && analysisEditor.search.activeIndex >= analysisEditor.search.matches.length) {
+      analysisEditor.search.activeIndex = analysisEditor.search.matches.length ? 0 : null;
+    }
+  }
+  setSearchMatches(analysisEditor.search.open ? analysisEditor.search.matches : []);
   const currentChords = getCurrentChordSource();
   const liveAnalysis = {
     ...project.analysis,
@@ -1905,6 +2092,15 @@ function renderAnalysisEditorPanel() {
   }
   panel.hidden = false;
 
+  // [Phase80] innerHTML再生成でinputが作り直される前に、フォーカスの継続要否を
+  // 判定しておく（「開いた直後」か「入力中の再描画」かのどちらかのみ復元する。
+  // 毎回無条件にフォーカスすると、ユーザーが別セルをクリックした直後の
+  // 再描画でフォーカスを奪い返してしまうため）。検索欄・置換欄のどちらに
+  // フォーカスがあったかをid単位で覚えておき、同じ欄へ復元する。
+  const _searchFocusIds = ['aep-search-input', 'aep-search-replace-input'];
+  const searchFocusedId = document.activeElement?.id;
+  const searchWasFocused = _searchFocusIds.includes(searchFocusedId);
+
   const selection = analysisEditor.selection;
   const mode = deriveEditorMode(selection);
 
@@ -1993,13 +2189,46 @@ function renderAnalysisEditorPanel() {
         ${analysisEditor.dirty ? '' : 'disabled'}>保存して閉じる</button>
     </div>`;
 
+  // ── Group: Search（Phase80・全mode共通表示） ──
+  // [仕様] Ctrl+F または🔍ボタンで開閉。編集モードに関わらず常に使える
+  // （検索対象はbuffer全体であり、選択状態とは無関係のため）。
+  // [実機フィードバック反映] 置換欄はモーダルではなく常設入力欄にした
+  // （17件を1件ずつモーダルで置換するのは操作量が多すぎるという指摘）。
+  // 検証（isChordLikeInput等）はchordEntry.js側にあり、ここからは直接
+  // 呼べないため、検索欄（query）と同じく無検証の自由入力として扱う
+  // （誤入力してもUndoが正式な復旧手段という既存方針を踏襲）。
+  const search = analysisEditor.search;
+  const searchTotal = search.matches.length;
+  const searchCountLabel = !search.query
+    ? ''
+    : (searchTotal ? `${(search.activeIndex ?? 0) + 1}/${searchTotal}` : '0件');
+  const searchQueryAttr = String(search.query).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const replaceTextAttr = String(search.replaceText).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const canReplace = searchTotal > 0 && !!String(search.replaceText ?? '').trim();
+  const searchBarInner = !search.open ? '' : `
+    <div class="aep-row aep-group aep-group--search">
+      <input class="aep-input" id="aep-search-input" type="text" autocomplete="off"
+        placeholder="コード名で検索（実音・完全一致）" value="${searchQueryAttr}">
+      <span class="aep-label">→</span>
+      <input class="aep-input" id="aep-search-replace-input" type="text" autocomplete="off"
+        placeholder="置換後のコード名" value="${replaceTextAttr}">
+      <span class="aep-label">${searchCountLabel}</span>
+      <button class="aep-btn" id="aep-search-prev" title="前へ（Shift+Enter）" aria-label="前へ" ${searchTotal ? '' : 'disabled'}>◀</button>
+      <button class="aep-btn" id="aep-search-next" title="次へ（Enter）" aria-label="次へ" ${searchTotal ? '' : 'disabled'}>▶</button>
+      <button class="aep-btn" id="aep-search-replace" title="現在のコードを置換（置換欄でEnter）" aria-label="置換" ${canReplace ? '' : 'disabled'}>置換</button>
+      <button class="aep-btn" id="aep-search-replace-all" title="ヒットした${searchTotal}件をすべて置換" aria-label="全置換" ${canReplace ? '' : 'disabled'}>全置換（${searchTotal}）</button>
+      <button class="aep-btn--clear" id="aep-search-close" title="検索を閉じる" aria-label="検索を閉じる">✕</button>
+    </div>`;
+
   panel.innerHTML = `
     <div class="aep-row aep-group aep-group--selection">
       ${selectionInfo}
       ${clearBtn}
       <span class="aep-spacer"></span>
+      <button class="aep-btn" id="aep-search-toggle" title="検索（Ctrl+F）" aria-label="検索">🔍</button>
       ${navigationGroup}
     </div>
+    ${searchBarInner}
     <div class="aep-row aep-group--action-row">
       ${primaryInner}
       <span class="aep-spacer"></span>
@@ -2078,6 +2307,70 @@ function renderAnalysisEditorPanel() {
       btn.closest('details.aep-overflow')?.removeAttribute('open');
     });
   });
+  // ── Search（Phase80） ──
+  document.getElementById('aep-search-toggle')?.addEventListener('click', () => {
+    if (search.open) closeSearchBar(); else openSearchBar();
+  });
+  if (search.open) {
+    const searchInput = document.getElementById('aep-search-input');
+    const replaceInput = document.getElementById('aep-search-replace-input');
+    // [フォーカス復元] 「開いた直後」か「検索欄/置換欄で入力中の再描画」の
+    // 場合のみ、直前にフォーカスしていたのと同じ欄へ復元する
+    // （searchWasFocused / searchFocusedId / focusRequestedの判定は関数冒頭・
+    // openSearchBar()参照）。
+    if (searchWasFocused || search.focusRequested) {
+      const idToFocus = _searchFocusIds.includes(searchFocusedId) ? searchFocusedId : 'aep-search-input';
+      const elToFocus = document.getElementById(idToFocus);
+      if (elToFocus) {
+        elToFocus.focus();
+        elToFocus.setSelectionRange(elToFocus.value.length, elToFocus.value.length);
+      }
+    }
+    search.focusRequested = false;
+
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        analysisEditor.search.query = e.target.value;
+        analysisEditor.search.activeIndex = null; // クエリが変わったら現在位置をリセット
+        _refreshEditorView();
+      });
+      // [キー割り当て・ChatGPTレビューで確定] 検索欄にフォーカス中のEnterは
+      // 「次のヒットへ」（Shift+Enterは前へ）。置換欄側は別の意味を持つ
+      // （下記replaceInputのkeydown参照）。
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (e.shiftKey) searchGoToPrev(); else searchGoToNext();
+      });
+    }
+    if (replaceInput) {
+      // [Phase80・実機フィードバック反映] 置換欄はモーダルを介さない常設フィールド。
+      // 検索欄と異なり、入力のたびに_refreshEditorView()は呼ばない
+      // （replaceTextはハイライト等どのDecoratorにも影響しない純粋なUI-local値のため、
+      // 再描画してもすることがない。値はDOM側にすでに反映されているので、
+      // 他の理由での再描画時にvalue属性へ反映されれば十分）。
+      replaceInput.addEventListener('input', (e) => {
+        analysisEditor.search.replaceText = e.target.value;
+      });
+      // [キー割り当て・ChatGPTレビューで確定] 置換欄にフォーカス中のEnterは
+      // 「置換して次へ」（Shift+Enterは「置換して前へ」）。
+      replaceInput.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        replaceCurrentAndAdvance(e.shiftKey ? -1 : 1);
+      });
+    }
+    document.getElementById('aep-search-prev')?.addEventListener('click', searchGoToPrev);
+    document.getElementById('aep-search-next')?.addEventListener('click', searchGoToNext);
+    document.getElementById('aep-search-close')?.addEventListener('click', closeSearchBar);
+    document.getElementById('aep-search-replace')?.addEventListener('click', () => {
+      replaceCurrentAndAdvance(1);
+    });
+    document.getElementById('aep-search-replace-all')?.addEventListener('click', () => {
+      const n = replaceAllMatches(analysisEditor.search.replaceText);
+      if (n) toast(`${n}件置換しました`);
+    });
+  }
 }
 
 function _renderOverflowMenu(items) {
@@ -3781,6 +4074,12 @@ function setupEventHandlers() {
         closeMod();
         return;
       }
+      // [Phase80] 検索バーが開いていればEsc最優先で閉じる（入力欄にフォーカスが
+      // あることが多いため、diagLock/editPointより先に判定する）。
+      if (isAnalysisEditing() && analysisEditor.search.open) {
+        closeSearchBar();
+        return;
+      }
       if (diagLocked) {
         unlockDiag();
         return;
@@ -3889,6 +4188,23 @@ function setupEventHandlers() {
         e.preventDefault();
         redoEdit();
       }
+      // [Phase80] Ctrl+F: 検索バーを開く。既に開いて入力欄にフォーカスがある
+      // 場合はinTextInputガードにより素通りする（ブラウザ標準の検索と衝突しない）。
+      if (!inTextInput && e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        openSearchBar();
+      }
+    }
+
+    // [Phase80] F3 / Shift+F3: 検索結果の次へ/前へ（フォーカス位置に関わらず動作）。
+    // ChatGPTレビューで確定した条件: 検索バーが開いていて、かつヒットが
+    // 1件以上ある時のみブラウザ標準のF3から奪う（ヒット0件の状態で奪う
+    // メリットが無いため。inTextInputガードは使わない＝検索欄/置換欄に
+    // フォーカスがあっても動作する、Windows検索UIと同じ操作感を優先する）。
+    if (isAnalysisEditing() && analysisEditor.search.open && analysisEditor.search.matches.length > 0
+        && (e.key === 'F3' || e.key === 'f3')) {
+      e.preventDefault();
+      if (e.shiftKey) searchGoToPrev(); else searchGoToNext();
     }
 
     // ArrowLeft/ArrowRight: 選択対象に応じて自動切り替え（Sprint2で確定）

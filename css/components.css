@@ -589,6 +589,38 @@
   /* 特別なスタイルなし */
 }
 
+/* ── Analysis Editor: Search Highlight（Phase80・実機フィードバックで再設計） ──
+   [仕様変更の経緯] 当初は専用色（azure→マゼンタ）を試したが、実機で
+   「小節フォーカス（青）・検索中の現在地（緑）・検索候補（マゼンタ）」の
+   3色が同時に画面へ出て視覚的ノイズが大きいとの指摘があった。
+   ChatGPTレビューでも「Searchは候補でありSelectionの上位概念ではないため、
+   色を増やすより同じ緑系で強弱を変えて階層化する方がよい」との結論になった。
+
+   [設計] 新しい色相トークンは持たない。--color-selection-rgbを流用し、
+   背景alpha・枠線太さだけをSelection Highlightより弱くする（1px・薄い背景）。
+   「今アクティブな検索結果」は検索ナビゲーション（Enter/Next/Prev）で
+   selectionにも入るため、.chart-slot--selected（濃い緑・1.5px枠）が
+   自動的に重なって勝つ（後述のSelection Highlightブロックとの宣言順で
+   保証。ここでの追加ロジックは不要）。結果として：
+     濃い緑・太い枠 = 今アクティブな検索結果（Selectionと同じ見た目）
+     薄い緑・細い枠 = その他の検索候補
+   という一目で分かる強弱だけの階層になる。 */
+.chart-slot--search-match {
+  background: rgba(var(--color-selection-rgb), .16);
+  border-top: 1px solid rgba(var(--color-selection-rgb), .55);
+  border-bottom: 1px solid rgba(var(--color-selection-rgb), .55);
+}
+.chart-slot--search-match-start {
+  border-left: 1px solid rgba(var(--color-selection-rgb), .55);
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+.chart-slot--search-match-end {
+  border-right: 1px solid rgba(var(--color-selection-rgb), .55);
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
 /* ── Analysis Editor: Selection Highlight（Sprint2-1） ──
    [仕様] コード単位の選択を表現する。セル単位の選択を表現するものではない。
    onset/carryを問わず、選択中コードに属するslot全体へ適用する

@@ -763,6 +763,13 @@ export const chartState = {
   // slotIndex/measureIndexまで一致する場合のみ「同じセル」とみなすようにする。
   // { chordId, slotIndex, measureIndex } または null。
   _lastClickedSlot: null,
+
+  // [Phase80] Search Highlight（検索でヒットしたコード）の表示対象。
+  // [OWNERSHIP] 正本は app.js の analysisEditor.search.matches。
+  // ここは描画用のローカル表示状態（[DECORATOR ADDITION RULE]・Sprint2-2で確立）。
+  // Selectionとは独立した別state（同じ色で塗ると「選択」と「検索結果」が
+  // 混同されるため）。
+  searchMatchIds: new Set(),
 };
 
 /**
@@ -813,6 +820,19 @@ export function setEditPointMarker(marker) {
  */
 export function setBoundaryHandleTarget(chordId) {
   chartState.boundaryHandleChordId = chordId ?? null;
+}
+
+/**
+ * setSearchMatches — Search Highlight（検索結果）の表示対象を更新する（Phase80）
+ *
+ * [OWNERSHIP] 正本は app.js の analysisEditor.search.matches。
+ * ここは描画用のローカル表示状態を更新するだけ。
+ * 呼び出し後は renderChartMode() で再描画が必要。
+ *
+ * @param {string[]} ids - 検索でヒットした chord._id の配列
+ */
+export function setSearchMatches(ids) {
+  chartState.searchMatchIds = new Set(ids);
 }
 
 // ────────────────────────────────────────
@@ -2006,21 +2026,34 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
           // 将来: case 'simile': / case 'repeat-start': 等をここに追加
         }
 
-        // ── Selection Highlight（Sprint2-1） ──
+        // ── Selection / Search Highlight（Sprint2-1・Phase80） ──
         // 選択は「コード単位」を表現する。onset/carryを問わずownerIdを用いて判定する。
         // 小節内でのみisFirst/isLastを判定する（小節をまたぐ場合は小節ごとに枠を
         // 区切り、背景色だけ連続させる。architecture.md §9.5のprojectionEmpty
         // 不可侵性を維持するため、typeが'empty'/'projectionEmpty'のslotは
         // ownerIdがundefinedになり自然に対象外となる）。
         const ownerId = slot.type === 'onset' ? slot.id : slot.sourceChordId;
-        if (ownerId && chartState.selectedChordIds.has(ownerId)) {
+        if (ownerId) {
           const prev = si > 0 ? measureSlots[si - 1] : null;
           const next = si < measureSlots.length - 1 ? measureSlots[si + 1] : null;
           const prevOwner = prev ? (prev.type === 'onset' ? prev.id : prev.sourceChordId) : null;
           const nextOwner = next ? (next.type === 'onset' ? next.id : next.sourceChordId) : null;
-          slotEl.classList.add('chart-slot--selected');
-          if (prevOwner !== ownerId) slotEl.classList.add('chart-slot--selected-start');
-          if (nextOwner !== ownerId) slotEl.classList.add('chart-slot--selected-end');
+
+          // [Phase80] Search Highlight。Selectionとは独立した別state
+          // （chartState.searchMatchIds）。両方が同じslotに立った場合は
+          // Selection（緑・面）が視覚的に勝つよう、このブロックをSelection
+          // Highlightより前に置いている（components.cssの宣言順で調整）。
+          if (chartState.searchMatchIds.has(ownerId)) {
+            slotEl.classList.add('chart-slot--search-match');
+            if (prevOwner !== ownerId) slotEl.classList.add('chart-slot--search-match-start');
+            if (nextOwner !== ownerId) slotEl.classList.add('chart-slot--search-match-end');
+          }
+
+          if (chartState.selectedChordIds.has(ownerId)) {
+            slotEl.classList.add('chart-slot--selected');
+            if (prevOwner !== ownerId) slotEl.classList.add('chart-slot--selected-start');
+            if (nextOwner !== ownerId) slotEl.classList.add('chart-slot--selected-end');
+          }
         }
 
         // ── EditPoint Marker（Sprint2-2で post-hoc DOM patch から統合） ──

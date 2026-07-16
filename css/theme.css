@@ -75,6 +75,12 @@
   --color-edit-point: #C77DFF;
   --color-edit-point-bg: rgba(199,125,255,.22);
 
+  /* [Phase80] Search Highlightは専用トークンを持たない（廃止）。
+     専用色（azure→マゼンタ）を2回試したが、「小節フォーカス（青）・検索中の
+     現在地（緑）・検索候補（別色）」の3色が同時に出て視覚ノイズが大きいとの
+     指摘を受け、--color-selection-rgbを流用する設計へ変更した
+     （components.cssの.chart-slot--search-match参照）。 */
+
   /* RGB values for alpha composition [SAFE] alpha調整用。直接使用禁止 */
   --color-green-rgb: 61,220,132;
   --color-amber-rgb: 255,184,64;
@@ -378,6 +384,7 @@ body[data-theme="silver"] {
      Silverの明るい背景向けに、暗めの紫を採用する。 */
   --color-edit-point: #8B3FD1;
   --color-edit-point-bg: rgba(139,63,209,.18);
+
   --color-red:   #ff7c7c;
 
   /* --- perform text --- */
@@ -621,6 +628,7 @@ body[data-theme="blue"] {
      Blueの明るい背景向けに、silverと同程度の暗めの紫を採用する。 */
   --color-edit-point: #8034C2;
   --color-edit-point-bg: rgba(128,52,194,.18);
+
   --color-red:   #ff7c7c;
 
   /* --- perform text --- */
