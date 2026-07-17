@@ -1,0 +1,179 @@
+いい流れです。そのまま実装側に入って問題ない状態まで整理できています。
+
+---
+
+# 次のタスク（優先順を明確化）
+
+ここからは設計ではなく「実装順序」の話になります。
+
+---
+
+## ① 最優先：Grid生成ロジック（コア）
+
+やることは1つだけです：
+
+> chordEvents + beats → beatGrid を生成する
+
+---
+
+### ここで作るもの
+
+```json id="grid_core"
+[
+  {
+    "bar": 1,
+    "beats": [
+      { "time": 0.39, "chord": "C", "isChange": true },
+      { "time": 0.87, "chord": "C", "isChange": false },
+      { "time": 1.31, "chord": "C", "isChange": false },
+      { "time": 1.76, "chord": "C", "isChange": false }
+    ]
+  }
+]
+```
+
+---
+
+### 重要ポイント
+
+* chordEventsを正として扱う
+* beatsに投影する（ここが核心）
+* Gridは派生データ
+
+---
+
+## ② chord継続補完ロジック
+
+ChrodMiniの弱点を吸収する部分です。
+
+やること：
+
+* beatごとに「現在のコード」を保持
+* chord change時のみ更新
+
+---
+
+### 擬似ロジック
+
+```text id="logic1"
+currentChord = null
+
+for each beat:
+    if beat.time >= nextChord.start:
+        currentChord = nextChord.chord
+
+    grid[beat] = currentChord
+```
+
+---
+
+## ③ change検出フラグ付与
+
+```text id="logic2"
+if chord != previousChord:
+    isChange = true
+```
+
+UIで必要になる部分。
+
+---
+
+## ④ bar構造の付与
+
+ここで初めて：
+
+* beats → bar grouping
+
+```text id="bar"
+4 beats = 1 bar（4/4の場合）
+```
+
+---
+
+## ⑤ UI用データ完成
+
+最終的に：
+
+* grid
+* bar
+* change
+* chord
+
+が揃う
+
+---
+
+# 実装順（重要）
+
+順番を間違えると崩れます：
+
+## Step 1
+
+👉 Grid生成（beat投影）
+
+## Step 2
+
+👉 chord継続補完
+
+## Step 3
+
+👉 changeフラグ
+
+## Step 4
+
+👉 bar分割
+
+## Step 5
+
+👉 UI接続
+
+---
+
+# ここから先のポイント
+
+今回の本質はこれです：
+
+> 「ChordMiniの出力をそのまま使うのではなく、時間軸に再構築する」
+
+---
+
+# 注意（重要）
+
+やりがちなミス：
+
+❌ GridをUIから作る
+❌ chordEventsをそのまま表示する
+❌ beatとchordを別管理する
+
+---
+
+# 正解構造
+
+```text id="correct"
+ChordMini
+   ↓
+chordEvents（正）
+   ↓
+beat投影（変換）
+   ↓
+Grid（派生）
+   ↓
+UI
+```
+
+---
+
+# 次にやるべき1手
+
+これだけです：
+
+👉 **Grid生成関数の実装（Python or JSどちらでもOK）**
+
+---
+
+必要なら次はそのまま：
+
+* 実コード（chordEvents → beatGrid変換）
+* もしくは設計レビュー（関数単位）
+
+どちらにも進めます。
