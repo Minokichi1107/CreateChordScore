@@ -92,6 +92,7 @@ import {
   transposeChord,
   toDisplayChord,
   toCanonicalChord,
+  normalizeChordInput,
   normalizeChordName,
   findChord,
   getChordEntry,
@@ -1284,9 +1285,12 @@ function mergeSelection() {
 function searchChords(buffer, query) {
   const q = String(query ?? '').trim();
   if (!q || !buffer) return [];
-  const qUpper = q.toUpperCase();
+  // [Phase83] case-sensitiveへ変更。findChord()/CHORD_DBのlookupと同じ原則
+  // （m7とM7は別物）に統一する。大文字小文字を区別しないと、例えば
+  // "AM7"で検索した際に意味の異なる"Am7"まで誤ヒットし、全置換時に
+  // 意図しないコードまで書き換えてしまう危険があった。
   return buffer
-    .filter(c => String(c.chord ?? '').toUpperCase() === qUpper)
+    .filter(c => String(c.chord ?? '').trim() === q)
     .map(c => c._id);
 }
 
@@ -1374,7 +1378,8 @@ function replaceCurrentAndAdvance(direction) {
   const targetId = matches[activeIndex];
   // [Phase82] replaceTextは表示名。bufferへの書き込みは実音でなければならないため、
   // ここでtoCanonicalChord()を通す（Rename/AddChordと同じ変換境界）。
-  replaceCurrentMatch(toCanonicalChord(replaceText, getCapo())); // buffer更新 → _refreshEditorView()でmatches再計算・クランプ済み
+  // [Phase83] IME全角混入対策でnormalizeChordInput()を先に通す。
+  replaceCurrentMatch(toCanonicalChord(normalizeChordInput(replaceText), getCapo())); // buffer更新 → _refreshEditorView()でmatches再計算・クランプ済み
   const stillMatches = analysisEditor.search.matches.includes(targetId);
   const newIndex = analysisEditor.search.activeIndex;
   if (stillMatches) {
@@ -1896,9 +1901,11 @@ function _refreshEditorView() {
   if (analysisEditor.search.open) {
     // [Phase82] search.queryは表示名。Engine（searchChords）は実音のみを扱うため
     // ([SEARCH-1]〜[SEARCH-5]準拠)、ここで唯一の変換を行う。
+    // [Phase83] IME入力等で混入する全角文字をnormalizeChordInput()で正規化してから
+    // toCanonicalChord()に渡す（入力正規化 → 表示⇔Canonical変換 → 検索、の3層）。
     analysisEditor.search.matches = searchChords(
       analysisEditor.buffer,
-      toCanonicalChord(analysisEditor.search.query, getCapo())
+      toCanonicalChord(normalizeChordInput(analysisEditor.search.query), getCapo())
     );
     if (analysisEditor.search.activeIndex !== null
         && analysisEditor.search.activeIndex >= analysisEditor.search.matches.length) {
@@ -2383,7 +2390,8 @@ function renderAnalysisEditorPanel() {
     });
     document.getElementById('aep-search-replace-all')?.addEventListener('click', () => {
       // [Phase82] replaceTextは表示名 → toCanonicalChord()で実音に変換してから渡す
-      const n = replaceAllMatches(toCanonicalChord(analysisEditor.search.replaceText, getCapo()));
+      // [Phase83] IME全角混入対策でnormalizeChordInput()を先に通す。
+      const n = replaceAllMatches(toCanonicalChord(normalizeChordInput(analysisEditor.search.replaceText), getCapo()));
       if (n) toast(`${n}件置換しました`);
     });
   }
@@ -3042,7 +3050,15 @@ function handleAddChordToLine(chord) {
 // MODAL SYSTEM
 // ════════════════════════════════════════
 function closeMod(){mOv.classList.remove('open');mBody.innerHTML='';mBtns.innerHTML='';}
-mOv.addEventListener('click',e=>{if(e.target===mOv)closeMod();});
+// [Phase83] 背景クリックで閉じる判定をclickのみからmousedown+click両方が
+// 背景上で発生した場合のみへ変更（仮説：入力欄内でのドラッグ選択が背景外で
+// mouseupすると誤ってclickイベントがmOvをtargetにしてしまう問題への対策）。
+let _mOvMouseDownOnOverlay = false;
+mOv.addEventListener('mousedown', e => { _mOvMouseDownOnOverlay = (e.target === mOv); });
+mOv.addEventListener('click', e => {
+  if (e.target === mOv && _mOvMouseDownOnOverlay) closeMod();
+  _mOvMouseDownOnOverlay = false;
+});
 function mkMBtn(txt,cls,fn){const b=document.createElement('button');b.className=`mbtn ${cls||''}`;b.textContent=txt;b.addEventListener('click',fn);return b;}
 
 /**
@@ -4120,10 +4136,24 @@ function setupEventHandlers() {
       if (document.getElementById('modal-ov').classList.contains('open')) return;
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if (isAnalysisEditing() && analysisEditor.selection.editPoint !== null) {
-        e.preventDefault();
-        addChordAtEditPoint();
-        return;
+      if (isAnalysisEditing()) {
+        const mode = deriveEditorMode(analysisEditor.selection);
+        if (mode === 'edit-point') {
+          e.preventDefault();
+          addChordAtEditPoint();
+          return;
+        }
+        // [Phase83] single選択中のEnter → コード名変更モーダル
+        if (mode === 'single') {
+          const chord = analysisEditor.buffer.find(
+            c => c._id === analysisEditor.selection.chordIds[0]
+          );
+          if (chord) {
+            e.preventDefault();
+            openChordRenameSelector(chord);
+            return;
+          }
+        }
       }
     }
 
