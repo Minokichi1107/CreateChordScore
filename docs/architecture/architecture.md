@@ -1,6 +1,77 @@
 # アーキテクチャ概要
 
-> 最終更新: Phase74-E完了時点
+## 0. Overview（全体像）
+
+CreateChordScoreは以下の主要サブシステムから構成される。
+
+```
+音声・コード解析
+  ChordMini API → analysisLoader.js → project.analysis
+        │
+        ▼
+Chart Mode（表示・演奏用グリッド）
+  chartmode.js が GridViewModel を生成・描画
+  projection renderer（app.js経由でnormalizedを注入される）
+        │
+        ▼
+Analysis Editor（解析結果の手動編集・§12）
+  Editor Session（buffer/selection/search）
+        │
+        ▼
+  Editing Commands（単一編集・複数編集・位置編集・検索置換）
+        │
+        ▼
+  UI Projection（deriveEditorMode等）
+        │
+        ▼
+  Decorator Layer（Selection Highlight / Boundary Handle / EditPoint Marker）
+        │
+        ▼
+Project Repository（保存・復元・§11）
+  IndexedDB "projects" store が正本
+```
+
+### 設計の背骨（このプロジェクト全体を貫く考え方）
+
+```
+Authority（正本） → Projection（導出） → Rendering（描画）
+```
+
+状態は必ずどこか1箇所が正本（Authority）を持ち、それ以外は正本から
+都度導出される一時値（Projection）として扱う。Projectionを直接
+書き換えることはしない。この考え方はTiming Pipeline・Analysis Editor・
+Search Engineを含む、本プロジェクト全体で一貫して採用している。
+
+### 用語定義
+
+| 用語 | 意味 |
+|---|---|
+| Authority | 唯一の正本。ある状態について、書き込み権限を持つ唯一の場所 |
+| Single Writer | Authorityへの唯一の更新窓口となる関数（例: `moveBoundary()`） |
+| Projection | Authorityから導出される表示・UI状態。直接書き換えない |
+| Derived Cache | Authorityから一意に再計算できるキャッシュ（Projectionの一種。例: `selection.boundaryIndex`） |
+| Runtime Cache | 実行時のみ保持するキャッシュ全般（永続化しない。Derived Cacheを含むより広い概念。例: `project.analysis.normalized`） |
+
+Derived Cache と Runtime Cache の違い：Derived Cacheは「元になる値から一意に
+再計算できる」という導出の明確さを指す狭い概念。Runtime Cacheは「永続化しない
+実行時データ」という保存範囲を指す広い概念で、Derived Cacheを包含する。
+
+### 読む順番の目安
+
+| 知りたいこと | 参照先 |
+|---|---|
+| 今何ができるか（機能一覧・モジュール構成） | §1〜3 |
+| 状態はどこに集約されているか | §4 |
+| Chart Modeのタイミング処理の仕組み | §9 |
+| Analysis Editorの内部構造 | §12 |
+| どの状態が正本（Authority）か | §13 |
+| 検索・置換の仕組み | §14 |
+
+### 開発フェーズについて
+
+現在の開発状況・直近の変更点は `phase-status.md` を参照。
+本ドキュメント（architecture.md）は「現在確定している設計」のみを記載し、
+「Phase◯◯時点」のような進行中の経過は書かない（読んだ時点で古びるため）。
 
 ---
 
@@ -53,7 +124,7 @@ CreateChordScore/
 ├─ docs/
 ├─ tools/                ← chordmini_fetch.py 等の外部ツール
 ├─ scripts/              ← バックアップ・起動バッチ
-└─ testdata/
+└─ docs/
 ```
 
 ---
@@ -858,27 +929,68 @@ Project Repository
 
 ## 12. Analysis Editor Architecture
 
+Analysis Editorは、Editor Session（状態）・Editing Commands（編集コマンド群）・
+UI Projection（表示モード導出）・Decorator Layer（装飾描画）を主要コンポーネントとする
+編集サブシステムである。
+
 ```
 Analysis Editor
   Editor Session（app.js内 analysisEditor）
     ├─ buffer            編集中の作業コピー（structuredCloneでraw.chordsから生成）
     ├─ history / future   Undo/Redo用スナップショット（structuredClone）
     ├─ selection (Derived Cache)
-    │    ├─ chordIds       選択中のコードの_id（配列として保持される）
-    │    └─ boundaryIndex  chordIdsからbufferを検索して導いた派生値
+    │    ├─ chordIds        選択中のコードの_id（配列。単一〜複数選択に対応）
+    │    ├─ boundaryIndex   chordIdsからbufferを検索して導いた派生値（左境界）
+    │    ├─ anchorChordId   Shift+クリック範囲選択の起点
+    │    └─ editPoint       挿入位置 { ownerId, measureIndex, slotIndex }（chordIdsと排他）
+    ├─ search
+    │    └─ { open, query, replaceText, matches, activeIndex, focusRequested }
     └─ dirty              未保存フラグ
 
   Editing Commands（bufferのみを操作する）
-    ├─ moveBoundary(boundaryIndex, newTime)   境界（隣接コード間の時刻）を書き換える
-    ├─ updateChord()                          コード情報を更新
-    └─ deleteChord()                          コードを削除
+    単一編集
+      ├─ splitChord(chordId, splitTime)   コード追加の実体
+      ├─ updateChord()                    コード情報を更新
+      ├─ deleteChord(id)                  コードを削除（隣接吸収・自動選択）
+      └─ openChordRenameSelector(chord)   コード名変更の共通入口
 
-  Selection Sync
-    _refreshSelection() が selection の唯一の同期窓口
+    複数編集
+      ├─ selectChordRange(anchorId, targetId)  Shift+クリック範囲選択
+      ├─ deleteSelection()                     複数削除
+      ├─ copySelection() / cutSelection()      コピー・切り取り
+      ├─ pasteSelection()                      範囲に合わせて貼り付け（比率ベース）
+      └─ mergeSelection()                      選択範囲を1コードへ結合
+
+    位置編集
+      ├─ setEditPoint() / clearEditPoint()     editPointの確定・解除
+      ├─ addChordAtEditPoint()                 editPoint位置へコード挿入（挿入）
+      ├─ shiftSelectionRange(deltaSec)          範囲シフト（Forward Wall Model）
+      ├─ pasteAbsolute() / getPasteOrigin() /
+      │  buildPastePlan() / commitPastePlan()  そのまま貼り付け（絶対位置保持）
+      └─ moveBoundary(boundaryIndex, newTime)   境界（隣接コード間の時刻）を書き換える唯一の窓口
+
+    検索・置換（詳細は §14 参照）
+      ├─ searchChords(buffer, query)           pure function・matchIds配列を返す
+      ├─ replaceCurrentMatch() / replaceAllMatches()
+      └─ _activateSearchMatch()                選択+シーク（UI層）
+
+  UI Projection
+    └─ deriveEditorMode(selection)   selectionから'idle'/'single'/'multi'/'edit-point'を導出する
+                                      純粋関数。business logicの分岐条件に使わない。
+
+  Decorator Layer（chartmode.js）
+    ├─ Selection Highlight    chartState内、_renderChartGrid()のslotループ内でその場判定
+    ├─ Boundary Handle        setBoundaryHandleTarget() / boundaryHandleChordId
+    └─ EditPoint Marker       setEditPointMarker() / editPointMarker
+                              （post-hoc DOM patch方式は廃止済み）
 ```
 
-Derived Cache = 正本から常に再計算できるキャッシュ。正本（chordIds）が変われば、
-このキャッシュ（boundaryIndex）も必ず再計算するか破棄する（保持したまま放置しない）。
+Derived Cache = 正本から常に再計算できるキャッシュ。正本（chordIds等）が変われば、
+このキャッシュ（boundaryIndex等）も必ず再計算するか破棄する（保持したまま放置しない）。
+
+Derived Cacheの例:
+  - `selection.boundaryIndex` — `selection.chordIds`から導出
+  - `analysisEditor.search.matches` — `search.query`とbufferから導出
 
 ### Analysis Editor Invariants
 
@@ -887,6 +999,67 @@ Derived Cache = 正本から常に再計算できるキャッシュ。正本（c
 3. **[AE-3]** selection.boundaryIndex は _refreshSelection() 経由でのみ更新する（直接書き換えない）
 4. **[AE-4]** buffer が丸ごと入れ替わる操作（reset/begin/delete/undo/redo）はすべて _refreshSelection() を呼ぶ
 5. **[AE-5]** Undo/Redo は buffer 単位のスナップショット（structuredClone）
+6. **[AE-6]** 一括操作（deleteSelection / replaceAllMatches / pasteAbsolute等）は
+   内部で複数の変更を行っても _pushHistory() を1回だけ呼ぶ（Undo単位を1操作に保つ）
+7. **[AE-7]** selection.chordIds と selection.editPoint は排他。
+   editPoint は永続化されない一時的なUI状態であり、選択変化・project切替・
+   Chart Mode再構築のいずれかで必ずクリアされる
+8. **[AE-8]** Decoratorはselectionから導出されるProjectionであり、
+   selection / editPointを変更してはならない（描画専用）
+
+### [BOUNDARY EDIT AUTHORITY]
+
+```
+moveBoundary(boundaryIndex, newTime) が境界更新の唯一の窓口。
+Invariant: left.end と right.start は常に同じ値になるよう更新する。
+
+個別移動（単一選択）: selection.boundaryIndexが指す境界をmoveBoundary()で動かす。
+範囲シフト（複数選択）: shiftSelectionRange()が「選択範囲の直前コードのend」と
+  「選択範囲末尾コードのstart」の2箇所のみを可変とする（Forward Wall Model）。
+  この2箇所以外は方向に関わらず一切変更しない設計のため、追加の状態管理
+  （snapshot/totalDelta等）なしに往復操作の可逆性が保証される。
+```
+
+### [DECORATOR ADDITION RULE]
+
+Chart Mode上に新しい装飾（Decorator）を追加する場合、以下のパターンに従う。
+
+```
+1. 対象を表すローカル状態をchartStateに追加する（例: boundaryHandleChordId）
+2. その状態を更新する専用setter関数を新設する（例: setBoundaryHandleTarget）
+3. 判定は_renderChartGrid()のslotループ内で行う（post-render DOM patchは導入しない）
+4. 正本（selectionやeditPoint等）からの導出ロジックはapp.js側に置き、
+   chartmode.js側は「渡された値を表示するだけ」の責務に留める
+```
+
+### [DECORATOR VISUAL LANGUAGE PRINCIPLE]
+
+```
+Decoratorは新しい機能ごとに新しい色を追加しない。
+まず既存の視覚言語（色相・濃淡・線幅・形状・表示条件）で区別できないかを検討する。
+同一概念（編集対象の階層等）は同系色で階層化し、異なる概念
+（Playback=時間軸／EditPoint=挿入位置等）のみ別色を使う。
+
+現在のDecorator視覚言語一覧:
+| 要素 | 色 | 形 | 意味 |
+|---|---|---|---|
+| Playback | 青 | 面（進行） | 再生状態 |
+| Selection | 緑（濃） | 面 | 編集対象 |
+| Search候補 | 緑（薄・同一トークン流用） | 面（薄い） | 候補 |
+| Boundary Handle | Amber | 左線 | 動かせる境界 |
+| EditPoint | 紫 | 縦カーソル（点滅） | 挿入位置 |
+```
+
+### Known Design Gap
+
+```
+Analysis Editorの編集モデル（buffer）は無音プレースホルダー（chord:'N'）を
+実在する編集対象として扱うが、Chart Modeの表示モデル（buildGridViewModel）は
+Nを表示前に除外する。編集モデルと表示モデルの間に、何を編集対象と見なすかに
+ついての設計上の差異が存在する。
+```
+
+詳細・対応状況は `current-issues.md` を参照。
 
 ---
 
@@ -898,19 +1071,143 @@ Authorityには2種類ある。区別が必要な行は「種別」列に明記�
 - **Persistence Authority**: ディスク/DB上の永続データの正本
 - **Runtime Authority**: メモリ上の実行時状態の正本（永続化とは別の関心事）
 
+[AUTHORITY INDEX SCOPE]
+Authority Indexには永続状態または唯一の正本のみを掲載する。
+Runtime Projection・Derived Cache・Decorator状態はAuthorityではなく、
+各Authorityから導出される一時状態として扱う（下記「13.1 Runtime Projection」参照）。
+
 | 対象 | Module | Authority | 種別 | Single Writer |
 |---|---|---|---|---|
 | Project core data | project.js | Project Repository | Persistence | `saveProjectToDB()` |
 | Analysis（raw/repairRule） | analysisLoader.js | analysis/{id}.json | Persistence | `saveAnalysisFile()` |
 | 境界（コード間の時刻） | app.js | Analysis Editor | Runtime | `moveBoundary()` |
-| 選択状態（chordIds/boundaryIndex） | app.js | Analysis Editor | Runtime | `_refreshSelection()` |
+| 選択状態（chordIds/boundaryIndex/anchorChordId） | app.js | Analysis Editor | Runtime | `_refreshSelection()` |
+| 挿入位置（editPoint） | app.js | Analysis Editor | Runtime | `setEditPoint()` / `clearEditPoint()` |
+| クリップボード | app.js | Analysis Editor | Runtime | `copySelection()` |
+| 検索入力状態（query/replaceText） | app.js | Analysis Editor | Runtime | `openSearchBar()` 等（search.query/replaceText） |
 | 起動時の復元対象 | app.js | Restore Authority | Runtime | `updateLastOpenedProject()` |
 | 再生速度 | audio.js | Playback | Runtime | `setSpeed()` |
-| Asset読み込み状態 | app.js | assetState（Phase65） | Runtime | `setAudioLoaded()` / `setChordLoaded()` |
+| Asset読み込み状態 | app.js | assetState | Runtime | `setAudioLoaded()` / `setChordLoaded()` |
 | Seek位置 | app.js | `aEl.currentTime`（audio要素） | Runtime | `seekTo()`（mutation boundary。chartmode.jsはconsumerでありwriterではない） |
 | project.lines への変更（実行時） | app.js | app.js | Runtime | （app.js経由の各編集API） |
 | project.lines の永続化 | project.js | Project Repository | Persistence | `saveProjectToDB()` |
 
-既存の詳細な説明は各セクション参照：§4（assetState）／§9（timing pipeline authority、特に「playback authority 3層分離」§9のaEl.currentTime authority）／§11・§12（本セクション）。
+既存の詳細な説明は各セクション参照：§4（assetState）／§9（timing pipeline authority、特に「playback authority 3層分離」§9のaEl.currentTime authority）／§11・§12（Project Repository・Analysis Editor）。
 
 原則として、Authorityを持たないモジュールは状態を所有しない。状態変更はSingle Writerのみが行う。
+
+---
+
+### 13.1 Runtime Projection
+
+以下は正本（Authority）ではなく、Authorityから都度導出される一時値である。
+直接書き換えてはならない。正本が変化した際、これらは再計算されるか破棄される。
+
+| Projection | Derived From | 導出関数 |
+|---|---|---|
+| editorMode | selection | `deriveEditorMode(selection)` |
+| chartState.boundaryHandleChordId | selection.boundaryIndex | `setBoundaryHandleTarget()` |
+| chartState.editPointMarker | selection.editPoint | `setEditPointMarker()` |
+| chartState.searchMatchIds | analysisEditor.search.query + buffer | `setSearchMatches()` |
+| analysisEditor.search.matches | analysisEditor.search.query + buffer | `searchChords(buffer, query)` |
+
+[PROJECTION AUTHORITY INVARIANT]
+Projectionの更新窓口（setBoundaryHandleTarget()等）はchartmode.js側に置かれるが、
+「いつ・何から再計算するか」の判断（正本からの導出ロジック）はapp.js側が持つ。
+chartmode.js側は「渡された値を表示するだけ」の責務に留める（[DECORATOR ADDITION RULE]、§12参照）。
+
+---
+
+## 14. Search Engine
+
+### 14.1 Overview
+
+Analysis Editorに、コード進行に対する検索・置換機能を提供するサブシステム。
+目的は「特定のコードが曲のどこに出てくるか」を素早く見つけ、必要なら一括で修正できるようにすること。
+
+```
+query
+  ↓
+searchChords()
+  ↓
+matches
+  ↓
+activeIndex
+  ↓
+_activateSearchMatch()（選択+シーク）
+  ↓
+selection
+  ↓
+Decorator（Search Highlight）
+```
+
+Engine（見つける）とUI層（選択+シークする）は分離されている。
+`searchChords()` は pure function であり、将来ライブラリ検索・歌詞検索等が
+同じ「buffer→matchIds」の考え方を再利用しやすい設計になっている。
+
+### 14.2 Search State
+
+```javascript
+analysisEditor.search = {
+  open,             // 検索バーの開閉状態
+  query,            // 検索文字列（Authority）
+  replaceText,      // 置換文字列（Authority）
+  matches,          // 検索結果のchordId配列（Derived Cache）
+  activeIndex,       // 現在アクティブな検索結果のindex
+  focusRequested,    // 開いた直後の自動フォーカス制御用
+}
+```
+
+| 対象 | 種別 |
+|---|---|
+| query / replaceText（検索入力状態） | Authority |
+| matches / activeIndex | Derived Cache（query + bufferから導出） |
+
+### 14.3 Search Flow
+
+```
+User Input（検索欄への入力）
+  ↓
+search.query 更新
+  ↓
+searchChords(buffer, query)   ← pure function・buffer（実音・正本）のみ対象
+  ↓
+search.matches 更新
+  ↓
+searchGoToNext() / searchGoToPrev() / F3 / Shift+F3
+  ↓
+_activateSearchMatch(index)   ← 選択+シーク（UI層）
+  ↓
+selection.chordIds 更新 + aEl.currentTime 直接設定
+  ↓
+Decorator（Search Highlight・Selection Highlightの薄い版として表現）
+```
+
+検索対象はbuffer（実音・正本）のみ。capo変換後の表示名は対象外
+（Capo-aware Editingは将来の独立フェーズ候補・current-issues.md参照）。
+
+### 14.4 Replace
+
+| コマンド | 対象 | Undo単位 |
+|---|---|---|
+| `replaceCurrentMatch(newName)` | 単体置換。既存の`updateChord()`をそのまま呼ぶ | 1操作 |
+| `replaceCurrentAndAdvance(direction)` | 置換して次/前へ。置換欄のEnter/Shift+Enterから呼ばれる | 1操作 |
+| `replaceAllMatches(newName)` | 一括置換。bufferへ直接書き込み、`_pushHistory()`は1回だけ | 1操作（[AE-6]準拠） |
+
+置換はSearch Engine自身のロジックを持たず、既存のEditing Commands
+（updateChord等）を呼ぶか、bufferを直接操作した上でAE-6（Undo1操作の原則）
+に従う。Projectへは一切触れない（bufferのみを操作する、という
+Analysis Editor全体の原則[AE-1]をそのまま踏襲する）。
+
+### 14.5 Search Invariants
+
+```
+[SEARCH-1] matches は buffer + query から常に再計算できる（Derived Cache）
+[SEARCH-2] Replace系コマンドは buffer のみを変更する（project.analysis.rawには触れない）
+[SEARCH-3] 検索結果のSelectionは、既存のselection authorityにそのまま乗る
+           （検索専用のselection機構は持たない）
+[SEARCH-4] Searchはplayback authority（aEl.currentTime）を直接更新できるが、
+           これは_activateSearchMatch()経由のみ（既存のseekTo系mutation boundaryと同一）
+[SEARCH-5] Search Highlightは専用色を持たない（[DECORATOR VISUAL LANGUAGE PRINCIPLE]、§12参照）。
+           Selectionの濃淡（薄いalpha・細枠）で「候補」を表現する
+```

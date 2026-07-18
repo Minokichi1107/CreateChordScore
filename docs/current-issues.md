@@ -1,6 +1,8 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase74-E完了時点
+> 最終更新: Phase80完了時点
+> 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
+> 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
 ---
 
@@ -23,347 +25,111 @@
 
 ---
 
-## 2. 将来検討（subsystem別整理）
-
-### chord editor / line editing 系
-
-#### transient preview restore
-状態: **完了（Phase52）**
-内容: modal close 後、diagLocked 状態の右パネル表示を復元する処理。
-退避 → commit / rollback パターンで実装済み。
-適用条件: `locked === true && chord !== null` の場合のみ restore。
-confirm操作（コード追加・バーライン追加）はすべて commit 扱い。
-将来の Add Simile / Inline Edit / Transpose Preview でも同パターンを再利用できる雛形になっている。
-
-#### 行またぎコード移動
-状態: 未着手
-内容: 先頭コード→前行末尾 / 末尾コード→次行先頭へのコード移動。
-通常画面（inline editing）または AddChord モーダルから操作できるUIを追加。
-token array boundary mutation として実装すること（string splice 禁止）。
-`project.lines` 編集APIが必要。app.js 内 `moveChordAcrossLines` として設計済み（Phase38-3）。
-※ Phase53 で行またぎ**カーソル navigation** は実装済み。**コードそのものの移動**は別問題として未着手。
-※ Chart 関連作業の後に実装予定。
-※ modal内の小機能として実装すると line mutation が modal subsystem に漏れるため注意。
-
-#### interaction hierarchy 改修
-状態: 部分完了（Phase53, hover-only削除ボタンはPhase70-Bで確認・完了）
-内容: AddChord modal の操作体系をキーボード主体に変更。
-- insertion cursor 化（`+` → `|` 表示への変更）: **Phase53 で完了**
-- ArrowLeft/Right 行またぎ navigation: **Phase53 で完了**
-- hover-only 削除ボタン（`✕` の表示制御）: **完了（Phase70-B確認）**
-- 既存tokenのキーボード削除・小節線のキーボード挿入: 未着手
-  （Backspace/Delete/separator等のキー割当は本格的なkeyboard-first redesignの
-  一部として設計フェーズで扱う。Phase70-Bでは見送り）
-Phase38-2で設計済み。残作業は chordEntry.js 拡張として実装予定。
-
-### token / rendering 系
-
-#### simile token 挿入UI
-状態: 未着手
-内容: AddChordモーダルから simile token（`{type:'simile', bars:1|2}`）を挿入できるUI。
-Phase38-2で設計済み。chordEntry.js 拡張として実装予定。
-
-#### renderTokenNode 層
-状態: 未着手
-内容: simile token の SVG描画。performSimileStyle='svg' 対応。
-Phase38-2で設計済み。
-
-### Issue #26 — ChordMini Beat/Grid情報対応
-状態: 設計前
-内容: 将来の `bars[]` 構造への移行・grid表示・beat alignment対応。
-Phase39-4 で barline canonical 化・isSepToken() access layer を確立済み。
-本格設計は Issue #26 設計フェーズで行う。
+## 2. Current Issues（未解決の問題・バグ・既知の設計ギャップ）
 
 ### Chart Mode 系
 
-#### Chart Mode 並列表示（編集しながら Chart を参照）
-状態: 設計前
-内容: Chart Mode を全画面モードではなく、エディター画面と並列表示できるようにする。
-設計上の注意点:
-- editor renderer / chart renderer の single source of truth をどこに置くか
-- focus / selection / scroll sync のタイミング
-- mutation 後の chart 再描画タイミング
-備考: Phase64 で 4層 architecture contract が確立したため、設計着手可能な段階。
-
-注意（Phase69で追記）: Phase68/69で確立したprojection layer（canonical timing space ≠
-visual projection space）のboundaryはまだ新しい。ここにsubsystem boundaryを追加する
-Chart Mode並列表示を勢いで実装すると、projection layerを壊すリスクが高い。
-着手前に設計フェーズを必ず挟むこと。
-
-#### Chart Mode に audio controls 追加（mini transport）
-状態: **完了（Phase50）**
-内容: Chart Mode 内に ▶ / シークバー / 速度 / 音量 の mini transport を実装済み。
-playback authority は `updateChartPlayback()` に集約（aEl listener を transport に持たせない設計）。
-
-#### Chart Mode click seek（再生位置クリック）
-状態: **完了（Phase60）**
-内容: measure クリック → normalized measure model の startTime → app.js seekTo 経由でシーク。
-seek authority は normalized measure model に限定（raw downbeats 禁止）。
-playback authority は app.js が持つ（chartmode.js は aEl に直接触らない）。
-event delegation により将来の renderer 変更に対して耐性がある。
-
-#### Chart Mode pickup measure 表示補正（Type B 対応）
-状態: **numbering完了（Phase61）/ visual projection実装完了・実曲検証待ち（Phase68〜69）**
-内容:
-  numbering correction: 完了（小節0 → "0"、以降 1, 2, 3 ...）
-  visual projection（alignment）: 実装完了（Phase68〜69）。
-    canonical timing space ≠ visual projection space の分離を確立し、
-    `projectPickupSlotIndex()` / `projectionEmpty` slot / `data-visual-slot-index` /
-    `chartState.pickupLeadingOffset` により measure 0 の表示位置調整・右詰め配置・
-    playback highlight remapを実装済み（architecture.md §9.5参照）。
-    synthetic test（FORCE_PICKUP_DEBUG）で動作確認済み。
-  実曲pickup検証: 未実施（手元の楽曲が全てpickupなしのため）。
-    projection-empty slot + slot--active の組み合わせを実際のpickup曲で
-    最終確認することが次フェーズ候補の最優先項目。
-  mode==='beat-only'でのpickup対応: 別issue（canonical measure grouping自体が
-    pickupを考慮していないため、visual projectionだけでは解決できない）
-
-pickup-aware measure alignment の影響範囲（解決済み）:
-  measure.pickupOffsetBeats metadata → `chartState.pickupLeadingOffset` として実装
-  leading empty slot projection → `projectionEmpty` slotとして実装
-  right-aligned pickup rendering → `remapPickupOnsetMap()` で実装（右詰め・ceil基準）
-  pickup-aware cursor / seek semantics → projectionEmpty slotはhover/highlight/seek対象外
-    （DOM invariantで保証）。playhead位置（continuous）はremap対象外（discrete slot
-    highlightingのみremap）
+#### Chart Mode pickup measure（実曲検証待ち）
+状態: 実装済み・実曲検証未実施
+内容: pickup measureの表示補正（番号・位置調整）は実装済み（architecture.md §9.5参照）。
+synthetic testでは動作確認済みだが、手元の楽曲が全てpickupなしのため実曲での
+最終確認が未実施。次フェーズ候補の優先項目。
 
 #### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
-状態: **classified / instrumented（Phase59）/ Type B 番号補正完了（Phase61）**
-内容: ズレの種類を以下の4タイプに分類した。
+状態: Type B対応済み・Type A/C/D未対応
 
 | Type | 原因 | 対処状況 |
 |---|---|---|
-| Type A | beat tracking collapse（beats = downbeats 完全一致） | 未着手（A案・手動修正UIが必要） |
-| Type B | pickup measure（弱起小節） | 番号補正: 完了（Phase61）/ alignment: 将来候補 |
-| Type C | beats 半テンポ / 粒度異常（beat resolution mismatch） | 未着手（A案のみ） |
-| Type D | 局所 drift → 全体伝播（当初の想定ケース） | 発生ケース収集中（今回調査4曲では未発生） |
-
-現状:
-  - normalized timing pipeline 確立済み（buildNormalizedTimingAnalysis）
-  - analyzeTiming() / repairDownbeats() 実装済み（repair default OFF）
-  - window.__CS_DEBUG__.timing で DevTools から診断可能（Phase66で__TIMING_DEBUG__から移行）
+| Type A | beat tracking collapse（beats = downbeats 完全一致） | 未着手（手動修正UIが必要） |
+| Type C | beats 半テンポ / 粒度異常 | 未着手（手動修正UIのみ） |
+| Type D | 局所 drift → 全体伝播 | 発生ケース収集中（現状未発生） |
 
 次のアクション候補:
-  - Type D: 発生ケース収集後に repair: true で効果検証
-  - Type A/C: A案（手動修正UI）設計フェーズ（大規模・将来）
+- Type D: 発生ケース収集後に repair: true で効果検証
+- Type A/C: 手動修正UI設計フェーズ（大規模・将来）
 
-#### Chart Mode ビート単位フォーカス
-状態: **完了（Phase56）**
-内容: `getBeatPosition(t)` を timing.js に追加し、Chart Mode に playhead（beat cursor）を実装。
-measure直下 continuous overlay として分離。`updateChartPlayback()` で left% のみ更新（DOM再生成なし）。
+#### Known Design Gap — N（無音プレースホルダー）の表示モデル不一致
+状態: 未着手・優先度低
+内容: Analysis Editorの正本（buffer）は無音プレースホルダー（chord:'N'）を実在する
+編集対象として扱うが、Chart Modeの表示モデル（buildGridViewModel）はNを表示前に除外する。
+この不一致により、Nの領域はクリックで選択できず、必ずeditPointへ直行する。
+個別移動ボタン経由で境界調整自体は可能なため実害は小さい。
+（architecture.md §12「Known Design Gap」に設計上の位置づけを記載）
 
-#### Chart Mode hover chord diagram
-状態: **完了（Phase67）**
-内容: Chart Modeのコード名hoverで小型コードダイアグラムをtooltip表示。
-single tooltip instance（body直下・ephemeral UI・chartStateにauthorityを持たない）。
-表示メニュー・`Shift+D`でON/OFF切替（localStorage: `cs.chartDiagHover`）。
-詳細: architecture.md §9.5参照。
+#### 原因未特定の「緑の棒」バグ
+状態: 観察中（原因未特定）
+内容: 編集終了・保存後、または編集中に別プロジェクトへ切り替えた際、画面上に緑の細い
+縦線が残ることがある。静的コード確認では原因を特定できなかった。次回発生時に
+`window.__CS_DEBUG__.chart` / `window.__analysisEditorDebug.state.selection` を
+コンソールで取得し、事実ベースで原因を切り分ける方針。
 
-#### Chart Mode slot active highlight
-状態: **完了（Phase69）**
-内容: `.chart-slot--active`（outline主体・低alpha）を追加。
-`[data-visual-slot-index]`セレクタによりprojection-aware（visual slot space対象）。
-projectionEmpty slotはDOM invariant（`data-visual-slot-index`不在）により
-構造的にactive対象から除外される（Phase68のexclusion設計が機能していることをaudit済み）。
+### Analysis Editor 系
 
-### Chart Mode 解析編集（Analysis Editor）系
-
-#### Analysis Editor（解析結果の手動編集機能）
-状態: 実装中（Phase74-C〜Eで編集基盤・境界編集・Undo整合性まで完成）
-内容: ChordMini解析結果（コードのタイミング）をユーザーが手動修正できる機能。
-Phase72のrepairRule（anchorDownbeat方式・小節頭補正）とは別の、
-コード単位で直接編集する手段。
-
-完了済み:
-  ✓ 編集セッション管理・buffer/history/選択状態
-  ✓ コードクリック選択・ハイライト・編集パネルUI
-  ✓ 個別コード境界移動（ボタン/矢印キー・moveBoundary API）
-  ✓ Undo/Redoと選択状態(_refreshSelection)の整合性
-  ✓ audio.jsの±5秒シークとの矢印キー競合修正
-
-今後の実装:
-  単一コード編集
-    □ コード追加
-    □ コード名編集
-    □ コード削除UI（deleteChord()実装済み・UI未接続）
-    □ 削除後の自動選択（次/前のコードを選ぶ）
-
-  複数コード編集
-    □ 範囲選択
-      ※ selection.chordIds は複数選択を考慮した設計済み。
-    □ Copy / Cut / Paste
-    □ 分割・結合
-
-設計経緯:
-  - Phase74-C: 編集基盤（buffer/history/選択/パネルUI）
-  - Phase74-E: 境界移動・Undo整合性(_refreshSelection)・キー競合修正
-
-全項目完了後、このエントリごと削除する。
+#### [Known Limitation] replaceCurrentAndAdvance()のbackward方向の簡略化
+状態: 意図的な仕様（バグではない）
+内容: 置換によりコード名がqueryと一致しなくなると、matches配列は1つ前に詰まる。
+forward方向（Enter）は自然に正しく動作するが、backward方向（Shift+Enter）では
+詰まった分だけ1件飛ばす可能性がある。利用頻度と補正実装コストを比較し、現段階では
+仕様として許容した。実害が出るようなら再検討する。
 
 ### restore lifecycle 系
 
-#### 復元時のAsset状態管理整理（restored asset state synchronization）
-状態: **完了（Phase65設計・Phase66実適用）**
-内容:
-  `assetState {audioLoaded, chordLoaded, restoreSettled}` をasset loaded状態の
-  唯一のauthorityとして導入。manual ingestとIndexedDB restoreを
-  `setAudioLoaded()` / `setChordLoaded()` 経由に統一し、DOM-as-authority
-  アンチパターン（`checkReloadBannerDone()`）を排除。
-
-  `restoreSettled` guardにより、loadProj()のasync restore transaction中は
-  `_evaluateBannerState()` の評価をスキップし、restore途中でのバナー誤表示・
-  flickerを防止。
-
-  また、autosave restore eligibilityを修正
-  （`saved.lines.length > 0` → `saved.id && (lines>0 || title || artist ||
-  audio || chord_source)`）し、metadata-only project（lines=[]）も
-  復元対象に含めた。
-
-  詳細: architecture.md §4 assetState参照。
-
 #### beat cursorが一瞬停止して数ビートジャンプする
-状態: 観察中（Phase65で記録・原因未特定）
+状態: 観察中（原因未特定）
 内容: 再生中、beat cursorが一瞬停止した後、数ビート先へジャンプすることがある。
-- audio playback自体は正常（カーソル描画のみの問題）
-- 毎回同じ位置で再現しない（ランダム発生）・曲サイズ依存は不明
+audio playback自体は正常（カーソル描画のみの問題）。毎回同じ位置で再現しない。
+仮説候補: main thread blockage（autosave serialize / layout reflow）またはframe
+scheduling delay。現時点は現象記録フェーズ（診断には「5. Future Features」の
+`__CS_DEBUG__` perf instrumentation が前提となる）。
 
-仮説候補: main thread blockage（autosave serialize / layout reflow）または
-frame scheduling delay。Phase63のrAF化で「通常時は滑らか」になった副作用として
-一時的なstallが目立ちやすくなっている可能性がある。
+### Modal / Theme 系
 
-次のアクション: `__CS_DEBUG__.perf`実装（Phase66-B・perf instrumentation）後に
-`performance.now()`でdt計測・frame timing測定を行う。現時点は現象記録フェーズ。
+#### Blue theme：ダイアグラム編集モーダルのフレット番号が見えづらい
+状態: 未調査
+内容: Blue theme使用時、ダイアグラム編集モーダル内のフレット番号のコントラストが
+低く視認性が悪い（実機スクリーンショットで確認済み）。
+調査項目:
+- text color / background colorの組み合わせ
+- theme tokenの設定ミス（Phase79で発見されたblueテーマの`--text-secondary`設定
+  ミスと同種の可能性）
+- components.css側の固定色混入
 
-#### 保存データ復元の仕組み（timing model rehydration schema contract）
-状態: 未着手（Phase61 hotfix で発覚・Phase64で止血済み）
-内容: restore ordering contract は確立（Phase64）。
-しかし schema versioning / migration layer は未定義のまま。
+#### ダイアグラム登録モーダルが勝手に閉じる
+状態: 再現性確認中
+内容: ダイアグラム登録中、操作していないにもかかわらずモーダルが閉じることがある。
+発生時はバレー設定操作中だった可能性が高いが、再現条件は未特定。
+次回確認項目:
+- バレー設定変更時の挙動
+- click outside判定
+- focus喪失
+- escapeイベント誤発火
 
-必要なもの:
-  - runtime timing schema contract の定義
-  - schema versioning / migration layer
-  - invariant validation（endTime 等の必須フィールド保証）
+### Library / Environment 系
 
-現状: isRestore フラグ（Phase63）/ endTime 付与（Phase64）で止血済み。
+#### localhost:8767 が読み込み中のまま開かないことがある
+状態: 再現性確認中
+内容: 読み込みを中止して再度読み込むと比較的早く開く。再現条件の特定が必要
 
-### その他将来検討
+#### バックアップ中の音声停止問題
+状態: 未対応（低優先度）
+内容: バックアップバッチ実行 → タブが再起動 → 音声は流れ続けるが止める手段がない。
+原因候補: beforeunload / visibilitychange イベントで aEl.pause() が呼ばれていない。
 
-#### debug observability consolidation
-状態: **完了（Phase66）**
-内容:
-  `window.__CS_REPAIR__` 等の TEMP REPAIR タグ付きコードを削除済み。
-  `window.__TIMING_DEBUG__` を廃止し、`window.__CS_DEBUG__` に統合。
-
-  実装済み構造:
-    window.__CS_DEBUG__.timing          タイミング診断（getter）
-    window.__CS_DEBUG__.project          プロジェクト状態（assetState含む・shallow clone）
-    window.__CS_DEBUG__.chart            Chart Mode 状態
-    window.__CS_DEBUG__.dumpInvariants()  snapshot生成・console出力・return
-
-  設計原則: debug layerはstateを所有しない（runtime state → getter projection →
-  DevTools）。詳細はarchitecture.md §5.5参照。
-
-#### `__CS_DEBUG__` perf instrumentation（Phase66-B）
-状態: 未着手
-内容:
-  `window.__CS_DEBUG__.perf` は現状暫定実装（debug objectがstateを直接保持・
-  設計原則違反）。
-
-  正式な設計:
-    chartmode.jsに`_perfState`を持たせ、`_rafLoop`で`lastRAFDelta` /
-    `longFrames`を計測。`getPerfState()`をexportし、app.js側を
-    getter projectionに変更する。
-
-  実装しない理由:
-    `_rafLoop`はhot path。instrumentation自体がjitterを生む可能性があり、
-    restore/asset lifecycleが完全安定してから着手する。
-
-  関連: beat cursorが一瞬停止する現象（restore lifecycle系参照）の調査前提。
-  実装コスト: 小
-
-#### カポ範囲拡張（-2 まで対応）
-状態: 未着手
-内容: 現在カポは 0〜11 の範囲のみ。半音下げチューニング用途で -2 まで対応できるようにする。
-方向性: カポ入力UIの範囲変更・移調ロジックの負値対応確認が必要。
-
-#### CHORD_DB再構造化
-状態: 検討中
-目的: コードDBの構造見直し・検索効率改善
-
-#### 転回形ダイアグラム自動生成
-状態: 検討中
-目的: 転回形コードのダイアグラムを自動生成する仕組みの導入
-
-#### 開発者支援：解析データのテスト支援機能
-状態: 検討中（Phase74-Cで発案）
-優先度: 低
-
-目的:
-保存系・Project DB・Chart Mode編集機能のテストを安全かつ効率的に行うため。
-
-候補:
-- 編集前スナップショットの保存（1つ前の保存状態へ戻す）
-- ChordMini解析直後の状態へリセット
-- analysis.json のエクスポート／インポート
-- テスト用データを簡単に複製できる仕組み（必要なら）
-
-備考:
-現時点では開発者向け機能であり、Project DB・Chart Mode編集機能の完成を優先する。
-
-#### CSVコードファイルインポート機能の削除検討
-状態: Deprecated候補
-内容: Sonic Visualiser解析結果のCSV取り込みを想定していたが、精度が実用レベルに
-達せず形骸化している。`csvImporter.js` / chord-btnのCSV分岐 / file picker accept設定の
-削除を将来検討する。優先度は低く、Project DB系列のフェーズが一段落してから着手する。
-
-#### LAN配信モード（PCサーバー → スマホブラウザ）
-状態: 検討中
-目的: server.py をLAN開放し、同一Wi-Fi上のスマホからアクセスできるようにする
-
-概要:
-- server.py のバインドアドレスを `0.0.0.0` に変更するだけで基本アクセスは実現可能
-- ただし以下の対応が別途必要
-
-対応が必要な領域:
-- **音声配信**: PC上の音声ファイルをHTTP経由でスマホに配信する仕組み
-- **プロジェクト管理**: File System Access API依存の保存/読込をIndexedDB中心に移行
-- **UI**: スマホ画面幅・タッチ操作への対応
-
-依存関係:
-- プロジェクトDBライブラリタブ（IndexedDB中心設計）が先行すると自然に解決しやすい
-- Issue #27（モバイル安定化）とも関連
-
-備考: Phase化する場合は server.py 改修・音声配信・UI対応の3段階に分割予定
-
-#### 音楽理論・学習支援基盤（theory.js）
-状態: 部分実装済み・将来拡張
-目的:
-- コード構成音表示
-- キー/度数解析
-- スケール関連表示
-- 指板可視化
-- 自動理論解釈
-
-実装済み:
-- alias normalization（CM7 → Cmaj7 等）
-- lookup normalization（normalizeChordName / findChord）
-- replacementMap.json（140件の chord name 置換辞書）
-
-未実装:
-- 完全な理論構造化（tones / intervals / harmonic relation）
-- interval semantic engine
+#### ライブラリ：曲を開くと同じアーティスト内で一番上に移動する（退行の疑い）
+状態: 再発（過去に修正した認識あり・原因未調査）
+内容: ライブラリを「アーティスト順」で表示中、曲をクリックして開くと、その曲が
+同じアーティスト内で先頭へ移動して表示される。以前修正した認識があるが、現在再発している。
+対応方針: 実装漏れと断定せず、Git履歴・ブランチ差分・マージ履歴を確認して原因を調査する
+（[FEATURE REGRESSION POLICY]に従う）。
 
 ---
 
-## 3. UI/UX課題
+## 3. UI改善
 
 ### AddChordモーダルの記号過剰
-状態: 部分対応（Phase53, hover-only削除ボタンはPhase70-B時点で確認・完了）
-内容: `+` と `×` が多く見づらい・冗長。
-- `+` ボタン → insertion cursor（`|`）への変更: **Phase53 で完了**
-- hover-only 削除ボタン（`✕` 表示制御）: **完了（実装時期不明・Phase70-B確認時点でcomponents.cssに既存）**
-  `.mac-preview-tag-del { opacity:0; pointer-events:none; }` +
-  `:hover` / `:focus-within` で `opacity:1` に切替済み
-- 繰り返し回数「×N回」と削除「×」の視覚的衝突: 未着手
+状態: 部分対応
+内容: `+` と `×` が多く見づらい・冗長。insertion cursor化・hover-only削除ボタンは対応済み。
+残作業: 繰り返し回数「×N回」と削除「×」の視覚的衝突が未対応。
 
 ### 中央パネルの繰り返し表示
 状態: 未対応
@@ -373,166 +139,183 @@ frame scheduling delay。Phase63のrAF化で「通常時は滑らか」になっ
 状態: 未対応
 内容: 繰り返しが行の下に表示されて見づらく、「×N回」表記も削除操作との視覚的衝突がある。Simile記号（𝄋）の使用を検討
 
-### カポ状態が新規プロジェクト読み込み時に引き継がれるバグ
-状態: **完了（Phase63設計・Phase64実装）**
-内容: `loadChordData()` に `isRestore` フラグを追加し、IndexedDB restore 経路での
-capo reset 副作用を排除。restore → reset → ingest の順序を invariant として確立。
-Phase63 で設計・Phase64 で実コード適用（3箇所の適用漏れを修正）。
-
-### localhost:8767 が読み込み中のまま開かないことがある
-状態: 再現性確認中
-内容: 読み込みを中止して再度読み込むと比較的早く開く。再現条件の特定が必要
-
-### Theme system cleanup / contrast audit
-
-- blue theme で text-secondary contrast が低く、一部UIで局所overrideが発生
-- theme.css の selector override 増殖に注意
-- 将来的に component → CSS variable 経由への整理を検討
-
-### バグ: バックアップ中の音声停止問題
-状態: 未対応（低優先度）
-内容: バックアップバッチ実行 → タブが再起動 → 音声は流れ続けるが止める手段がない。
-原因候補: beforeunload / visibilitychange イベントで aEl.pause() が呼ばれていない。
-
-### ライブラリ：曲を開くと同じアーティスト内で一番上に移動する（退行の疑い）
-
-状態: 再発（過去に修正した認識あり・原因未調査）
-
-内容:
-ライブラリを「アーティスト順」で表示中、曲をクリックして開くと、
-その曲が同じアーティスト内で先頭へ移動して表示される。
-以前修正した認識があるが、現在再発している。
-
-対応方針:
-- [FEATURE REGRESSION POLICY]（Phase73-F）に従い、実装漏れと断定せず、
-  Git履歴・ブランチ差分・マージ履歴を確認して原因を調査する。
-- ドキュメント整理フェーズまでに修正予定。
-
 ---
 
 ## 4. 既知の技術的負債
 
 - `components.css` の `.mac-insert-btn.active` 系（`--color-accent` 未定義問題と紐付き・意図的保留）
-- `idb.js` は最低構成（GC・schema migration・compression なし）
-  - Phase73-B で "projects" object store を追加予定（DB_VERSION インクリメント）
-  - asset種類追加: key形式 `${projectId}:${type}` に新typeを追加
-  - schema変更: `DB_VERSION` をインクリメントして `onupgradeneeded` を更新
+- `idb.js` は最低構成（GC・schema migration・compression なし）。asset種類追加時は
+  key形式 `${projectId}:${type}` に新typeを追加。schema変更時は `DB_VERSION` を
+  インクリメントして `onupgradeneeded` を更新すること
 - `isSepToken` の旧形式互換（`c.chord === '/'` / `type:'sep'`）は barline migration 完了後に削除判断
+- `isChordLikeInput` の末尾検証強化
+  状態: 未着手
+  内容: 現行の `/^[A-G](#|♯|b|♭)?/` は先頭のみ検証するため、`Cほげ` のような
+  入力が通ってしまう。優先度は低（誤入力されてもnormalizeChordNameで処理される）。
+- barline storage migration（意図的保留・Issue #26 の bars[] 設計フェーズ前後に実施検討）
+- `grid-template-columns` の分散管理（`#app` の定義が4箇所に分散。パネルレイアウト
+  再設計フェーズで統合を検討）
+- 左パネル collapse / hide の概念整理（現在の「◧ 左パネル」トグルは完全非表示ではなく
+  collapse。概念とラベルを整理する。パネルレイアウト再設計フェーズで対応）
+- hover hitbox分離（Chart Mode hover chord diagramは現在scrollWidth guardで
+  carry-forward領域の誤hoverを抑制している暫定実装。将来layout span
+  （`.chart-chord-name`）とinteraction span（`.chart-chord-hit`）をDOMレベルで
+  分離することで、zoom/font変更耐性・touch long-press対応が見込める）
+- 置換欄の入力検証なし（Search Engineの置換欄は `isChordLikeInput()` 等の検証を
+  経由しない自由入力。chordEntry.jsが実装時に未連携だったため。誤入力時はUndoで
+  復旧する前提。必要であればchordEntry.js側にvalidation関数のexportを追加する）
+- 保存データ復元のschema versioning未実装（restore ordering contractは確立済み
+  だが、schema versioning / migration layerは未定義のまま。isRestoreフラグ・
+  endTime付与で止血済み。正式なinvariant validationは今後の課題）
 
-### project identity lifecycle semantics（Phase62で確立）
-状態: 確立済み
-内容:
-  保存 → id 維持 / 別名保存 → id 維持 / 新規として保存 → 新UUID
-  UUID は system-wide authority key として定義。
-  将来の Project DB / workspace / recent projects の設計基盤。
+---
 
-  将来追加の可能性:
-  外部共有 / zip import / project merge / cloud sync が来ると
-  deserialize 時の duplicate UUID detection が必要になる可能性あり。
+## 5. Future Features（将来機能・将来構想）
 
-### isChordLikeInput の末尾検証強化
-状態: 未着手
-内容: 現行の `/^[A-G](#|♯|b|♭)?/` は先頭のみ検証するため、
-`Cほげ` / `A日本語` のような入力が通ってしまう。
-方向性:
-- 末尾まで検証する正規表現に強化（暫定案）:
-  `/^[A-G](#|♯|b|♭)?[a-zA-Z0-9()+\-susmajdimaugM♭♯#/]*$/`
-- または将来 `parseChordToken(raw)` として tokens.js に統合
-- 優先度: 低（実害は限定的。誤入力されても normalizeChordName で処理される）
+新機能の要望・UX改善案・長期構想。バグでも設計上の問題でもなく、
+「まだ作られていない新しい能力」に分類されるものをここに置く。
 
-### barline storage migration
-状態: 意図的保留
-内容: 保存済みデータの `{ type:'sep' }` / `{ chord:'/' }` を `{ type:'barline' }` へ migration。
-現在は `isSepToken()` で透過的に扱えるため不急。
-時期: Issue #26 の bars[] 設計フェーズ前後に合わせて実施を検討。
+### 新機能候補（次フェーズ以降の着手候補）
 
-### token utility 追加時の import audit（教訓・Phase44）
-状態: 再発防止知識
-内容: Phase44-Step2 で perform.js に isChordToken を使う変更を入れたが
-import 追加が漏れ、perform mode 全消失バグとして Step3 動作確認時に発覚。
-対策: token 関数を追加・変更した際は、参照している全ファイルの import を同時に確認すること。
+#### 行またぎコード移動
+内容: 先頭コード→前行末尾 / 末尾コード→次行先頭へのコード移動。
+`moveChordAcrossLines` として設計済み（Phase38-3）。行またぎ**カーソル navigation**は
+実装済み（Phase53）だが、**コードそのものの移動**は別問題として未着手。
+Chart 関連作業の後に実装予定。
 
-### handover記録と実コードの乖離（教訓・Phase64）
-状態: 再発防止知識
-内容: Phase64 で以下の「handover に書いてあったが実コードに未適用」のケースを複数発見・修正した。
-  - Phase60.5: showOpenFilePicker 移行（audio/chord/project open の3経路）
-  - Phase63: isRestore フラグ（loadChordData 引数・capo reset ガード・IndexedDB 呼び出し）
-  - Phase61: endTime が measures[] 初期化時に未付与（hotfix は症状対処のみだった）
+#### interaction hierarchy 改修（残り）
+内容: 既存tokenのキーボード削除・小節線のキーボード挿入。
+insertion cursor化・行またぎnavigation・hover-only削除ボタンは対応済み（Phase53, 70-B）。
+残りは本格的なkeyboard-first redesignの一部として設計フェーズで扱う。
 
-対策:
-  - フェーズ完了後の実コード audit を handover audit と同様に実施すること
-  - 特に漏れやすい箇所: フラグ追加の呼び出し側への適用・API 移行の全経路への適用・生成側のフィールド追加
+#### simile token 挿入UI / renderTokenNode 層
+内容: AddChordモーダルから simile token（`{type:'simile', bars:1|2}`）を挿入できるUIと、
+そのSVG描画（performSimileStyle='svg'対応）。Phase38-2で設計済み。
 
-### grid-template-columns の分散管理（技術的負債・Phase49）
-状態: 意図的保留
-内容: `#app` の `grid-template-columns` 定義が以下の4箇所に分散している:
-  1. デフォルト（3列）
-  2. `body.left-collapsed`（2列・左40px）
-  3. `body.right-hidden`（2列・右なし）
-  4. `body.left-collapsed.right-hidden`（2列・両方）
-将来: 左固定幅変更・可変サイドバー・diag幅調整が入ると重複管理になる。
-時期: パネルレイアウト再設計フェーズで統合を検討。
+#### Issue #26 — ChordMini Beat/Grid情報対応
+内容: 将来の `bars[]` 構造への移行・grid表示・beat alignment対応。
+`isSepToken()` access layer確立済み（Phase39-3/4）のため土台はできている。
 
-### 左パネル collapse / hide の概念整理（Phase49）
-状態: 意図的保留
-内容: 現在の「◧ 左パネル」トグルは `width:40px` の collapse（細バー残存）であり、
-完全非表示（hide）ではない。UIラベルと実挙動がずれている。
-方向性: collapse（幅縮小）と hide（完全非表示）を概念として分離し、
-UIラベル・状態変数名を整理する。
-時期: パネルレイアウト再設計フェーズで対応。
+#### Chart Mode 並列表示（編集しながら Chart を参照）
+内容: Chart Mode を全画面モードではなく、エディター画面と並列表示できるようにする。
+4層 architecture contract確立済みのため設計着手可能な段階だが、projection layerの
+boundaryはまだ新しく、着手前に設計フェーズを必ず挟むこと。
 
-### debug API 散在
-状態: **完了（Phase66）**
-内容: `window.__CS_REPAIR__` / `window.__CS_TRANSPOSE__` 等の TEMP REPAIR タグ付きコードを削除。
-`window.__TIMING_DEBUG__` を `window.__CS_DEBUG__.timing` getterに統合済み。
-残課題は perf instrumentation（Phase66-B）のみ（「その他将来検討」セクション参照）。
+#### Boundary Handle のドラッグ操作
+内容: `requestBoundaryShift()` という入口のみ用意済み。ボタン・矢印キー以外に
+ドラッグでの境界移動を追加する。
 
-### hover hitbox分離（将来・Phase67から継続）
-状態: 意図的保留
-内容: Chart Mode hover chord diagram（Phase67）では現在scrollWidth guardで
-carry-forward領域の誤hoverを抑制している（interaction heuristic）。
-将来的にlayout span（`.chart-chord-name`）とinteraction span（`.chart-chord-hit`）を
-DOMレベルで分離することで、zoom/font変更耐性・touch long-press対応・
-accessibility改善が見込める。
+#### 二段階クリックモデルの見直し
+内容: 「1クリック＝選択、2回目クリック＝editPoint」という現行モデルから、
+「ダブルクリックまたは明示操作＝editPoint」への変更を候補として検討する。
 
-```html
-<span class="chart-chord-name">       <!-- duration layout責務 -->
-  <span class="chart-chord-hit"        <!-- hover hitbox責務（将来） -->
-        data-chord="Am7">Am7
-  </span>
-</span>
+#### 複数選択時の個別移動
+状態: 意図的に見送り中
+内容: 「選択範囲の先頭コードだけ動く」という違和感が実機確認で発覚したため、
+単一選択専用に限定した（範囲シフトで代替）。再要望があれば再検討する。
+
+#### 通常のChart Modeクリック全体への「選択+シーク」一般化
+内容: 検索結果クリック時の「選択+シーク」（Phase80実装済み）を、通常のコード選択
+クリック全体へ一般化する。デフォルトON、Shift+クリック・editPoint選択はシークしない
+という設計方針は合意済み。
+
+#### Boundary Handle / Playhead の表示条件見直し
+内容: 検索モード中のBoundary Handle非表示/減光、再生停止中のPlayhead淡色化などの案。
+現時点では「改善アイデア」の段階。
+
+#### Capo-aware Editing（表示コードでの検索・編集）
+状態: 独立フェーズ候補
+内容: 現在は画面にはCapo変換後のコード（表示音）が見えているのに、編集入力は
+buffer側の実音で行う必要があり、認知負荷がある。表示コードのままで編集・検索
+できるようにする。Analysis Editorの編集モデルの完成に関わる機能のため、
+着手前に仕様確認フェーズを必ず挟むこと。
+
+#### カポ範囲拡張（-2 まで対応）
+内容: 現在カポは 0〜11 の範囲のみ。半音下げチューニング用途で -2 まで対応できるようにする。
+
+#### 開発者支援：解析データのテスト支援機能
+内容: 編集前スナップショットの保存・ChordMini解析直後の状態へリセット・
+analysis.jsonのエクスポート／インポート等。優先度低（開発者向け機能）。
+
+#### Chart Mode → Editor（コード進行の挿入）
+内容: Chart Modeで解析・編集したコード進行を、通常モード（project.lines）へ
+挿入できるようにする。単なるUI改善ではなく、Analysis Buffer → Chart ViewModel →
+project.lines という逆変換が必要な設計テーマ。
+「Editor→Chart」を含む双方向編集・システム統合の全体像は「ロードマップ」の
+「Chart Modeと通常モードのシステム統合」を参照（本項目はその最初のステップ）。
+
+#### Keyboard-first UI（キーボード操作の拡充）
+内容: ほぼ全操作をキーボードから行えるようにする、という方向性のテーマ。
+今回の要望（モード・タブ切替のショートカットキー化）を最初の候補として、
+将来的に対象を広げていく前提で名称を一般化した。
+
+候補（優先順位未定）:
+- モード切替（Chart Mode／演奏モード／TAPモード。例: F1〜F4）
+- タブ切替（ダイアグラム／ライブラリ。例: Ctrl+1/2）
+- 検索・編集操作（Analysis Editorの既存ショートカットとの統一）
+- Boundary操作・再生操作
+
+具体的なキー割り当ては着手時の設計フェーズで検討する。
+
+#### `__CS_DEBUG__` perf instrumentation
+内容: `window.__CS_DEBUG__.perf` の正式化（chartmode.jsに`_perfState`を持たせ、
+`getPerfState()`をexport）。beat cursorが一瞬停止する現象（現在のIssue）の
+調査に必要な開発者ツール強化。`_rafLoop`はhot pathのため、restore/asset
+lifecycleが完全安定してから着手する。
+
+### ロードマップ（長期構想・優先度未定）
+
+#### Chart Modeと通常モードのシステム統合（ロードマップ最上位テーマ）
+内容: 現状はEditor（通常モード）・Chart・Performance・Tapがモードとして分離している。
+将来的にはこれらを「1つのワークスペース」として統合する構想。
+architecture.mdのアーキテクチャ変更を伴う規模のテーマのため、ロードマップの
+最上位に位置づける。
+
+構成要素（親子関係）:
+```
+Chart Modeと通常モードのシステム統合
+  ├ Chart → Editor（コード進行挿入）  … 「新機能候補」参照・最初のステップ
+  ├ Editor → Chart（編集の即時反映）  … 未設計
+  ├ 共通編集モデル（誰がAuthorityかの再設計）
+  └ モード統合（Editor/Chart/Performance/Tapの単一ワークスペース化）
 ```
 
-正式なhitbox authorityは未確立。現在のscrollWidth guardは
-「テキスト幅付近のhoverだけ有効にする」暫定的なinteraction narrowingであり、
-layout authorityではない。
+Editor→Chartまで実現すると完全な双方向同期になり、「誰がAuthorityか」
+（architecture.md §13）を再設計する必要が生じる。architecture.mdの
+書き換えを伴う規模のため、着手前に必ず独立した設計フェーズを設けること。
 
-### runtime authority の継続的な明文化（設計知見）
-状態: 継続観察
-内容:
-  Phase60〜64 でやっていたことの本質は「authority の整理」だった。
-  authority が曖昧になると設計負債化する。
-  新しい機能を追加するたびに、以下の authority が明確かどうかを確認すること。
+#### CSS再構成（components.css肥大化 / Theme system cleanup統合）
+内容: Phase55〜80のDecorator Layer等の追加により、components.css / theme.cssへの
+書き込みが大量に蓄積している。ui-rules.md のtoken階層ルールに沿っているかの再監査が必要。
+整理候補:
+- `--color-edit-point-bg` が現在未使用
+- silverテーマの `--color-green-rgb` が未定義（Phase78のamber-rgb修正と同種のパターン）
+- theme.css の selector override 増殖（blue themeの text-secondary設定ミスはPhase79で
+  修正済みだが、同種の問題が他にも潜んでいる可能性）
+本格的なCSS再構成フェーズを設けて実施する。
 
-  現在確立済みの authority:
-    seek authority          = normalized measure model の startTime（Phase60）
-    playback authority      = app.js / aEl.currentTime（Phase50〜63）
-    visual update authority = rAF loop in chartmode.js（Phase63）
-    rebuild authority       = app.js が orchestration / analysisLoader.js が implementation（Phase64）
-    persistence authority   = analysis.raw のみ serialize（全フェーズ通じて一貫）
-    projection authority    = capo依存の変換は Layer 4（chartmode.js render phase）のみ（Phase43〜）
-    mutation authority      = project.lines への変更は app.js 経由（初期から一貫）
-    asset loaded authority  = assetState {audioLoaded, chordLoaded, restoreSettled}（Phase65〜66）
-    debug observability     = __CS_DEBUG__ getter projection（state非所有・Phase66）
-    chart visual projection = canonical timing space ≠ visual projection space
-                               （data-visual-slot-index / projectPickupSlotIndex、Phase68〜69）
-    project core authority  = Project DB（IndexedDB "projects" store）が canonical source
-                               （audio/analysis/customDiagramsは既存authority維持・Phase73-A）
-    editing buffer authority = analysisEditor.buffer（project.analysisは直接編集しない・Phase74）
+#### CHORD_DB再構造化
+目的: コードDBの構造見直し・検索効率改善
 
-  authority が曖昧になりやすいタイミング:
-    - 新しいモジュールが既存モジュールのデータを参照し始めた時
-    - 「ここで直接やった方が楽」という誘惑が生じた時
-    - 複数のモジュールが同じデータを書き換え始めた時
+#### 転回形ダイアグラム自動生成
+目的: 転回形コードのダイアグラムを自動生成する仕組みの導入
 
-  参照: architecture.md §9 の各 authority セクション
+#### CSVコードファイルインポート機能の削除検討
+状態: Deprecated候補
+内容: Sonic Visualiser解析結果のCSV取り込みを想定していたが、精度が実用レベルに
+達せず形骸化している。`csvImporter.js` 等の削除を将来検討する。
+
+#### LAN配信モード（PCサーバー → スマホブラウザ）
+目的: server.py をLAN開放し、同一Wi-Fi上のスマホからアクセスできるようにする。
+音声配信・プロジェクト管理・UIの3段階対応が必要。Project DBライブラリタブが
+先行すると自然に解決しやすい。
+
+#### 音楽理論・学習支援基盤（theory.js）
+目的: コード構成音表示・キー/度数解析・スケール関連表示・指板可視化・自動理論解釈
+実装済み: alias normalization・lookup normalization・replacementMap.json
+未実装: 完全な理論構造化（tones / intervals / harmonic relation）
+
+---
+
+> 将来、本セクション（5. Future Features）が肥大化した場合は
+> `docs/future-roadmap.md` として独立ファイルへ切り出すことを検討する。
