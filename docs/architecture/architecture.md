@@ -477,10 +477,16 @@ tokenToText(token)    // DOM表示用変換（lookup key には使わない）
 
 capo change → `c.chord` を直接書き換える（destructive mutation model）
 
-### 新方式（chartmode.js / Phase43以降）
+### 新方式（chartmode.js / Phase43以降、Analysis Editor / Phase82以降）
 
 capo change → 表示時のみ変換（display projection model）
 `analysis.raw` は実音canonical として不変
+
+Analysis EditorはPhase82でChord Projection API（`toDisplayChord()` / `toCanonicalChord()`、chords.js）へ移行した。
+Analysis Editor内部のAuthority（`analysisEditor.buffer`）は引き続きCanonical Chord（raw）のままであり、
+Footer表示・Rename dialog・AddChord・Search・Replaceの各UI境界でのみProjectionを行う。
+Editor UIはCanonical Chordを直接扱ってはならず、変換は上記2関数のみを経由する
+（詳細は`docs/handover/handover_phase82.md`参照）。
 
 ### 既知の制約
 
@@ -490,8 +496,9 @@ capo change → 表示時のみ変換（display projection model）
 
 ### 移行方針
 
-この混在は意図的な移行途中の状態。
-全面的な projection 化は将来の semantic / projection redesign フェーズで統合を検討する。
+この混在は意図的な移行途中の状態（editor / palette / importUndoの旧方式のみ残存）。
+Analysis EditorはPhase82でdisplay projection modelへ統一済み。
+残る旧方式の全面的なprojection化は将来のsemantic / projection redesignフェーズで統合を検討する。
 
 ---
 
@@ -1006,6 +1013,10 @@ Derived Cacheの例:
    Chart Mode再構築のいずれかで必ずクリアされる
 8. **[AE-8]** Decoratorはselectionから導出されるProjectionであり、
    selection / editPointを変更してはならない（描画専用）
+9. **[AE-9]**（Phase82）Editor UIはCanonical Chord（raw）を直接扱ってはならない。
+   Canonicalとの変換は`toDisplayChord()` / `toCanonicalChord()`（chords.js）の
+   2関数のみを経由する。対象はコード名（chord文字列）のProjectionのみで、
+   id/duration/timing等を含むChordオブジェクト全体の変換は行わない
 
 ### [BOUNDARY EDIT AUTHORITY]
 

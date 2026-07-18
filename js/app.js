@@ -90,6 +90,8 @@ import {
   diagUndo,
   diagUndoSize,
   transposeChord,
+  toDisplayChord,
+  toCanonicalChord,
   normalizeChordName,
   findChord,
   getChordEntry,
@@ -1370,7 +1372,9 @@ function replaceCurrentAndAdvance(direction) {
   const { matches, activeIndex, replaceText } = analysisEditor.search;
   if (activeIndex === null || !matches[activeIndex] || !String(replaceText ?? '').trim()) return;
   const targetId = matches[activeIndex];
-  replaceCurrentMatch(replaceText); // buffer更新 → _refreshEditorView()でmatches再計算・クランプ済み
+  // [Phase82] replaceTextは表示名。bufferへの書き込みは実音でなければならないため、
+  // ここでtoCanonicalChord()を通す（Rename/AddChordと同じ変換境界）。
+  replaceCurrentMatch(toCanonicalChord(replaceText, getCapo())); // buffer更新 → _refreshEditorView()でmatches再計算・クランプ済み
   const stillMatches = analysisEditor.search.matches.includes(targetId);
   const newIndex = analysisEditor.search.activeIndex;
   if (stillMatches) {
@@ -1521,13 +1525,14 @@ function addChordAtEditPoint() {
   const splitTime = getTimeForGridPosition(editPoint.measureIndex, editPoint.slotIndex);
   if (splitTime == null) { toast('この位置の時刻を取得できませんでした'); return; }
 
+  const capo = getCapo();
   showChordSelector({
     title: 'コードを追加',
-    initialChord: owner.chord,
+    initialChord: toDisplayChord(owner.chord, capo),
     onSelect: (selected) => {
       const newId = splitChord(owner._id, splitTime);
       if (!newId) { toast('この位置には追加できません（時間が足りません）'); return; }
-      updateChord(newId, { chord: selected.name });
+      updateChord(newId, { chord: toCanonicalChord(selected.name, capo) });
       // 成功時: 新規コードを単独選択する（[EDIT POINT LIFETIME] により
       // _refreshSelection()経由でeditPointは自動的にクリアされる）。
       _refreshSelection([newId]);
@@ -1594,11 +1599,12 @@ function splitChord(chordId, splitTime) {
  */
 function openChordRenameSelector(chord) {
   if (!chord) return;
+  const capo = getCapo();
   showChordSelector({
     title: 'コード名を変更',
-    initialChord: chord.chord,
+    initialChord: toDisplayChord(chord.chord, capo),
     onSelect: (selected) => {
-      updateChord(chord._id, { chord: selected.name });
+      updateChord(chord._id, { chord: toCanonicalChord(selected.name, capo) });
       // [NOTE] 変更は既存コードの上書きのみ。buffer長は変わらないため
       // selection（chordIds/boundaryIndex）はどちらも変化しない
       // （splitChordのような_refreshSelection()呼び出しは不要）。
@@ -1888,7 +1894,12 @@ function _refreshEditorView() {
   // まとめて再計算する（Boundary Handle/EditPointMarkerと同じ理由。
   // ミューテーション箇所ごとに個別に呼ぶと呼び忘れが起きるため）。
   if (analysisEditor.search.open) {
-    analysisEditor.search.matches = searchChords(analysisEditor.buffer, analysisEditor.search.query);
+    // [Phase82] search.queryは表示名。Engine（searchChords）は実音のみを扱うため
+    // ([SEARCH-1]〜[SEARCH-5]準拠)、ここで唯一の変換を行う。
+    analysisEditor.search.matches = searchChords(
+      analysisEditor.buffer,
+      toCanonicalChord(analysisEditor.search.query, getCapo())
+    );
     if (analysisEditor.search.activeIndex !== null
         && analysisEditor.search.activeIndex >= analysisEditor.search.matches.length) {
       analysisEditor.search.activeIndex = analysisEditor.search.matches.length ? 0 : null;
@@ -2130,11 +2141,11 @@ function renderAnalysisEditorPanel() {
     const time = getTimeForGridPosition(selection.editPoint.measureIndex, selection.editPoint.slotIndex);
     // [Phase78 Sprint1 バグ修正] Layer4 Projection漏れ。owner.chordを生のまま表示していたため
     // capo設定時にグリッド表示（変換後）とラベル（生データ）で異なるコード名が出ていた。
-    const ownerName = owner ? transposeChord(owner.chord, -capo) : '不明';
+    const ownerName = owner ? toDisplayChord(owner.chord, capo) : '不明';
     selectionInfo = `<span class="aep-chord-info">${owner ? `${ownerName} の途中（${time != null ? time.toFixed(3) : '?'}秒）` : '不明な位置'}</span>`;
   } else if (mode === 'single') {
     // [Phase78 Sprint1 バグ修正] 同上。chord.chordを生のまま表示していた。
-    selectionInfo = `<span class="aep-chord-name">${transposeChord(chord.chord, -capo)}</span>
+    selectionInfo = `<span class="aep-chord-name">${toDisplayChord(chord.chord, capo)}</span>
       <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>`;
   } else if (mode === 'multi') {
     selectionInfo = `<span class="aep-chord-info">${selectedIds.length}コード選択中</span>`;
@@ -2248,11 +2259,11 @@ function renderAnalysisEditorPanel() {
     const splitTime = (chord.start + chord.end) / 2;
     showChordSelector({
       title: 'コードを追加',
-      initialChord: chord.chord,
+      initialChord: toDisplayChord(chord.chord, capo),
       onSelect: (selected) => {
         const newId = splitChord(selectedId, splitTime);
         if (!newId) return;  // 万一splitTimeが不正だった場合は何もしない
-        updateChord(newId, { chord: selected.name });
+        updateChord(newId, { chord: toCanonicalChord(selected.name, capo) });
         _refreshSelection([newId]);   // ① パネル表示用の選択情報
         setSelectedChordIds([newId]); // ② Chart Mode側のハイライト表示用の選択情報（同期漏れ修正）
         _refreshEditorView();
@@ -2330,6 +2341,9 @@ function renderAnalysisEditorPanel() {
 
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
+        // [Phase82] search.queryは表示名（ユーザー入力そのまま）を保持する。
+        // Canonicalへの変換はsearchChords()を呼ぶ直前（_refreshEditorView内）に
+        // 一元化する（入力の都度変換するとinput値と表示がループするため）。
         analysisEditor.search.query = e.target.value;
         analysisEditor.search.activeIndex = null; // クエリが変わったら現在位置をリセット
         _refreshEditorView();
@@ -2350,6 +2364,7 @@ function renderAnalysisEditorPanel() {
       // 再描画してもすることがない。値はDOM側にすでに反映されているので、
       // 他の理由での再描画時にvalue属性へ反映されれば十分）。
       replaceInput.addEventListener('input', (e) => {
+        // [Phase82] replaceTextも表示名のまま保持する（queryと同じ理由）。
         analysisEditor.search.replaceText = e.target.value;
       });
       // [キー割り当て・ChatGPTレビューで確定] 置換欄にフォーカス中のEnterは
@@ -2367,7 +2382,8 @@ function renderAnalysisEditorPanel() {
       replaceCurrentAndAdvance(1);
     });
     document.getElementById('aep-search-replace-all')?.addEventListener('click', () => {
-      const n = replaceAllMatches(analysisEditor.search.replaceText);
+      // [Phase82] replaceTextは表示名 → toCanonicalChord()で実音に変換してから渡す
+      const n = replaceAllMatches(toCanonicalChord(analysisEditor.search.replaceText, getCapo()));
       if (n) toast(`${n}件置換しました`);
     });
   }
