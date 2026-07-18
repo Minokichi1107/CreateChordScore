@@ -447,6 +447,30 @@ export function showCapoInfo(displayChord, capo){
 }
 
 // ════════════════════════════════════════
+// CHORD PROJECTION API（Phase82）
+// ════════════════════════════════════════
+//
+// [PROJECTION BOUNDARY]
+//   Editor UIはCanonical Chord（raw）を直接扱ってはならない。
+//   Canonicalとの変換は toDisplayChord() / toCanonicalChord() の2関数のみを経由する。
+//
+// [SCOPE]
+//   コード名（chord文字列）のProjectionのみを担当する。
+//   id / duration / timing等を含むChordオブジェクト全体の変換は行わない。
+
+/** 実音（canonical）→ 表示コード名。capo=0は無変換で返す。 */
+export function toDisplayChord(chord, capo) {
+  if (!capo) return chord;
+  return transposeChord(chord, -capo);
+}
+
+/** 表示コード名 → 実音（canonical）。capo=0は無変換で返す。 */
+export function toCanonicalChord(chord, capo) {
+  if (!capo) return chord;
+  return transposeChord(chord, capo);
+}
+
+// ════════════════════════════════════════
 // CHORD NAME CANONICALIZATION (Phase20)
 // ════════════════════════════════════════
 
