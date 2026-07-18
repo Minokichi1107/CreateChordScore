@@ -489,6 +489,22 @@ function _unicodeNorm(str) {
   return s;
 }
 
+/**
+ * normalizeChordInput — ユーザー入力の文字コード正規化（公開API・Phase83）
+ *
+ * [目的] IME入力等で混入する全角英数字・全角記号を半角へ正規化する。
+ * normalizeChordName()と異なりコード名のcanonical化（alias統合等）は行わない
+ * （検索欄のように「表示名のまま保持したいがUnicode正規化だけしたい」場面向け）。
+ * 内部実装は_unicodeNorm()（非公開）をそのまま呼ぶだけ。
+ *
+ * @param {string} str
+ * @returns {string}
+ */
+export function normalizeChordInput(str) {
+  if (!str) return str;
+  return _unicodeNorm(str);
+}
+
 export function normalizeChordName(raw) {
   if (!raw || ['N', 'X', 'n', ''].includes(raw)) return raw;
 
