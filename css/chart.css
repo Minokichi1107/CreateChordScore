@@ -1,0 +1,740 @@
+/* chart.css — Chart Mode（chartmode.js所有）
+   Phase86: components.cssから分離 */
+
+
+/* ─── CHART MODE ─────────────────────────── */
+/* overlay 構造 */
+#chart-overlay {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  flex-direction: column;
+  background: var(--surface-base);
+}
+#chart-overlay[hidden] {
+  display: none;
+}
+
+/* ヘッダー */
+#chart-header {
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-ui);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.chart-header-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+#chart-header-info {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+/* 列数切替ボタン */
+#chart-col-switcher {
+  display: flex;
+  gap: 2px;
+}
+.chart-col-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.chart-col-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.chart-col-btn.active {
+  background: var(--surface-active);
+  color: var(--text-accent);
+  border-color: var(--text-accent);
+}
+
+/* グリッドコンテナ */
+#chart-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 行（4小節） */
+.chart-row {
+  display: flex;
+  gap: 4px;
+  padding-right: 16px;
+}
+
+/* 小節 */
+.chart-measure {
+  flex: 1;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  min-width: 0;
+  position: relative;
+}
+.chart-measure--estimated {
+  border-style: dashed;
+}
+.chart-measure--active {
+  border-color: var(--text-accent);
+  background: var(--surface-playing);
+}
+
+/* 小節番号 */
+.chart-measure-num {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  text-align: right;
+}
+
+/* Phase57: slot DOM invariant 復活。全slot（carry/empty含む）を生成。
+   chord label の幅は --duration-slots CSS変数で制御する。
+   grid-column: span は使わない（Grid折り返し防止）。 */
+.chart-slots {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr); /* fallback: 4/4×2分解=8slot */
+  min-height: 36px;
+}
+/* slot は CSS Grid の子として自動配置される（全slot DOM固定） */
+.chart-slot {
+  position: relative;  /* chord label の absolute 配置基準 */
+  border-left: 1px solid transparent;
+  min-width: 0;
+  min-height: 36px;   /* chord label の bottom: 4px 基準を確保 */
+  /* overflow: visible → chord label が右に伸びられるよう hidden にしない */
+}
+.chart-slot--beat {
+  border-left-color: var(--border-ui);
+}
+/* onset: chord label を持つ slot */
+.chart-slot--onset {
+  /* chord label が absolute で右へ伸びる基準 */
+}
+/* carry: 継続中（chord label なし）
+   opacity は使わない（onset の label が上に重なった時に継承されて薄くなるため）*/
+.chart-slot--carry {
+  /* 視覚的には onset label が覆うため特別なスタイル不要 */
+}
+/* empty: 曲頭でまだ chord が現れていない */
+.chart-slot--empty {
+  /* 特別なスタイルなし */
+}
+
+/* ── Analysis Editor: Search Highlight（Phase80・実機フィードバックで再設計） ──
+   [仕様変更の経緯] 当初は専用色（azure→マゼンタ）を試したが、実機で
+   「小節フォーカス（青）・検索中の現在地（緑）・検索候補（マゼンタ）」の
+   3色が同時に画面へ出て視覚的ノイズが大きいとの指摘があった。
+   ChatGPTレビューでも「Searchは候補でありSelectionの上位概念ではないため、
+   色を増やすより同じ緑系で強弱を変えて階層化する方がよい」との結論になった。
+
+   [設計] 新しい色相トークンは持たない。--color-selection-rgbを流用し、
+   背景alpha・枠線太さだけをSelection Highlightより弱くする（1px・薄い背景）。
+   「今アクティブな検索結果」は検索ナビゲーション（Enter/Next/Prev）で
+   selectionにも入るため、.chart-slot--selected（濃い緑・1.5px枠）が
+   自動的に重なって勝つ（後述のSelection Highlightブロックとの宣言順で
+   保証。ここでの追加ロジックは不要）。結果として：
+     濃い緑・太い枠 = 今アクティブな検索結果（Selectionと同じ見た目）
+     薄い緑・細い枠 = その他の検索候補
+   という一目で分かる強弱だけの階層になる。 */
+.chart-slot--search-match {
+  background: rgba(var(--color-selection-rgb), .16);
+  border-top: 1px solid rgba(var(--color-selection-rgb), .55);
+  border-bottom: 1px solid rgba(var(--color-selection-rgb), .55);
+}
+.chart-slot--search-match-start {
+  border-left: 1px solid rgba(var(--color-selection-rgb), .55);
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+.chart-slot--search-match-end {
+  border-right: 1px solid rgba(var(--color-selection-rgb), .55);
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+/* ── Analysis Editor: Selection Highlight（Sprint2-1） ──
+   [仕様] コード単位の選択を表現する。セル単位の選択を表現するものではない。
+   onset/carryを問わず、選択中コードに属するslot全体へ適用する
+   （carryセルへのハイライトは従来スコープ外だったが、今回のSprint2-1で対応）。
+   小節をまたぐ場合は小節ごとに枠を区切る（isFirst/isLastは小節内でリセットされる。
+   背景色は連続させることで「同じコードが続いている」ことを表現する）。
+   projectionEmpty slotは対象外（architecture.md §9.5の不可侵性を維持）。 */
+.chart-slot--selected {
+  /* [Sprint2-1] 選択専用トークン --color-selection / --color-selection-bg を使用
+     （実機フィードバックでamber → 青系 → 緑系Aquamarineへ変遷。
+     背景はテーマごとに完成済みのrgba値を持つ--color-selection-bgを使う。
+     theme.css参照）。 */
+  background: var(--color-selection-bg);
+  border-top: 1.5px solid var(--color-selection);
+  border-bottom: 1.5px solid var(--color-selection);
+}
+.chart-slot--selected-start {
+  border-left: 1.5px solid var(--color-selection);
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+.chart-slot--selected-end {
+  border-right: 1.5px solid var(--color-selection);
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+/* ── Analysis Editor: Boundary Handle（Sprint2-2） ──
+   [仕様] 個別移動（shiftSelectedBoundary）で動かせる境界の位置を示す。
+   [色] 当初--color-selectionを流用する案だったが、実機フィードバックで
+   Selection Highlightの背景（同系色）に線が埋もれて視認しづらいことが判明。
+   --color-amberへ変更した。amberはSelection Highlight・EditPointの両方が
+   検討の末に不採用とした色（amber→緑/amber→紫の変遷）であり、現在どちらの
+   用途とも衝突しない空きトークンのため、新規token追加なしで流用できる。
+   常に対象コードの先頭（onset slot）に付与される（Selection Highlightと違い
+   prev/next判定は不要。境界は定義上「対象コードの開始位置」と一致するため）。
+   [当たり判定] 見た目は中央の2pxのみだが、要素自体は6px幅を確保しておく。
+   現時点ではpointer-events: noneで見た目のみ（クリック/ドラッグ操作は
+   将来のSprint2-2以降で実装予定・イベント入口はrequestBoundaryShift()に
+   一本化済み）。 */
+.chart-slot--boundary-handle::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -3px;
+  width: 6px;
+  background: linear-gradient(
+    to right,
+    transparent 0, transparent 2px,
+    var(--color-amber) 2px, var(--color-amber) 4px,
+    transparent 4px, transparent 6px
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* コード名
+   Phase57（修正版）: slot DOM invariant 復活。
+   onset slot に --duration-slots CSS変数を設定し、label がその分だけ右へ広がる。
+   position: absolute で carry 領域を視覚的にカバーする。
+   100% = onset slot 1個分の幅。duration-slots 個分だけ右に伸びる。
+   z-index: 1 で carry slot の上に重なる。 */
+.chart-chord-name {
+  font-family: 'Atkinson Hyperlegible', var(--font-mono), monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: absolute;
+  bottom: 4px;
+  left: 2px;
+  /* --duration-slots: JS で onset slot に設定。1slot = 100%換算 */
+  width: calc(var(--duration-slots, 1) * 100% - 4px);
+  z-index: 1;
+}
+/* 長いコード名の軽縮小 + ホバーツールチップ */
+.chart-chord-name--compact {
+  font-size: 10px;
+  letter-spacing: -0.02em;
+  cursor: default;
+}
+/* ツールチップ */
+#chart-tooltip {
+  position: fixed;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  padding: 2px 8px;
+  font-family: 'Atkinson Hyperlegible', var(--font-mono), monospace;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 100;
+  display: none;
+}
+/* ── Chart Mode: playhead ────────────────────────────────
+   Phase57: .chart-beat-cursor から .chart-playhead に改名。
+   measure 直下の continuous playback indicator。
+   slot の子ではない（measure の stacking context に重ねる）。
+   render時に1回だけ生成。playback中は left% のみ更新（DOM再生成なし）。
+   transform: translateX(-50%) で left 基準を線の中心に補正する。
+   measureEl._playheadEl で参照保持（Phase57: _beatCursorEl から改名）。
+   ─────────────────────────────────────────────────────── */
+.chart-playhead {
+  position: absolute;
+  top:    4px;
+  bottom: 4px;
+  width:  2px;
+  left:   0%;           /* JS で動的更新 */
+  transform: translateX(-50%);
+  border-radius: 999px;
+  pointer-events: none;
+  background: var(--chart-beat-cursor);
+  display: none;        /* 非アクティブ時は非表示 */
+}
+/* アクティブ小節の時だけ表示 */
+.chart-measure--active .chart-playhead {
+  display: block;
+}
+
+/* Phase57: carry slot は chord label を生成しないため .chart-chord--carried は不要。
+   carry の視覚表現は .chart-slot--carry { opacity: 0.35 } で行う。 */
+
+/* 警告・空状態 */
+.chart-warn {
+  color: var(--color-amber);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.chart-empty {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+/* fallback モード */
+.chart-fallback-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+}
+.chart-fallback-chord {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  padding: 4px 10px;
+}
+
+/* ─── CHART MODE: MINI TRANSPORT ──────────────── */
+#chart-transport {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  flex-shrink: 0;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+}
+
+.chart-play-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.chart-seek-wrap {
+  flex: 1;
+  position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.chart-seek-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.chart-seek-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+}
+.chart-seek-in {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+}
+
+.chart-time-display {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  flex-shrink: 0;
+  min-width: 88px;
+  text-align: right;
+}
+
+.chart-speed-cluster {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.chart-speed-sel {
+  width: 72px;
+  height: 5px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 3px;
+}
+.chart-speed-sel::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.chart-speed-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  min-width: 36px;
+  text-align: center;
+}
+/* SPEED RESET BUTTON（Phase71-A仕上げ）
+   handler は setSpeed(100) のみ（canonical mutation trigger）。
+   position/z-index/pointer-events: 実クリックのみ無反応になる
+   hitbox問題への対策（dispatchEventでは正常動作するため要監視）。 */
+.chart-speed-reset {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  min-width: 24px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border-ui);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.chart-speed-reset:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+/* ── Chart Mode: capo info ────────────────────────────── */
+.chart-header-capo {
+  color: var(--capo-info-color);
+  font-weight: 600;
+}
+
+/* ── Chart Mode: 補正適用中バッジ（Phase72-C） ───────────── */
+/* surface-selected / border-selected は既存のamber強調token（Phase35）を流用 */
+.chart-header-repair-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--color-amber);
+  background: var(--surface-selected);
+  border: 1px solid var(--border-selected);
+  border-radius: var(--r-sm);
+}
+
+/* 修正済み小節: 黄色ボーダー（信頼度付き補正） */
+.chart-measure--drift-repaired {
+  outline: 1.5px solid rgba(255, 184, 64, 0.7);   /* [SAFE] amber */
+  outline-offset: -1px;
+}
+
+/* 修正不可小節: 赤ボーダー（tolerance超過・元のまま） */
+.chart-measure--drift-rejected {
+  outline: 1.5px solid rgba(255, 124, 124, 0.7);  /* [SAFE] red */
+  outline-offset: -1px;
+}
+
+/* Phase60: chart mode click seek */
+.chart-measure { cursor: pointer; }
+
+/* ── Chart Mode: hover chord diagram tooltip ─────────── */
+.chart-diag-tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  padding: 6px 8px;
+  box-shadow: var(--shadow-md);
+}
+
+.chart-diag-tooltip-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-chord);
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+/* ── Chart Mode: 右クリックメニュー（Phase72-C） ─────────────
+   .chart-diag-tooltip と同じ性質（bodyに浮かぶephemeral UI）のため
+   同じtokenを使用して統一感を持たせる ────────────────────── */
+.chart-context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 180px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.chart-context-item {
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.chart-context-item:hover {
+  background: var(--surface-hover);
+}
+.chart-context-item--clear {
+  color: var(--color-red);
+}
+.chart-context-divider {
+  height: 1px;
+  margin: 4px 10px;
+  background: var(--border-ui);
+}
+
+/* ════════════════════════════════════════
+   Phase69: slot単位のアクティブハイライト（再生中の現在拍）
+   ════════════════════════════════════════ */
+
+/* .chart-measure--active（面）の上に載る二次的・離散的フォーカス。
+   輪郭主体・低alpha（layer competition回避・blue theme過彩度回避）。
+   background は outline の視認補助程度に抑える。
+
+   active ownership:
+     updateChartPlayback() は visual slot index 空間を対象に
+     .chart-slot--active を付与する（[data-visual-slot-index="N"] selector）。
+     projectionEmpty slot は data-visual-slot-index を持たないため、
+     このセレクタには到達しない（DOM invariantによる除外。CSS側でのguard不要）。 */
+.chart-slot--active {
+  outline: 1px solid rgba(var(--color-blue-rgb), .55);
+  outline-offset: -1px;
+  background: rgba(var(--color-blue-rgb), .06);
+  border-radius: 2px;
+}
+
+/* ════════════════════════════════════════
+   Phase68: pickup measure projection-empty slot
+   ════════════════════════════════════════ */
+
+/* projection-empty slot: 実beatではない視覚的placeholder。
+   通常の chart-slot--empty とは semantic が異なる（pure visual projection）。
+   hover / active state は付与されない（data-visual-slot-index を持たないため）。
+   [Sprint2-1] 色をtext-secondaryからtext-mutedへ変更。
+   blueテーマのtext-secondary(#d1e3ff)は本来コード名背景（濃い紺）の上で
+   使う薄い色として定義されており、明るいページ背景の上では休符アイコンが
+   埋もれてしまっていた（実機フィードバックで発覚）。text-mutedは
+   3テーマとも「地の背景に対して適切なコントラストを持つ」値のため、
+   この用途（薄暗いページ背景の上に描く）に合っている。 */
+.chart-slot--projection-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0.7;
+  border-left: 1px dashed var(--border-ui);  /* [SAFE] 「空間の質感」を補助 */
+}
+
+/* 休符glyph本体。currentColorでテーマ追従。 */
+.chart-rest-glyph {
+  width: 40%;
+  height: 60%;
+}
+
+/* ── Chart Mode: 音量クラスター（Phase74-A） ── */
+.chart-vol-cluster {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.chart-vol-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+.chart-vol-btn:hover { color: var(--text-primary); }
+.chart-vol-sel {
+  width: 64px;
+  height: 5px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 3px;
+  background: var(--chart-seek-track);
+}
+.chart-vol-sel::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--border-ui-strong);
+  cursor: pointer;
+}
+
+/* ── Chart Mode: カポクラスター（Phase74-A） ── */
+.chart-capo-cluster {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  padding: 2px 6px;
+}
+.chart-capo-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 4px;
+  user-select: none;
+}
+.chart-capo-btn:hover { color: var(--text-accent); }
+.chart-capo-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  min-width: 44px;
+  text-align: center;
+}
+
+/* ── Chart Mode: 解析編集ボタン（Phase74-C） ── */
+.chart-edit-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chart-edit-btn:hover {
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+.chart-edit-btn--active {
+  background: rgba(var(--color-amber-rgb), .15);
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+
+/* ── Chart Mode: 選択中コードの文字強調（Phase74-C・Sprint2-1で責務分離） ──
+   [Sprint2-1] 旧chart-chord-name--selectedは「文字強調」と「Boundary Handle
+   （個別移動の左端ハンドル）」の2つの責務を1つのクラスが兼ねていた。
+   セル全体のハイライト（chart-slot--selected）を新設したことを機に、
+   このクラスは文字強調のみに責務を絞る。
+   Boundary Handle（::before部分）は削除した。Sprint2-2で
+   chart-boundary-handle として独立実装する予定（architecture上は未着手）。
+   [Sprint2-1追記] outlineはchart-slot--selectedのセル全体枠と二重に見えるため
+   撤去。文字色の強調のみに留める（実機フィードバックで確定）。 */
+.chart-chord-name--selected-text {
+  color: var(--color-selection);
+  font-weight: 600;
+}
+
+/* Sprint2-2: editPoint（挿入位置）マーカー。B案採用（ChatGPTレビュー+実機比較で確定）。
+   [統一方針] Boundary Handle（境界=amber・静止した縦線）と区別するため、
+   EditPointは「テキストカーソル」のメタファーを採用する:
+     ・上部に▼（挿入位置の目印。ここに矢印が刺さるイメージ）
+     ・縦線はWord/VSCode的なカーソル点滅を模し、ゆっくりフェードする
+       （高速ON/OFFではなくease-in-outの呼吸するような点滅にすることで、
+       編集中の視認性と目の疲れにくさを両立する）
+   色は--color-edit-point（紫）のまま。Selection Highlight（緑・面）・
+   Boundary Handle（amber・線のみ）とは色・形の両方で区別できる。
+   [対象] projectionEmptyは指さない（既存invariant・chartmode.js側で保証）。 */
+.chart-slot--edit-point {
+  position: relative;
+}
+.chart-slot--edit-point::before {
+  /* 縦線本体（フェード点滅） */
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -1px;
+  width: 2px;
+  background: var(--color-edit-point);
+  pointer-events: none;
+  z-index: 3;
+  animation: chart-edit-point-blink 1.2s ease-in-out infinite;
+}
+.chart-slot--edit-point::after {
+  /* 上部の▼（挿入位置の目印。点滅させず常時表示） */
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: -6px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--color-edit-point);
+  pointer-events: none;
+  z-index: 3;
+}
+@keyframes chart-edit-point-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .15; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-slot--edit-point::before {
+    animation: none;
+  }
+}

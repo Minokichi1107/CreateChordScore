@@ -1,0 +1,109 @@
+/* chord-entry.css — AddChord入力サブシステム（chordEntry.js所有）
+   Phase86: components.cssから分離 */
+
+
+/* ─── ADD CHORD MODAL ────────────────────────────── */
+.mac-preview-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--chord-bg);
+  border: 1.5px solid var(--chord-border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 5px 3px 8px;
+  cursor: default;
+}
+
+/* コード挿入位置ボタン */
+.mac-insert-btn {
+  padding: 0 5px;
+  height: 22px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.mac-insert-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+.mac-insert-btn.active {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+
+.mac-preview-tag-del {
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.mac-preview-tag:hover .mac-preview-tag-del,
+.mac-preview-tag:focus-within .mac-preview-tag-del {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mac-sep-token {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  padding: 0 3px;
+  cursor: pointer;
+}
+
+.mac-palette-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 110px;
+  overflow-y: auto;
+}
+
+/* ── AddChord: insertion cursor ── */
+.insert-cursor-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;         /* クリック当たり判定を広く確保 */
+  padding: 0 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.insert-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: var(--text-accent);
+  opacity: 0;
+  border-radius: 1px;
+  transition: opacity .1s;
+}
+.insert-cursor-wrap:hover .insert-cursor {
+  opacity: .25;        /* hover時：薄く見える */
+}
+.insert-cursor.active {
+  opacity: 1;
+  animation: insert-cursor-blink 1s step-end infinite;
+}
+@keyframes insert-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
