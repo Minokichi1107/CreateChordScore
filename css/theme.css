@@ -182,9 +182,6 @@
   --knob-shadow: 0 1px 3px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.1);
 
   /* --- component-specific shadows / borders --- */
-  --shadow-knob-border-top:    rgba(255,255,255,.1);
-  --shadow-knob-border-bottom: rgba(0,0,0,.25);
-  --shadow-knob-border-side:   rgba(255,255,255,.06);
   --shadow-chord-tag:          0 2px 6px rgba(0,0,0,.3);
   --shadow-add-diag-btn:       inset 0 1px 0 rgba(255,255,255,.15);
   --border-add-diag-btn:       #124820;
@@ -193,7 +190,6 @@
   --shadow-text-add-diag-btn:  0 1px 1px rgba(0,40,0,.4);
   --border-chord-tag-top:      #2a3868;
   --border-chord-tag-bottom:   #060c20;
-  --text-logo-span-color:      #8890a8;
 
   /* --- phdr component --- */
   --text-phdr:           #8890a8;
@@ -371,6 +367,11 @@ body[data-theme="silver"] {
      ui-rules.md §6（alpha値はRGB変数+呼び出し側alphaで扱う）に合わせ、
      このテーマのamber値(#a86400)に対応するRGBを明示する。 */
   --color-amber-rgb: 168,100,0;
+  /* [Phase86] --color-blue-rgb がsilverテーマで未定義だったため追加。
+     --surface-playing 等で参照されており、値が無いと暗黙的にdarkの値へ
+     フォールバックしていた（--color-green-rgbと同種の欠落パターン）。
+     見た目を変えないため、これまで実質使われていたdarkと同値を明示する。 */
+  --color-blue-rgb: 79,158,255;
   /* [Sprint2-1] Silverテーマは背景が明るいため、dark/blue共通の#7FFFD4は
      コントラストが弱く「蛍光感」より「白っぽさ」が勝ってしまう。
      明度・彩度を落としたAquamarine寄りの緑に調整する。
@@ -616,6 +617,9 @@ body[data-theme="blue"] {
      彩度を保ったまま、暗すぎない値へ再調整した。 */
   --color-green: #0F8A3D;
   --color-green-rgb: 15,138,61;
+  /* [Phase86] --color-blue-rgb がblueテーマで未定義だったため追加（silverと同様の欠落）。
+     見た目を変えないため、darkと同値を明示する。 */
+  --color-blue-rgb: 79,158,255;
   /* [Sprint2-1] Blueテーマもsilverと同じく背景が明るいため、dark基準の#7FFFD4は
      コントラストが弱くコード名の文字が埋もれてしまう（実機フィードバックで確認）。
      silverと同じ理由・同程度の調整値を適用する。 */

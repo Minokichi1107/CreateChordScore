@@ -1,0 +1,137 @@
+/* library.css — Project Library UI（app.js所有）
+   Phase86: components.cssから分離 */
+
+
+.library-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 4px 0;
+}
+
+.library-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-ui);
+  flex-shrink: 0;
+}
+.library-toolbar-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  flex: 1;
+}
+.library-toolbar select {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.library-empty {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 16px 12px;
+  text-align: center;
+}
+
+/* ── 各アイテム行 ── */
+.library-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-left: 2px solid transparent; /* 現在行ハイライト用の予約領域 */
+  transition: background 0.1s;
+}
+.library-item:hover {
+  background: var(--surface-hover);
+}
+
+/* 現在開いているプロジェクト（Phase73-F） */
+.library-item--current {
+  background: var(--surface-playing);
+  border-left-color: var(--text-accent);
+}
+.library-item--current:hover {
+  background: var(--surface-playing);
+}
+
+.library-item-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.library-item-current-mark {
+  font-size: 10px;
+  color: var(--text-accent);
+  flex-shrink: 0;
+  width: 10px;
+  text-align: center;
+}
+.library-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.library-item-title {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-item--current .library-item-title {
+  color: var(--text-accent);
+}
+.library-item-artist {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+/* 削除ボタン */
+.library-item-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  border-radius: var(--r-sm);
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+.library-item:hover .library-item-delete:not(:disabled) {
+  opacity: 1;
+}
+.library-item-delete:not(:disabled):hover {
+  color: var(--color-red);
+}
+.library-item-delete:disabled {
+  opacity: 0;
+  cursor: default;
+}
+
+/* 読み込み中フィードバック（クリック〜loadProj完了まで）
+   テキスト変更はしない。選択状態のみ視覚的に伝える。
+   pointer-events:none で二重クリックを防止する。 */
+.library-item--loading {
+  background: var(--surface-selected);
+  border-left-color: var(--border-selected);
+  pointer-events: none;
+}

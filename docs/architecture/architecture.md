@@ -93,7 +93,13 @@ CreateChordScore/
 │   ├─ base.css
 │   ├─ theme.css
 │   ├─ layout.css
-│   ├─ components.css
+│   ├─ components.css    ← 複数モジュール共有／所有権未確定の残置分
+│   ├─ modal.css         ← Phase86で分離（modals.js所有）
+│   ├─ chord-entry.css   ← Phase86で分離（chordEntry.js所有）
+│   ├─ library.css       ← Phase86で分離（app.js Library UI所有）
+│   ├─ analysis-editor.css ← Phase86で分離（app.js Footer UI所有）
+│   ├─ tapmode.css       ← Phase86で分離（tapmode.js所有）
+│   ├─ chart.css         ← Phase86で分離（chartmode.js所有）
 │   ├─ state.css
 │   └─ perform.css
 ├─ js/
@@ -126,6 +132,26 @@ CreateChordScore/
 ├─ scripts/              ← バックアップ・起動バッチ
 └─ docs/
 ```
+
+---
+
+### CSS ownership（Phase86で確立）
+
+```
+CSSファイルの分割単位は「見た目の種類（editor系/modal系等）」ではなく、
+「そのDOMを生成するJSモジュールの所有権」で決める。
+```
+
+Phase86の棚卸しで、components.cssの全セレクタが既にモジュール固有namespace
+（`chart-*` → chartmode.js、`aep-*` → app.js Footer UI、`library-*` → app.js
+Library UI、`mac-*`/`insert-cursor*` → chordEntry.js、`modal-*`/`copy-list*`/
+`diagram-string*` → modals.js、`tov-*`/`tap-ov-*` → tapmode.js）を持っており、
+JSモジュール境界とCSS責務がほぼ一致していることが判明した。この事実に基づき、
+「UI機能」ではなく「DOM生成元のモジュール」を分割基準として採用した。
+
+複数モジュールから共有されるコンポーネント（`.speed-cluster`等）や、
+所有権がまだ確定していないもの（`.scope-selector`等）はcomponents.cssに
+残置する。この判断基準は今後 replace.css や diag-lock.css を切り出す際にも適用する。
 
 ---
 

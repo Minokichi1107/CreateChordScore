@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase80完了時点
+> 最終更新: Phase86完了時点
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -82,28 +82,6 @@ audio playback自体は正常（カーソル描画のみの問題）。毎回同
 scheduling delay。現時点は現象記録フェーズ（診断には「5. Future Features」の
 `__CS_DEBUG__` perf instrumentation が前提となる）。
 
-### Modal / Theme 系
-
-#### Blue theme：ダイアグラム編集モーダルのフレット番号が見えづらい
-状態: 未調査
-内容: Blue theme使用時、ダイアグラム編集モーダル内のフレット番号のコントラストが
-低く視認性が悪い（実機スクリーンショットで確認済み）。
-調査項目:
-- text color / background colorの組み合わせ
-- theme tokenの設定ミス（Phase79で発見されたblueテーマの`--text-secondary`設定
-  ミスと同種の可能性）
-- components.css側の固定色混入
-
-#### ダイアグラム登録モーダルが勝手に閉じる
-状態: 再現性確認中
-内容: ダイアグラム登録中、操作していないにもかかわらずモーダルが閉じることがある。
-発生時はバレー設定操作中だった可能性が高いが、再現条件は未特定。
-次回確認項目:
-- バレー設定変更時の挙動
-- click outside判定
-- focus喪失
-- escapeイベント誤発火
-
 ### Library / Environment 系
 
 #### localhost:8767 が読み込み中のまま開かないことがある
@@ -126,15 +104,6 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 
 ## 3. UI改善
 
-### AddChordモーダルの記号過剰
-状態: 部分対応
-内容: `+` と `×` が多く見づらい・冗長。insertion cursor化・hover-only削除ボタンは対応済み。
-残作業: 繰り返し回数「×N回」と削除「×」の視覚的衝突が未対応。
-
-### 中央パネルの繰り返し表示
-状態: 未対応
-内容: 繰り返し回数「×N回」と削除ボタン「×」が視覚的に衝突して紛らわしい。記号・デザインの見直しが必要
-
 ### 演奏モードの繰り返し表示
 状態: 未対応
 内容: 繰り返しが行の下に表示されて見づらく、「×N回」表記も削除操作との視覚的衝突がある。Simile記号（𝄋）の使用を検討
@@ -143,7 +112,7 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 
 ## 4. 既知の技術的負債
 
-- `components.css` の `.mac-insert-btn.active` 系（`--color-accent` 未定義問題と紐付き・意図的保留）
+- `chord-entry.css`（Phase86でcomponents.cssから分離）の `.mac-insert-btn.active` 系（`--color-accent` 未定義問題と紐付き・意図的保留）
 - `idb.js` は最低構成（GC・schema migration・compression なし）。asset種類追加時は
   key形式 `${projectId}:${type}` に新typeを追加。schema変更時は `DB_VERSION` を
   インクリメントして `onupgradeneeded` を更新すること
@@ -167,6 +136,9 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 - 保存データ復元のschema versioning未実装（restore ordering contractは確立済み
   だが、schema versioning / migration layerは未定義のまま。isRestoreフラグ・
   endTime付与で止血済み。正式なinvariant validationは今後の課題）
+- `.library-sort-select`（HTML上のclass属性）にCSSルールが存在しない
+  （Phase86棚卸しで発見）。実際のスタイルは `.library-toolbar select`
+  という子孫セレクタから効いているため実害なし。低優先度。
 
 ---
 
@@ -223,13 +195,6 @@ boundaryはまだ新しく、着手前に設計フェーズを必ず挟むこと
 内容: 検索モード中のBoundary Handle非表示/減光、再生停止中のPlayhead淡色化などの案。
 現時点では「改善アイデア」の段階。
 
-#### Capo-aware Editing（表示コードでの検索・編集）
-状態: 独立フェーズ候補
-内容: 現在は画面にはCapo変換後のコード（表示音）が見えているのに、編集入力は
-buffer側の実音で行う必要があり、認知負荷がある。表示コードのままで編集・検索
-できるようにする。Analysis Editorの編集モデルの完成に関わる機能のため、
-着手前に仕様確認フェーズを必ず挟むこと。
-
 #### カポ範囲拡張（-2 まで対応）
 内容: 現在カポは 0〜11 の範囲のみ。半音下げチューニング用途で -2 まで対応できるようにする。
 
@@ -284,15 +249,27 @@ Editor→Chartまで実現すると完全な双方向同期になり、「誰が
 （architecture.md §13）を再設計する必要が生じる。architecture.mdの
 書き換えを伴う規模のため、着手前に必ず独立した設計フェーズを設けること。
 
-#### CSS再構成（components.css肥大化 / Theme system cleanup統合）
-内容: Phase55〜80のDecorator Layer等の追加により、components.css / theme.cssへの
-書き込みが大量に蓄積している。ui-rules.md のtoken階層ルールに沿っているかの再監査が必要。
-整理候補:
+#### CSS再構成（残タスク・theme system cleanup）
+状態: 一部完了（Phase86でモジュール所有権ベースの分割完了）
+内容: components.cssの肥大化は、Phase86（Sprint A）で
+chart.css / analysis-editor.css / library.css / chord-entry.css /
+modal.css / tapmode.css の6ファイルへ分離済み（分割基準はarchitecture.md
+§3「CSS ownership」参照）。`--color-blue-rgb`のsilver/blue欠落も
+Phase86で修正済み。
+
+残タスク:
 - `--color-edit-point-bg` が現在未使用
-- silverテーマの `--color-green-rgb` が未定義（Phase78のamber-rgb修正と同種のパターン）
+- silverテーマの `--color-green-rgb` が未定義（Phase78のamber-rgb修正・
+  Phase86の--color-blue-rgb欠落と同種のパターン。今回は対象外としたため
+  引き続きopen）
 - theme.css の selector override 増殖（blue themeの text-secondary設定ミスはPhase79で
   修正済みだが、同種の問題が他にも潜んでいる可能性）
-本格的なCSS再構成フェーズを設けて実施する。
+- components.cssに残る35ブロック（`.speed-cluster`等・複数モジュール共有／
+  所有権未確定）の再監査
+- `.perform-options`のスタイルがcomponents.css/layout.css/perform.cssの
+  3ファイルに分散（Phase86で発見・実害なし）
+- `.scope-selector`（replace.js所有と推定）の所属未確定。replace.js取得後に確定
+
 
 #### CHORD_DB再構造化
 目的: コードDBの構造見直し・検索効率改善

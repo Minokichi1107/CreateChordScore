@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase80完了時点
+> 最終更新: Phase86完了時点
 
 ---
 
@@ -11,15 +11,16 @@ Completed（完了済み）
 ---------------------
 ✓ Project Repository（IndexedDB・Library UI・Restore Authority）
 ✓ Chart Mode（Timing Pipeline・Pickup Projection・Playback Authority）
-✓ Analysis Editor（単一編集・複数編集・Position Editing・Decorator Layer）
-✓ Search Engine（検索・置換）
+✓ Analysis Editor（単一編集・複数編集・Position Editing・Decorator Layer・
+  Search Engine・Chord Projection API・Representation Translation Layer）
+✓ ドキュメント棚卸し + 再構成（Phase81）
+✓ UI視認性・記号衝突修正（Phase85）
+✓ CSS Ownership Split（Phase86・components.cssをモジュール所有権別6ファイルへ分離）
 
-Current Work（現在の作業: Phase81 ドキュメント棚卸し + UI仕上げ）
+Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」参照）
 ------------------------------------------------------------
-- README.md / architecture.md 更新（完了）
-- phase-status.md / current-issues.md 更新（進行中）
-- 不要ファイル・ディレクトリの整理（完了）
-- 必要なら軽微なUI調整
+Phase82〜86が完了し、5フェーズ棚卸し（本更新）を実施済み。
+次の主候補はSprint B（app.js → analysisSession.js抽出）。
 ```
 
 ---
@@ -63,6 +64,9 @@ Current Work（現在の作業: Phase81 ドキュメント棚卸し + UI仕上�
 | 78 | Footer UI刷新（deriveEditorMode・4 Groups構成） |
 | 79 | Decorator Layer完成（Selection Highlight・Boundary Handle・EditPoint Marker） |
 | 80 | Search Engine（検索・置換） |
+| 82 | Chord Projection API確立（`toDisplayChord()`/`toCanonicalChord()`・Capo Projection Boundary） |
+| 83 | Chart Mode編集UX改善（Enter⇔Rename分岐）・検索IME正規化・検索case-sensitive化 |
+| 84 | Representation Translation Layer確立（`toReadableChord()`/`fromReadableChord()`・ChordMini生表記の吸収） |
 
 ### 基盤・アーキテクチャ整理
 
@@ -74,6 +78,9 @@ Current Work（現在の作業: Phase81 ドキュメント棚卸し + UI仕上�
 | 28〜31 | CSS責務分離完成 |
 | 39 | token stream設計・chordEntry.js切り出し |
 | 44 | Token Semantic Stabilization |
+| 81 | ドキュメント棚卸し + 再構成（README/architecture/phase-status/current-issues全面整理） |
+| 85 | UI視認性・記号衝突修正（Blue theme fret色・Repeat badge記号衝突解消） |
+| 86 | **CSS Ownership Split**（components.cssをchart/analysis-editor/library/chord-entry/modal/tapmodeの6ファイルへ分離。分割基準は「DOMを生成するモジュールの所有権」。architecture.md §3参照） |
 
 ---
 
@@ -84,9 +91,6 @@ Current Work（現在の作業: Phase81 ドキュメント棚卸し + UI仕上�
 ### Future Features（新機能・優先順位未定）
 
 ```
-・Capo-aware Editing（表示コードでの検索・編集）
-  設計インパクトが大きいため独立フェーズとして仕様確認から着手
-
 ・Boundary Handleのドラッグ操作
 ```
 
@@ -100,6 +104,15 @@ Current Work（現在の作業: Phase81 ドキュメント棚卸し + UI仕上�
   （検索結果クリック限定分はPhase80で実装済み）
 
 ・Boundary Handle / Playheadの表示条件見直し（検索モード中の減光等）
+
+・CSS再構成の残タスク（Phase86でモジュール分割は完了。
+  silverの--color-green-rgb欠落・components.css残置35ブロックの
+  再監査等は引き続きopen。詳細はcurrent-issues.md参照）
+
+・Sprint B（app.js → analysisSession.js / analysisCommands.js抽出）
+  DOM操作を含まない部分は抽出可能と確認済み（Phase86棚卸し）。
+  _activateSearchMatch()はaEl.currentTimeを直接操作するため
+  完全pureにできず、コールバック注入方針を着手時に決定する
 ```
 
 ### Watch List（継続監視中・原因未特定）
@@ -299,6 +312,52 @@ Current Work（現在の作業: Phase81 ドキュメント棚卸し + UI仕上�
 - searchChords()（pure function）・Engine/UI層分離
 - Search Highlightの色調整3回の末に「新色を増やさない」方針へ収束
 - [DECORATOR VISUAL LANGUAGE PRINCIPLE] をSearch Engineにも適用し確立を再確認
+
+</details>
+
+<details>
+<summary>Phase81-86 を展開</summary>
+
+#### Phase81 — ドキュメント棚卸し + 再構成
+- docs/prompts/削除・docs/draft/docs/testing/をlegacy/へ仕分け
+- README.md全面更新（読み始めガイド新設）・architecture.md §0新設
+- phase-status.md/current-issues.mdを機能索引型・5分類型へ再構成
+
+#### Phase82 — Analysis Editor Chord Projection Boundary
+- `toDisplayChord()` / `toCanonicalChord()`（chords.js）新設
+- Footer/Rename/AddChord/Search/Replaceの5経路をProjection API経由に統一
+- バグ修正: `capo`未取得によるグローバル変数フォールバック事故
+
+#### Phase83 — Chart Mode編集UX改善 + 検索バグ修正
+- 単一選択中のEnterでRename分岐追加・ダイアグラムモーダル誤クローズ修正
+  （mousedown+click両方が背景要素上の場合のみ閉じる方式へ）
+- 検索IME正規化・検索case-sensitive化（m7/M7区別の原則に統一）
+- Findings: `sanitizeChords()`とchords.jsの同名`normalizeChordName()`の
+  混同を発見・整理。ChordMini生表記漏れ（Representation Layer未整備）を発見
+
+#### Phase84 — Representation Translation Layer
+- `loadReplacementMap()` / `toReadableChord()` / `fromReadableChord()`新設
+- Findings: `transposeChord()`が度数ベースのオンコード表記を正しく移調できない
+  ことを実装確認で発見。表示方向・検索方向の変換順序を訂正
+  （表示=P(R(x)) の逆関数関係から検索方向の誤りを実証）
+
+#### Phase85 — UI視認性・記号衝突修正
+- Blue theme `--diag-stroke` を暗色に修正・Repeat badge記号衝突解消
+  （「×N回 ✕」→「N回 ✕」・区切り線でラベルと削除操作を分離）
+- [DECORATOR VISUAL LANGUAGE PRINCIPLE]と同じ原則をeditor.js側にも適用
+
+#### Phase86 — CSS Ownership Split（Sprint A）+ トークン正規化
+- CSS棚卸し: components.css全131セレクタの所有モジュールを実参照ベースで確定
+- トークン正規化: `--color-blue-rgb`のsilver/blue欠落を修正・未使用トークン3件削除
+- **CSS分割の原則を確立**: 「分割単位はDOMを生成するモジュールの所有権で決める。
+  見た目の種類では決めない」（architecture.md §3参照）
+- components.cssを chart.css / analysis-editor.css / library.css /
+  chord-entry.css / modal.css / tapmode.css の6ファイルへ分離
+- Findings: 複数行コメントの解析バグを機械分割スクリプトの試作時に自己発見・修正。
+  「分解→再結合→原本と完全一致」を検証してから本番分割を実行する手順を確立
+- TAP mode 404はブラウザキャッシュが原因と判明（ファイル・分割自体は健全）
+
+</details>
 
 ---
 
