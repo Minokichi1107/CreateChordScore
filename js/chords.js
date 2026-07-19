@@ -457,6 +457,21 @@ export function showCapoInfo(displayChord, capo){
 // [SCOPE]
 //   コード名（chord文字列）のProjectionのみを担当する。
 //   id / duration / timing等を含むChordオブジェクト全体の変換は行わない。
+//
+// [REPRESENTATION BEFORE PROJECTION]（Phase84）
+//   Representation LayerはCapo Projectionより前に適用する。
+//   理由:
+//   - replacementMapは表示名辞書であり、Capoを知らない。
+//   - transposeChord()（本APIの実体）はオンコードのベース音を
+//     音名（A-G）としてしか移調できない。ChordMini生表記の
+//     度数ベース（例: "Emaj/3"の"3"）はこの正規表現にマッチせず、
+//     無変換のまま素通りしてしまう。
+//   - そのため toDisplayChord() / toCanonicalChord() は、
+//     Representation変換済み（音名表記）の文字列を入力として期待する。
+//
+//   表示方向: canonical → toReadableChord() → toDisplayChord() → 画面
+//   検索方向: 画面入力 → toCanonicalChord() → fromReadableChord() → buffer比較
+//   （表示と検索は完全な逆関数の関係。順序を入れ替えないこと）
 
 /** 実音（canonical）→ 表示コード名。capo=0は無変換で返す。 */
 export function toDisplayChord(chord, capo) {
@@ -468,6 +483,66 @@ export function toDisplayChord(chord, capo) {
 export function toCanonicalChord(chord, capo) {
   if (!capo) return chord;
   return transposeChord(chord, capo);
+}
+
+// ════════════════════════════════════════
+// REPRESENTATION TRANSLATION LAYER（Phase84）
+// ════════════════════════════════════════
+//
+// [SCOPE]
+//   ChordMini内部表記（度数ベース。例: "Emaj/3"）↔ 人間向け表記
+//   （音名ベース。例: "E/G#"）の変換のみを担当する。Capoは一切関与しない。
+//
+// [AUTHORITY]
+//   replacementMapのロードは app.js（起動フロー）のみが loadReplacementMap()
+//   を呼ぶことで行う。他モジュールは toReadableChord() / fromReadableChord()
+//   の存在だけを知っていればよい。
+//
+// [FAILSAFE]
+//   未ロード時は素通し（raw表記のまま返す）。
+//   逆引き衝突時（複数のcanonicalが同じreadableへ変換される）は
+//   先勝ちで確定し、console.warnのみ（例外は投げない・検索精度が
+//   1件だけ低下する程度の縮退に留める）。
+
+let _repMap = null;
+let _repMapReverse = null;
+
+/**
+ * loadReplacementMap — replacementMap.jsonを読み込み、順引き・逆引き双方を構築する
+ *
+ * 呼び出し元はapp.jsの起動フローのみ（Authority集約のため）。
+ * @returns {Promise<void>}
+ */
+export async function loadReplacementMap() {
+  try {
+    const res = await fetch('/resource/analysis/replacementMap.json');
+    _repMap = res.ok ? await res.json() : {};
+  } catch {
+    _repMap = {};
+  }
+
+  _repMapReverse = {};
+  for (const [canonical, readable] of Object.entries(_repMap)) {
+    if (Object.prototype.hasOwnProperty.call(_repMapReverse, readable)) {
+      // [先勝ち縮退] 1対多の逆引き衝突。データ破壊ではなく表記揺れのため、
+      // 例外は投げず警告のみに留める（既知の衝突: Bbmaj/3 / A#maj/3 → A#/D）。
+      console.warn(`[fromReadableChord] 逆引き衝突: "${readable}" ← "${_repMapReverse[readable]}" / "${canonical}"（先勝ちを採用）`);
+      continue;
+    }
+    _repMapReverse[readable] = canonical;
+  }
+}
+
+/** Canonical（ChordMini生表記）→ Readable（人間向け表記）。未ロード時は素通し。 */
+export function toReadableChord(chord) {
+  if (!_repMap) return chord;
+  return _repMap[chord] ?? chord;
+}
+
+/** Readable（人間向け表記）→ Canonical（ChordMini生表記）。未ロード時は素通し。 */
+export function fromReadableChord(chord) {
+  if (!_repMapReverse) return chord;
+  return _repMapReverse[chord] ?? chord;
 }
 
 // ════════════════════════════════════════

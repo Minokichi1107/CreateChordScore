@@ -25,11 +25,11 @@
  *   analysis.raw.sections  → セクション構造（verse / chorus 等）
  *   これらが追加されても本ファイルで normalize する経路は変わらない。
  *
- * 【normalize pipeline】
+ * 【normalize pipeline】（Phase84更新）
  *   raw.chords
- *     ↓ sanitizeChords()   入力整形（null除去・数値補正）
- *     ↓ normalizeChordName() 意味変換（replacementMap適用）
- *     ↓ analysis.chords    UI/timing/chartが参照
+ *     ↓ sanitizeChords()      入力整形（null除去・数値補正）
+ *     ↓   └ toReadableChord() 意味変換（replacementMap適用・chords.js委譲）
+ *     ↓ analysis.chords       UI/timing/chartが参照
  *   raw は不変。normalizeルール変更時も raw から再生成可能。
  *
  * 【呼び出し元】
@@ -90,56 +90,22 @@ function sanitizeTimestamps(raw) {
 }
 
 // ────────────────────────────────────────
-// replacementMap（chord名正規化辞書）
-// ────────────────────────────────────────
-
-/**
- * replacementMap
- *
- * resource/analysis/replacementMap.json を fetch して返す。
- * fetch は loadAnalysis() 呼び出し時に行う（lazy loading）。
- * 失敗した場合は空オブジェクト（normalize スキップ）。
- *
- * @returns {Promise<object>}
- */
-async function fetchReplacementMap() {
-  try {
-    const res = await fetch('/resource/analysis/replacementMap.json');
-    if (!res.ok) return {};
-    return await res.json();
-  } catch {
-    return {};
-  }
-}
-
-// module-level cache（同一セッション内で再 fetch しない）
-let _replacementMap = null;
-
-/**
- * normalizeChordName
- *
- * replacementMap を使って chord 名を正規化する。
- * - replacementMap に存在する → 置換後の名前を返す
- * - 存在しない → 元の名前をそのまま返す
- *
- * sanitize（入力整形）とは分離した責務。
- * sanitize: null除去・数値補正
- * normalize: 意味変換（非正規表記 → 正規表記）
- *
- * @param {string} name
- * @returns {string}
- */
-function normalizeChordName(name) {
-  if (!_replacementMap) return name;
-  return _replacementMap[name] ?? name;
-}
-
-// ────────────────────────────────────────
 // chords sanitize
 // ────────────────────────────────────────
+//
+// [Phase84] replacementMapによるchord名変換（ChordMini生表記 → 人間向け表記）は
+// chords.js の Representation Translation Layer（toReadableChord）へ委譲する。
+// このファイルは以前ローカルに同名の normalizeChordName() を持っていたが、
+// chords.js側の normalizeChordName()（alias統合。別の関心事）と紛らわしいため
+// 廃止し、責務ごとに1つのAPIへ一本化した（Phase83で発覚した混同の教訓）。
+// replacementMapのロード・Authorityは chords.js の loadReplacementMap()
+// （app.js起動フローが呼ぶ）が持つ。このファイルはconsumerに徹する。
+
+import { toReadableChord } from './chords.js';
 
 /**
- * analysis.raw.chords を sanitize する。
+ * analysis.raw.chords を sanitize する（ingestion orchestration）。
+ * readable translation は toReadableChord()（chords.js）に委譲する。
  * - 非配列 → []
  * - chord 文字列がない item を除去
  * - start / end: 非有限・負値 → 0 に補正
@@ -171,7 +137,7 @@ export function sanitizeChords(raw) {
         ? Math.min(1, Math.max(0, item.confidence))
         : 0;
 
-      const result = { chord: normalizeChordName(item.chord), start, end, confidence };
+      const result = { chord: toReadableChord(item.chord), start, end, confidence };
       // _id は永続フィールド。既存値があれば引き継ぐ（sanitize段階では再付与しない）。
       if (typeof item._id === 'string') result._id = item._id;
       return result;
@@ -286,10 +252,9 @@ import { buildNormalizedTimingAnalysis } from './timing.js';
  * @returns {object|null}
  */
 export async function loadAnalysis(analysis) {
-  // replacementMap を初期化（初回のみ fetch）
-  if (_replacementMap === null) {
-    _replacementMap = await fetchReplacementMap();
-  }
+  // [Phase84] replacementMapのロードは app.js 起動フローが loadReplacementMap()
+  // （chords.js）で行う。このファイルはconsumer（toReadableChord経由）のため、
+  // ここでの初期化は不要（未ロードでもtoReadableChord()が素通しでフェイルセーフする）。
 
   // ── structural check ──────────────────
   // analysis 自体がない → null（beat解析未実行等、正常ケースを含む）
