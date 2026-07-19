@@ -171,8 +171,8 @@ input[type=file]{display:none}
 /* LINE ROWS */
 .line-row{display:grid;grid-template-columns:28px 76px 1fr;margin-bottom:2px;border-radius:var(--r-md);transition:background .1s;position:relative;min-width:0}
 .line-row:hover{background:var(--surface-raised)}
-.line-row.active-line{background:rgba(79,158,255,.08)}
-.line-row.tap-flash{background:rgba(61,220,132,.15);transition:background 0s}
+.line-row.active-line{background:rgba(var(--color-blue-rgb),.08)}
+.line-row.tap-flash{background:rgba(var(--color-green-rgb),.15);transition:background 0s}
 .line-num{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);padding:10px 3px 6px 5px;text-align:right;align-self:start;user-select:none}
 .line-time{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);padding:10px 5px 6px;cursor:pointer;align-self:start;white-space:nowrap;transition:color .15s;background:none;border:none}
 .line-time:hover{color:var(--text-accent)}
