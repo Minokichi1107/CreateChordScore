@@ -220,8 +220,9 @@ body.diag-off .chord-tag:hover{cursor:default}
 
 .repeat-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(255,184,64,.1);border:1px solid rgba(255,184,64,.4);border-radius:4px;color:var(--color-amber);font-family:var(--font-mono);font-size:12px;font-weight:600;padding:4px 8px;cursor:pointer;transition:all .12s;user-select:none;white-space:nowrap}
 .repeat-badge:hover{background:rgba(255,184,64,.2)}
-.rb-del{font-size:14px;color:rgba(255,184,64,.5);padding:1px 4px;border-radius:2px;transition:all .12s;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:20px;min-height:20px}
-.rb-del:hover{color:var(--color-red);background:rgba(255,92,92,.15)}
+.repeat-badge .repeat-count{font-variant-numeric:tabular-nums}
+.repeat-badge .repeat-unit{font-size:10px;opacity:.7;margin-right:2px}
+.rb-del{font-size:14px;color:rgba(255,184,64,.5);padding:1px 4px;margin-left:3px;padding-left:6px;border-left:1px solid rgba(255,184,64,.3);border-radius:2px;...}.rb-del:hover{color:var(--color-red);background:rgba(255,92,92,.15)}
 
 .lyric-input{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text-primary);font-family:var(--font-sans);font-size:14px;line-height:1.6;padding:2px 8px 2px 10px;width:100%;transition:border-color .15s}
 .lyric-input:focus{outline:none;border-bottom-color:var(--border-ui-strong)}

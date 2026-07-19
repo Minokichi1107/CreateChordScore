@@ -167,7 +167,7 @@ export function renderLines(lines, uiState, callbacks) {
     if (line.repeat) {
       const badge = document.createElement('span');
       badge.className = 'repeat-badge';
-      badge.innerHTML = `<span>× ${line.repeat.count}</span><span style="font-size:10px;opacity:.7">回</span><span class="rb-del" title="削除">✕</span>`;
+      badge.innerHTML = `<span class="repeat-count">${line.repeat.count}</span><span class="repeat-unit">回</span><span class="rb-del" title="削除">✕</span>`;
       badge.querySelector('.rb-del').addEventListener('click', e => {
         e.stopPropagation();
         onRepeatDelete(idx);

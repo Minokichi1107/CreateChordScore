@@ -640,7 +640,7 @@ body[data-theme="blue"] {
   --text-perform-title:         #ffffff;
   --opacity-perform-line:      0.62;  /* [SAFE] 演奏モード非フォーカス行 */
   --opacity-perform-line-near: 0.82;  /* [SAFE] 演奏モード近接行 */
-  --diag-stroke: #c8e0f8;             /* [SAFE] ダイアグラム弦線・ナット・フレット番号色 */
+  --diag-stroke: #1c3854;  /* Phase85修正: silverと同様、明背景のためtext-secondaryと同値の暗色に統一 *//* [SAFE] ダイアグラム弦線・ナット・フレット番号色 */
 
   /* --- logo --- */
   --text-logo:      #0a2040;
