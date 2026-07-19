@@ -92,6 +92,9 @@ import {
   transposeChord,
   toDisplayChord,
   toCanonicalChord,
+  toReadableChord,
+  fromReadableChord,
+  loadReplacementMap,
   normalizeChordInput,
   normalizeChordName,
   findChord,
@@ -1533,7 +1536,10 @@ function addChordAtEditPoint() {
   const capo = getCapo();
   showChordSelector({
     title: 'コードを追加',
-    initialChord: toDisplayChord(owner.chord, capo),
+    // [Phase84] 初期表示のみRepresentation→Projectionの順で適用。
+    // 選択結果(selected.name)は新規に選ばれた値であり、Representation変換は
+    // 不要（Rename等と同じ書き込み経路。設計上の理由はhandover_phase84参照）。
+    initialChord: toDisplayChord(toReadableChord(owner.chord), capo),
     onSelect: (selected) => {
       const newId = splitChord(owner._id, splitTime);
       if (!newId) { toast('この位置には追加できません（時間が足りません）'); return; }
@@ -1607,7 +1613,8 @@ function openChordRenameSelector(chord) {
   const capo = getCapo();
   showChordSelector({
     title: 'コード名を変更',
-    initialChord: toDisplayChord(chord.chord, capo),
+    // [Phase84] 初期表示のみRepresentation→Projectionの順で適用（書き込み側は変更なし）。
+    initialChord: toDisplayChord(toReadableChord(chord.chord), capo),
     onSelect: (selected) => {
       updateChord(chord._id, { chord: toCanonicalChord(selected.name, capo) });
       // [NOTE] 変更は既存コードの上書きのみ。buffer長は変わらないため
@@ -1901,11 +1908,16 @@ function _refreshEditorView() {
   if (analysisEditor.search.open) {
     // [Phase82] search.queryは表示名。Engine（searchChords）は実音のみを扱うため
     // ([SEARCH-1]〜[SEARCH-5]準拠)、ここで唯一の変換を行う。
-    // [Phase83] IME入力等で混入する全角文字をnormalizeChordInput()で正規化してから
-    // toCanonicalChord()に渡す（入力正規化 → 表示⇔Canonical変換 → 検索、の3層）。
+    // [Phase83] IME入力等で混入する全角文字をnormalizeChordInput()で正規化。
+    // [Phase84] 表示方向が canonical→toReadableChord→toDisplayChord の順である
+    // ため、逆方向（検索）は必ずその逆順で戻す：
+    //   normalizeChordInput() → toCanonicalChord()（Capoを戻す）
+    //   → fromReadableChord()（Representationを戻す）
+    // 順序を入れ替えると、Capo適用時のオンコード検索がbufferと一致しなくなる
+    // （[REPRESENTATION BEFORE PROJECTION]・chords.js参照）。
     analysisEditor.search.matches = searchChords(
       analysisEditor.buffer,
-      toCanonicalChord(normalizeChordInput(analysisEditor.search.query), getCapo())
+      fromReadableChord(toCanonicalChord(normalizeChordInput(analysisEditor.search.query), getCapo()))
     );
     if (analysisEditor.search.activeIndex !== null
         && analysisEditor.search.activeIndex >= analysisEditor.search.matches.length) {
@@ -2148,11 +2160,13 @@ function renderAnalysisEditorPanel() {
     const time = getTimeForGridPosition(selection.editPoint.measureIndex, selection.editPoint.slotIndex);
     // [Phase78 Sprint1 バグ修正] Layer4 Projection漏れ。owner.chordを生のまま表示していたため
     // capo設定時にグリッド表示（変換後）とラベル（生データ）で異なるコード名が出ていた。
-    const ownerName = owner ? toDisplayChord(owner.chord, capo) : '不明';
+    // [Phase84] Representation（toReadableChord）→ Projection（toDisplayChord）の順で適用。
+    const ownerName = owner ? toDisplayChord(toReadableChord(owner.chord), capo) : '不明';
     selectionInfo = `<span class="aep-chord-info">${owner ? `${ownerName} の途中（${time != null ? time.toFixed(3) : '?'}秒）` : '不明な位置'}</span>`;
   } else if (mode === 'single') {
     // [Phase78 Sprint1 バグ修正] 同上。chord.chordを生のまま表示していた。
-    selectionInfo = `<span class="aep-chord-name">${toDisplayChord(chord.chord, capo)}</span>
+    // [Phase84] Representation→Projectionの順で適用。
+    selectionInfo = `<span class="aep-chord-name">${toDisplayChord(toReadableChord(chord.chord), capo)}</span>
       <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>`;
   } else if (mode === 'multi') {
     selectionInfo = `<span class="aep-chord-info">${selectedIds.length}コード選択中</span>`;
@@ -2266,7 +2280,8 @@ function renderAnalysisEditorPanel() {
     const splitTime = (chord.start + chord.end) / 2;
     showChordSelector({
       title: 'コードを追加',
-      initialChord: toDisplayChord(chord.chord, capo),
+      // [Phase84] 初期表示のみRepresentation→Projectionの順で適用。
+      initialChord: toDisplayChord(toReadableChord(chord.chord), capo),
       onSelect: (selected) => {
         const newId = splitChord(selectedId, splitTime);
         if (!newId) return;  // 万一splitTimeが不正だった場合は何もしない
@@ -4968,6 +4983,14 @@ rebuildChartViewModel();
   loadCustomDiagrams();
   const curDiagChord = document.getElementById('diag-in').value.trim();
   if(curDiagChord) showDiagramPanel(curDiagChord, getCapo(), getDiagCallbacks());
+
+  // [Phase84] Representation Layer（chords.js）の唯一のロード地点。
+  // restoreLastProjectOnStartup() の中で loadAnalysis() → sanitizeChords()
+  // → toReadableChord() が呼ばれるため、その前に完了させる。
+  // 他モジュールはロード状態を意識せず toReadableChord() / fromReadableChord()
+  // を呼ぶだけでよい（未ロード時は素通しのフェイルセーフがあるため、
+  // 万一失敗してもcrashしない）。
+  await loadReplacementMap();
 
   await restoreLastProjectOnStartup();
   refreshEditor();
