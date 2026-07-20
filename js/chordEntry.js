@@ -540,10 +540,20 @@ export function showChordSelector({
         });
 
         inp.addEventListener('keydown', e => {
+          // [Bug fix] Enter確定 → commit() → _closeModal()がinput要素をDOMから
+          // 削除するため、この直後にactiveElementがbodyへ移り、かつmodal-ovの
+          // 'open'クラスも外れる。この同じEnterイベントがdocument側のグローバル
+          // keydownハンドラまでbubbleすると、両方のガード
+          //（modal-ov openチェック / activeElement tagチェック）が既に無効化された
+          // 状態で判定されてしまい、editorMode==='single'の場合に
+          // openChordRenameSelector()が即座に再オープンされる不具合があった。
+          // stopPropagation()でこのイベント自体をここで消費し、
+          // document側へ伝播させないことで解消する。
           if (e.key === 'Escape') { onCancel?.(); _closeModal(); return; }
           if (e.key === 'Enter') {
             if (e.isComposing || justComposed) return;
             e.preventDefault();
+            e.stopPropagation();
             commit(inp.value.trim());
           }
         });
