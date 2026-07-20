@@ -1,0 +1,203 @@
+/**
+ * analysisSession.js — Analysis Editor Session Authority（Phase86-2 Sprint B）
+ *
+ * [SCOPE] このモジュールは analysisEditor state（buffer/history/future/selection）
+ * に対する純粋な mutation のみを担当する。
+ *
+ * [INVARIANT] このファイルはDOM・audio・Chart Mode runtimeに一切触れない。
+ * renderAnalysisEditor() / _refreshEditorView() / setSelectedChordIds() /
+ * setBoundaryHandleTarget() / setEditPointMarker() / setSearchMatches() /
+ * aEl.currentTime 等の呼び出しはすべてapp.js側（呼び出し元）の責務とする。
+ *
+ * [INVARIANT] Undo/Redoの既存semantics（history/future の past/future stack方式）
+ * は変更しない。historyIndex方式へは変更しない。
+ *
+ * 責務の境界（Phase86-2で確立）:
+ *   analysisSession.js → 「状態を変える」
+ *   app.js              → 「変わった状態を画面へ投影する」
+ */
+
+/**
+ * createAnalysisSession — analysisEditor の初期状態オブジェクトを生成する
+ */
+export function createAnalysisSession() {
+  return {
+    active:    false,  // 編集モード中かどうか
+    buffer:    null,   // ChordEvent[]（_id付き）の作業コピー
+    history:   [],     // Undo用スナップショットスタック
+    future:    [],     // Redo用スナップショットスタック
+    selection: { chordIds: [], boundaryIndex: null, anchorChordId: null, editPoint: null },
+    clipboard: null,   // Phase74-E（コピー＆ペースト）用・現在未使用
+    dirty:     false,  // 未保存変更フラグ
+    search: { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false },
+  };
+}
+
+/**
+ * resetSessionFields — session の各フィールドを初期状態へ戻す（純粋・副作用なし）
+ *
+ * [NOTE] app.js側の resetAnalysisEditor() はこの関数を呼んだ後、
+ * setSearchMatches([]) と _refreshSelection([]) を追加で呼ぶ
+ * （Decorator/UI Projection側の同期はapp.js側の責務のため、ここでは行わない）。
+ */
+export function resetSessionFields(session) {
+  session.active    = false;
+  session.buffer    = null;
+  session.history   = [];
+  session.future    = [];
+  session.clipboard = null;
+  session.dirty     = false;
+  session.search    = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
+}
+
+/**
+ * pushHistory — 編集操作前のスナップショットをhistoryへ積む（純粋）
+ *
+ * [INVARIANT] すべての編集API（updateChord/deleteChord/shiftAll等）は
+ * buffer書き換えの直前に必ずこれを呼ぶこと。
+ * 新規編集が発生したら future（Redoスタック）は破棄する。
+ */
+export function pushHistory(session) {
+  session.history.push(structuredClone(session.buffer));
+  session.future = [];
+  session.dirty = true;
+}
+
+/**
+ * undoBuffer — history⇄buffer の入替のみを行う（純粋。描画・selection同期は呼び出し元の責務）
+ * @returns {boolean} 入替が行われたか（historyが空ならfalse）
+ */
+export function undoBuffer(session) {
+  if (!session.history.length) return false;
+  session.future.push(structuredClone(session.buffer));
+  session.buffer = session.history.pop();
+  return true;
+}
+
+/**
+ * redoBuffer — future⇄buffer の入替のみを行う（純粋。描画・selection同期は呼び出し元の責務）
+ * @returns {boolean} 入替が行われたか（futureが空ならfalse）
+ */
+export function redoBuffer(session) {
+  if (!session.future.length) return false;
+  session.history.push(structuredClone(session.buffer));
+  session.buffer = session.future.pop();
+  return true;
+}
+
+/**
+ * selectRange — Shift+クリックによる範囲選択のstate計算（純粋・Phase86-2でapp.jsから移植）
+ *
+ * anchorChordIdからtargetChordIdまでのbuffer上の連続区間を選択する。
+ * 逆順（後ろ→前へのShiftクリック）にも対応する（内部で時系列順に正規化される）。
+ *
+ * [NOTE] anchorが見つからない場合（bufferから消えている等）は、
+ * 通常クリックと同じ単一選択にフォールバックする。
+ *
+ * @param {object} session
+ * @param {string} anchorChordId
+ * @param {string} targetChordId
+ */
+export function selectRange(session, anchorChordId, targetChordId) {
+  const buffer = session.buffer;
+  const i1 = buffer?.findIndex(c => c._id === anchorChordId) ?? -1;
+  const i2 = buffer?.findIndex(c => c._id === targetChordId) ?? -1;
+
+  if (i1 === -1 || i2 === -1) {
+    refreshSelection(session, [targetChordId], targetChordId);
+    return;
+  }
+
+  const lo = Math.min(i1, i2);
+  const hi = Math.max(i1, i2);
+  const ids = buffer.slice(lo, hi + 1).map(c => c._id);
+  // anchorChordIdは明示せず省略する → 既存anchor（hi/lo内に含まれる）を維持
+  refreshSelection(session, ids);
+}
+
+/**
+ * setEditPointFields — editPoint（挿入位置）確定のstate書き換えのみを行う（純粋）
+ *
+ * [NOTE] ownerId解決（空セルクリック時のbuffer検索・toast通知）と、
+ * 呼び出し後のUI同期（setSelectedChordIds([])・_refreshEditorView()）は
+ * app.js側の責務（Chart Mode runtime / DOM に依存するため）。
+ *
+ * chordIdsとeditPointは排他。_refreshSelection([])経由ではなく直接クリアする
+ * （refreshSelection()を呼ぶとeditPoint自体も道連れでクリアされるため）。
+ *
+ * @param {object} session
+ * @param {string} ownerId - 解決済みのオーナーコードid
+ * @param {number} measureIndex
+ * @param {number} slotIndex
+ */
+export function setEditPointFields(session, ownerId, measureIndex, slotIndex) {
+  session.selection.chordIds = [];
+  session.selection.boundaryIndex = null;
+  session.selection.anchorChordId = null;
+  session.selection.editPoint = { ownerId, measureIndex, slotIndex };
+}
+
+/**
+ * clearEditPointField — editPointをnullへ戻す（純粋）
+ * @returns {boolean} 変化があったか（既にnullならfalse）
+ */
+export function clearEditPointField(session) {
+  if (session.selection.editPoint === null) return false;
+  session.selection.editPoint = null;
+  return true;
+}
+
+/**
+ * refreshSelection — selectionの唯一の同期窓口（Phase76-Aで複数選択対応に拡張・Phase86-2で移植）
+ *
+ * selectionは派生状態。chordIds（と明示されたanchorChordId）だけが入力であり、
+ * boundaryIndex・実際に反映されるchordIds・anchorChordIdの解決は必ずここで行う
+ * （他の場所で直接書き換えない）。
+ *
+ * [INVARIANT] chordIdsはbuffer上の時系列順に正規化して格納する
+ * （逆順クリックで渡された場合も並び替える）。
+ * [INVARIANT] boundaryIndexは単一選択・複数選択のどちらでも意味を持つ
+ * （選択範囲の左側の境界）。選択範囲が曲の先頭を含む場合はnull。
+ * [INVARIANT] この関数はDOM・audio・Chart Mode runtimeに一切触れない
+ * （renderAnalysisEditor() / setSelectedChordIds() 等は呼ばない）。
+ *
+ * @param {object} session - analysisEditor state
+ * @param {string[]} [chordIds] - 新しい選択として確定するID配列。
+ *   省略時は今のchordIdsをbufferと照合し直すだけ（Undo/Redo/削除後の再同期用）。
+ * @param {string|null} [anchorChordId] - 範囲選択の起点を明示的に設定したい場合のみ指定する。
+ */
+export function refreshSelection(session, chordIds, anchorChordId) {
+  const ids = chordIds !== undefined ? chordIds : session.selection.chordIds;
+  const buffer = session.buffer;
+
+  // [EDIT POINT LIFETIME] selection（chordIds）が変化する経路は常にここを通るため、
+  // editPointのクリアもここに集約する（chordIdsとeditPointは排他）。
+  session.selection.editPoint = null;
+
+  // [INVARIANT] buffer上の時系列順に正規化し、buffer上に実在しないIDは除外する
+  const validIds = buffer ? buffer.filter(c => ids.includes(c._id)).map(c => c._id) : [];
+
+  if (validIds.length === 0) {
+    session.selection.chordIds = [];
+    session.selection.boundaryIndex = null;
+    session.selection.anchorChordId = null;
+    return;
+  }
+
+  session.selection.chordIds = validIds;
+
+  {
+    const firstIdx = buffer.findIndex(c => c._id === validIds[0]);
+    session.selection.boundaryIndex = firstIdx > 0 ? firstIdx - 1 : null;
+  }
+
+  // anchorChordId解決
+  const currentAnchor = session.selection.anchorChordId;
+  if (anchorChordId !== undefined) {
+    session.selection.anchorChordId = anchorChordId;
+  } else if (currentAnchor && validIds.includes(currentAnchor)) {
+    // 既存anchorが新しい選択範囲に含まれる場合は維持する
+  } else {
+    session.selection.anchorChordId = validIds[validIds.length - 1];
+  }
+}
