@@ -202,6 +202,9 @@ import {
   buildPastePlan,
   commitPastePlan,
   mergeSelectionCommand,
+  moveBoundaryCommand,
+  updateChordCommand,
+  splitChordCommand,
 } from './analysisCommands.js';
 
 import {
@@ -617,16 +620,20 @@ function _pushHistory() {
 
 /**
  * updateChord — 指定IDのコードのプロパティを更新する
+ *
+ * [Phase88 Sprint B] state mutationの実体は analysisCommands.js の
+ * updateChordCommand() へ移管。この関数はDOM再描画のみを担う薄いラッパー。
+ * シグネチャ・「呼べば画面まで更新される」という既存の呼び出し契約
+ * （replaceCurrentMatch/addChordAtEditPoint/openChordRenameSelector/aep-add等、
+ * 4箇所が依存）は変更しない。
+ *
  * @param {string} id - chord._id
  * @param {{ chord?: string, start?: number, end?: number }} patch
  */
 function updateChord(id, patch) {
   if (!isAnalysisEditing()) return;
-  const c = analysisEditor.buffer.find(c => c._id === id);
-  if (!c) return;  // 存在しないIDなら何もしない（無駄なUndo履歴を防ぐ）
-
-  _pushHistory();
-  Object.assign(c, patch);
+  const r = updateChordCommand(analysisEditor, id, patch);
+  if (!r.ok) return;
   _refreshEditorView();
 }
 
@@ -1068,22 +1075,15 @@ function shiftAll(deltaSec) {
 /**
  * moveBoundary — 境界更新API（境界を変更する唯一の窓口）
  *
- * Invariant:
- *   left.end と right.start は常に同じ値になるよう更新する。
- *
- * 範囲チェックはこの関数の責務ではない（呼び出し側が判断する）。
+ * [Phase88 Sprint A] 実体は analysisCommands.js の moveBoundaryCommand() へ移管。
+ * シグネチャ・戻り値・[BOUNDARY EDIT AUTHORITY]（唯一の窓口という原則）は変更なし。
+ * historyもDOMもここでは扱わない（呼び出し側の責務。moveBoundaryCommandのdocstring参照）。
  *
  * @returns {number|null} 適用された時刻。境界が存在しなければnull。
  */
 function moveBoundary(boundaryIndex, newTime) {
   if (!isAnalysisEditing()) return null;
-  const left  = analysisEditor.buffer[boundaryIndex];
-  const right = analysisEditor.buffer[boundaryIndex + 1];
-  if (!left || !right) return null;
-
-  left.end    = newTime;
-  right.start = newTime;
-  return newTime;
+  return moveBoundaryCommand(analysisEditor, boundaryIndex, newTime);
 }
 
 /**
@@ -1176,20 +1176,11 @@ function addChordAtEditPoint() {
 /**
  * splitChord — 指定コードを splitTime で2つに分割する（コード追加の実体・Phase75）
  *
- * [SPLIT INVARIANTS] この関数が保証すること
- *   1. splitTime が対象コードの (start, end) の範囲外（両端含む）なら、
- *      何もせず null を返す（duration 0 のコードを作らない）。
- *   2. 左側コードは元の _id・chord名を維持する（end だけ splitTime に書き換わる）。
- *   3. 右側コードは新しい _id（crypto.randomUUID()）を持つ新規オブジェクトとして生成される。
- *   4. 右側コードの chord名は左側と同じ値をコピーする
- *      （呼び出し側が showChordSelector() → updateChord() で直後に上書きする前提。
- *      この関数自身はコード名の確定処理を持たない）。
- *   5. 左右のコードは時間的に隙間なく連続する（left.end === right.start === splitTime）。
- *   6. Undo単位はこの関数全体で1回（_pushHistory()をここで1回だけ呼ぶ。
- *      呼び出し側で追加の_pushHistory()を呼ばないこと）。
- *   7. buffer の配列長が変わる操作のため、_refreshSelection() を呼ぶ（[AE-4]）。
- *      ただし選択自体を新しいコードへ切り替えるかどうかは呼び出し側の責務
- *      （呼び出し側は返り値の chordId を使って改めて _refreshSelection([id]) すること）。
+ * [Phase88 Sprint B] state mutationの実体は analysisCommands.js の
+ * splitChordCommand() へ移管（[SPLIT INVARIANTS]はそちらのdocstringに移設）。
+ * この関数はDOM再描画のみを担う薄いラッパー。シグネチャ・戻り値
+ * （新規コードの_id、失敗時null）・「呼べば画面まで更新される」という
+ * 既存の呼び出し契約（addChordAtEditPoint/aep-add等、2箇所が依存）は変更しない。
  *
  * @param {string} chordId - 分割対象のコードの _id
  * @param {number} splitTime - 分割点の時刻（秒）
@@ -1197,26 +1188,10 @@ function addChordAtEditPoint() {
  */
 function splitChord(chordId, splitTime) {
   if (!isAnalysisEditing()) return null;
-
-  const idx = analysisEditor.buffer.findIndex(c => c._id === chordId);
-  if (idx === -1) return null;
-
-  const target = analysisEditor.buffer[idx];
-  // [INVARIANT 1] 範囲チェック（両端含む＝duration 0を防ぐ）
-  if (!(splitTime > target.start && splitTime < target.end)) return null;
-
-  _pushHistory();  // [INVARIANT 6] Undo単位はここで1回のみ
-
-  // [INVARIANT 3・4] 右側は新規_id・chord名は左側からコピー
-  const rightChord = { ...target, _id: crypto.randomUUID(), start: splitTime };
-  // [INVARIANT 2・5] 左側はend更新のみ。right.start === splitTime === left.end
-  target.end = splitTime;
-
-  analysisEditor.buffer.splice(idx + 1, 0, rightChord);
-
-  _refreshSelection();  // [INVARIANT 7・AE-4] buffer長が変わったため選択キャッシュを再同期
+  const r = splitChordCommand(analysisEditor, chordId, splitTime);
+  if (!r.ok) return null;
   _refreshEditorView();
-  return rightChord._id;
+  return r.newId;
 }
 
 /**

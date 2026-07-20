@@ -72,6 +72,17 @@ forward方向（Enter）は自然に正しく動作するが、backward方向（
 詰まった分だけ1件飛ばす可能性がある。利用頻度と補正実装コストを比較し、現段階では
 仕様として許容した。実害が出るようなら再検討する。
 
+#### Issue #46 — Add Here / aep-addのUndoが2段階になる
+状態: 発見済み・未対応（Phase88の実機検証で発見・Phase75由来の既存バグ）
+内容: 「コードを追加」操作（AddChordモーダルでのAdd Here / aep-addボタン）は
+splitChord()とupdateChord()を続けて呼ぶが、それぞれが独立してhistoryへ
+スナップショットを積むため、ユーザーからは1回の操作に見えても
+Undoが2段階に分かれる（1回目: リネームのみ取り消し／2回目: 分割が取り消される）。
+Redoも同様に2段階。
+次のアクション候補: split+renameを1回のUndo単位にまとめる
+transactional Command（commitPastePlanと同型）をPhase89以降で検討する。
+詳細はhandover_phase88.md §6/§7参照。
+
 ### restore lifecycle 系
 
 #### beat cursorが一瞬停止して数ビートジャンプする

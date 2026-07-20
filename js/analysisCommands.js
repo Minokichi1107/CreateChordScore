@@ -322,6 +322,91 @@ export function commitPastePlan(state, plan) {
 }
 
 /**
+ * updateChordCommand — 指定IDのコードのプロパティを更新する（Phase74-C由来・Phase88 Sprint Bで移設）
+ * @param {string} id - chord._id
+ * @param {{ chord?: string, start?: number, end?: number }} patch
+ * @returns {CommandResult}
+ */
+export function updateChordCommand(state, id, patch) {
+  const c = state.buffer.find(c => c._id === id);
+  if (!c) return { ok: false, reason: null };  // 存在しないIDなら何もしない（無駄なUndo履歴を防ぐ）
+
+  pushHistory(state);
+  Object.assign(c, patch);
+
+  return { ok: true };
+}
+
+/**
+ * splitChordCommand — 指定コードを splitTime で2つに分割する（コード追加の実体・Phase75由来・Phase88 Sprint Bで移設）
+ *
+ * [SPLIT INVARIANTS] この関数が保証すること（moveBoundaryと同じ理由で移設前のdocstringを踏襲）
+ *   1. splitTime が対象コードの (start, end) の範囲外（両端含む）なら、
+ *      何もせず {ok:false} を返す（duration 0 のコードを作らない）。
+ *   2. 左側コードは元の _id・chord名を維持する（end だけ splitTime に書き換わる）。
+ *   3. 右側コードは新しい _id（crypto.randomUUID()）を持つ新規オブジェクトとして生成される。
+ *   4. 右側コードの chord名は左側と同じ値をコピーする
+ *      （呼び出し側が updateChord() で直後に上書きする前提）。
+ *   5. 左右のコードは時間的に隙間なく連続する（left.end === right.start === splitTime）。
+ *   6. Undo単位はこの関数全体で1回（pushHistory()をここで1回だけ呼ぶ）。
+ *   7. buffer の配列長が変わる操作のため、refreshSelection() を呼ぶ（[AE-4]）。
+ *      ただし選択自体を新しいコードへ切り替えるかどうかは呼び出し側の責務。
+ *
+ * @param {string} chordId - 分割対象のコードの _id
+ * @param {number} splitTime - 分割点の時刻（秒）
+ * @returns {CommandResult & { newId?: string }} newId: 新しく生成された右側コードの _id
+ */
+export function splitChordCommand(state, chordId, splitTime) {
+  const idx = state.buffer.findIndex(c => c._id === chordId);
+  if (idx === -1) return { ok: false, reason: null };
+
+  const target = state.buffer[idx];
+  // [INVARIANT 1] 範囲チェック（両端含む＝duration 0を防ぐ）
+  if (!(splitTime > target.start && splitTime < target.end)) return { ok: false, reason: null };
+
+  pushHistory(state);  // [INVARIANT 6] Undo単位はここで1回のみ
+
+  // [INVARIANT 3・4] 右側は新規_id・chord名は左側からコピー
+  const rightChord = { ...target, _id: crypto.randomUUID(), start: splitTime };
+  // [INVARIANT 2・5] 左側はend更新のみ。right.start === splitTime === left.end
+  target.end = splitTime;
+
+  state.buffer.splice(idx + 1, 0, rightChord);
+
+  refreshSelection(state);  // [INVARIANT 7・AE-4] buffer長が変わったため選択キャッシュを再同期
+
+  return { ok: true, newId: rightChord._id };
+}
+
+/**
+ * moveBoundaryCommand — 境界（隣接コード間の時刻）を書き換える唯一の窓口
+ * （Phase75由来・Phase88 Sprint Aで移設）。
+ *
+ * [EXCEPTION] このファイルの他のCommandと異なり、CommandResult（{ok, reason}）を
+ * 返さない。理由:
+ *   - historyを積まない（呼び出し側のshiftSelectedBoundary()/shiftSelectionRange()等が
+ *     ユーザー操作1回分としてpushHistory()を呼ぶ。moveBoundaryCommand自身は
+ *     「ユーザー操作」ではなく、境界を挟む2要素を書き換えるだけの低レベル primitive）
+ *   - 将来ドラッグ操作等で1操作中に連続呼び出しされる可能性があるため、
+ *     ここにhistory/toast等を持たせない設計を維持する
+ * この扱いはbuildPastePlan（純粋なplanning helper・専用shape）と同じ前例に基づく。
+ *
+ * Invariant: left.end と right.start は常に同じ値になるよう更新する。
+ * 範囲チェックはこの関数の責務ではない（呼び出し側が判断する）。
+ *
+ * @returns {number|null} 適用された時刻。境界が存在しなければnull。
+ */
+export function moveBoundaryCommand(state, boundaryIndex, newTime) {
+  const left  = state.buffer[boundaryIndex];
+  const right = state.buffer[boundaryIndex + 1];
+  if (!left || !right) return null;
+
+  left.end    = newTime;
+  right.start = newTime;
+  return newTime;
+}
+
+/**
  * mergeSelectionCommand — 連続する複数選択コードを1つに結合する（Phase76-F由来・Phase87で移設）
  * @returns {CommandResult}
  */
