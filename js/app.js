@@ -205,6 +205,7 @@ import {
   moveBoundaryCommand,
   updateChordCommand,
   splitChordCommand,
+  addChordCommand,
 } from './analysisCommands.js';
 
 import {
@@ -1160,16 +1161,12 @@ function addChordAtEditPoint() {
     // 不要（Rename等と同じ書き込み経路。設計上の理由はhandover_phase84参照）。
     initialChord: toDisplayChord(toReadableChord(owner.chord), capo),
     onSelect: (selected) => {
-      const newId = splitChord(owner._id, splitTime);
+      // [Phase89] 分割+リネームをaddChord()で1Undo単位に統合（Issue #46対応）。
+      // 新規コードの単独選択・editPointの自動クリアはaddChordCommand内部で行う。
+      const newId = addChord(owner._id, splitTime, toCanonicalChord(selected.name, capo));
       if (!newId) { toast('この位置には追加できません（時間が足りません）'); return; }
-      updateChord(newId, { chord: toCanonicalChord(selected.name, capo) });
-      // 成功時: 新規コードを単独選択する（[EDIT POINT LIFETIME] により
-      // _refreshSelection()経由でeditPointは自動的にクリアされる）。
-      _refreshSelection([newId]);
-      setSelectedChordIds([newId]);
-      _refreshEditorView();
     },
-    // onCancel省略: 何も呼ばれず、splitChord()にも到達しないためeditPointは維持される
+    // onCancel省略: 何も呼ばれず、addChord()にも到達しないためeditPointは維持される
   });
 }
 
@@ -1190,6 +1187,29 @@ function splitChord(chordId, splitTime) {
   if (!isAnalysisEditing()) return null;
   const r = splitChordCommand(analysisEditor, chordId, splitTime);
   if (!r.ok) return null;
+  _refreshEditorView();
+  return r.newId;
+}
+
+/**
+ * addChord — 「コードを追加」操作（分割＋リネーム）を1回のUndo単位で実行する
+ * （Phase89新設・Issue #46対応）
+ *
+ * [Issue #46] 従来は splitChord() → updateChord() の直列呼び出しにより、
+ * ユーザーからは1回の操作に見える「コードを追加」がUndo単位2回に分かれていた。
+ * state mutationの実体は analysisCommands.js の addChordCommand() へ移管し、
+ * この関数はChart Mode同期・DOM再描画のみを担う薄いラッパー。
+ *
+ * @param {string} chordId - 分割対象のコードの _id
+ * @param {number} splitTime - 分割点の時刻（秒）
+ * @param {string} newChordName - 新規コードに設定するchord名（canonical）
+ * @returns {string|null} 新しく生成された右側コードの _id。失敗時は null。
+ */
+function addChord(chordId, splitTime, newChordName) {
+  if (!isAnalysisEditing()) return null;
+  const r = addChordCommand(analysisEditor, chordId, splitTime, newChordName);
+  if (!r.ok) return null;
+  setSelectedChordIds([r.newId]);  // Chart Mode側ハイライト表示用の選択情報
   _refreshEditorView();
   return r.newId;
 }
@@ -1875,14 +1895,11 @@ function renderAnalysisEditorPanel() {
       // [Phase84] 初期表示のみRepresentation→Projectionの順で適用。
       initialChord: toDisplayChord(toReadableChord(chord.chord), capo),
       onSelect: (selected) => {
-        const newId = splitChord(selectedId, splitTime);
+        // [Phase89] 分割+リネームをaddChord()で1Undo単位に統合（Issue #46対応）。
+        const newId = addChord(selectedId, splitTime, toCanonicalChord(selected.name, capo));
         if (!newId) return;  // 万一splitTimeが不正だった場合は何もしない
-        updateChord(newId, { chord: toCanonicalChord(selected.name, capo) });
-        _refreshSelection([newId]);   // ① パネル表示用の選択情報
-        setSelectedChordIds([newId]); // ② Chart Mode側のハイライト表示用の選択情報（同期漏れ修正）
-        _refreshEditorView();
       },
-      // onCancel省略: 何も呼ばれず、splitChord()にも到達しないため状態は一切変化しない
+      // onCancel省略: 何も呼ばれず、addChord()にも到達しないため状態は一切変化しない
     });
   });
   document.getElementById('aep-rename')?.addEventListener('click', () => {

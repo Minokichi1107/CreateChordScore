@@ -379,6 +379,50 @@ export function splitChordCommand(state, chordId, splitTime) {
 }
 
 /**
+ * addChordCommand — 「コードを追加」操作（分割＋リネーム）を1トランザクションで実行する
+ * （Phase89新設・Issue #46対応）
+ *
+ * [背景] splitChordCommand() → updateChordCommand() の直列呼び出しでは、
+ * それぞれが独立して pushHistory() を呼ぶため、ユーザーからは1回の操作に
+ * 見える「コードを追加」がUndo単位2回に分かれてしまっていた（Issue #46）。
+ *
+ * この関数はsplitChordCommand/updateChordCommandを呼び出さず、同じロジックを
+ * 局所的に複製した上でpushHistory()を1回だけ呼ぶ。既存の2関数はシグネチャ・
+ * 挙動とも変更しない（他4箇所の呼び出し元への影響を避けるため）。
+ *
+ * [UNDO TRANSACTION INVARIANT]
+ * ユーザーから「1回の操作」と認識される編集は、内部的に複数のbuffer mutation を
+ * 伴っても pushHistory() は1回でなければならない（commitPastePlanと同じ原則）。
+ *
+ * @param {string} chordId - 分割対象のコードの _id
+ * @param {number} splitTime - 分割点の時刻（秒）
+ * @param {string} newChordName - 右側（新規）コードに設定するchord名（canonical）
+ * @returns {CommandResult & { newId?: string }} newId: 新しく生成された右側コードの _id
+ *   reason: 'not-found'（対象コードが存在しない） | 'invalid-range'（splitTimeが範囲外）
+ */
+export function addChordCommand(state, chordId, splitTime, newChordName) {
+  const idx = state.buffer.findIndex(c => c._id === chordId);
+  if (idx === -1) return { ok: false, reason: 'not-found' };
+
+  const target = state.buffer[idx];
+  // splitChordCommandの[INVARIANT 1]と同じ範囲チェック（duration 0を防ぐ）
+  if (!(splitTime > target.start && splitTime < target.end)) return { ok: false, reason: 'invalid-range' };
+
+  pushHistory(state);  // [UNDO TRANSACTION INVARIANT] 分割＋リネームで1回のみ
+
+  // 右側は新規_id・chord名は最初からnewChordNameを設定（updateChordCommand相当を統合）
+  const rightChord = { ...target, _id: crypto.randomUUID(), start: splitTime, chord: newChordName };
+  target.end = splitTime;
+
+  state.buffer.splice(idx + 1, 0, rightChord);
+
+  // 新規コードを単独選択（[AE-7]によりeditPointは自動クリア）
+  refreshSelection(state, [rightChord._id], rightChord._id);
+
+  return { ok: true, newId: rightChord._id, selectedChordIds: [rightChord._id] };
+}
+
+/**
  * moveBoundaryCommand — 境界（隣接コード間の時刻）を書き換える唯一の窓口
  * （Phase75由来・Phase88 Sprint Aで移設）。
  *
