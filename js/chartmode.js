@@ -1274,6 +1274,17 @@ function _setupGridClickSeek() {
       if (chordEl) {
         const chordId = chordEl.dataset.chordId;
         if (chordId) {
+          // [Phase86-2 Sprint B Step3] Ctrl/Cmd+クリック → 即editPoint確定。
+          // Shift（範囲選択）を優先するため !e.shiftKey を条件に含める。
+          // 二段階クリックモデルをバイパスする追加の入口であり、既存の
+          // isSameSingleSelection判定（下記）は変更しない。
+          if (!e.shiftKey && (e.ctrlKey || e.metaKey)
+              && _onEditPointRequested && measureIndex !== null && slotIndex !== null) {
+            chartState._lastClickedSlot = { chordId, slotIndex, measureIndex };
+            _onEditPointRequested(chordId, measureIndex, slotIndex);
+            return;
+          }
+
           // [Phase78.1 Hotfix] 継続セル（同一chordIdが複数小節にまたがる）で、
           // 別のセルをクリックしただけなのにeditPointへ入ってしまう不具合を修正。
           // 「同じコード」だけでなく「直前クリックと同じセル（slotIndex/measureIndex）」

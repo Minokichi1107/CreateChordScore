@@ -182,6 +182,18 @@ import { initChordEntry, openAddChord, showChordSelector } from './chordEntry.js
 import { loadAnalysis, saveAnalysisFile, loadAnalysisFile, sanitizeChords } from './analysisLoader.js';
 
 import {
+  createAnalysisSession,
+  resetSessionFields,
+  pushHistory as pushHistorySession,
+  undoBuffer,
+  redoBuffer,
+  refreshSelection,
+  selectRange,
+  setEditPointFields,
+  clearEditPointField,
+} from './analysisSession.js';
+
+import {
   initChartMode,
   openChartMode,
   closeChartMode,
@@ -365,40 +377,16 @@ let _fileHandle = null;
  * Boundary Decoratorとして責務を分離する（境界ハンドル・editPointマーカーを
  * 同じ描画システムで統一的に扱う）。今回（Phase77）は機能実装のみ行う。
  */
-const analysisEditor = {
-  active:    false,  // 編集モード中かどうか
-  buffer:    null,   // ChordEvent[]（_id付き）の作業コピー
-  history:   [],      // Undo用スナップショットスタック
-  future:    [],       // Redo用スナップショットスタック
-  // selection: 各フィールドの役割は上記コメント群参照。
-  selection: { chordIds: [], boundaryIndex: null, anchorChordId: null, editPoint: null },
-  clipboard: null,    // Phase74-E（コピー＆ペースト）用・現在未使用
-  dirty:     false,   // 未保存変更フラグ
-  // [Phase80] Search（検索）。ChatGPTレビューで確定した設計：
-  //   query          … ユーザー入力（Derived Cacheではない）
-  //   matches        … Derived Cache（buffer + queryから常に再計算できる）
-  //   activeIndex    … matches内の現在フォーカスindex
-  //   open           … 検索バーの表示/非表示（ephemeral UI state）
-  //   focusRequested … 「開いた直後の1回だけ」フォーカスするための一時フラグ
-  //                    （毎回自動フォーカスすると、ユーザーが別セルをクリックした
-  //                    直後の再描画でフォーカスを奪い返してしまうため）
-  // ownershipはanalysisEditor配下に置く（buffer検索専用。通常Editor検索・
-  // ライブラリ検索等が将来追加されても、この構造なら衝突しない）。
-  search: { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false },
-};
+// [Phase86-2 Sprint B] Session Authority（buffer/history/future/selection/search）は
+// analysisSession.js へ移管。ここでは生成のみ行う（形は完全に維持。挙動変更なし）。
+const analysisEditor = createAnalysisSession();
 
 /**
  * resetAnalysisEditor — analysisEditor を初期状態へ戻す
  * Cancel / Save成功 / Project切替 / Chart Mode終了、すべてこの関数で統一する。
  */
 function resetAnalysisEditor() {
-  analysisEditor.active    = false;
-  analysisEditor.buffer    = null;
-  analysisEditor.history   = [];
-  analysisEditor.future    = [];
-  analysisEditor.clipboard = null;
-  analysisEditor.dirty     = false;
-  analysisEditor.search    = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
+  resetSessionFields(analysisEditor);
   setSearchMatches([]);
   _refreshSelection([]);
 }
@@ -424,47 +412,9 @@ function resetAnalysisEditor() {
  *   （Shift+クリックで既存anchorを保ったまま範囲を広げるケースに対応）。
  */
 function _refreshSelection(chordIds, anchorChordId) {
-  const ids = chordIds !== undefined ? chordIds : analysisEditor.selection.chordIds;
-  const buffer = analysisEditor.buffer;
-
-  // [EDIT POINT LIFETIME] selection（chordIds）が変化する経路は常にここを通るため、
-  // editPointのクリアもここに集約する（chordIdsとeditPointは排他）。
-  analysisEditor.selection.editPoint = null;
-
-  // [INVARIANT] buffer上の時系列順に正規化し、buffer上に実在しないIDは除外する
-  const validIds = buffer ? buffer.filter(c => ids.includes(c._id)).map(c => c._id) : [];
-
-  if (validIds.length === 0) {
-    analysisEditor.selection.chordIds = [];
-    analysisEditor.selection.boundaryIndex = null;
-    analysisEditor.selection.anchorChordId = null;
-    return;
-  }
-
-  analysisEditor.selection.chordIds = validIds;
-
-  // [Phase77後半・確定] boundaryIndexは「選択範囲の左側の境界」のみ。
-  // 単一選択は「範囲の長さ1」として自動的に同じロジックで扱われる（特別扱い不要）。
-  // 右側の境界を動かす操作は冗長と判断し廃止（範囲シフトで代替可能）。
-  // [SELECTION EDIT TARGETS]
-  // boundaryIndexは現在編集対象となっている位置を表す一時的なUI状態（派生情報）である。
-  // chordIdsとbufferから常に再計算可能であり、永続化の対象にしない
-  // （editPoint導入時も同じ原則を適用する）。
-  {
-    const firstIdx = buffer.findIndex(c => c._id === validIds[0]);
-    analysisEditor.selection.boundaryIndex = firstIdx > 0 ? firstIdx - 1 : null;
-  }
-
-  // anchorChordId解決
-  const currentAnchor = analysisEditor.selection.anchorChordId;
-  if (anchorChordId !== undefined) {
-    analysisEditor.selection.anchorChordId = anchorChordId;
-  } else if (currentAnchor && validIds.includes(currentAnchor)) {
-    // 既存anchorが新しい選択範囲に含まれる場合は維持する
-    // （Shift+クリックで範囲を広げても起点は変わらない）
-  } else {
-    analysisEditor.selection.anchorChordId = validIds[validIds.length - 1];
-  }
+  // [Phase86-2 Sprint B] 実体は analysisSession.js の refreshSelection() へ移管。
+  // ここは既存呼び出し箇所（4,900行超に散在）を変更しないための薄いラッパー。
+  refreshSelection(analysisEditor, chordIds, anchorChordId);
 }
 
 /**
@@ -480,20 +430,8 @@ function _refreshSelection(chordIds, anchorChordId) {
  * @param {string} targetChordId
  */
 function selectChordRange(anchorChordId, targetChordId) {
-  const buffer = analysisEditor.buffer;
-  const i1 = buffer?.findIndex(c => c._id === anchorChordId) ?? -1;
-  const i2 = buffer?.findIndex(c => c._id === targetChordId) ?? -1;
-
-  if (i1 === -1 || i2 === -1) {
-    _refreshSelection([targetChordId], targetChordId);
-    return;
-  }
-
-  const lo = Math.min(i1, i2);
-  const hi = Math.max(i1, i2);
-  const ids = buffer.slice(lo, hi + 1).map(c => c._id);
-  // anchorChordIdは明示せず省略する → 既存anchor（anchorChordId、hi/lo内に含まれる）を維持
-  _refreshSelection(ids);
+  // [Phase86-2 Sprint B] 実体は analysisSession.js の selectRange() へ移管。
+  selectRange(analysisEditor, anchorChordId, targetChordId);
 }
 
 /**
@@ -660,9 +598,8 @@ function validateAnalysis(chords) {
  * （標準的なUndo/Redoの挙動: Undo後に新しい編集をすると、Redo履歴は消える）。
  */
 function _pushHistory() {
-  analysisEditor.history.push(structuredClone(analysisEditor.buffer));
-  analysisEditor.future = [];
-  analysisEditor.dirty = true;
+  // [Phase86-2 Sprint B] 実体は analysisSession.js の pushHistory() へ移管。
+  pushHistorySession(analysisEditor);
 }
 
 /**
@@ -1489,12 +1426,8 @@ function setEditPoint(ownerId, measureIndex, slotIndex) {
     resolvedOwnerId = owner._id;
   }
 
-  // chordIdsとeditPointは排他。_refreshSelection([])経由ではなく直接クリアする
-  // （_refreshSelection()を呼ぶとeditPoint自体も道連れでクリアされてしまうため）。
-  analysisEditor.selection.chordIds = [];
-  analysisEditor.selection.boundaryIndex = null;
-  analysisEditor.selection.anchorChordId = null;
-  analysisEditor.selection.editPoint = { ownerId: resolvedOwnerId, measureIndex, slotIndex };
+  // [Phase86-2 Sprint B] state書き換えの実体は analysisSession.js の setEditPointFields()。
+  setEditPointFields(analysisEditor, resolvedOwnerId, measureIndex, slotIndex);
 
   // [UI SYNC] chartmode.js側の選択キャッシュも同時にクリアする
   // （Phase75の「選択の二重管理・同期漏れ」の教訓を踏まえ、この関数自身が両方を担う）。
@@ -1506,8 +1439,8 @@ function setEditPoint(ownerId, measureIndex, slotIndex) {
  * clearEditPoint — editPointを解除する（Escキー等から呼ばれる）
  */
 function clearEditPoint() {
-  if (analysisEditor.selection.editPoint === null) return;
-  analysisEditor.selection.editPoint = null;
+  // [Phase86-2 Sprint B] 実体は analysisSession.js の clearEditPointField()。
+  if (!clearEditPointField(analysisEditor)) return;
   _refreshEditorView();
 }
 
@@ -1817,9 +1750,9 @@ function shiftSelectionRange(deltaSec) {
  */
 function undoEdit() {
   if (!isAnalysisEditing()) return;
-  if (!analysisEditor.history.length) return;
-  analysisEditor.future.push(structuredClone(analysisEditor.buffer));
-  analysisEditor.buffer = analysisEditor.history.pop();
+  // [Phase86-2 Sprint B] buffer入替の実体は analysisSession.js の undoBuffer()。
+  // history/future stack semanticsは変更していない（past/future stack方式のまま）。
+  if (!undoBuffer(analysisEditor)) return;
   _refreshSelection();
   _refreshEditorView();
 }
@@ -1829,9 +1762,7 @@ function undoEdit() {
  */
 function redoEdit() {
   if (!isAnalysisEditing()) return;
-  if (!analysisEditor.future.length) return;
-  analysisEditor.history.push(structuredClone(analysisEditor.buffer));
-  analysisEditor.buffer = analysisEditor.future.pop();
+  if (!redoBuffer(analysisEditor)) return;
   _refreshSelection();
   _refreshEditorView();
 }
