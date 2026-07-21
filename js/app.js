@@ -191,6 +191,7 @@ import {
   selectRange,
   setEditPointFields,
   clearEditPointField,
+  activateSearchIndex,
 } from './analysisSession.js';
 
 import {
@@ -951,14 +952,16 @@ function closeSearchBar() {
  * 新設しない（既存のinitChartMode注入のseekTo callbackと同じ書き方で
  * aEl.currentTimeを直接設定する）。
  *
+ * [Phase90] wrap-around index計算 + search.activeIndex確定のstate mutationは
+ * analysisSession.js の activateSearchIndex() へ委譲（Session Authority）。
+ * ここに残るのはselection同期・Chart Mode同期・audio seek・DOM再描画という
+ * 副作用のみ（history非対象・pushHistory()は元々呼ばれていない）。
+ *
  * @param {number} index - matches配列内のindex（範囲外はラップアラウンド）
  */
 function _activateSearchMatch(index) {
-  const { matches } = analysisEditor.search;
-  if (!matches.length) return;
-  const clamped = ((index % matches.length) + matches.length) % matches.length;
-  analysisEditor.search.activeIndex = clamped;
-  const id = matches[clamped];
+  const id = activateSearchIndex(analysisEditor, index);
+  if (id == null) return;
   _refreshSelection([id]);
   setSelectedChordIds([id]);
   const chord = analysisEditor.buffer.find(c => c._id === id);

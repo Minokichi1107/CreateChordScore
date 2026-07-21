@@ -201,3 +201,26 @@ export function refreshSelection(session, chordIds, anchorChordId) {
     session.selection.anchorChordId = validIds[validIds.length - 1];
   }
 }
+
+/**
+ * activateSearchIndex — 検索結果のwrap-around index計算 + activeIndex確定（純粋・Phase90）
+ *
+ * app.js側の _activateSearchMatch() から、state計算のみを抽出したもの。
+ * historyを積まない操作のため（Editing Commandではなくnavigation）、
+ * analysisCommands.js（Command Layer）ではなくこちら（Session Layer）に置く。
+ *
+ * [NOTE] 呼び出し後のselection同期（_refreshSelection）・Chart Mode同期
+ * （setSelectedChordIds）・audio seek（aEl.currentTime）・DOM再描画
+ * （_refreshEditorView）は、すべてapp.js側の責務（[SCOPE]準拠）。
+ *
+ * @param {object} session - analysisEditor
+ * @param {number} index - matches配列内のindex（範囲外はラップアラウンド）
+ * @returns {string|null} 対象chordId。matchesが空ならnull
+ */
+export function activateSearchIndex(session, index) {
+  const { matches } = session.search;
+  if (!matches.length) return null;
+  const clamped = ((index % matches.length) + matches.length) % matches.length;
+  session.search.activeIndex = clamped;
+  return matches[clamped];
+}
