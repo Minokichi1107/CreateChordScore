@@ -722,6 +722,10 @@ export function expandCarryForward(measures, slotsPerMeasure) {
 // コード名 compact 表示の文字数閾値（layout heuristic）
 const COMPACT_CHORD_LENGTH = 8;
 
+// [Phase93] Boundary Handleドラッグ確定に必要な最小移動距離（px）。
+// これ未満の移動で pointerup した場合は通常のclick（選択/editPoint）として扱う。
+const BOUNDARY_DRAG_THRESHOLD_PX = 8;
+
 // ────────────────────────────────────────────────────
 // Phase68: pickup measure の projection-empty slot に表示する休符glyph
 // pure visual projection（canonical tokenではない・project.linesに保存しない）。
@@ -872,6 +876,28 @@ let _isEditingAnalysis = () => false; // () => boolean（編集モード中か�
 // 時刻ベースでbuffer側がオーナーを特定する）
 let _onEditPointRequested = null; // (ownerId: string|null, measureIndex: number, slotIndex: number) => void
 
+// [Phase93] Boundary Handle ドラッグ編集
+// [OWNERSHIP] history push / moveBoundary() 呼び出し / 再描画はすべて app.js が担う。
+// chartmode.js は pointer gesture の検出と「候補の時刻」の通知のみを行う
+// （[BOUNDARY INVARIANT] と同種の境界: chartmode.js は state mutation を行わない）。
+let _onBoundaryDragStart = null; // () => void（ドラッグ確定時に1回のみ呼ぶ）
+let _onBoundaryDragMove  = null; // (newTime: number) => void（対象slotが変化した時のみ呼ぶ）
+let _onBoundaryDragEnd   = null; // () => void（pointerup/pointercancelで1回のみ呼ぶ）
+
+// [Phase93] Boundary Handle ドラッグの一時state（ephemeral・chartStateに昇格しない）。
+// 理由: ポインタージェスチャーの間だけ存在する値であり、Phase67 tooltipと同じ扱い
+// （chartStateにauthorityを持たせない）。
+// { pointerId, handleEl, chordId, startX, startY, dragging, lastSlotKey } または null。
+let _boundaryDrag = null;
+
+// [Phase93] Boundary Handleドラッグ確定直後に発火するclickを1回だけ握りつぶすフラグ。
+// click は pointerup の後に発火するため、ドラッグ操作の結果として
+// 選択/editPointが誤って書き換わるのを防ぐ。
+let _suppressNextClick = false;
+
+// リスナー重複登録防止フラグ（hot reload / re-init 対策）
+let _gridBoundaryDragBound = false;
+
 // ── tooltip state ──────────────────────────────────────────
 // [EPHEMERAL UI] tooltip は chartState に authority を持たない。
 // hover event → render だけで完結する。state 化しない。
@@ -1019,7 +1045,7 @@ function _rafLoop() {
  *                                             右クリック「補正を解除」選択時に呼ぶ。
  *                                             app.js が null保存・再描画を担う。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd }) {
   _getAnalysis       = getAnalysis;
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
@@ -1040,8 +1066,15 @@ export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudio
   _isEditingAnalysis = isEditingAnalysis ?? (() => false);
   _onEditPointRequested = onEditPointRequested ?? null;
 
+  // [Phase93] Boundary Handle ドラッグコールバック
+  _onBoundaryDragStart = onBoundaryDragStart ?? null;
+  _onBoundaryDragMove  = onBoundaryDragMove  ?? null;
+  _onBoundaryDragEnd   = onBoundaryDragEnd   ?? null;
+
   // Phase60: click seek イベント登録
   _setupGridClickSeek();
+  // [Phase93] Boundary Handle ドラッグイベント登録
+  _setupGridBoundaryDrag();
 }
 
 // ────────────────────────────────────────
@@ -1237,6 +1270,14 @@ function _setupGridClickSeek() {
 
   grid.addEventListener('click', e => {
 
+    // [Phase93] 直前にBoundary Handleドラッグが確定した場合、
+    // pointerupの後に発火するこのclickは誤操作（選択/editPointの巻き込み）
+    // となるため1回だけ握りつぶす。
+    if (_suppressNextClick) {
+      _suppressNextClick = false;
+      return;
+    }
+
     // ── Phase74-C: 編集モード中はコード選択を優先する ──
     // [Phase77] onset（.chart-chord-name）・carry（.chart-slot、小節またぎ含む）の
     // 両方をdata-chord-id属性のみで判定する（DOM構造への依存をなくす）。
@@ -1348,6 +1389,147 @@ function _setupGridClickSeek() {
 
     _seekTo(startTime);
   });
+}
+
+// ────────────────────────────────────────
+// [Phase93] Boundary Handle ドラッグ編集
+// ────────────────────────────────────────
+//
+// [設計原則]
+//   既存のclick委譲リスナー（_setupGridClickSeek）とは独立したイベント種別
+//   （pointerdown/move/up/cancel）で実装し、既存の選択/editPointロジックには
+//   一切手を入れない。ドラッグが確定した場合のみ、直後に発火するclickを
+//   _suppressNextClick フラグで1回だけ握りつぶす。
+//
+//   座標→時刻変換は新規実装しない。_setupGridClickSeek() の editPoint用の
+//   座標計算（measureElのgetBoundingClientRectから比率算出）と、
+//   getTimeForGridPosition()（Phase77後半・既存公開関数）をそのまま再利用する。
+//   これにより、slotIndexが変化しない限り時刻も変化しないため、
+//   「slot単位での間引き」が新規ロジックなしに自然に得られる。
+//
+// [pointer capture注意点]
+//   handleEl.setPointerCapture()後、e.target は捕捉元要素に固定される
+//   （実際にカーソルの下にある要素にはならない）。そのため、moveハンドラ内の
+//   座標→DOM要素の特定には e.target ではなく document.elementFromPoint() を使う。
+
+/**
+ * _onGridPointerDown — Boundary Handle上でのドラッグ開始候補を記録する。
+ * この時点ではまだ history push も onBoundaryDragStart も呼ばない
+ * （8px未満の移動で終わった場合は通常のclickとして扱うため）。
+ */
+function _onGridPointerDown(e) {
+  if (e.button !== 0) return;               // 主ボタン（左クリック/タッチ）以外は無視
+  if (!_isEditingAnalysis()) return;
+  if (_boundaryDrag) return;                 // 多重ドラッグ防止
+
+  const handleEl = e.target.closest('.chart-slot--boundary-handle');
+  if (!handleEl) return;
+
+  const chordEl = handleEl.querySelector('[data-chord-id]');
+  const chordId = chordEl?.dataset.chordId ?? null;
+  if (!chordId) return;
+
+  // capture はここで確定する（drag確定前でも良い。clickの発火条件には影響しない）。
+  handleEl.setPointerCapture(e.pointerId);
+
+  _boundaryDrag = {
+    pointerId:   e.pointerId,
+    handleEl,
+    chordId,
+    startX:      e.clientX,
+    startY:      e.clientY,
+    dragging:    false,
+    lastSlotKey: null,
+  };
+}
+
+/**
+ * _onGridPointerMove — ドラッグ確定判定・移動中の時刻通知を行う。
+ */
+function _onGridPointerMove(e) {
+  const drag = _boundaryDrag;
+  if (!drag || e.pointerId !== drag.pointerId) return;
+
+  if (!drag.dragging) {
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (Math.hypot(dx, dy) < BOUNDARY_DRAG_THRESHOLD_PX) return;
+    // ── ドラッグ確定 ──
+    drag.dragging = true;
+    _onBoundaryDragStart?.();
+  }
+
+  // pointer capture中は e.target が捕捉元要素に固定されるため、
+  // 実際のカーソル位置の要素は elementFromPoint() で取得する。
+  const hitEl = document.elementFromPoint(e.clientX, e.clientY);
+  if (!hitEl) return;
+  if (hitEl.closest('.chart-slot--projection-empty')) return;  // [PROJECTION INVARIANT]維持
+
+  const measureEl = hitEl.closest('.chart-measure[data-measure-index]');
+  if (!measureEl) return;
+
+  const spm = chartState.viewModel?.model?.slotsPerMeasure;
+  if (!spm) return;
+
+  const measureIndex = Number(measureEl.dataset.measureIndex);
+  const rect = measureEl.getBoundingClientRect();
+  const ratio = (e.clientX - rect.left) / rect.width;
+  const slotIndex = Math.min(Math.max(Math.floor(ratio * spm), 0), spm - 1);
+
+  // slot単位の間引き: 同一slotの間はonBoundaryDragMoveを呼ばない
+  // （_refreshEditorView()のフルリレンダリングコストを抑えるため）。
+  const slotKey = `${measureIndex}:${slotIndex}`;
+  if (slotKey === drag.lastSlotKey) return;
+  drag.lastSlotKey = slotKey;
+
+  const time = getTimeForGridPosition(measureIndex, slotIndex);
+  if (time == null) return;
+
+  _onBoundaryDragMove?.(time);
+}
+
+/**
+ * _endGridBoundaryDrag — pointerup / pointercancel 共通の後始末。
+ * [ChatGPTレビュー反映] pointercancel（OSジェスチャ介入・ウィンドウ外へのドラッグ等）
+ * でもこの関数を呼び、_suppressNextClick等の状態が残留しないようにする。
+ */
+function _endGridBoundaryDrag(e) {
+  const drag = _boundaryDrag;
+  if (!drag || e.pointerId !== drag.pointerId) return;
+
+  if (drag.handleEl.hasPointerCapture?.(e.pointerId)) {
+    drag.handleEl.releasePointerCapture(e.pointerId);
+  }
+
+  if (drag.dragging) {
+    // ドラッグが1回でも確定していた場合のみ、直後のclickを握りつぶす。
+    // （8px未満のまま終わった場合はdragging===falseのため、通常のclickへ委ねる）
+    _suppressNextClick = true;
+    _onBoundaryDragEnd?.();
+  }
+
+  _boundaryDrag = null;
+}
+
+/**
+ * _setupGridBoundaryDrag
+ *
+ * 【重複登録防止】
+ *   _gridBoundaryDragBound フラグで hot reload / re-init 時のリスナー増殖を防ぐ。
+ *   event delegation のため listener は1個で全 Boundary Handle に追従する。
+ */
+function _setupGridBoundaryDrag() {
+  if (_gridBoundaryDragBound) return;
+
+  const grid = document.getElementById('chart-grid');
+  if (!grid) return;
+
+  _gridBoundaryDragBound = true;
+
+  grid.addEventListener('pointerdown', _onGridPointerDown);
+  grid.addEventListener('pointermove', _onGridPointerMove);
+  grid.addEventListener('pointerup',   _endGridBoundaryDrag);
+  grid.addEventListener('pointercancel', _endGridBoundaryDrag);
 }
 
 // ────────────────────────────────────────

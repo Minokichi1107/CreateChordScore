@@ -1278,13 +1278,17 @@ function shiftSelectedBoundary(deltaSec) {
 }
 
 /**
- * requestBoundaryShift — Boundary Handle操作の唯一の入口（UI起点の一本化）
+ * requestBoundaryShift — 矢印キー・ボタンによるBoundary Handle操作の入口
  * [Sprint2-2]
  *
- * 現時点では shiftSelectedBoundary() への薄い委譲のみ。
- * 矢印キー・ボタン・（将来の）ドラッグのすべてがこの関数を経由することで、
- * 将来ドラッグ操作を追加する際にこの関数だけを変更すれば済むようにする
- * （矢印キー・ボタン側のコードは触らずに済む）。
+ * shiftSelectedBoundary() への薄い委譲。
+ *
+ * [Phase93] ドラッグ操作はこの関数を経由しない。ドラッグはポインター位置から
+ * 都度「絶対時刻」を算出するため、この関数が想定する「相対量（deltaSec）」の
+ * インターフェースとは自然に噛み合わない（毎回deltaを逆算する方が複雑になる）。
+ * そのため専用の入口（_handleBoundaryDragStart/_handleBoundaryDragMove/
+ * _handleBoundaryDragEnd）を別途新設した。両者ともmoveBoundary()という
+ * 唯一の窓口を経由する点は変わらない（[BOUNDARY EDIT AUTHORITY]維持）。
  *
  * @param {number} deltaSec - シフト量（秒）
  */
@@ -1307,6 +1311,72 @@ function _getBoundaryHandleChordId() {
   const { chordIds, boundaryIndex } = analysisEditor.selection;
   if (chordIds.length !== 1 || boundaryIndex === null) return null;
   return chordIds[0];
+}
+
+/**
+ * _handleBoundaryDragStart — Boundary Handleドラッグ確定時に1回だけ呼ばれる（Phase93）。
+ * chartmode.jsのpointermoveハンドラが8pxしきい値を超えた瞬間に1回だけ呼ぶ。
+ *
+ * [UNDO TRANSACTION INVARIANT] ドラッグ全体を1回のUndo単位にするため、
+ * historyはここで1回だけpushする。以降の_handleBoundaryDragMove()の
+ * 連続呼び出しはhistoryを積まない（moveBoundaryCommandがこの前提
+ * ＝ドラッグ中の連続呼び出しを想定して設計されているため。
+ * analysisCommands.jsのdocstring参照）。
+ */
+function _handleBoundaryDragStart() {
+  if (!isAnalysisEditing()) return;
+  if (analysisEditor.selection.boundaryIndex === null) return;
+  _pushHistory();
+}
+
+/**
+ * _handleBoundaryDragMove — ドラッグ中、対象slotが変化するたびに呼ばれる（Phase93）。
+ * chartmode.js側でslot単位の間引き済みのため、この関数自体は間引きを行わない
+ * （呼ばれた分だけ処理する）。
+ *
+ * [UI Constraint] shiftSelectedBoundary()と同じ理由（Chart Modeとの整合性）で
+ * 最低1スロット分の長さを残す。ただし単発操作（button/矢印キー）と異なり
+ * 連続呼び出し前提のため、壁に到達した場合はshiftSelectionRange()と同様、
+ * トーストを出さずに静かにclampする（毎pointermoveでトーストが出るのを防ぐ）。
+ *
+ * @param {number} newTime - chartmode.jsが算出した候補時刻（絶対時刻）
+ */
+function _handleBoundaryDragMove(newTime) {
+  if (!isAnalysisEditing()) return;
+  const boundaryIndex = analysisEditor.selection.boundaryIndex;
+  if (boundaryIndex === null) return;
+
+  const left  = analysisEditor.buffer[boundaryIndex];
+  const right = analysisEditor.buffer[boundaryIndex + 1];
+  if (!left || !right) return;
+
+  const EPS = 1e-6;
+  // [UI Constraint] Chart Modeとの整合性のため最低1スロット分は残す
+  const minRemaining = _getMinSlotDuration(left.start) ?? EPS;
+  const minTime = left.start + minRemaining;
+  const maxTime = right.end - minRemaining;
+  if (minTime >= maxTime) return; // 壁同士が反転＝これ以上動かせない
+
+  const clamped = Math.min(Math.max(newTime, minTime), maxTime);
+
+  moveBoundary(boundaryIndex, clamped);
+  _refreshEditorView();
+}
+
+/**
+ * _handleBoundaryDragEnd — pointerup/pointercancel時に1回だけ呼ばれる（Phase93）。
+ *
+ * 現時点ではcleanup不要（historyは_handleBoundaryDragStartで既に1回push済み、
+ * 最後の_handleBoundaryDragMove()の結果は既に画面へ反映済みのため）。
+ * chartmode.js側のドラッグ内部state（_boundaryDrag等）の後始末は
+ * chartmode.js自身の責務であり、ここでは行わない。
+ *
+ * 将来ghost line等の専用プレビューstateを導入する場合はここで後始末する
+ * （[DECORATOR ADDITION RULE]に従い、chartState側にプレビュー専用フィールドと
+ * 専用setterを追加した上でクリアする）。
+ */
+function _handleBoundaryDragEnd() {
+  // 予約: 現時点では何もしない。
 }
 
 /**
@@ -4495,6 +4565,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     findChord:        findChord,
     drawDiagram:      drawDiagram,
     tooltipEnabled:   localStorage.getItem('cs.chartDiagHover') !== 'false',
+
+    // [Phase93] Boundary Handle ドラッグ編集コールバック
+    // [OWNERSHIP] history push / moveBoundary() 呼び出し / 再描画は app.js が持つ。
+    // chartmode.js は pointer gesture の検出と「候補の時刻」の通知だけを行う。
+    onBoundaryDragStart: _handleBoundaryDragStart,
+    onBoundaryDragMove:  _handleBoundaryDragMove,
+    onBoundaryDragEnd:   _handleBoundaryDragEnd,
 
     // Phase72-B: manual timing correction コールバック
     // [OWNERSHIP] repairRule の保存・project.analysis 更新・再描画は app.js が持つ。
