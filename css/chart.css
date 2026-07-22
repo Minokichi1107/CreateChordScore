@@ -228,6 +228,18 @@
   z-index: 2;
 }
 
+/* [Phase92] Collision Indicator（P1 v1・同一quantized slot衝突の可視化） */
+.chart-slot-collision {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(var(--color-amber-rgb), .9);
+  pointer-events: auto; /* title属性のhoverを効かせるため */
+}
+
 /* コード名
    Phase57（修正版）: slot DOM invariant 復活。
    onset slot に --duration-slots CSS変数を設定し、label がその分だけ右へ広がる。

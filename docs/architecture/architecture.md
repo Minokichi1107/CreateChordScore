@@ -118,7 +118,9 @@ CreateChordScore/
 │   ├─ idb.js
 │   ├─ analysisLoader.js ← Phase41で新設
 │   ├─ timing.js         ← Phase41で新設（外部依存ゼロ）
-│   └─ chartmode.js      ← Phase41で新設
+│   ├─ chartmode.js      ← Phase41で新設
+│   ├─ analysisSession.js  ← Phase86-2で新設（Analysis Editor Session Layer）
+│   └─ analysisCommands.js ← Phase87で新設（Analysis Editor Command Layer）
 ├─ resource/
 │   ├─ audio/    ← .gitignore対象（*.mp3等）
 │   ├─ chords/   ← .gitignore対象（著作権保護）
@@ -174,7 +176,9 @@ JSモジュール境界とCSS責務がほぼ一致していることが判明し
 | idb.js | IndexedDB操作層（audio / chord_source / projects のローカル保存） | Phase32・Phase73で"projects" store追加 |
 | analysisLoader.js | analysis.raw の validate / sanitize / normalize → project.analysis 生成。buildNormalizedTimingAnalysis() の呼び出し元（Phase64〜）。normalized の rebuild responsibility を集約。repairRule（Phase72）・sanitizeChords export（Phase74-C）を含む | Phase41 |
 | timing.js | TimingModel（beat / measure grid 構築・quantize）。外部依存ゼロ。Phase59で diagnostics / repair / normalized pipeline 追加。Phase72-Bで applyAnchorRepair() 追加 | Phase41 |
-| chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer）。rAF playback loop ownership（Phase63〜）。解析編集モードの選択・境界移動UI（Phase74） | Phase41 |
+| chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer）。rAF playback loop ownership（Phase63〜）。解析編集モードの選択・境界移動UI（Phase74）。Collision Indicator projection（Phase92） | Phase41 |
+| analysisSession.js | Analysis Editor Session Layer。state primitiveの計算のみを担う（history push/pop・selection計算・editPoint確定等）。DOM/audio/Chart runtimeには一切触れない（§12参照） | Phase86-2 |
+| analysisCommands.js | Analysis Editor Command Layer。「ユーザー操作1回」単位のbuffer mutation（copy/cut/delete/paste/merge/update/split/moveBoundary/addChord）を担う。DOM/Chart runtime/toastには触れない（[BOUNDARY INVARIANT]参照・§12） | Phase87〜89 |
 
 ### 依存関係ルール
 
@@ -189,6 +193,9 @@ JSモジュール境界とCSS責務がほぼ一致していることが判明し
 - `tapmode.js` / `replace.js` は app.js 経由で初期化される（initTapMode / initReplace）
 - `audio.js` / `tapmode.js` は `isEditingAnalysis` のようなコールバックを app.js から注入され、
   自身の判断でショートカットの発火可否を決める（依存の向きを逆転させない・Phase74-E）
+- `analysisSession.js` / `analysisCommands.js` は DOM / Chart Mode runtime / audio runtime / toast を
+  直接操作してはならない（[BOUNDARY INVARIANT]・§12参照）。state mutationとResult返却のみを責務とし、
+  副作用の実行権限は app.js が持つ
 - `utils.js` / `helpers.js` は作らない
 
 ### modals.js 依存注入パターン
@@ -889,6 +896,54 @@ hover event → _showTooltip(chord, anchorRect)
   将来のhover hitbox分離フェーズで確立予定）
 - 表示メニュー・`Shift+D`でON/OFF切替（localStorage: `cs.chartDiagHover`、デフォルトON）
 
+### Chart Mode Collision Indicator（Phase92で確立・P1 v1）
+
+```
+GridViewModelの各slotが量子化（quantizeTime、最近傍slot方式）により
+複数onsetを持つ場合、resolveCollision()が以下の優先順位で1件を選ぶ
+（Phase91で実測確定した既存仕様）:
+  1. confidence（高い方）
+  2. duration（長い方）
+  3. time（遅い方＝後発優先）
+
+敗れたonsetはデータ（analysisEditor.buffer）としては消えず、
+Chart Mode描画（Rendering層）のみから脱落する。この脱落を可視化するのが
+Collision Indicatorの目的である。
+```
+
+**スコープ（P1 v1・normal pathのみ）**
+
+```
+onsetMap: slotIndex → { chosen, hiddenCount }
+  chosen        resolveCollision()が選んだonset
+  hiddenCount   同一slotで衝突し敗れたonsetの数（slot.onsets.length - 1）
+
+hiddenIdsは持たせない（[Command Layer原則]と同様、ViewModelの責務を
+「描画に必要な情報」に限定するため。将来「隠れたコードをクリックで
+選択」する機能が必要になった時点で初めてID配列を追加する）。
+```
+
+[PICKUP COLLISION SCOPE INVARIANT]
+Collision Indicator（P1 v1）はnormal path（`expandToSlots()`の通常経路）
+のみを対象とする。pickup measure（`mode==='full'`かつ小節0）では
+`remapPickupOnsetMap()`が視覚圧縮による**別種の衝突**（Stage2 collision：
+同一quantized slotでの衝突ではなく、複数actual slotが同一visual slotへ
+合流する際の衝突）を内部で解決しており、意味論が異なるためhiddenCountを
+合算しない。pickup measureでのCollision Indicatorは将来のP1 v2として
+別途スコープ化する（現状は表示されない＝既知の制約）。
+
+**UI**
+
+```
+.chart-slot-collision（chart.css）
+  Amber系ドット（--color-amber-rgb流用・新token追加なし。
+  [DECORATOR VISUAL LANGUAGE PRINCIPLE]準拠）
+  hover表示はtitle属性のみ（"+N hidden chord(s)"）。
+  専用tooltip機構（Chart Mode hover chord diagram）は流用しない
+  （診断インジケータとして必要十分なため、hitbox/lifecycle等の
+  文脈を持ち込まない）。
+```
+
 ---
 
 ## 10. PICKER_IDS による用途別ファイル管理（Phase60.5で確立・Phase64で実装）
@@ -962,15 +1017,33 @@ Project Repository
 
 ## 12. Analysis Editor Architecture
 
-Analysis Editorは、Editor Session（状態）・Editing Commands（編集コマンド群）・
-UI Projection（表示モード導出）・Decorator Layer（装飾描画）を主要コンポーネントとする
-編集サブシステムである。
+Analysis Editorは、Editor Session（状態）・Session Layer（state primitive）・
+Command Layer（編集コマンド群）・UI Projection（表示モード導出）・
+Decorator Layer（装飾描画）を主要コンポーネントとする編集サブシステムである。
+
+Phase86-2〜89で、元々app.js内に集約されていた実装は以下の2層へ分離された。
+
+```
+Session Layer（analysisSession.js）      Command Layer（analysisCommands.js）
+  = state primitiveの計算のみ              = 「ユーザー操作1回」= pushHistory()を伴う
+  historyを積まない                        historyを積む（[AE-6]のUndo単位1操作ルール）
+  例: refreshSelection / selectRange /      例: deleteSelectionCommand /
+      setEditPointFields /                      copySelectionCommand / pasteSelectionCommand /
+      activateSearchIndex（Phase90）             mergeSelectionCommand / updateChordCommand /
+                                                  splitChordCommand / moveBoundaryCommand /
+                                                  addChordCommand
+```
+
+両層とも共通の境界を持つ：state mutationとResult返却のみを行い、DOM操作・
+Chart Mode runtime同期（setSelectedChordIds等）・toast・audio/focus/scrollといった
+副作用は一切呼ばない（[BOUNDARY INVARIANT]参照）。副作用の実行はすべて app.js 側の
+薄いラッパーが担う。
 
 ```
 Analysis Editor
-  Editor Session（app.js内 analysisEditor）
+  Editor Session（app.js内 analysisEditor・createAnalysisSession()で生成）
     ├─ buffer            編集中の作業コピー（structuredCloneでraw.chordsから生成）
-    ├─ history / future   Undo/Redo用スナップショット（structuredClone）
+    ├─ history / future   Undo/Redo用スナップショット（structuredClone・past/futureスタック方式）
     ├─ selection (Derived Cache)
     │    ├─ chordIds        選択中のコードの_id（配列。単一〜複数選択に対応）
     │    ├─ boundaryIndex   chordIdsからbufferを検索して導いた派生値（左境界）
@@ -978,34 +1051,39 @@ Analysis Editor
     │    └─ editPoint       挿入位置 { ownerId, measureIndex, slotIndex }（chordIdsと排他）
     ├─ search
     │    └─ { open, query, replaceText, matches, activeIndex, focusRequested }
+    ├─ clipboard          編集セッションをまたいで永続化される（意図的仕様か検討の余地あり・Phase87 Findings）
     └─ dirty              未保存フラグ
 
-  Editing Commands（bufferのみを操作する）
+  Session Layer（analysisSession.js・historyを積まないstate primitive）
+      ├─ refreshSelection(session, chordIds?, anchorChordId?)   選択状態の唯一の同期窓口
+      ├─ selectRange(session, anchorId, targetId)               Shift+クリック範囲選択のstate計算
+      ├─ setEditPointFields() / clearEditPointField()           editPointの確定・解除
+      ├─ pushHistory() / undoBuffer() / redoBuffer()            history/future⇄buffer入替
+      └─ activateSearchIndex()（Phase90）                       検索結果のwrap-around index計算
+
+  Command Layer（analysisCommands.js・pushHistory()を1回だけ呼ぶ「ユーザー操作1回」単位）
     単一編集
-      ├─ splitChord(chordId, splitTime)   コード追加の実体
-      ├─ updateChord()                    コード情報を更新
-      ├─ deleteChord(id)                  コードを削除（隣接吸収・自動選択）
-      └─ openChordRenameSelector(chord)   コード名変更の共通入口
+      ├─ splitChordCommand() / updateChordCommand()   コード追加・情報更新の実体（Phase88）
+      ├─ deleteChordCommand()                          コードを削除（隣接吸収・自動選択。Phase87）
+      └─ moveBoundaryCommand(boundaryIndex, newTime)   境界を書き換える唯一の窓口（Result Protocol対象外・§下記）
 
     複数編集
-      ├─ selectChordRange(anchorId, targetId)  Shift+クリック範囲選択
-      ├─ deleteSelection()                     複数削除
-      ├─ copySelection() / cutSelection()      コピー・切り取り
-      ├─ pasteSelection()                      範囲に合わせて貼り付け（比率ベース）
-      └─ mergeSelection()                      選択範囲を1コードへ結合
+      ├─ deleteSelectionCommand()                     複数削除（単一選択時はdeleteChordCommandへ委譲）
+      ├─ copySelectionCommand() / cutSelectionCommand()  コピー・切り取り
+      ├─ pasteSelectionCommand()                       範囲に合わせて貼り付け（比率ベース）
+      └─ mergeSelectionCommand()                       選択範囲を1コードへ結合
 
     位置編集
-      ├─ setEditPoint() / clearEditPoint()     editPointの確定・解除
-      ├─ addChordAtEditPoint()                 editPoint位置へコード挿入（挿入）
-      ├─ shiftSelectionRange(deltaSec)          範囲シフト（Forward Wall Model）
-      ├─ pasteAbsolute() / getPasteOrigin() /
-      │  buildPastePlan() / commitPastePlan()  そのまま貼り付け（絶対位置保持）
-      └─ moveBoundary(boundaryIndex, newTime)   境界（隣接コード間の時刻）を書き換える唯一の窓口
+      ├─ addChordCommand()                             Add Here / aep-add の分割+リネームを
+      │                                                 1トランザクションで実行（[UNDO TRANSACTION INVARIANT]・Phase89）
+      ├─ buildPastePlan() / commitPastePlan()           そのまま貼り付け（絶対位置保持・Planning/Applying分離）
+      └─ shiftSelectionRange(deltaSec)                  範囲シフト（Forward Wall Model・app.js残置）
 
     検索・置換（詳細は §14 参照）
-      ├─ searchChords(buffer, query)           pure function・matchIds配列を返す
-      ├─ replaceCurrentMatch() / replaceAllMatches()
-      └─ _activateSearchMatch()                選択+シーク（UI層）
+      ├─ searchChords(buffer, query)                   pure function・matchIds配列を返す
+      ├─ replaceCurrentMatch() / replaceAllMatches()    既存のupdateChordCommand等を利用
+      └─ _activateSearchMatch()                         選択+シーク（UI層・app.js残置。
+                                                          index計算のみactivateSearchIndex()へ委譲）
 
   UI Projection
     └─ deriveEditorMode(selection)   selectionから'idle'/'single'/'multi'/'edit-point'を導出する
@@ -1014,8 +1092,9 @@ Analysis Editor
   Decorator Layer（chartmode.js）
     ├─ Selection Highlight    chartState内、_renderChartGrid()のslotループ内でその場判定
     ├─ Boundary Handle        setBoundaryHandleTarget() / boundaryHandleChordId
-    └─ EditPoint Marker       setEditPointMarker() / editPointMarker
-                              （post-hoc DOM patch方式は廃止済み）
+    ├─ EditPoint Marker       setEditPointMarker() / editPointMarker
+    │                         （post-hoc DOM patch方式は廃止済み）
+    └─ Collision Indicator    GridViewModelのonsetMap経由（Projection・§9.5参照。Phase92）
 ```
 
 Derived Cache = 正本から常に再計算できるキャッシュ。正本（chordIds等）が変われば、
@@ -1024,6 +1103,52 @@ Derived Cache = 正本から常に再計算できるキャッシュ。正本（c
 Derived Cacheの例:
   - `selection.boundaryIndex` — `selection.chordIds`から導出
   - `analysisEditor.search.matches` — `search.query`とbufferから導出
+
+### [BOUNDARY INVARIANT]（Phase87で確立）
+
+```
+analysisSession.js / analysisCommands.js は DOM / Chart Mode runtime /
+audio runtime / toast を直接操作してはならない。
+Session/Commandは state mutation と Result返却のみを責務とし、
+副作用の実行権限は app.js が持つ。
+
+例外を作らない（1行の副作用呼び出しであってもapp.js側に残す）。
+```
+
+### Result Protocol（Phase87で確立）
+
+```
+Command Layerの関数は共通のResult形状 { ok, reason?, selectedChordIds?, count? }
+を返す。app.js側はr.okとr.reasonを見てtoast可否を判断し、
+「エラー文言の所有権はapp.js」という原則が実装レベルでも一貫する。
+
+例外:
+  - moveBoundaryCommand(): ドラッグ操作等で1操作中に連続呼び出しされる
+    可能性がある低レベルprimitiveのため、number|nullを返す（Result Protocol対象外）
+  - buildPastePlan(): pure planning helperのため専用形状
+    { ok, reason?, buffer?, newIds? } を維持する
+    （commitPastePlan()がこれを受け取り統一shapeへ変換する）
+```
+
+### [UNDO TRANSACTION INVARIANT]（Phase89で確立）
+
+```
+ユーザーから「1回の操作」と認識される編集は、内部的に複数のbuffer mutation
+を伴っても pushHistory() は1回でなければならない。
+
+Phase79のcommitPastePlan（Paste系）で確立した原則を、addChordCommand
+（Add Here / aep-add系のコード追加操作）にも適用したもの。
+将来「分割+α」のような複合操作を追加する際も、この原則を踏襲する。
+```
+
+### getPasteOrigin() の依存方向（Phase87で確立）
+
+```
+getPasteOrigin() は内部で getTimeForGridPosition()（chartmode.js）を呼ぶため、
+Command Layerへは移さずapp.js残置とした。副作用を持たない問い合わせ関数だが、
+「状態操作層がUI描画モジュールに依存する」形は既存のモジュール依存ルール
+（§3・chartmode.jsはapp.js経由のみ参照可能）に反するため。
+```
 
 ### Analysis Editor Invariants
 
@@ -1147,6 +1272,7 @@ Runtime Projection・Derived Cache・Decorator状態はAuthorityではなく、
 | chartState.editPointMarker | selection.editPoint | `setEditPointMarker()` |
 | chartState.searchMatchIds | analysisEditor.search.query + buffer | `setSearchMatches()` |
 | analysisEditor.search.matches | analysisEditor.search.query + buffer | `searchChords(buffer, query)` |
+| GridViewModel slot.hiddenCount（Phase92） | measure.slots[].onsets（衝突数） | `resolveCollision()`呼び出しに付随する集計（normal pathのみ・§9.5参照） |
 
 [PROJECTION AUTHORITY INVARIANT]
 Projectionの更新窓口（setBoundaryHandleTarget()等）はchartmode.js側に置かれるが、
@@ -1181,6 +1307,13 @@ Decorator（Search Highlight）
 Engine（見つける）とUI層（選択+シークする）は分離されている。
 `searchChords()` は pure function であり、将来ライブラリ検索・歌詞検索等が
 同じ「buffer→matchIds」の考え方を再利用しやすい設計になっている。
+
+[Phase90] `_activateSearchMatch()`内のindex計算（wrap-around処理と
+`search.activeIndex`確定）は`activateSearchIndex()`（analysisSession.js・
+Session Layer）へ抽出済み。selection同期・Chart Mode同期・audio seek・
+DOM再描画は無変更でapp.js側に残置している（検索移動はbufferを変更せず
+historyも積まない「navigation」のため、Command Layerではなく
+Session Layerに分類される・§12参照）。
 
 ### 14.2 Search State
 

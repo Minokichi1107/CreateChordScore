@@ -40,6 +40,9 @@ handover                           → 日本語主体（既にそうなって�
 | Single Writer | 唯一の更新窓口（Single Writer） |
 | Ownership | 所有権・責務（Ownership） |
 | Lifecycle | 生存期間・ライフサイクル（Lifecycle） |
+| Session Layer | セッション層（Session Layer） |
+| Command Layer | コマンド層（Command Layer） |
+| Tie-break | タイブレーク（Tie-break） |
 
 ---
 

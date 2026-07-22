@@ -607,13 +607,19 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
     // 既存の通常経路（actual slot space === visual slot space）
     // ════════════════════════════════════════════════════
 
-    // onset map: slotIndex → resolved onset
+    // onset map: slotIndex → { chosen, hiddenCount }
+    // [Phase92] hiddenCount = 同一quantized slotで衝突しresolveCollision()に
+    // 敗れたonsetの数。pickup measure（visual compression経路）はスコープ外。
     const onsetMap = new Map(
-      measure.slots.map(s => [s.slotIndex, resolveCollision(s.onsets)])
+      measure.slots.map(s => [s.slotIndex, {
+        chosen:      resolveCollision(s.onsets),
+        hiddenCount: s.onsets.length - 1,
+      }])
     );
 
     for (let si = 0; si < slotsPerMeasure; si++) {
-      const onset = onsetMap.get(si);
+      const projected = onsetMap.get(si);
+      const onset = projected?.chosen ?? null;
 
       if (onset) {
         // ── onset slot ──────────────────────────────────────
@@ -633,6 +639,7 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
           chord:         onset.chord,    // canonical（capo 変換しない）
           id:            onset.id ?? null,  // [Phase74-C] 編集UIのクリック選択用
           durationSlots: 1,              // 暫定値。次の onset 到達時に更新
+          hiddenCount:   projected.hiddenCount, // [Phase92] 同一slotで隠れたonset数
         };
         result.push(slotData);
         lastOnsetMeasureLocal = si;
@@ -2008,6 +2015,18 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
             // compact 表示（8文字以上 → font-size 縮小・行高維持）
             if (display.length >= COMPACT_CHORD_LENGTH) {
               chordEl.classList.add('chart-chord-name--compact');
+            }
+
+            // [Phase92] Collision Indicator（P1 v1）
+            // 同一quantized slotでresolveCollision()に敗れたonsetがある場合に表示する。
+            // slot.hiddenCount はnormal path限定（pickup経路では付与されないためundefined）。
+            // [DECORATOR VISUAL LANGUAGE PRINCIPLE] 準拠: 新色を追加せず既存Amber系を流用。
+            // hover表示はtitle属性のみ（診断インジケータとして必要十分。専用tooltipは持たない）。
+            if (slot.hiddenCount > 0) {
+              const collisionEl = document.createElement('span');
+              collisionEl.className = 'chart-slot-collision';
+              collisionEl.title = `+${slot.hiddenCount} hidden chord${slot.hiddenCount > 1 ? 's' : ''}`;
+              slotEl.appendChild(collisionEl);
             }
 
             slotEl.appendChild(chordEl);

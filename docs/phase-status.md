@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase86完了時点
+> 最終更新: Phase92完了時点
 
 ---
 
@@ -10,17 +10,22 @@
 Completed（完了済み）
 ---------------------
 ✓ Project Repository（IndexedDB・Library UI・Restore Authority）
-✓ Chart Mode（Timing Pipeline・Pickup Projection・Playback Authority）
+✓ Chart Mode（Timing Pipeline・Pickup Projection・Playback Authority・
+  Collision Indicator）
 ✓ Analysis Editor（単一編集・複数編集・Position Editing・Decorator Layer・
-  Search Engine・Chord Projection API・Representation Translation Layer）
+  Search Engine・Chord Projection API・Representation Translation Layer・
+  セッション層（Session Layer）／コマンド層（Command Layer）分離）
 ✓ ドキュメント棚卸し + 再構成（Phase81）
 ✓ UI視認性・記号衝突修正（Phase85）
 ✓ CSS Ownership Split（Phase86・components.cssをモジュール所有権別6ファイルへ分離）
+✓ Analysis Editor セッション層／コマンド層（Session Layer / Command Layer）抽出（Phase86-2〜89・app.js肥大化対応）
+✓ Search Navigation Session層抽出（Phase90）
+✓ Chart Mode Collision Indicator P1 v1（Phase91調査・Phase92実装）
 
 Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」参照）
 ------------------------------------------------------------
-Phase82〜86が完了し、5フェーズ棚卸し（本更新）を実施済み。
-次の主候補はSprint B（app.js → analysisSession.js抽出）。
+Phase87〜92が完了し、5フェーズ棚卸し（本更新）を実施済み。
+次の主候補は未確定（Future Candidates参照）。
 ```
 
 ---
@@ -42,6 +47,7 @@ Phase82〜86が完了し、5フェーズ棚卸し（本更新）を実施済み�
 | 63 | playback authority 3層分離（rAF loop導入） |
 | 64 | 4層 architecture contract 確立（Persistence/Runtime Cache/Chart Runtime/UI Projection） |
 | 68〜69 | pickup-aware visual projection（canonical ≠ visual space分離） |
+| 91〜92 | Collision Indicator（同一量子化スロット衝突（quantized slot collision）の可視化・P1 v1・normal path限定） |
 
 ### Project Repository / Persistence
 
@@ -67,6 +73,11 @@ Phase82〜86が完了し、5フェーズ棚卸し（本更新）を実施済み�
 | 82 | Chord Projection API確立（`toDisplayChord()`/`toCanonicalChord()`・Capo Projection Boundary） |
 | 83 | Chart Mode編集UX改善（Enter⇔Rename分岐）・検索IME正規化・検索case-sensitive化 |
 | 84 | Representation Translation Layer確立（`toReadableChord()`/`fromReadableChord()`・ChordMini生表記の吸収） |
+| 86-2 | Session Authority抽出（analysisSession.js新設）・Ctrl/Cmd+クリックeditPoint確定・AddChord Enterバグ修正 |
+| 87 | コマンド層（Command Layer）抽出（analysisCommands.js新設・copy/cut/delete/paste/merge） |
+| 88 | コマンド層（Command Layer）拡張（updateChord/splitChord/moveBoundary） |
+| 89 | Add Chord Transaction統合（addChordCommand・Issue #46解消） |
+| 90 | Search Navigation Session層抽出（activateSearchIndex） |
 
 ### 基盤・アーキテクチャ整理
 
@@ -81,6 +92,8 @@ Phase82〜86が完了し、5フェーズ棚卸し（本更新）を実施済み�
 | 81 | ドキュメント棚卸し + 再構成（README/architecture/phase-status/current-issues全面整理） |
 | 85 | UI視認性・記号衝突修正（Blue theme fret色・Repeat badge記号衝突解消） |
 | 86 | **CSS Ownership Split**（components.cssをchart/analysis-editor/library/chord-entry/modal/tapmodeの6ファイルへ分離。分割基準は「DOMを生成するモジュールの所有権」。architecture.md §3参照） |
+| 91 | Chart Mode Rendering collision semanticsの確定（調査フェーズ・修正コミットなし。resolveCollision()のタイブレーク（tie-break）規則を実測で確定） |
+| 92 | **Chart Mode Collision Indicator（P1 v1）**（同一quantized slot衝突をhiddenCount/Amberドットで可視化。Rendering-only・normal-path-only。architecture.md §9.5参照） |
 
 ---
 
@@ -91,7 +104,7 @@ Phase82〜86が完了し、5フェーズ棚卸し（本更新）を実施済み�
 ### Future Features（新機能・優先順位未定）
 
 ```
-・Boundary Handleのドラッグ操作
+・Boundary Handleのドラッグ操作（現在はクリックによる境界移動のみ）
 ```
 
 ### Technical Debt（技術的負債・既存挙動の見直し）
@@ -109,10 +122,28 @@ Phase82〜86が完了し、5フェーズ棚卸し（本更新）を実施済み�
   silverの--color-green-rgb欠落・components.css残置35ブロックの
   再監査等は引き続きopen。詳細はcurrent-issues.md参照）
 
-・Sprint B（app.js → analysisSession.js / analysisCommands.js抽出）
-  DOM操作を含まない部分は抽出可能と確認済み（Phase86棚卸し）。
-  _activateSearchMatch()はaEl.currentTimeを直接操作するため
-  完全pureにできず、コールバック注入方針を着手時に決定する
+・Pickup-aware Collision Indicator（P1 v2）
+  Phase92のCollision Indicatorはnormal path限定。pickup measureの
+  remapPickupOnsetMap()内で発生するStage2 collision（視覚圧縮による
+  合流衝突）はhiddenCountを合算しておらず未可視化のまま
+  （architecture.md §9.5「PICKUP COLLISION SCOPE INVARIANT」参照）
+
+・clipboardのセッションスコープ見直し（Phase86-2/87で発見・未対応）
+  analysisEditor.clipboardが編集セッションをまたいで永続化される仕様。
+  「アプリ内クリップボード」として正式化するか設計議論が必要
+
+・Result型（CommandResult）のJSDoc typedef共有ファイル化（優先度低）
+  現状はanalysisCommands.js冒頭のコメントのみ
+
+・__analysisEditorDebugの正式な扱い（Phase87で発見）
+  「[TEMP DEBUG] 削除すること」とコメントされたままPhase74から現在まで
+  DevTools経由の実質的公開APIとして使われ続けている。削除するか、
+  正式なdebug APIとしてarchitecture.md §5.5に昇格させるか要検討
+
+・置換ショートカットUX（Phase88で発見・未確定）
+  置換直後、入力欄にフォーカスが残った状態でのCtrl+Zがブラウザ標準の
+  テキストUndoと衝突しやすい（既存のinTextInputガードによる仕様）。
+  「元に戻す」ボタンでは正常動作。UXとして改善余地があるか検討候補
 ```
 
 ### Watch List（継続監視中・原因未特定）
@@ -120,7 +151,7 @@ Phase82〜86が完了し、5フェーズ棚卸し（本更新）を実施済み�
 ```
 ・「緑の棒」バグ（原因未特定・次回発生時にDevToolsで実測）
 ・replaceCurrentAndAdvance()のbackward方向の簡略化（意図的な仕様・バグではない）
-・ライブラリ：曲を開くと同じアーティスト内で一番上に移動する（退行の疑い・未調査）
+・ライブラリ：曲を開いた後、同一アーティスト内で選択行が先頭へジャンプする（退行の疑い・未調査）
 ```
 
 ---
@@ -359,7 +390,70 @@ Phase82〜86が完了し、5フェーズ棚卸し（本更新）を実施済み�
 
 </details>
 
----
+<details>
+<summary>Phase87-92 を展開</summary>
+
+#### Phase86-2 — Analysis Editor Session Authority抽出 + Ctrl/Cmd EditPoint + AddChord Enterバグ修正
+- `analysisSession.js`新設。`createAnalysisSession()` / `resetSessionFields()` /
+  `pushHistory()` / `undoBuffer()` / `redoBuffer()` / `refreshSelection()` /
+  `selectRange()` / `setEditPointFields()` / `clearEditPointField()`を実装
+- app.js側の該当関数を薄いラッパー化（DOM/audio/Chart runtime副作用はapp.js残置）
+- UX追加: Ctrl/Cmd+クリックで二段階クリックモデルをバイパスし即editPoint確定
+- バグ修正: AddChordモーダルのEnter確定直後に別モーダルが誤って再オープンする問題
+  （`e.stopPropagation()`追加。原因はDOM除去とイベントbubbling順序の競合）
+- Findings: undoEdit/redoEditは想定と異なり「past/futureスタック」方式だった。
+  reset系関数は当初の想定より副作用が多かった（setSearchMatches等が同居）
+
+#### Phase87 — Analysis Editor コマンド層（Command Layer）抽出
+- `analysisCommands.js`新設。copy/cut/delete/paste/merge系5関数を移設予定が、
+  実コード監査でdeleteChord()・buildPastePlan/commitPastePlanも対象に拡大
+- Result Protocol確立: `{ ok, reason?, selectedChordIds?, count? }`統一形状
+- [BOUNDARY INVARIANT]確立: セッション層／コマンド層（Session/Command Layer）は副作用を一切持たない
+- Findings: `pasteSelection()`が計画/適用分離（buildPastePlan型）を経由していない
+  独立構造だったことを実コード監査で発見・スコープに追加
+- Findings: `__analysisEditorDebug`が「隠れた公開API」として機能していたことを発見。
+  bindラッパーで契約維持
+
+#### Phase88 — コマンド層（Command Layer）拡張（updateChord / splitChord / moveBoundary）
+- `moveBoundaryCommand`（低レベルprimitive・Result Protocol対象外）・
+  `updateChordCommand` / `splitChordCommand`（呼び出し側6箇所は無修正）を追加
+- Issue #46発見: Add Here/aep-addのUndoが2段階に分かれる潜在バグ
+  （Phase75由来・Phase88の抽出自体が原因ではないと判定）
+- 置換Undoの「効かない」報告を調査 → `inTextInput`ガードによる仕様と判明。
+  UX上のストレスは断定せず将来検討候補として保留
+
+#### Phase89 — Add Chord Transaction統合（Issue #46対応）
+- `addChordCommand()`新設。split+renameを1トランザクション化し
+  pushHistory()を1回に統合（[UNDO TRANSACTION INVARIANT]確立）
+- splitChordCommand/updateChordCommandは呼び出さずロジックを局所複製
+  （既存2関数のシグネチャ・挙動を変えないため）
+- Findings: 個別移動ボタンで極小duration化したコードをaep-add分割すると
+  隣接コードの描画に隠れる現象を新規発見（Phase91調査の起点）
+
+#### Phase90 — Search Navigation の Session層抽出
+- `activateSearchIndex()`新設（analysisSession.js）。検索結果のwrap-around
+  index計算のみを抽出。selection同期・Chart Mode同期・audio seek・
+  DOM再描画は無変更でapp.js側に残置
+- 設計原則確定: 検索移動はbufferを変更せずhistoryも積まない「navigation」
+  であり、コマンド層（Command Layer）ではなくセッション層（Session Layer）に分類する
+
+#### Phase91 — Chart Mode Rendering Collision Semanticsの確定（調査フェーズ）
+- Phase89で発見した「極小duration chord表示重なり」を調査。修正コミットなし
+- 原因確定: `quantizeTime()`（最近傍slot方式）により極小duration分割onsetが
+  同一slotIndexへ量子化され、`resolveCollision()`のタイブレーク（tie-break）
+  （confidence→duration→time）で片方が描画から脱落することを実測ログで確定
+- 一時ログ（`[TEMP DEBUG][Phase91]`）追加→実測→削除の手順を徹底
+- 設計判断: 「Commandで弾く（P2）」より「Projection制約として可視化する（P1）」を
+  採用候補に決定。Command層がChart Runtimeの量子化解像度を知る結合を避けるため
+
+#### Phase92 — Chart Mode Collision Indicator（P1 v1）
+- `expandToSlots()`のnormal pathを`{ chosen, hiddenCount }`形状へ拡張
+- Rendererに`.chart-slot-collision`（Amber系ドット・title属性のみ）を追加
+- スコープをnormal pathのみに限定（pickup measureの`remapPickupOnsetMap()`は
+  無変更）。理由: pickup measureには「同一slot衝突」と「視覚圧縮による合流衝突」
+  という意味論の異なる2種類の衝突が存在し、安易に合算すると原因の異なる現象を
+  1つのメトリクスに潰してしまうため（[PICKUP COLLISION SCOPE INVARIANT]確立）
+- 実機確認済み。差分は`chartmode.js`5ブロック・`chart.css`1ルールのみ
 
 </details>
 

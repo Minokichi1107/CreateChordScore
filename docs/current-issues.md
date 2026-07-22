@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase86完了時点
+> 最終更新: Phase92完了時点
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -48,6 +48,30 @@ synthetic testでは動作確認済みだが、手元の楽曲が全てpickupな
 - Type D: 発生ケース収集後に repair: true で効果検証
 - Type A/C: 手動修正UI設計フェーズ（大規模・将来）
 
+#### Chart Mode: 極小durationコード衝突の可視化（Phase91-92で対応・pickup measureは未対応）
+状態: normal path対応済み（Phase92・Collision Indicator P1 v1）・pickup measureは
+visual compression collisionの意味論整理待ちのため適用対象外
+内容: 個別移動ボタンでコードの幅を極端に狭めた（duration≈0だが0ではない）状態で
+aep-add（中間点分割）を実行すると、生成された2つのonsetがChart Modeの量子化グリッド
+（1slot幅）より遥かに短い間隔にあるため、buildGridViewModel()で同一slotIndexへ
+量子化される。render直前のresolveCollision()がこの衝突を1件に絞り込む際、
+confidence→duration→time（後発優先）の順で片方を選ぶ（chartmode.js内の既存仕様）。
+中間点分割は必ず2つのonsetが同一durationになるため、time タイブレーク（tie-break）により
+「後発onset」が常に採用され、条件が揃えば必ず・決定的に再現する
+（Phase91実測ログで確認済み）。データはanalysisEditor.buffer上には正しく存在しており、
+消えるのはChart Mode描画（GridViewModel projection）上のみ。
+対応（Phase92）: normal pathの衝突slotに`hiddenCount`をGridViewModelへ持たせ、
+Rendererが`.chart-slot-collision`（Amber系ドット・title属性「+N hidden chord(s)」）を
+表示するようにした（[DECORATOR VISUAL LANGUAGE PRINCIPLE]準拠・新色追加なし）。
+hiddenCountはnormal pathのslot projection時のみ付与される（pickup measureでは
+付与されない）。これにより「無言で消える」問題は解消し、「表示は1つだが他に隠れているコードが
+あると分かる」状態になった。
+残課題: pickup measure（`mode==='full'`かつ小節0）は対象外。`remapPickupOnsetMap()`
+による視覚圧縮衝突（Stage2 collision）は同一slot衝突（Stage1）と意味論が異なるため、
+今回は意図的にスコープ外とした（architecture.md §9.5
+「PICKUP COLLISION SCOPE INVARIANT」参照）。P1 v2として将来対応候補
+（phase-status.md「Future Candidates」参照）。
+
 #### Known Design Gap — N（無音プレースホルダー）の表示モデル不一致
 状態: 未着手・優先度低
 内容: Analysis Editorの正本（buffer）は無音プレースホルダー（chord:'N'）を実在する
@@ -72,16 +96,19 @@ forward方向（Enter）は自然に正しく動作するが、backward方向（
 詰まった分だけ1件飛ばす可能性がある。利用頻度と補正実装コストを比較し、現段階では
 仕様として許容した。実害が出るようなら再検討する。
 
-#### Issue #46 — Add Here / aep-addのUndoが2段階になる
-状態: 発見済み・未対応（Phase88の実機検証で発見・Phase75由来の既存バグ）
-内容: 「コードを追加」操作（AddChordモーダルでのAdd Here / aep-addボタン）は
-splitChord()とupdateChord()を続けて呼ぶが、それぞれが独立してhistoryへ
-スナップショットを積むため、ユーザーからは1回の操作に見えても
-Undoが2段階に分かれる（1回目: リネームのみ取り消し／2回目: 分割が取り消される）。
-Redoも同様に2段階。
-次のアクション候補: split+renameを1回のUndo単位にまとめる
-transactional Command（commitPastePlanと同型）をPhase89以降で検討する。
-詳細はhandover_phase88.md §6/§7参照。
+#### clipboardのセッションスコープ未検討
+状態: 未対応（実害なし・Phase86-2/87で発見）
+内容: analysisEditor.clipboardは`beginAnalysisEdit()`/`resetAnalysisEditor()`の
+どちらでもクリアされず、編集セッションをまたいで保持される（「アプリ内
+クリップボード」に近い挙動）。意図的な仕様か検討の余地あり。
+
+#### 置換直後のCtrl+Zがブラウザ標準Undoと衝突しやすい
+状態: 仕様として説明可能・UX改善は未検討（Phase88で発見）
+内容: 置換直後、入力欄にフォーカスが残った状態でCtrl+Zを押すと、既存の
+`inTextInput`ガード（ブラウザ標準のテキストUndoと衝突させないための意図的設計）
+によりアプリ側のUndoが発火しない。「元に戻す」ボタンでは正常に動作する。
+コード不具合としては再現できていないため、断定はしていない。ショートカットUXの
+改善候補（例: Escapeでフォーカスを外してからCtrl+Zする案等）として保留。
 
 ### restore lifecycle 系
 
@@ -150,6 +177,14 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 - `.library-sort-select`（HTML上のclass属性）にCSSルールが存在しない
   （Phase86棚卸しで発見）。実際のスタイルは `.library-toolbar select`
   という子孫セレクタから効いているため実害なし。低優先度。
+- `__analysisEditorDebug`の正式な扱い未確定（Phase87で発見）
+  コード内コメントで「[TEMP DEBUG] 実装完了後に削除すること」と書かれているが、
+  Phase74から現在までDevTools経由の実質的な公開インターフェースとして
+  使われ続けている。削除するか、正式なdebug APIとしてarchitecture.md §5.5に
+  昇格させるか要検討。
+- Result型（CommandResult）が共有typedefファイルとして独立していない
+  （Phase87）。現状はanalysisCommands.js冒頭のコメントに型定義があるのみ。
+  優先度低。
 
 ---
 
@@ -187,6 +222,13 @@ boundaryはまだ新しく、着手前に設計フェーズを必ず挟むこと
 #### Boundary Handle のドラッグ操作
 内容: `requestBoundaryShift()` という入口のみ用意済み。ボタン・矢印キー以外に
 ドラッグでの境界移動を追加する。
+
+#### Pickup-aware Collision Indicator（P1 v2）
+内容: Phase92のCollision Indicator（`hiddenCount`可視化）はnormal path限定。
+pickup measureでは`remapPickupOnsetMap()`による視覚圧縮衝突（Stage2 collision）
+が別途存在し、意味論が同一slot衝突（Stage1）と異なるため今回は意図的にスコープ外
+とした。将来対応する場合は、Stage1/Stage2のhiddenCountを単純合算せず、
+別概念として設計すること（architecture.md §9.5参照）。
 
 #### 二段階クリックモデルの見直し
 内容: 「1クリック＝選択、2回目クリック＝editPoint」という現行モデルから、
