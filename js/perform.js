@@ -49,6 +49,7 @@ let _getLines = null;
 
 // スクロール競合防止フラグ
 let _isScrolling = false;
+let _manualScrollSuspendUntil = 0;  // Phase94 B4: 手動スクロール後の自動追従抑止期限
 
 // ════════════════════════════════════════
 // INIT
@@ -264,6 +265,21 @@ export function updatePerformFocus() {
   }
 }
 
+// Phase94 B4: 現在再生行がビューポート内に見えているか判定
+function _isFocusedLineVisible(container) {
+  const target = document.querySelector('.perform-line.focused');
+  if (!target) return false;
+  const c = container.getBoundingClientRect();
+  const t = target.getBoundingClientRect();
+  return t.bottom > c.top && t.top < c.bottom;
+}
+
+// Phase94 B4: 自動追従復帰までの猶予（ミリ秒）を localStorage から取得（未設定時は5000）
+function _getAutoScrollGraceMs() {
+  const v = Number(localStorage.getItem('cs.perform.autoScrollGraceMs'));
+  return Number.isFinite(v) && v > 0 ? v : 5000;
+}
+
 function scrollToLine(target) {
   if (_isScrolling) return;
 
@@ -276,6 +292,10 @@ function scrollToLine(target) {
 
   // 現在行を画面上部25%付近に配置（下の行を先読みしやすくする）
   const targetScrollTop = scrollTop - container.clientHeight * 0.25;
+
+  // Phase94 B4: 手動スクロール直後の猶予中は実スクロールだけ抑止
+  // (呼び出し元 updatePerformFocus の focused クラス更新は継続される)
+  if (Date.now() < _manualScrollSuspendUntil) return;
 
   _isScrolling = true;
   container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
@@ -347,4 +367,13 @@ export function setupPerformSwipe() {
       else prevPerformPage();
     }
   });
+
+  // Phase94 B4: 手動スクロール検知（自動追従によるスクロールは _isScrolling で除外）
+  // freshに相乗りさせる理由: setupPerformSwipeの clone付け替えで二重listenを防いでいるため
+  fresh.addEventListener('scroll', () => {
+    if (_isScrolling) return;
+    _manualScrollSuspendUntil = _isFocusedLineVisible(fresh)
+      ? 0
+      : Date.now() + _getAutoScrollGraceMs();
+  }, { passive: true });
 }

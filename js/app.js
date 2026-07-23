@@ -4041,6 +4041,18 @@ function setupEventHandlers() {
     // 再レンダリング不要（CSSで制御）
   });
 
+  // Phase94 B4: 演奏モード 自動スクロール復帰までの猶予時間
+  // 【HTML挿入依頼】<select id="perform-scroll-grace"> を手動で追加するまで
+  // このブロックは起動時エラーの原因になるので注意
+  const performScrollGraceSelect = document.getElementById('perform-scroll-grace');
+  if (performScrollGraceSelect) {
+    const savedGrace = localStorage.getItem('cs.perform.autoScrollGraceMs') || '5000';
+    performScrollGraceSelect.value = savedGrace;
+    performScrollGraceSelect.addEventListener('change', e => {
+      localStorage.setItem('cs.perform.autoScrollGraceMs', e.target.value);
+    });
+  }
+
   // 演奏モード: フォントスケール
   document.getElementById('perform-font-scale').addEventListener('input', e => {
     performState.fontScale = parseFloat(e.target.value);
