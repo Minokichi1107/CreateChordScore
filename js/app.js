@@ -1307,6 +1307,42 @@ function requestBoundaryShift(deltaSec) {
  *
  * @returns {string|null}
  */
+/**
+ * _computeSelectionMeasureSpan — 選択範囲の小節数を計算する（Phase94 C1）
+ *
+ * step = 1 / beatsPerMeasure で丸める（4/4では結果的に0.25になる。
+ * 表示先は renderAnalysisEditorPanel()のフッターサマリー欄
+ *。Chart Modeヘッダーは chartmode.js所有のためここでは触らない。
+ *
+ * @returns {{measures: number, text: string}|null}
+ */
+function _computeSelectionMeasureSpan() {
+  const ids = analysisEditor.selection.chordIds;
+  if (!ids || ids.length === 0) return null;
+
+  const buffer = analysisEditor.buffer;
+  // [INVARIANT] chordIdsはbuffer上の時系列順に正規化済み（_refreshSelection参照）
+  const first = buffer.find(c => c._id === ids[0]);
+  const last  = buffer.find(c => c._id === ids[ids.length - 1]);
+  if (!first || !last) return null;
+
+  const bpm = project.analysis?.bpm;
+  const beatsPerMeasure = project.analysis?.timeSignature?.numerator || 4;
+  if (!bpm) return null;
+
+  const measureSeconds = (60 / bpm) * beatsPerMeasure;
+  const rawMeasures = (last.end - first.start) / measureSeconds;
+
+  const step = 1 / beatsPerMeasure;
+  const rounded = Math.round(rawMeasures / step) * step;
+
+  const text = rounded < 1
+    ? `${Math.round(rounded * beatsPerMeasure)}拍`
+    : `${parseFloat(rounded.toFixed(2))}小節`;
+
+  return { measures: rounded, text };
+}
+
 function _getBoundaryHandleChordId() {
   const { chordIds, boundaryIndex } = analysisEditor.selection;
   if (chordIds.length !== 1 || boundaryIndex === null) return null;
@@ -1837,6 +1873,8 @@ function renderAnalysisEditorPanel() {
     && lastSelIdx < analysisEditor.buffer.length - 1;
 
   const capo = getCapo();
+  // Phase94 C1: 選択範囲の小節数。single/multiのみで使用
+  const measureSpan = _computeSelectionMeasureSpan();
 
   // ── Group 1: Selection ──
   let selectionInfo;
@@ -1852,9 +1890,11 @@ function renderAnalysisEditorPanel() {
     // [Phase78 Sprint1 バグ修正] 同上。chord.chordを生のまま表示していた。
     // [Phase84] Representation→Projectionの順で適用。
     selectionInfo = `<span class="aep-chord-name">${toDisplayChord(toReadableChord(chord.chord), capo)}</span>
-      <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>`;
+      <span class="aep-chord-time">${chord.start.toFixed(3)}秒 〜 ${chord.end.toFixed(3)}秒</span>
+      ${measureSpan ? `<span class="aep-chord-span">${measureSpan.text}</span>` : ''}`;
   } else if (mode === 'multi') {
-    selectionInfo = `<span class="aep-chord-info">${selectedIds.length}コード選択中</span>`;
+    selectionInfo = `<span class="aep-chord-info">${selectedIds.length}コード選択中</span>
+      ${measureSpan ? `<span class="aep-chord-span">${measureSpan.text}</span>` : ''}`;
   } else {
     selectionInfo = `<span class="aep-chord-info aep-chord-info--empty">クリックして編集</span>`;
   }
@@ -4042,8 +4082,6 @@ function setupEventHandlers() {
   });
 
   // Phase94 B4: 演奏モード 自動スクロール復帰までの猶予時間
-  // 【HTML挿入依頼】<select id="perform-scroll-grace"> を手動で追加するまで
-  // このブロックは起動時エラーの原因になるので注意
   const performScrollGraceSelect = document.getElementById('perform-scroll-grace');
   if (performScrollGraceSelect) {
     const savedGrace = localStorage.getItem('cs.perform.autoScrollGraceMs') || '5000';

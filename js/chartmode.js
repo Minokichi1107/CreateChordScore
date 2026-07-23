@@ -781,6 +781,13 @@ export const chartState = {
   // Selectionとは独立した別state（同じ色で塗ると「選択」と「検索結果」が
   // 混同されるため）。
   searchMatchIds: new Set(),
+
+  // Phase94 C1: 選択範囲の小節数表示（表示用ローカルキャッシュ）。
+  // [OWNERSHIP] 正本は app.js の analysisEditor.selection.chordIds と
+  // project.analysis.bpm/timeSignature。計算は app.js 側が行い、
+  // ここは描画用のローカル表示状態を保持するだけ。
+  // null | { measures: number, text: string }
+  selectionMeasureSpan: null,
 };
 
 /**
@@ -844,6 +851,19 @@ export function setBoundaryHandleTarget(chordId) {
  */
 export function setSearchMatches(ids) {
   chartState.searchMatchIds = new Set(ids);
+}
+
+/**
+ * setSelectionMeasureSpan — 選択範囲の小節数表示を更新する（Phase94 C1）
+ *
+ * [OWNERSHIP] 正本は app.jsの analysisEditor.selection と project.analysis。
+ * ここは描画用のローカル表示状態を更新するだけ。
+ * 呼び出し後は renderChartMode() で再描画が必要。
+ *
+ * @param {{measures: number, text: string}|null} span
+ */
+export function setSelectionMeasureSpan(span) {
+  chartState.selectionMeasureSpan = span ?? null;
 }
 
 // ────────────────────────────────────────
@@ -1938,7 +1958,12 @@ const repairBadge = analysis.repairRule
     ? `<span class="chart-header-edit-badge">✎ 編集中</span>`
     : '';
 
-  el.innerHTML = [bpm, ts, capoInfo, repairBadge, editingBadge, modeWarning].filter(Boolean).join(' &nbsp;|&nbsp; ');
+  // Phase94 C1: 選択範囲の小節数表示。編集中であって選択がある時のみ
+  const spanInfo = (editing && chartState.selectionMeasureSpan)
+    ? chartState.selectionMeasureSpan.text
+    : '';
+
+  el.innerHTML = [bpm, ts, capoInfo, repairBadge, editingBadge, spanInfo, modeWarning].filter(Boolean).join(' &nbsp;|&nbsp; ');
 
   // [Phase74-C] 編集ボタンのamber色切り替え
   // ヘッダーに関する表示はすべてこの関数が担当する（責務の一本化）
