@@ -677,14 +677,31 @@
   cursor: pointer;
   flex-shrink: 0;
 }
+/* [最終案] 編集モードは「編集ワークフロー系」の状態として、
+   .aep-btn--saveと同じgreenを流用。Amber（補正・補助系の意味）との
+   概念衝突を解消するため、意図的にrgba背景は使わず、
+   .aep-btn--saveの:hoverと同じ「塗りつぶし+surface-base文字」を採用。
+   silverテーマで--color-green-rgbが未定義なものの
+   （current-issues.md既知）なので、rgba(--color-green-rgb)は意図的に使わない。 */
 .chart-edit-btn:hover {
-  border-color: var(--color-amber);
-  color: var(--color-amber);
+  border-color: var(--color-green);
+  color: var(--color-green);
 }
 .chart-edit-btn--active {
-  background: rgba(var(--color-amber-rgb), .15);
-  border-color: var(--color-amber);
-  color: var(--color-amber);
+  background: var(--color-green);
+  border-color: var(--color-green);
+  color: var(--surface-base);
+}
+
+/* ── Chart Mode: 編集中表示（Phase74-C・Phase94で見直し） ────── */
+/* [ChatGPTレビュー採用] 小節補正中（Amber＝補助・補正系）と役割が違うため、
+   保存ボタン（.aep-btn--save）と同じgreen（＝編集ワークフロー系）に変更。
+   バッジの背景・枠は廃止し、文字色＋太字のみで表現する（新規token追加なし）。 */
+.chart-header-edit-badge {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--color-green);
 }
 
 /* ── Chart Mode: 選択中コードの文字強調（Phase74-C・Sprint2-1で責務分離） ──
