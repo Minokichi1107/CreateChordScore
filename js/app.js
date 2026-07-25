@@ -4696,6 +4696,12 @@ rebuildChartViewModel();
       } else {
         // 通常クリック: 単一選択・起点(anchor)をクリックしたコードへ更新
         _refreshSelection([chordId], chordId);
+        // [Phase95-A1] Chart Modeは演奏位置と編集位置を一致させる方針のため、
+        // 検索結果クリック（_activateSearchMatch）と同じ「選択+シーク」に統一する。
+        // Shift+クリック（範囲選択）は対象外（選択操作中にシークされると
+        // 操作しづらくなるため、上のselectChordRange分岐には含めない）。
+        const chord = analysisEditor.buffer.find(c => c._id === chordId);
+        if (chord) aEl.currentTime = chord.start;
       }
 
       // [UI SYNC] setSelectedChordIds → _refreshEditorView() で
