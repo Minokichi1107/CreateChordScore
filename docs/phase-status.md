@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase92完了時点
+> 最終更新: Phase98完了時点（Documentation Audit実施済み・Phase93〜98を反映）
 
 ---
 
@@ -21,10 +21,17 @@ Completed（完了済み）
 ✓ Analysis Editor セッション層／コマンド層（Session Layer / Command Layer）抽出（Phase86-2〜89・app.js肥大化対応）
 ✓ Search Navigation Session層抽出（Phase90）
 ✓ Chart Mode Collision Indicator P1 v1（Phase91調査・Phase92実装）
+✓ Analysis Editor Evolution（Phase93〜97）:
+  Boundary Handle Drag Editing → Playback-aware Editing UX →
+  Chart Modeクリックの選択+シーク一般化 → Boundary Handle Hover +
+  Direct Drag → Decorator Inventory整理・Visual Hierarchy確立 →
+  Selection Hit-Test統一・Search Enharmonic対応（詳細は「3. Phase
+  Timeline」参照）
+✓ Section Architecture Design（Phase98・Design Freeze。実装はPhase99以降）
 
 Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」参照）
 ------------------------------------------------------------
-Phase87〜92が完了し、5フェーズ棚卸し（本更新）を実施済み。
+Phase93〜98が完了し、5フェーズ棚卸し（本更新）を実施済み。
 次の主候補は未確定（Future Candidates参照）。
 ```
 
@@ -48,6 +55,10 @@ Phase87〜92が完了し、5フェーズ棚卸し（本更新）を実施済み�
 | 64 | 4層 architecture contract 確立（Persistence/Runtime Cache/Chart Runtime/UI Projection） |
 | 68〜69 | pickup-aware visual projection（canonical ≠ visual space分離） |
 | 91〜92 | Collision Indicator（同一量子化スロット衝突（quantized slot collision）の可視化・P1 v1・normal path限定） |
+| 93 | Boundary Handle Drag Editing（クリック＋矢印キーに加え、ドラッグでの境界移動を追加） |
+| 95-A1 | 通常クリック全体への「選択+シーク」一般化 |
+| 95-A2 | Boundary Handle Hover + Direct Drag（selection非依存の境界編集） |
+| 96〜97 | Decorator Inventory棚卸し・Visual Hierarchy確立／Selection Hit-Test統一／Search Engine Enharmonic対応 |
 
 ### Project Repository / Persistence
 
@@ -78,6 +89,8 @@ Phase87〜92が完了し、5フェーズ棚卸し（本更新）を実施済み�
 | 88 | コマンド層（Command Layer）拡張（updateChord/splitChord/moveBoundary） |
 | 89 | Add Chord Transaction統合（addChordCommand・Issue #46解消） |
 | 90 | Search Navigation Session層抽出（activateSearchIndex） |
+| 94 | Playback-aware Editing UX（B4 Scroll Recovery・C1 Selection Measure Span）・Header Visual Language整理（Green=編集ワークフロー系／Amber=編集補助系） |
+| 98 | Section Specification（仕様固定・Design Freeze。データモデル・Authority Scope・ライフサイクル確定。実装なし） |
 
 ### 基盤・アーキテクチャ整理
 
@@ -94,6 +107,7 @@ Phase87〜92が完了し、5フェーズ棚卸し（本更新）を実施済み�
 | 86 | **CSS Ownership Split**（components.cssをchart/analysis-editor/library/chord-entry/modal/tapmodeの6ファイルへ分離。分割基準は「DOMを生成するモジュールの所有権」。architecture.md §3参照） |
 | 91 | Chart Mode Rendering collision semanticsの確定（調査フェーズ・修正コミットなし。resolveCollision()のタイブレーク（tie-break）規則を実測で確定） |
 | 92 | **Chart Mode Collision Indicator（P1 v1）**（同一quantized slot衝突をhiddenCount/Amberドットで可視化。Rendering-only・normal-path-only。architecture.md §9.5参照） |
+| 96〜97 | **Decorator Design Principles確立**（[ONE INTENT, ONE PRIMARY DECORATOR]・[VISUAL HIERARCHY]・[THEME LAYER RESPONSIBILITY]。Chart Mode上の全Decoratorを棚卸しし、Intent（伝えたい意味）軸で整理。architecture.md §12参照） |
 
 ---
 
@@ -104,7 +118,25 @@ Phase87〜92が完了し、5フェーズ棚卸し（本更新）を実施済み�
 ### Future Features（新機能・優先順位未定）
 
 ```
-・Boundary Handleのドラッグ操作（現在はクリックによる境界移動のみ）
+・実音（canonical）そのものでの検索モード（Phase97発見）
+  現在の検索欄は「画面表示名（capo適用後）」で検索する設計。
+  実音そのものを直接入力して検索したいニーズがあれば、検索モード
+  切替UIを将来検討する（current-issues.md参照）
+
+・Correction Badgeの開発者情報トグル化（Phase96 Decorator Inventory
+  整理で再確認）
+  小節補正バッジは解析アルゴリズム調整時のみ有用。デフォルト非表示化を
+  将来検討する
+
+・Selectionの水玉テクスチャ（Phase96で試作→撤回）
+  小節またぎの継ぎ目・テーマ依存色・z-index重なり順の3問題が同時に
+  発生し撤回。再挑戦する場合はcarryセルを跨る継ぎ目問題の根本解決から
+  着手すること（current-issues.md参照）
+
+・Section Data Layer（Phase98で仕様確定・実装未着手）
+  データモデル・境界コード増減ルール・Authority Scope（Analysis
+  Editor Session限定）はPhase98で確定済み。詳細は section-model.md
+  参照
 ```
 
 ### Technical Debt（技術的負債・既存挙動の見直し）
@@ -112,9 +144,6 @@ Phase87〜92が完了し、5フェーズ棚卸し（本更新）を実施済み�
 ```
 ・Known Design Gap（Analysis EditorとChart Mode ViewModelのモデル不一致）の解消
   buildGridViewModel()がNを表示前に除外する設計を見直す
-
-・通常のChart Modeクリック全体への「選択+シーク」一般化
-  （検索結果クリック限定分はPhase80で実装済み）
 
 ・Boundary Handle / Playheadの表示条件見直し（検索モード中の減光等）
 
@@ -144,6 +173,15 @@ Phase87〜92が完了し、5フェーズ棚卸し（本更新）を実施済み�
   置換直後、入力欄にフォーカスが残った状態でのCtrl+Zがブラウザ標準の
   テキストUndoと衝突しやすい（既存のinTextInputガードによる仕様）。
   「元に戻す」ボタンでは正常動作。UXとして改善余地があるか検討候補
+
+・検索欄の入力仕様（画面表示名ベース）が直感的でない可能性（Phase97発見）
+  capo適用中に実音（canonical）をそのまま検索欄へ入力すると、意図と
+  異なる結果になる（バグではなく仕様）。案内方法の具体案（プレース
+  ホルダー等）は着手時に改めて検討する
+
+・Boundary Handle Dragのpointercancel経路が未検証（Phase93〜95-A2で継続）
+  ウィンドウ外へのドラッグ・OSジェスチャ介入等での発火経路が実機で
+  未踏のまま。理論上は問題ないはずだが検証待ち
 ```
 
 ### Watch List（継続監視中・原因未特定）
@@ -454,6 +492,122 @@ Phase87〜92が完了し、5フェーズ棚卸し（本更新）を実施済み�
   という意味論の異なる2種類の衝突が存在し、安易に合算すると原因の異なる現象を
   1つのメトリクスに潰してしまうため（[PICKUP COLLISION SCOPE INVARIANT]確立）
 - 実機確認済み。差分は`chartmode.js`5ブロック・`chart.css`1ルールのみ
+
+</details>
+
+<details>
+<summary>Phase93-98 を展開 — Analysis Editor Evolution（境界編集 → 演奏連動UX → クリック統一 → Decorator整理 → Section仕様固定）</summary>
+
+Phase93〜98は、Boundary編集の操作性向上（Phase93・95-A2）→ 演奏と編集の
+連動UX（Phase94・95-A1）→ Chart Mode全体の視覚設計の整理（Phase96〜97）→
+次の拡張（Section）の仕様固定（Phase98）という、一連の流れとして繋がっている。
+
+```
+Phase93   Boundary Handle Drag Editing
+    │       境界移動をクリック/矢印キーに加えドラッグ対応
+    ▼
+Phase94   Playback-aware Editing UX + Header Visual Language整理
+    │       演奏スクロールの賢さ向上・選択範囲の小節数表示・色の役割分担確立
+    ▼
+Phase95-A1  Chart Modeクリックの「選択+シーク」一般化
+    │         通常クリックでも検索結果クリックと同じ挙動に統一
+    ▼
+Phase95-A2  Boundary Handle Hover + Direct Drag
+    │         選択操作を経ずhoverだけで境界ドラッグ可能に
+    ▼
+Phase96   Decorator Inventory棚卸し・Visual Hierarchy確立
+    │       「装飾が多すぎて分からない」を Intent軸で整理
+    ▼
+Phase97   Selection Hit-Test統一・Search Enharmonic対応
+    │       Decorator整理中に見つかった副作用バグを修正
+    ▼
+Phase98   Section Specification（仕様固定・Design Freeze）
+            次の拡張（Section機能）の実装前設計を完了
+```
+
+#### Phase93 — Boundary Handle Drag Editing
+- `.chart-slot--boundary-handle`上でのpointerdown/move/up/cancelを委譲登録。
+  8px閾値でクリックとドラッグを分岐
+- 座標→時刻変換は既存の`getTimeForGridPosition()`を再利用（新規実装なし）
+- ドラッグ確定時のみ`_pushHistory()`を1回だけ呼び、以降の`moveBoundary()`
+  連続呼び出しはhistoryを積まない
+- 壁到達時はボタン/矢印キー（toastで拒否）と異なり、`shiftSelectionRange()`
+  と同じ「トーストなしで静かにclamp」方式を採用
+- 確立した原則: pointer capture後は`e.target`が使えない（`document.
+  elementFromPoint()`で代替）。ドラッグは`requestBoundaryShift()`を
+  経由せず専用入口を新設（`moveBoundary()`という唯一の窓口は維持）
+
+#### Phase94 — Playback-aware Editing UX + Header Visual Language整理
+- B4 Scroll Recovery: 手動スクロール後は一定時間（デフォルト5秒）自動追従を
+  抑止。ただし再生行が画面内に戻れば即座に自動追従を再開する2経路方式
+- C1 Selection Measure Span: 選択範囲の小節数をフッターに表示
+  （当初ヘッダー表示で実装したが、実機フィードバックによりフッター
+  表示へ作り直し。chartmode.js側の変更は最終的に全て撤回）
+- ヘッダー視覚言語整理: 「編集中」表示の色衝突（Amber同士）を、
+  Green=編集ワークフロー系／Amber=編集補助系という役割分担の確立で解消
+  （4段階の試行錯誤を経て、「色の強弱」ではなく「意味のカテゴリ分け」が
+  本質的解決だったと判明）
+- Section Data Layer構想が本フェーズの雑談から派生し、`section-model.md`
+  として別ファイルへ切り出し（Phase98で仕様固定）
+
+#### Phase95-A1 — Chart Modeクリックの「選択+シーク」一般化
+- `onChordSelected`コールバックの通常クリック分岐に、検索結果クリックと
+  同じ「選択+シーク」処理を追加（app.js 1箇所の修正のみ）
+- 設計原則確立: 「どのコードを見ているか」と「どこを聴いているか」を
+  常に一致させる。Shift+クリック・editPoint確定は対象外（除外）
+
+#### Phase95-A2 — Boundary Handle Hover + Direct Drag
+- `_getChordBufferIndex(chordId)`を新設し、selection非依存でhoverから
+  直接ドラッグ可能に
+- 3段階の実機検証で安定化: ①「セル全体」当たり判定→誤ドラッグ多発
+  →②左端10pxへ縮小→③setPointerCapture遅延化。この過程で「onsetセルに
+  data-chord-idがない」という独立した不具合も並行して発覚（Phase97で
+  本格修正）
+- 教訓: 「1つ直せば全部直るはず」と早期断定せず、都度実機で再検証する
+  姿勢が複数の独立原因の発見につながった
+
+#### Phase96 — Decorator Inventory棚卸し・Visual Hierarchy確立
+- 発端: Chart Modeの視覚装飾（拍線・選択・境界ハンドル・再生位置表示等）が
+  増えすぎ、「一つ一つは正しいが全体として分かりにくい」という課題が浮上
+- 全Decoratorを Intent（伝えたい意味）・Layer・Primary/Secondary・
+  Exclusiveで整理したDecorator Inventoryを確立（architecture.md §12参照）
+- [ONE INTENT, ONE PRIMARY DECORATOR]・[VISUAL HIERARCHY]原則を新設
+- 具体的調整: Boundary Handle選択版を廃止しhover版へ統合／Active Slot・
+  Active MeasureをPlayheadより弱い表現へ調整／Selectionの水玉テクスチャは
+  技術的問題（継ぎ目・テーマ依存色・z-index）が同時発生し撤回
+- Findings: Active Measureの背景塗り撤回がsilverテーマだけ反映されない
+  不具合を発見。theme.css側の独立オーバーライドが原因と判明し、
+  [THEME LAYER RESPONSIBILITY]原則制定のきっかけとなった
+
+#### Phase97 — Selection Hit-Test統一・Search Engine Enharmonic対応
+- 「セル上部クリックでeditPointになる」不具合を実機DOM検証で追跡し、
+  重畳していた2つの原因を発見・修正（onsetセルへのdata-chord-id欠落・
+  `.chart-measure-num`の当たり判定過大）
+- setPointerCaptureのタイミング起因のクリック誤判定も発見・修正
+- 「置換を繰り返すと検索が0件になる」報告を実機デバッグAPIで調査。
+  報告現象の直接原因はセッション途中のCapo変更（仕様通り）だったが、
+  調査過程でCapo往復変換由来の異名同音表記不一致という独立の潜在バグを
+  発見し、`normalizeEnharmonic()`（検索マッチング専用）で修正
+
+#### Phase98 — Section Specification（仕様固定・Design Freeze）
+- section-model.md §9の未解決事項に回答し、Sectionの正式仕様を確定
+- データモデル: `{ id, type, name, startChordId, endChordId }`
+  （`id`は「Section Identity」であることを明記）
+- 境界コード増減ルール確定（内部追加は自動包含／境界削除は隣接コードへ
+  付け替え／0コードになったらSection自体を削除）
+- [SECTION INVARIANTS]を新設（既存の[BOUNDARY INVARIANT]等と同じ役割）
+- Authority Scope確定: 「analysisEditor.bufferが正本」ではなく
+  「Analysis Editor Session限定のAuthority」と明文化（ChatGPTレビュー
+  反映。将来Project Repositoryへ昇格する際の書き直しコストを下げるため）
+- ライフサイクル仕様確定（生成/更新/削除。更新はSession Layerが責務を
+  持ち、API設計はPhase99で決定。暗黙削除は親コマンドのUndoトランザク
+  ションに含める）
+- `section-model.md`に`[DOCUMENT AUTHORITY]`を新設（「唯一の正本」では
+  なく「設計判断を集約する設計ドキュメント」という表現。architecture.md
+  との役割分担を維持するための調整）
+- architecture.mdへの影響箇所（§3/4/9/11/12/13）を洗い出し。実際の反映は
+  Phase99実装着手時に行う
+- 実装（Section Data Layer本体）はPhase99以降。コード変更は本フェーズでは無し
 
 </details>
 

@@ -1,12 +1,34 @@
-# Section Model 設計メモ（草案・育成中）
+# Section Model 設計メモ
 
-> **位置づけ**: これは正式な設計書ではなく、議論を都度追記していく
-> 「生きた設計メモ」（living design memo）である。
+> **位置づけ**: Phase94完了直後の議論で「育てていく設計メモ」として起票し、
+> Phase98で仕様固定（Design Freeze）を行った。
 > `current-issues.md` のロードマップ「Chart Modeと通常モードのシステム統合」
-> と密接に関連するため、着手判断はそちらとセットで行うこと。
+> と密接に関連するため、本格的な範囲拡張の判断はそちらとセットで行うこと。
 >
-> ステータス: **構想段階。実装スケジュール未定。**
-> 最終更新: Phase94完了直後の議論より起票
+> ステータス: **仕様確定済み（Phase98・Design Freeze）。実装未着手（Phase99以降）。**
+> 最終更新: Phase98完了時点
+
+---
+
+## [DOCUMENT AUTHORITY]
+
+```
+本ファイルはSectionサブシステムの設計判断を集約する設計ドキュメントである。
+
+Sectionに関するデータモデル、Authority Scope、ライフサイクル等の
+詳細設計は本ファイルで管理する。
+
+architecture.md・phase-status.md・current-issues.mdには
+必要最小限の概要または参照のみを記載し、設計内容を重複して保持しない。
+```
+
+役割分担のイメージ：
+
+```
+architecture.md      … システム全体構造（Sectionが他サブシステムと
+                        どう繋がるか）
+section-model.md      … Sectionサブシステムの詳細設計（本ファイル）
+```
 
 ---
 
@@ -27,15 +49,13 @@
 - 実際の編集作業（「Verseをもう一回」「最後のChorusを2倍」等）は、
   コード単位の範囲選択・貼り付けの繰り返しになりがちで、DAWの
   リージョン複製のような操作感には至っていない。
-- 演奏中に「あとNoteが何小節でChorus」が分かると、譜面から視線を
+- 演奏中に「あとN小節でChorus」が分かると、譜面から視線を
   外さずに済む時間が増える（このプロジェクトの一貫した目標＝
   「譜面から視線を外さずに済むツール」に合致する）。
 
 ---
 
 ## 2. 本体とおまけの切り分け
-
-議論の中で最初に固まった重要な整理。
 
 ```
 本体（価値の9割はここ・優先）
@@ -58,7 +78,7 @@
 
 ---
 
-## 3. Sectionの責務（最初に固定すべき事項）
+## 3. Sectionの責務
 
 実装先（projectか analysis か）や参照方式が変わっても、
 この責務定義だけはぶれないようにする。
@@ -86,9 +106,26 @@ Forward Wall Model（範囲シフトの責務分離）の設計思想と衝突�
 
 ---
 
-## 4. データモデルの方向性
+## 4. データモデル（Phase98で確定）
 
-### 4.1 時刻ではなくコード参照を持つ
+### 4.1 形状
+
+```javascript
+Section = {
+  id,             // UUID（Section Identity。rename/move/duplicateを
+                  // 経ても維持される、Sectionそのものの同一性）
+  type,           // 'verse' | 'chorus' | 'bridge' 等
+  name,           // 表示名（ユーザー編集可能）
+  startChordId,   // 開始コードの_id
+  endChordId,     // 終了コードの_id
+}
+```
+
+`id`は`project.id`や`chord._id`と同じく、このプロジェクトが一貫して
+重視している「Identity」を表す。名前を変えても、範囲（start/end）を
+動かしても、複製しても、`id`が同じであれば「同じSection」である。
+
+### 4.2 参照方式: IDペア方式（確定）
 
 ```
 悪い例（時刻ベース）:
@@ -97,23 +134,14 @@ Forward Wall Model（範囲シフトの責務分離）の設計思想と衝突�
     再計算し続ける必要がある。Forward Wall Model
     （「2箇所だけ可変」という前提）と相性が悪い。
 
-良い例（コード参照ベース）:
+採用（コード参照ベース）:
   { id, type, name, startChordId, endChordId }
   → 実際の描画時（Rendering層）にのみ、参照先chordの現在の
     start/endを引いて座標を導出する。
     Authority → Projection → Rendering の原則そのもの。
 ```
 
-### 4.2 参照方式: IDペア方式を第一候補とする
-
-比較検討した2案:
-
-```
-候補イ（第一候補）: startChordId + endChordId（IDペア）
-候補ロ（比較用に保持）: startChordId + count（個数）
-```
-
-**IDペア方式を推す理由:**
+**IDペア方式を採用した理由：**
 
 このプロジェクトには既に「indexやcountを正本にせず、IDから都度導出する」
 という設計実績が複数ある（`selection.chordIds`、`boundaryHandleChordId`、
@@ -121,76 +149,163 @@ Forward Wall Model（範囲シフトの責務分離）の設計思想と衝突�
 配列indexそのものではなくchordIdsから導出するDerived Cacheとして扱う、
 という教訓が明文化されている。
 
-countも実質的にはindexと同じ問題を抱える。「startChordIdから何個目か」は
-範囲外での追加・削除のたびに意味が変わり得るため、再計算の要否という点では
-IDペア方式と複雑さが変わらないか、再計算漏れのリスクがある分だけ不利。
-
-→ **countを採用する場合は「なぜここだけ既存パターンの例外にするのか」を
-説明できる必要がある。** 比較検討自体はスキップしない。
-
-これらの実例に共通する一般原則として言い換えるなら:
+一般原則として言い換えるなら：
 **本プロジェクトでは「意味のある実体はIDで保持し、位置・順序はProjectionで
 導出する」という設計原則を採用している。Sectionもこれに従う。**
-今後、この原則に該当する新しい実例が増えても、この一文があれば
-本ドキュメントを都度更新しなくても設計判断の拠り所になる。
 
-### 4.3 未解決: 境界コードの増減ルール（要設計）
-
-IDペア方式を採用する場合、以下のルールを明文化する必要がある。
+### 4.3 境界コード増減時のルール（Phase98で確定）
 
 ```
-Q1. Section内部にコードを追加した場合
-    例: [C, Am, F, G] というSectionの途中に Em を挿入 → [C, Am, Em, F, G]
-    → IDペア方式なら「自動的に含まれる」が自然。合意は取れていない。
+[SECTION BOUNDARY UPDATE RULE]
 
-Q2. Sectionの境界コード（startChordIdやendChordId）自体が
-    削除された場合
-    例: 先頭の C が削除された → startChordId は Am へ自動更新するのか？
-    → 既存の editPoint / boundaryHandleChordId の「削除時の
-      再割り当てパターン」を転用できる可能性があるが、未検証。
+ケースA: Section内部にコードを追加
+  例: [C, Am, F, G] というSectionの途中に Em を挿入
+      → [C, Am, Em, F, G]
+  挙動: 自動的にSectionへ含まれる（何もしない）。
+  理由: Sectionは startChordId〜endChordId の「区間」を表すため、
+        「その間に存在するコードはすべてSection」という定義が
+        シンプルで例外がない。
+
+ケースB: 境界コード自体が削除される
+  startChordIdが削除された場合
+    → 削除後に隣接する（削除位置の次にあった）コードへ自動的に
+      付け替える
+  endChordIdが削除された場合
+    → 削除後に隣接する（削除位置の前にあった）コードへ自動的に
+      付け替える
+  理由: 既存のeditPoint / boundaryHandleChordIdの「削除時の隣接
+        再割り当てパターン」と同じ思想を転用し、一貫性を保つ。
+
+ケースC: Section内が0コードになった場合
+  （startとendの間にコードが1つも残らなくなった場合）
+    → Sectionごと自動削除する（空のSectionを残さない）
+```
+
+### 4.4 Section Invariants（Phase98で確定）
+
+```
+[SECTION INVARIANTS]
+
+Sectionは常に次の条件を満たす。
+
+・startChordId と endChordId は必ず存在するコードを参照する
+  （どちらか一方でも参照先が消えたSectionは、次のCommand実行時までに
+  §4.3のルールで解消されるか、削除されなければならない）
+・startChordId は endChordId より時間的に後方を指してはならない
+・Section内のコード列は常に連続区間である（歯抜けを許さない）
+・Sectionはコード本体を所有しない（§3参照。コードのAuthorityは
+  あくまでanalysisEditor.buffer側にある）
+```
+
+将来Command（Section関連のCreate/Update/Delete、あるいはコード側の
+delete/split/merge等）を実装する際、この4条件を壊していないかが
+判断基準になる。既存の[BOUNDARY INVARIANT]・[UNDO TRANSACTION
+INVARIANT]と同じ役割を、Sectionサブシステムに対して果たす。
+
+---
+
+## 5. Authority Scope（Phase98で確定）
+
+```
+[SECTION AUTHORITY SCOPE]
+
+Sectionは Phase98時点では Analysis Editor Session内のみ有効である。
+
+SectionのAuthorityは analysisEditor編集セッションに限定される
+（「buffer」という実装詳細ではなく、「編集セッション」という
+スコープに紐づく）。
+
+これは試作スコープであり、Project Repositoryへの統合は
+将来フェーズで再検討する。
+```
+
+**この表現にした理由（Phase98の議論より）：**
+
+「`analysisEditor.buffer` が正本」と書いてしまうと、実装詳細（buffer
+というJS変数）にAuthorityを固定してしまい、将来 `project.lines` へ
+移す判断のたびに文書の書き直しが発生する。「編集セッションに限定される
+Authority」という理由付けにしておけば、スコープが変わる（Project
+Repositoryへ広がる）だけで、Authorityの所在の説明ロジック自体は
+変える必要がない。
+
+イメージ：
+
+```
+現在（Phase98〜試作期間）
+  Analysis Session
+    ├ buffer.chords
+    └ sectionSession（Sectionの実体はここに置く）
+
+将来（統合判断後）
+  Section Session
+        ↓（差し替え）
+  Project Repository
 ```
 
 ---
 
-## 5. 前提となる未決定事項（最重要ブロッカー）
+## 6. ライフサイクル（Phase98で確定）
 
-Sectionは現在のChart Mode編集では `analysisEditor.buffer` を基準に
-扱う可能性が高いが、最終的なAuthorityは `project.lines` との統合方針に
-依存する。通常モードの正本は `project.lines` であり、この2つが一致する
-保証は現状ない（architecture.md §12「Known Design Gap」参照）。
+### 生成（Create）
 
 ```
-選択肢イ: Sectionはanalysis側だけの機能として先行試作する
-  → 通常モードでは使えない。試作・検証としては有効（ChatGPT提案）。
-    ただし将来の統合時に作り直しが発生する可能性がある。
-
-選択肢ロ: この機会に「正本はanalysisEditor.buffer側である」と
-  決めてしまう
-  → Section実装の前提として、既存ロードマップ最上位の
-    「Chart Modeと通常モードのシステム統合」を先取りする、
-    より大きな意思決定になる。
+入力: type, name, startChordId, endChordId
+条件: startChordIdはendChordIdより時間的に前（または同じ）であること
 ```
 
-**現時点の暫定合意:** 最終的にはSectionはProject Repositoryへ
-永続化されるべきデータ（一時データではない）という点までは合意済み。
-どちらの選択肢を取るかは、独立した設計フェーズで判断する。
+- 範囲が重複する既存Sectionがあっても、データ層ではブロックしない
+  （重複禁止はUI側の懸念であり、データモデル自体は許容する。将来
+  「意図的な重複」＝セクションのネスト表現等を禁止しないため）
+
+### 更新（Update）
+
+```
+境界の変更 = startChordId / endChordId の付け替え
+名前・種類の変更 = name / type の書き換え
+```
+
+- 境界コードの増減（§4.3）は「更新」の自動発生ケースとして扱う。
+  ユーザー操作ではなく、他のCommand（削除・追加）の副作用として
+  起きる点に注意
+- **責務の所在（確定）**：Sectionの更新はSession Layer（historyを
+  積まないstate primitive）が責務を持つ。理由は、境界コード増減による
+  Section更新はユーザーが「1回の操作」と認識するコード側のCommand
+  （例: deleteSelectionCommand）に付随して起きる副作用であり、それ自体が
+  独立したUndo単位にはならないため（既存の[UNDO TRANSACTION INVARIANT]
+  と同じ考え方）。
+- **API設計（Phase99で決定）**：具体的にどの関数が・どのタイミングで
+  Session Layer側のSection更新を呼び出すか（各Commandの内部で呼ぶのか、
+  app.js側のラッパーが呼ぶのか等）は実装フェーズで設計する。
+  「責務」と「API設計」を分けて考え、責務のみをここで確定する。
+
+### 削除（Delete）
+
+```
+明示的な削除 = ユーザーがSectionを削除操作する
+暗黙の削除   = Section内の全コードが無くなった時（§4.3 ケースC）
+```
+
+- 明示的な削除はCommand Layerの操作（1操作＝1 pushHistory）
+- 暗黙の削除は、その削除を引き起こした親コマンド（例:
+  deleteSelectionCommand）のUndoトランザクションに含める
+  （[UNDO TRANSACTION INVARIANT]と同じ考え方。Section消滅だけを
+  理由に余分なhistoryを積まない）
 
 ---
 
-## 6. ロードマップ（段階案）
-
-ChatGPT提案の A〜D に、「仕様固定フェーズ」として S を追加。
+## 7. ロードマップ（段階案）
 
 ```
-S. Section Specification（仕様固定）
-    ・責務の最終確定（§3の内容を正式仕様化）
-    ・境界ルールの確定（§4.3の未解決事項に回答する）
-    ・データモデルの確定（§4.2の参照方式を確定）
-    ・Authorityの所在確定（§5の選択）
+S. Section Specification（仕様固定）── Phase98で完了
+    ・責務の最終確定（§3）
+    ・境界ルールの確定（§4.3）
+    ・データモデルの確定（§4）
+    ・Authorityの所在確定（§5）
+    ・ライフサイクル確定（§6）
 
-A. Section Data Layer
-    ・モデル定義
-    ・永続化（Project Repositoryスキーマ拡張）
+A. Section Data Layer（Phase99以降）
+    ・モデル定義（実装）
+    ・永続化（試作スコープ内。Analysis Editor Session内）
     ・Undo対応
 
 B. Section Editor
@@ -214,26 +329,26 @@ S → A → B が完了した時点で、当初の不満（構造が見える・
 
 ---
 
-## 7. アーキテクチャへの影響範囲（見積もり）
+## 8. アーキテクチャへの影響範囲（見積もり・実装時に反映）
 
 着手する場合、以下に影響が及ぶ規模であることを認識しておく。
+architecture.mdへの実際の反映はPhase99（実装）着手時に行う
+（Phase98時点では洗い出しのみ・architecture.md自体は更新対象外）。
 
 ```
 architecture.md
   §3  JSモジュール構成（新規モジュールが必要になる可能性）
-  §4  状態管理（project構造の拡張）
+  §4  状態管理（Analysis Editor Session構造の拡張）
   §9  Chart Mode timing pipeline（Sectionの描画層の追加）
-  §11 Project Repository Architecture（永続化スキーマの拡張）
+  §11 Project Repository Architecture（将来の永続化スキーマ拡張。
+       Phase98時点ではAuthority Scope外のため影響なし）
   §12 Analysis Editor Architecture（Sectionとselectionの関係整理）
-  §13 Authority Index（Sectionの新規Authority登録）
+  §13 Authority Index（Sectionの新規Authority登録。§5のScope表現に従う）
 ```
-
-このため、着手時は必ず独立した設計フェーズを挟み、上記セクションへの
-影響を洗い出してから実装に入ること。
 
 ---
 
-## 8. 経緯・議論ログ（要約）
+## 9. 経緯・議論ログ（要約）
 
 ```
 発端: 演奏モードのオートスクロール改善（Phase94 B4）についての
@@ -255,15 +370,35 @@ architecture.md
      と同一の論点であることが判明
   8. たかっち: 一度に全部決めず、専用ファイルを作って
      少しずつ詰めていく方針に決定（本ファイル起票）
+
+Phase98（仕様固定フェーズ）:
+  9. 境界コード増減ルールを確定（内部追加は自動包含／境界削除は
+     隣接コードへ付け替え／0コードでSection自体を削除）
+  10. Authority Scopeの表現をChatGPTが再検討: 「bufferが正本」では
+      なく「Analysis Editor Sessionに限定されるAuthority」という
+      理由付けにすることで、将来Project Repositoryへ昇格する際の
+      文書の書き直しコストを下げる、という判断に至った
+  11. ライフサイクル仕様（生成・更新・削除、暗黙削除のUndo扱い）を確定
+  12. 「Section設計の正本（document authority）をsection-model.mdへ
+      集約する」という運用方針を確立。ただし「唯一の参照先」とまでは
+      書かず、「設計判断を集約する設計ドキュメント」という表現に調整
+      （architecture.mdとの役割分担を壊さないため）
+  13. Phase98終了後のドキュメント影響確認を実施
+      （README不要／architecture.md対象外／phase-status・
+      current-issues.md更新。詳細はhandover_phase98.md参照）
+  14. ChatGPTの最終レビューを反映: (a) [SECTION INVARIANTS]を新設
+      （既存の[BOUNDARY INVARIANT]等と同じ役割）、(b) `id`フィールドに
+      「Section Identity」という意味を明記（project.id/chord._idと
+      同じIdentity思想の踏襲）、(c) §6 Updateの記述を「責務は確定・
+      具体的なAPI設計はPhase99」という形まで踏み込んで整理
 ```
 
 ---
 
-## 9. 次にこのメモを開く時にやること
+## 10. 次にこのメモを開く時にやること
 
-- [ ] §4.3（境界コードの増減ルール）に暫定回答を書く
-- [ ] §5（正本問題）について、「先行試作（analysis限定）」か
-      「先に統合する」かの方向性だけでも仮決めする
-- [ ] 上記2つが決まったら、S（仕様固定）フェーズの着手判断を行う
-- [ ] `current-issues.md` ロードマップの「Section Data Layer」項目から
-      本ファイルへの参照リンクを張る
+- [ ] Phase99着手時、§8の影響範囲を実際にarchitecture.mdへ反映する
+- [ ] Section Session Layerの実装方針（historyの扱い・Command Layer
+      との関係）を§6「更新」の未確定部分に沿って設計する
+- [ ] B（Section Editor）着手前に、UI設計（作成・リネーム・複製・
+      並べ替え・削除の操作フロー）を別途詰める
