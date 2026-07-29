@@ -4791,7 +4791,12 @@ function getSortedProjects(projects, sortBy) {
       return (a.title || '').localeCompare(b.title || '', 'ja');
     }
     if (sortBy === 'artist') {
-      return (a.artist || '').localeCompare(b.artist || '', 'ja');
+      // [DETERMINISTIC SORT] artistが同名の場合、元の配列順（updatedAt由来）
+      // に依存させない。titleをタイブレークにして常に同じ順序になるようにする
+      // （Phase99: 同artist内で開いた曲が先頭へ移動する退行の修正）。
+      const artistCmp = (a.artist || '').localeCompare(b.artist || '', 'ja');
+      if (artistCmp !== 0) return artistCmp;
+      return (a.title || '').localeCompare(b.title || '', 'ja');
     }
     return 0;
   });
