@@ -2238,6 +2238,16 @@ window.addEventListener('resize', () => {
   applyLeftCollapsed();
 });
 
+// [PLAYBACK AUTHORITY] タブのリロード・クローズ・別ページ遷移時に音声を止める。
+// バックアップバッチ実行等でタブが再起動されても再生し続けてしまう問題への対応（Phase99）。
+// visibilitychange（単なるタブ切替）では止めない。コード譜を見ながら他タブを
+// 参照する等の通常利用まで再生停止してしまい、UXを悪化させるため対象外とする。
+// Chart ModeのrAFループ（chartmode.js内部・非公開）は表示更新のみのProjectionで
+// あり、Authority（aEl）を止めればここでの目的は達成される（rAF停止は不要）。
+window.addEventListener('pagehide', () => {
+  if (!aEl.paused) aEl.pause();
+});
+
 // ── diagLock API ──────────────────────────
 // diagLocked: hover更新を抑止し右パネルを固定する
 // 将来 uiState 統合時: diagLocked / diagLockedChord を uiState へ移行
@@ -4791,7 +4801,12 @@ function getSortedProjects(projects, sortBy) {
       return (a.title || '').localeCompare(b.title || '', 'ja');
     }
     if (sortBy === 'artist') {
-      return (a.artist || '').localeCompare(b.artist || '', 'ja');
+      // [DETERMINISTIC SORT] artistが同名の場合、元の配列順（updatedAt由来）
+      // に依存させない。titleをタイブレークにして常に同じ順序になるようにする
+      // （Phase99: 同artist内で開いた曲が先頭へ移動する退行の修正）。
+      const artistCmp = (a.artist || '').localeCompare(b.artist || '', 'ja');
+      if (artistCmp !== 0) return artistCmp;
+      return (a.title || '').localeCompare(b.title || '', 'ja');
     }
     return 0;
   });
