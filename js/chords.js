@@ -420,6 +420,46 @@ export function transposeRoot(root, semitones){
   return raw;
 }
 
+/**
+ * normalizeEnharmonic — ルート音（オンコードのベース音含む）を常にシャープ表記へ
+ * 正規化する。異名同音（Eb/D#等）の表記ゆれを吸収するための比較専用ヘルパー（Phase97）。
+ *
+ * [背景] Search Engineの検索方向は 画面入力 → toCanonicalChord()（capo逆変換）
+ * → fromReadableChord() という経路を通るが、transposeRoot()の出力表記
+ * （シャープ/フラットどちらで返すか）は「入力文字列にb/#が付いているか」で
+ * 決まるため、buffer側の実際の綴りと一致しない場合がある
+ * （例: buffer='Eb', 画面表示'B' → toCanonicalChord('B',+4)='D#' となり、
+ * 'D#' !== 'Eb' で不一致。実機検証で確認済み）。
+ *
+ * [SCOPE] 検索マッチングの比較専用。findChord()（CHORD_DB lookup）や
+ * 表示・保存には使わない。enharmonicを統合しないという既存方針
+ * （project_instructions.md）は変えず、「検索で見つけられるようにする」
+ * ための比較キーとしてのみ用いる。
+ *
+ * @param {string} chord
+ * @returns {string}
+ */
+export function normalizeEnharmonic(chord) {
+  if (!chord || chord === 'N') return chord;
+  const slashIdx = chord.indexOf('/');
+  const main = slashIdx >= 0 ? chord.slice(0, slashIdx) : chord;
+  const bass = slashIdx >= 0 ? chord.slice(slashIdx + 1) : null;
+  const m = main.match(/^([A-G][b#♭♯]?)(.*)/);
+  if (!m) return chord;
+  const [, root, suffix] = m;
+  let result = (NOTE_ALT[root] || root) + suffix;
+  if (bass) {
+    const bassM = bass.match(/^([A-G][b#♭♯]?)(.*)/);
+    if (bassM) {
+      const [, br, bs] = bassM;
+      result += `/${NOTE_ALT[br] || br}${bs}`;
+    } else {
+      result += `/${bass}`;
+    }
+  }
+  return result;
+}
+
 export function transposeChord(chord, semitones){
   if(!chord||chord==='N'||semitones===0)return chord;
   // オンコード分離: Bb/D → root=Bb, bass=D

@@ -92,18 +92,31 @@
 .chart-measure--estimated {
   border-style: dashed;
 }
+/* [Phase97] Visual Hierarchy原則により、3つの中で最も弱い表現に留める。
+   border-widthは通常小節枠（1px）から変えない。色の違いだけで
+   「今の小節」と分かれば十分（[ONE INTENT, ONE PRIMARY DECORATOR]参照）。 */
 .chart-measure--active {
   border-color: var(--text-accent);
-  background: var(--surface-playing);
 }
 
-/* 小節番号 */
+/* 小節番号
+   [Phase97] 従来はposition指定の無い通常ブロックだったため、
+   見た目は右上の小さい数字だけなのに、実際のDOM要素は小節の横幅いっぱいの
+   帯としてレイアウト上の場所を占有していた。この帯がchart-slots（コード本体）
+   より前面に存在し、セル上部のクリック・ホバーを全て横取りしてしまい、
+   「セル上部をクリックすると必ずeditPointになる」不具合の原因になっていた
+   （実機検証で判明。data-chord-idの有無とは無関係のレイヤー構造の問題）。
+   position:absoluteにして通常フローから外すことで、chart-slotsが
+   小節の先頭（y=0）から描画されるようにし、pointer-events:noneで
+   クリックを完全に素通りさせる。 */
 .chart-measure-num {
+  position: absolute;
+  top: 2px;
+  right: 4px;
   font-family: var(--font-mono);
   font-size: 9px;
   color: var(--text-muted);
-  padding: 2px 4px;
-  text-align: right;
+  pointer-events: none;
 }
 
 /* Phase57: slot DOM invariant 復活。全slot（carry/empty含む）を生成。
@@ -124,6 +137,14 @@
 }
 .chart-slot--beat {
   border-left-color: var(--border-ui);
+}
+/* [Phase96] 拍頭（小節先頭・downbeat）強調。
+   .chart-slot--beatより一段濃い線幅・不透明度にすることで、
+   「拍の区切り」と「小節の区切り」を同じ視覚言語の強弱で表現する
+   （新しい色相は増やさない・[DECORATOR VISUAL LANGUAGE PRINCIPLE]準拠）。 */
+.chart-slot--downbeat {
+  border-left-width: 1.5px;
+  border-left-color: rgba(var(--color-selection-rgb, 55, 138, 221), .45);
 }
 /* onset: chord label を持つ slot */
 .chart-slot--onset {
@@ -146,29 +167,43 @@
    ChatGPTレビューでも「Searchは候補でありSelectionの上位概念ではないため、
    色を増やすより同じ緑系で強弱を変えて階層化する方がよい」との結論になった。
 
-   [設計] 新しい色相トークンは持たない。--color-selection-rgbを流用し、
-   背景alpha・枠線太さだけをSelection Highlightより弱くする（1px・薄い背景）。
-   「今アクティブな検索結果」は検索ナビゲーション（Enter/Next/Prev）で
-   selectionにも入るため、.chart-slot--selected（濃い緑・1.5px枠）が
-   自動的に重なって勝つ（後述のSelection Highlightブロックとの宣言順で
-   保証。ここでの追加ロジックは不要）。結果として：
-     濃い緑・太い枠 = 今アクティブな検索結果（Selectionと同じ見た目）
-     薄い緑・細い枠 = その他の検索候補
-   という一目で分かる強弱だけの階層になる。 */
+/* [Phase99] VSCodeの検索ウィジェットと同じ「候補は薄い塗りのみ・
+   現在地だけ強い塗り+枠」という強弱コントラスト方式へ全面的に作り直した。
+   以前は候補ごとにborder-top/bottomを引いていたが、候補数が多い曲では
+   罫線が盤面全体に散らばり「画面がうるさい」という実機フィードバックを
+   受けた。また、現在地を示す小さいドット装飾（Phase98で追加）も
+   「うるさい割に見やすくない」との指摘があり撤回した。
+   新しい色相トークンは持たない。--color-selection-rgbを流用する。
+
+   候補（.chart-slot--search-match）: 罫線を廃止し、塗りのみ・低alphaに
+     留める（境界の丸みだけ-start/-endに残す）。背景は
+     --color-search-candidate-bg（theme.css・per-theme色トークン）を
+     参照する。同じalpha値を全テーマ一律で使うと、背景の明るさが
+     テーマごとに大きく異なるため「シルバーではほぼ見えない」等の
+     視認性差が生じた（実機フィードバックで判明）。--color-selection-bg
+     と同様、alphaの強さそのものを色トークンの一部としてtheme.css側で
+     テーマごとに調整する（[THEME LAYER RESPONSIBILITY]の対象は
+     background/outline等の「状態表現の有無」であり、色トークン自体の
+     alpha値をテーマ間で変えることは禁止していない）。
+   現在地（.chart-slot--search-match.chart-slot--selected）: 明示的に
+     高いalphaを指定する。テーマごとの--color-selection-bgの強さが
+     ばらつく（dark .44 / silver・blue .22）ため、候補との対比を
+     全テーマで確実にするには、この組み合わせ専用の値を持つ必要がある。 */
 .chart-slot--search-match {
-  background: rgba(var(--color-selection-rgb), .16);
-  border-top: 1px solid rgba(var(--color-selection-rgb), .55);
-  border-bottom: 1px solid rgba(var(--color-selection-rgb), .55);
+  background: var(--color-search-candidate-bg);
 }
 .chart-slot--search-match-start {
-  border-left: 1px solid rgba(var(--color-selection-rgb), .55);
+  border-left: 1px solid rgba(var(--color-selection-rgb), .35);
   border-top-left-radius: 6px;
   border-bottom-left-radius: 6px;
 }
 .chart-slot--search-match-end {
-  border-right: 1px solid rgba(var(--color-selection-rgb), .55);
+  border-right: 1px solid rgba(var(--color-selection-rgb), .35);
   border-top-right-radius: 6px;
   border-bottom-right-radius: 6px;
+}
+.chart-slot--search-match.chart-slot--selected {
+  background: rgba(var(--color-selection-rgb), .55);
 }
 
 /* ── Analysis Editor: Selection Highlight（Sprint2-1） ──
@@ -182,8 +217,11 @@
   /* [Sprint2-1] 選択専用トークン --color-selection / --color-selection-bg を使用
      （実機フィードバックでamber → 青系 → 緑系Aquamarineへ変遷。
      背景はテーマごとに完成済みのrgba値を持つ--color-selection-bgを使う。
-     theme.css参照）。 */
-  background: var(--color-selection-bg);
+     theme.css参照）。
+     [Phase96] 水玉テクスチャは一旦撤回した（小節またぎでの継ぎ目・
+     テーマ依存色・重なり順の3つの問題が同時に出ており、UI整理を優先。
+     current-issues.mdのFuture Featuresに再検討候補として記録）。 */
+  background-color: var(--color-selection-bg);
   border-top: 1.5px solid var(--color-selection);
   border-bottom: 1.5px solid var(--color-selection);
 }
@@ -200,18 +238,11 @@
 
 /* ── Analysis Editor: Boundary Handle（Sprint2-2） ──
    [仕様] 個別移動（shiftSelectedBoundary）で動かせる境界の位置を示す。
-   [色] 当初--color-selectionを流用する案だったが、実機フィードバックで
-   Selection Highlightの背景（同系色）に線が埋もれて視認しづらいことが判明。
-   --color-amberへ変更した。amberはSelection Highlight・EditPointの両方が
-   検討の末に不採用とした色（amber→緑/amber→紫の変遷）であり、現在どちらの
-   用途とも衝突しない空きトークンのため、新規token追加なしで流用できる。
-   常に対象コードの先頭（onset slot）に付与される（Selection Highlightと違い
-   prev/next判定は不要。境界は定義上「対象コードの開始位置」と一致するため）。
-   [当たり判定] 見た目は中央の2pxのみだが、要素自体は6px幅を確保しておく。
-   現時点ではpointer-events: noneで見た目のみ（クリック/ドラッグ操作は
-   将来のSprint2-2以降で実装予定・イベント入口はrequestBoundaryShift()に
-   一本化済み）。 */
-.chart-slot--boundary-handle::before {
+   [Phase96] 選択版は廃止し、hover版のみに統合した（Decorator Inventory
+   棚卸しで整理。Phase95-A2でhoverだけでも境界編集できるようになった
+   時点で、選択駆動の常時ハンドルは役目を終えていた。architecture.md
+   §12参照）。 */
+.chart-slot--boundary-hover::before {
   content: '';
   position: absolute;
   top: -1px;
@@ -564,10 +595,19 @@
      .chart-slot--active を付与する（[data-visual-slot-index="N"] selector）。
      projectionEmpty slot は data-visual-slot-index を持たないため、
      このセレクタには到達しない（DOM invariantによる除外。CSS側でのguard不要）。 */
+/* [Phase96] Visual Hierarchy原則により弱体化。
+   「今どこを演奏しているか」という同じ意図をPlayhead（主役）と共有するため、
+   補助（Secondary）としてPlayheadより明確に弱い表現に留める。
+   背景は完全削除ではなく低alphaで残す（削除すると比較評価ができなくなるため。
+   ChatGPTレビュー反映）。
+   [ONE INTENT, ONE PRIMARY DECORATOR]・architecture.md参照。 */
 .chart-slot--active {
-  outline: 1px solid rgba(var(--color-blue-rgb), .55);
+  outline: 1px solid rgba(var(--color-blue-rgb), .22);
   outline-offset: -1px;
-  background: rgba(var(--color-blue-rgb), .06);
+  /* [Phase99] .02はグリッド背景の灰色に埋もれてほぼ見えなかった
+     （実機フィードバックで判明）。Playhead（Primary）より弱いままだが、
+     「薄い水色」として認識できる程度まで引き上げる。 */
+  background: rgba(var(--color-blue-rgb), .12);
   border-radius: 2px;
 }
 

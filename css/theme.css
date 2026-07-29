@@ -59,6 +59,7 @@
   --color-selection: #7FFFD4;
   --color-selection-rgb: 127,255,212;
   --color-selection-bg: rgba(127,255,212,.44);
+  --color-search-candidate-bg: rgba(127,255,212,.10);
 
   /* [Sprint2-1] EditPointマーカー専用トークン。
      旧実装はamberを流用していたが、Selection Highlightと混同されるため分離した。
@@ -379,6 +380,7 @@ body[data-theme="silver"] {
   --color-selection: #2EA87D;
   --color-selection-rgb: 46,168,125;
   --color-selection-bg: rgba(46,168,125,.22);
+  --color-search-candidate-bg: rgba(46,168,125,.20);
 
   /* [Sprint2-1] EditPointを紫系へ変更（暗い黄色は茶色化しamberと区別
      つかなくなるという根本問題のため、dark共通ブロックのコメント参照）。
@@ -626,6 +628,7 @@ body[data-theme="blue"] {
   --color-selection: #1F8F68;
   --color-selection-rgb: 31,143,104;
   --color-selection-bg: rgba(31,143,104,.22);
+  --color-search-candidate-bg: rgba(31,143,104,.18);
 
   /* [Sprint2-1] EditPointを紫系へ変更（黄色系は暗くすると茶色化し
      amberと区別つかなくなる根本問題のため。dark共通ブロック参照）。
@@ -1335,9 +1338,13 @@ body[data-theme="silver"] {
 
 /* --- silver特例: Chart Mode コントラスト補正 ---
    silver背景(#c8ced8)の上にdark系chart-measureを乗せるため
-   背景を暗くして文字を白寄りに補正する               */
+   背景を暗くして文字を白寄りに補正する。
+   [色相調整] 元は紺（rgba(20,40,80)）だったが、Search候補の緑と
+   同じ寒色系のため近似して見分けづらいという実機フィードバックを
+   受け、彩度を落とした中立グレーへ変更した（明るさはほぼ維持し、
+   白文字の視認性は変えない）。                          */
 body[data-theme="silver"] .chart-measure {
-  background: rgba(20, 40, 80, 0.55);
+  background: rgba(58, 62, 70, 0.55);
 }
 body[data-theme="silver"] .chart-chord-name {
   color: #ffffff;
@@ -1346,8 +1353,14 @@ body[data-theme="silver"] .chart-measure-num {
   color: rgba(255, 255, 255, 0.5);
 }
 body[data-theme="silver"] .chart-measure--active {
-  background: rgba(26, 85, 200, 0.55);   /* [SAFE] 暗い紺背景に対して明確な青で強調 */
-  border-color: #6aabff;                  /* [SAFE] 通常border(#909aac)より明るい青 */
+  /* [Phase96] Decorator整理でchart.css側が「枠のみ」へ簡素化されたが、
+     このtheme.css側の上書きだけ追従できておらず、暗い紺背景の塗りが
+     復活して見えていた（実機検証で発見）。
+     [設計ルール] theme.cssは色（border-color等）のみを持つ。
+     background/outline等の状態表現そのものはchart.css側の責務とし、
+     theme.cssでの上書きは対象としない（chart.cssを見れば挙動が
+     分かる状態を保つため）。 */
+  border-color: #6aabff;   /* [SAFE] 通常border(#909aac)より明るい青 */
 }
 
 /* --- blue特例: transport / header 文字色補正 ---

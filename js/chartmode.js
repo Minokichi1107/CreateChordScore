@@ -758,12 +758,6 @@ export const chartState = {
   // TODO(Phase78): [BOUNDARY DECORATOR] へ統合予定（暫定実装）。
   editPointMarker: null,
 
-  // [Sprint2-2] Boundary Handle（個別移動の左端ハンドル）の表示対象chordId。
-  // [OWNERSHIP] 正本は app.js の analysisEditor.selection（chordIds/boundaryIndex）。
-  // ここは描画用のローカル表示状態。単一選択かつ個別移動可能な場合のみ非null。
-  // 対象chordの最初のslot（onset）の左端にハンドルを描画する。
-  boundaryHandleChordId: null,
-
   // [Phase78.1 Hotfix] 直前にクリックしたセルの記録。
   // [UI INTERACTION CACHE — NOT AN AUTHORITY]
   // これは selection や editPoint のような正本ではなく、クリックハンドラが
@@ -820,20 +814,6 @@ export function setEditPointMarker(marker) {
 }
 
 /**
- * setBoundaryHandleTarget — Boundary Handle（個別移動の左端ハンドル）の表示対象を更新する
- * [Sprint2-2]
- *
- * [OWNERSHIP] 正本は app.js の analysisEditor.selection（chordIds/boundaryIndex）。
- * ここは描画用のローカル表示状態を更新するだけ。
- * 呼び出し後は renderChartMode() で再描画が必要。
- *
- * @param {string|null} chordId - ハンドルを表示する対象chordの_id。非表示ならnull。
- */
-export function setBoundaryHandleTarget(chordId) {
-  chartState.boundaryHandleChordId = chordId ?? null;
-}
-
-/**
  * setSearchMatches — Search Highlight（検索結果）の表示対象を更新する（Phase80）
  *
  * [OWNERSHIP] 正本は app.js の analysisEditor.search.matches。
@@ -880,15 +860,25 @@ let _onEditPointRequested = null; // (ownerId: string|null, measureIndex: number
 // [OWNERSHIP] history push / moveBoundary() 呼び出し / 再描画はすべて app.js が担う。
 // chartmode.js は pointer gesture の検出と「候補の時刻」の通知のみを行う
 // （[BOUNDARY INVARIANT] と同種の境界: chartmode.js は state mutation を行わない）。
-let _onBoundaryDragStart = null; // () => void（ドラッグ確定時に1回のみ呼ぶ）
+let _onBoundaryDragStart = null; // (chordId: string) => void（Phase95-A2でchordId引数追加。ドラッグ確定時に1回のみ呼ぶ）
 let _onBoundaryDragMove  = null; // (newTime: number) => void（対象slotが変化した時のみ呼ぶ）
 let _onBoundaryDragEnd   = null; // () => void（pointerup/pointercancelで1回のみ呼ぶ）
+
+// [Phase95-A2] bufferへの問い合わせaccessor（app.jsから注入）。
+// [OWNERSHIP] chartmode.jsはbufferを持たない・保持しない・キャッシュしない。
+// Boundary Handle hover-reveal時、「曲頭コードか」の判定にのみ使う。
+let _getChordIndex = null; // (chordId: string) => number（-1: 該当なし）
 
 // [Phase93] Boundary Handle ドラッグの一時state（ephemeral・chartStateに昇格しない）。
 // 理由: ポインタージェスチャーの間だけ存在する値であり、Phase67 tooltipと同じ扱い
 // （chartStateにauthorityを持たせない）。
 // { pointerId, handleEl, chordId, startX, startY, dragging, lastSlotKey } または null。
 let _boundaryDrag = null;
+
+// [Phase95-A2] Boundary Handle hover表示の一時state（ephemeral・chartStateに昇格しない）。
+// selection非依存。現在hover表示中のslotElへの参照のみを保持する（Phase67 tooltipと同種）。
+// _renderChartGrid()がDOMを再構築するたびに参照が古くなるため、再描画時に必ずnullへ戻す。
+let _boundaryHoverEl = null;
 
 // [Phase93] Boundary Handleドラッグ確定直後に発火するclickを1回だけ握りつぶすフラグ。
 // click は pointerup の後に発火するため、ドラッグ操作の結果として
@@ -897,6 +887,7 @@ let _suppressNextClick = false;
 
 // リスナー重複登録防止フラグ（hot reload / re-init 対策）
 let _gridBoundaryDragBound = false;
+let _boundaryHoverBound    = false;
 
 // ── tooltip state ──────────────────────────────────────────
 // [EPHEMERAL UI] tooltip は chartState に authority を持たない。
@@ -1045,7 +1036,7 @@ function _rafLoop() {
  *                                             右クリック「補正を解除」選択時に呼ぶ。
  *                                             app.js が null保存・再描画を担う。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex }) {
   _getAnalysis       = getAnalysis;
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
@@ -1071,10 +1062,15 @@ export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudio
   _onBoundaryDragMove  = onBoundaryDragMove  ?? null;
   _onBoundaryDragEnd   = onBoundaryDragEnd   ?? null;
 
+  // [Phase95-A2] bufferへの問い合わせaccessor
+  _getChordIndex = getChordIndex ?? null;
+
   // Phase60: click seek イベント登録
   _setupGridClickSeek();
   // [Phase93] Boundary Handle ドラッグイベント登録
   _setupGridBoundaryDrag();
+  // [Phase95-A2] Boundary Handle hover-reveal イベント登録
+  _setupBoundaryHoverEvents();
 }
 
 // ────────────────────────────────────────
@@ -1422,15 +1418,33 @@ function _onGridPointerDown(e) {
   if (!_isEditingAnalysis()) return;
   if (_boundaryDrag) return;                 // 多重ドラッグ防止
 
-  const handleEl = e.target.closest('.chart-slot--boundary-handle');
+  // [Phase96] Boundary Handle 選択版を廃止したため、hover版のみが入口となる。
+  const handleEl = e.target.closest('.chart-slot--boundary-hover');
   if (!handleEl) return;
 
   const chordEl = handleEl.querySelector('[data-chord-id]');
   const chordId = chordEl?.dataset.chordId ?? null;
   if (!chordId) return;
 
-  // capture はここで確定する（drag確定前でも良い。clickの発火条件には影響しない）。
-  handleEl.setPointerCapture(e.pointerId);
+  // [Phase95-A2 修正] 当たり判定をセル左端の狭い帯に限定する。
+  // セル全体を対象にすると、hoverが付いた（=ほぼ全ての）onsetセルで
+  // 通常クリック時のわずかなポインタ移動（トラックパッド・マウスの手ブレ等、
+  // 8px程度は普通に発生する）まで誤ってboundary dragと判定され、
+  // 通常のクリック選択がほとんど機能しなくなることが実機検証で判明した。
+  // 視覚的なハンドル（chart.css側、幅6px・左端配置）とほぼ同じ範囲に絞ることで、
+  // 「線の上を掴んだ時だけドラッグ」という直感的な当たり判定にする。
+  const rect = handleEl.getBoundingClientRect();
+  const BOUNDARY_HANDLE_HIT_ZONE_PX = 10;
+  if (e.clientX - rect.left > BOUNDARY_HANDLE_HIT_ZONE_PX) return;
+
+  // [Phase95-A2 修正] setPointerCapture()はここでは呼ばない。
+  // pointerdown時点で無条件にcaptureすると、ドラッグしないプレーンな
+  // クリックでも後続click イベントのe.targetが捕捉元要素（セル自身）に
+  // 固定されてしまい、data-chord-idを持つ子要素（chordEl）を
+  // closest()で見つけられなくなる（closest()は祖先方向のみ検索するため）。
+  // 結果、「data-chord-idなし＝空セル」と誤判定され、選択をスキップして
+  // 直接editPointが呼ばれる不具合になっていた（実機検証で判明）。
+  // captureは実際にドラッグが確定した瞬間（_onGridPointerMove側）まで遅らせる。
 
   _boundaryDrag = {
     pointerId:   e.pointerId,
@@ -1456,7 +1470,12 @@ function _onGridPointerMove(e) {
     if (Math.hypot(dx, dy) < BOUNDARY_DRAG_THRESHOLD_PX) return;
     // ── ドラッグ確定 ──
     drag.dragging = true;
-    _onBoundaryDragStart?.();
+    // [Phase95-A2 修正] captureはここ（実際にドラッグと確定した瞬間）まで遅らせる。
+    // 理由は_onGridPointerDown側のコメント参照。
+    drag.handleEl.setPointerCapture(drag.pointerId);
+    // [Phase95-A2] chordIdを渡す。app.js側はこれをbufferから直接引き、
+    // selectionを経由せずboundaryIndexを導出する。
+    _onBoundaryDragStart?.(drag.chordId);
   }
 
   // pointer capture中は e.target が捕捉元要素に固定されるため、
@@ -1530,6 +1549,69 @@ function _setupGridBoundaryDrag() {
   grid.addEventListener('pointermove', _onGridPointerMove);
   grid.addEventListener('pointerup',   _endGridBoundaryDrag);
   grid.addEventListener('pointercancel', _endGridBoundaryDrag);
+}
+
+/**
+ * _setupBoundaryHoverEvents（Phase95-A2）
+ *
+ * selectionに関係なく、境界を持つonsetセル（左隣が存在するコード）に
+ * マウスを乗せた瞬間だけ .chart-slot--boundary-hover を付与する。
+ * 曲頭（左境界なし）は対象外とする。
+ *
+ * [OWNERSHIP] chartmode.jsはbufferを持たないため、_getChordIndex accessor
+ * （app.jsから注入済み）でその場に問い合わせるだけ。値をキャッシュしない。
+ * [EPHEMERAL UI] Phase67 tooltipと同じ思想。chartStateにhover状態を持たせない。
+ *
+ * 【重複登録防止】
+ *   _boundaryHoverBound フラグで hot reload / re-init 時のリスナー増殖を防ぐ。
+ */
+function _setupBoundaryHoverEvents() {
+  if (_boundaryHoverBound) return;
+
+  const grid = document.getElementById('chart-grid');
+  if (!grid) return;
+
+  _boundaryHoverBound = true;
+
+  grid.addEventListener('pointerover', (e) => {
+    if (!_isEditingAnalysis()) return;
+
+    const slotEl = e.target.closest('.chart-slot--onset');
+
+    // hover対象外（グリッド外・onset以外）へ移った場合は後始末のみ
+    if (!slotEl) {
+      if (_boundaryHoverEl) {
+        _boundaryHoverEl.classList.remove('chart-slot--boundary-hover');
+        _boundaryHoverEl = null;
+      }
+      return;
+    }
+
+    if (slotEl === _boundaryHoverEl) return; // 同一slot内での移動は無視
+
+    if (_boundaryHoverEl) {
+      _boundaryHoverEl.classList.remove('chart-slot--boundary-hover');
+      _boundaryHoverEl = null;
+    }
+
+    const chordId = slotEl.querySelector('[data-chord-id]')?.dataset.chordId ?? null;
+    const idx = chordId ? (_getChordIndex?.(chordId) ?? -1) : -1;
+    if (idx > 0) { // 曲頭（idx===0）・該当なし（-1）は対象外
+      slotEl.classList.add('chart-slot--boundary-hover');
+      _boundaryHoverEl = slotEl;
+    }
+  });
+
+  grid.addEventListener('pointerout', (e) => {
+    // relatedTargetがグリッド外へ抜けた場合のみ後始末する
+    // （onsetセル内の子要素間移動では毎回発火するが、pointeroverの同一slot判定で
+    //  重複処理を防いでいるため、ここでは「本当にhover対象から外れた時」のみ処理する）
+    if (!_boundaryHoverEl) return;
+    if (_boundaryHoverEl.contains(e.relatedTarget)) return;
+    if (e.relatedTarget && grid.contains(e.relatedTarget) && e.relatedTarget.closest('.chart-slot--onset') === _boundaryHoverEl) return;
+    _boundaryHoverEl.classList.remove('chart-slot--boundary-hover');
+    _boundaryHoverEl = null;
+  });
 }
 
 // ────────────────────────────────────────
@@ -1863,6 +1945,7 @@ export function closeChartMode() {
   _stopRafLoop();  // rAF playback loop 停止（active=false の前に止める）
   _hideTooltip();  // tooltip 非表示
   _destroyTooltip(); // tooltip DOM 削除（orphan DOM 防止）
+  _boundaryHoverEl = null; // [Phase95-A2] hover ephemeral state のクリア
   chartState.active = false;
   chartState.lastScrolledMeasure = -1;
   const overlay = document.getElementById('chart-overlay');
@@ -1971,6 +2054,11 @@ const repairBadge = analysis.repairRule
 function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
   const container = document.getElementById('chart-grid');
   if (!container) return;
+
+  // [Phase95-A2] DOMを丸ごと再構築するため、hover中だったslotElへの参照は
+  // ここで必ず破棄する（isConnectedチェックに頼らず、再描画のたびに無条件でクリア）。
+  _boundaryHoverEl = null;
+
   container.innerHTML = '';
 
   if (!vm || !analysis) {
@@ -2151,11 +2239,30 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
         if (slot.beatIndex % 2 === 0) {
           slotEl.classList.add('chart-slot--beat');
         }
+        // [Phase96] 小節先頭（拍頭・downbeat）だけをさらに強調する。
+        // beatIndexは小節ごとにリセットされる値のため、===0が常に
+        // 「この小節の1拍目」を意味する（拍子記号（4/4・3/4・6/8等）に依存せず成立する）。
+        if (slot.beatIndex === 0) {
+          slotEl.classList.add('chart-slot--downbeat');
+        }
 
         // switch(slot.type) で exhaustive dispatch（if(!slot) 禁止）
         switch (slot.type) {
           case 'onset': {
             slotEl.classList.add('chart-slot--onset');
+
+            // [Phase95-A2 修正] slotEl自身にもdata-chord-idを持たせる。
+            // 理由: .chart-chord-nameラベルはセル下部のみに配置され
+            //（bottom:4px・テキスト1行分の高さ）、セル本体（min-height:36px）の
+            // 上部はラベルの外側になる。従来はラベルにのみdata-chord-idがあったため、
+            // セル上部をクリックするとe.target.closest('[data-chord-id]')が
+            // 見つからず「空セル」と誤判定され、選択されずeditPointへ
+            // 直行する不具合があった（実機検証で判明）。
+            // carryセル（下記）は元々slotEl自身にdata-chord-idを持たせており、
+            // その既存パターンにonsetも合わせる形。
+            if (slot.id) {
+              slotEl.dataset.chordId = slot.id;
+            }
 
             // CSS変数 --duration-slots で chord label の表示幅を制御する。
             // label は position:absolute でslot左端から右へ伸びる。
@@ -2183,12 +2290,10 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
             if (slot.id && chartState.selectedChordIds.has(slot.id)) {
               chordEl.classList.add('chart-chord-name--selected-text');
             }
-            // [Sprint2-2] Boundary Handle（個別移動の左端ハンドル）
-            // 境界は常に「対象コードの先頭（onset）」に一致するため、
-            // Selection Highlightと違いprev/next判定は不要（このslot自身に付与するだけでよい）。
-            if (slot.id && slot.id === chartState.boundaryHandleChordId) {
-              slotEl.classList.add('chart-slot--boundary-handle');
-            }
+            // [Phase96] Boundary Handle 選択版は廃止（hover版へ統合・
+            // Decorator Inventory棚卸しで整理。architecture.md §12参照）。
+            // [Phase96] 選択の水玉テクスチャは撤回（小節またぎでの継ぎ目・
+            // テーマ依存色・重なり順の問題が未解決のため、UI整理を優先し保留）。
             // data-chord: 表示済みchord名（projection済み）を格納する。
             // tooltip 側は findChord(chord) のみ使用し capo 再適用しない。
             // （二重 projection 防止 / tooltip は projection authority を持たない）

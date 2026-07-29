@@ -90,6 +90,7 @@ import {
   diagUndo,
   diagUndoSize,
   transposeChord,
+  normalizeEnharmonic,
   toDisplayChord,
   toCanonicalChord,
   toReadableChord,
@@ -221,7 +222,6 @@ import {
   getPerfState,
   setSelectedChordIds,
   setEditPointMarker,
-  setBoundaryHandleTarget,
   setSearchMatches,
   getTimeForGridPosition,
 } from './chartmode.js';
@@ -913,6 +913,13 @@ function mergeSelection() {
  * 表示名（transposeChord適用後）は対象外（Sprint2-2 handoverで確定済みの方針）。
  * 大文字小文字は区別しない（trim + toUpperCase比較）。
  *
+ * [Phase97] ルート音の異名同音（Eb/D#等）はnormalizeEnharmonic()で吸収してから
+ * 比較する。capo往復変換（画面入力→toCanonicalChord）の結果が、bufferの実際の
+ * 綴りと異なるシャープ/フラット表記になるケースがあり（実機検証で確認・
+ * transposeRoot()の表記決定が入力文字列のb/#有無に依存するため）、
+ * 単純な文字列完全一致だと「音は同じなのに見つからない」事態が起きていた。
+ * suffix（m7/M7等）の大文字小文字区別はこれまで通り変更しない。
+ *
  * @param {Array} buffer - analysisEditor.buffer
  * @param {string} query - 検索文字列
  * @returns {string[]} 一致したchordの_id配列（buffer順）
@@ -920,12 +927,13 @@ function mergeSelection() {
 function searchChords(buffer, query) {
   const q = String(query ?? '').trim();
   if (!q || !buffer) return [];
+  const qKey = normalizeEnharmonic(q);
   // [Phase83] case-sensitiveへ変更。findChord()/CHORD_DBのlookupと同じ原則
   // （m7とM7は別物）に統一する。大文字小文字を区別しないと、例えば
   // "AM7"で検索した際に意味の異なる"Am7"まで誤ヒットし、全置換時に
   // 意図しないコードまで書き換えてしまう危険があった。
   return buffer
-    .filter(c => String(c.chord ?? '').trim() === q)
+    .filter(c => normalizeEnharmonic(String(c.chord ?? '').trim()) === qKey)
     .map(c => c._id);
 }
 
@@ -1297,17 +1305,6 @@ function requestBoundaryShift(deltaSec) {
 }
 
 /**
- * _getBoundaryHandleChordId — Boundary Handle（個別移動の左端ハンドル）の
- * 表示対象chordIdを導出する（純粋関数・selectionから計算するのみ）。
- * [Sprint2-2]
- *
- * 個別移動（shiftSelectedBoundary）が有効な条件と一致させる：
- *   ・単一選択であること（複数選択は範囲シフトが対象・Boundary Handleは出さない）
- *   ・boundaryIndexが存在すること（選択範囲が曲の先頭を含む場合はnull）
- *
- * @returns {string|null}
- */
-/**
  * _computeSelectionMeasureSpan — 選択範囲の小節数を計算する（Phase94 C1）
  *
  * step = 1 / beatsPerMeasure で丸める（4/4では結果的に0.25になる。
@@ -1343,25 +1340,55 @@ function _computeSelectionMeasureSpan() {
   return { measures: rounded, text };
 }
 
-function _getBoundaryHandleChordId() {
-  const { chordIds, boundaryIndex } = analysisEditor.selection;
-  if (chordIds.length !== 1 || boundaryIndex === null) return null;
-  return chordIds[0];
+/**
+
+ * _getChordBufferIndex — chordIdからbuffer上のindexを返す（Phase95-A2）。
+ *
+ * [OWNERSHIP] bufferの唯一の問い合わせ窓口。chartmode.jsはbufferを
+ * 直接持たないため、initChartMode()経由でこの関数をaccessorとして注入する
+ * （getAnalysis/getNormalizedと同じ依存注入パターン）。
+ * 将来 Map<id,index> 等へキャッシュ化する場合もこの関数の中身のみ差し替えれば良く、
+ * chartmode.js側は無修正で済む。
+ *
+ * @param {string} chordId
+ * @returns {number} 見つからなければ -1
+ */
+function _getChordBufferIndex(chordId) {
+  return analysisEditor.buffer.findIndex(c => c._id === chordId);
 }
 
 /**
- * _handleBoundaryDragStart — Boundary Handleドラッグ確定時に1回だけ呼ばれる（Phase93）。
+ * [Phase95-A2] Boundary Drag Runtime（ephemeral・selectionとは独立）
+ *
+ * [OWNERSHIP] ドラッグ中のみ存在する一時状態。analysisEditor.selectionは
+ * 一切変更しない（「今選択中のコード」と「今ドラッグ中の境界」は別概念）。
+ * null = 非ドラッグ中。
+ * { chordId, boundaryIndex } | null
+ */
+let _boundaryDragState = null;
+
+/**
+ * _handleBoundaryDragStart — Boundary Handleドラッグ確定時に1回だけ呼ばれる
+ * （Phase93・Phase95-A2でchordId起点へ変更）。
  * chartmode.jsのpointermoveハンドラが8pxしきい値を超えた瞬間に1回だけ呼ぶ。
+ *
+ * [Phase95-A2] selection.boundaryIndexへの依存を廃止し、渡されたchordIdから
+ * その場でboundaryIndexを導出する。これにより「選択中とは別のコードの境界を
+ * hoverから直接ドラッグする」ケースにも対応する（selectionは一切変更しない）。
  *
  * [UNDO TRANSACTION INVARIANT] ドラッグ全体を1回のUndo単位にするため、
  * historyはここで1回だけpushする。以降の_handleBoundaryDragMove()の
  * 連続呼び出しはhistoryを積まない（moveBoundaryCommandがこの前提
  * ＝ドラッグ中の連続呼び出しを想定して設計されているため。
  * analysisCommands.jsのdocstring参照）。
+ *
+ * @param {string} chordId - ドラッグ対象コードの_id（chartmode.jsのpointerdownで取得済み）
  */
-function _handleBoundaryDragStart() {
+function _handleBoundaryDragStart(chordId) {
   if (!isAnalysisEditing()) return;
-  if (analysisEditor.selection.boundaryIndex === null) return;
+  const idx = _getChordBufferIndex(chordId);
+  if (idx <= 0) return; // 曲頭（左境界なし）・該当なしは対象外
+  _boundaryDragState = { chordId, boundaryIndex: idx - 1 };
   _pushHistory();
 }
 
@@ -1378,9 +1405,8 @@ function _handleBoundaryDragStart() {
  * @param {number} newTime - chartmode.jsが算出した候補時刻（絶対時刻）
  */
 function _handleBoundaryDragMove(newTime) {
-  if (!isAnalysisEditing()) return;
-  const boundaryIndex = analysisEditor.selection.boundaryIndex;
-  if (boundaryIndex === null) return;
+  if (!isAnalysisEditing() || !_boundaryDragState) return;
+  const { boundaryIndex } = _boundaryDragState;
 
   const left  = analysisEditor.buffer[boundaryIndex];
   const right = analysisEditor.buffer[boundaryIndex + 1];
@@ -1402,8 +1428,8 @@ function _handleBoundaryDragMove(newTime) {
 /**
  * _handleBoundaryDragEnd — pointerup/pointercancel時に1回だけ呼ばれる（Phase93）。
  *
- * 現時点ではcleanup不要（historyは_handleBoundaryDragStartで既に1回push済み、
- * 最後の_handleBoundaryDragMove()の結果は既に画面へ反映済みのため）。
+ * [Phase95-A2] _boundaryDragStateをここでクリアする（次回ドラッグ開始時に
+ * 古いboundaryIndexが残留しないようにするため）。
  * chartmode.js側のドラッグ内部state（_boundaryDrag等）の後始末は
  * chartmode.js自身の責務であり、ここでは行わない。
  *
@@ -1412,7 +1438,7 @@ function _handleBoundaryDragMove(newTime) {
  * 専用setterを追加した上でクリアする）。
  */
 function _handleBoundaryDragEnd() {
-  // 予約: 現時点では何もしない。
+  _boundaryDragState = null;
 }
 
 /**
@@ -1617,11 +1643,10 @@ function _refreshEditorView() {
   // どの経路からeditPointが変化しても、次のrenderChartMode()呼び出し前に
   // 必ず最新状態へ同期される（Phase75の「選択の二重管理・同期漏れ」の教訓）。
   setEditPointMarker(analysisEditor.selection.editPoint);
-  // [Sprint2-2] Boundary Handle（個別移動の左端ハンドル）の表示対象を同期。
-  // editPointMarkerと同じ理由でここに集約する（Phase75の「選択の二重管理・
-  // 同期漏れ」の教訓：ミューテーション箇所ごとに呼ぶと呼び忘れが起きるため、
-  // 唯一の再描画経路であるここでまとめて同期する）。
-  setBoundaryHandleTarget(_getBoundaryHandleChordId());
+  // [Phase96] Boundary Handle 選択版は廃止（hover版へ統合）。
+  // 理由: Phase95-A2でhoverだけでも境界編集できるようになった時点で、
+  // 「選択したから常時ハンドルが出る」という設計の存在意義が薄れていた
+  // （Decorator Inventory棚卸しで整理・architecture.md §12参照）。
   // [Phase80] 検索結果（Derived Cache）を同期。matchesはquery+bufferから
   // 常に再計算できるキャッシュのため、唯一の再描画経路であるここで
   // まとめて再計算する（Boundary Handle/EditPointMarkerと同じ理由。
@@ -4622,6 +4647,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     onBoundaryDragStart: _handleBoundaryDragStart,
     onBoundaryDragMove:  _handleBoundaryDragMove,
     onBoundaryDragEnd:   _handleBoundaryDragEnd,
+
+    // [Phase95-A2] Boundary Handle hover-reveal 用accessor
+    // [OWNERSHIP] chartmode.jsはbufferを持たないため、chordId→index の問い合わせを
+    // app.js側のこの関数経由で行う（getAnalysis/getNormalizedと同じ注入パターン）。
+    getChordIndex: _getChordBufferIndex,
 
     // Phase72-B: manual timing correction コールバック
     // [OWNERSHIP] repairRule の保存・project.analysis 更新・再描画は app.js が持つ。
