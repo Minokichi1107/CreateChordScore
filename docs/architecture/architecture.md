@@ -164,7 +164,7 @@ JSモジュール境界とCSS責務がほぼ一致していることが判明し
 | app.js | アプリ起動・状態管理・モジュール間調整（オーケストレーター） | 初期 |
 | audio.js | 音声再生管理 | 初期 |
 | editor.js | コード譜編集・譜面UI描画 | 初期 |
-| chords.js | コード情報・ダイアグラム描画・lookup | 初期 |
+| chords.js | コード情報・ダイアグラム描画・lookup。検索マッチング専用のenharmonic正規化（`normalizeEnharmonic()`・Phase97） | 初期 |
 | project.js | プロジェクトデータの管理・シリアライズ・保存関連処理・Project Repository API（Phase73） | 初期 |
 | csvImporter.js | CSV / JSON インポート・パース | 初期 |
 | perform.js | 演奏モード状態管理・描画・スクロール同期 | Phase12 |
@@ -176,7 +176,7 @@ JSモジュール境界とCSS責務がほぼ一致していることが判明し
 | idb.js | IndexedDB操作層（audio / chord_source / projects のローカル保存） | Phase32・Phase73で"projects" store追加 |
 | analysisLoader.js | analysis.raw の validate / sanitize / normalize → project.analysis 生成。buildNormalizedTimingAnalysis() の呼び出し元（Phase64〜）。normalized の rebuild responsibility を集約。repairRule（Phase72）・sanitizeChords export（Phase74-C）を含む | Phase41 |
 | timing.js | TimingModel（beat / measure grid 構築・quantize）。外部依存ゼロ。Phase59で diagnostics / repair / normalized pipeline 追加。Phase72-Bで applyAnchorRepair() 追加 | Phase41 |
-| chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer）。rAF playback loop ownership（Phase63〜）。解析編集モードの選択・境界移動UI（Phase74）。Collision Indicator projection（Phase92） | Phase41 |
+| chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer）。rAF playback loop ownership（Phase63〜）。解析編集モードの選択・境界移動UI（Phase74）。Collision Indicator projection（Phase92）。Boundary Handle Drag Editing（Phase93）・Hover + Direct Drag（Phase95-A2）・Decorator Inventory整理／Visual Hierarchy確立（Phase96）・Selection Hit-Test統一（Phase97） | Phase41 |
 | analysisSession.js | Analysis Editor Session Layer。state primitiveの計算のみを担う（history push/pop・selection計算・editPoint確定等）。DOM/audio/Chart runtimeには一切触れない（§12参照） | Phase86-2 |
 | analysisCommands.js | Analysis Editor Command Layer。「ユーザー操作1回」単位のbuffer mutation（copy/cut/delete/paste/merge/update/split/moveBoundary/addChord）を担う。DOM/Chart runtime/toastには触れない（[BOUNDARY INVARIANT]参照・§12） | Phase87〜89 |
 
@@ -1091,10 +1091,13 @@ Analysis Editor
 
   Decorator Layer（chartmode.js）
     ├─ Selection Highlight    chartState内、_renderChartGrid()のslotループ内でその場判定
-    ├─ Boundary Handle        setBoundaryHandleTarget() / boundaryHandleChordId
+    ├─ Boundary Handle        hover駆動のみ（Phase96で選択駆動版を廃止・統合。
+    │                         `.chart-slot--boundary-hover`・app.js `_boundaryDragState`
+    │                         がselection非依存でchordId起点にboundaryIndexを導出）
     ├─ EditPoint Marker       setEditPointMarker() / editPointMarker
     │                         （post-hoc DOM patch方式は廃止済み）
-    └─ Collision Indicator    GridViewModelのonsetMap経由（Projection・§9.5参照。Phase92）
+    ├─ Collision Indicator    GridViewModelのonsetMap経由（Projection・§9.5参照。Phase92）
+    └─ Decorator Inventory    全Decoratorの棚卸し・Intent軸整理（Phase96・下記参照）
 ```
 
 Derived Cache = 正本から常に再計算できるキャッシュ。正本（chordIds等）が変われば、
@@ -1187,11 +1190,19 @@ Invariant: left.end と right.start は常に同じ値になるよう更新す�
 Chart Mode上に新しい装飾（Decorator）を追加する場合、以下のパターンに従う。
 
 ```
-1. 対象を表すローカル状態をchartStateに追加する（例: boundaryHandleChordId）
-2. その状態を更新する専用setter関数を新設する（例: setBoundaryHandleTarget）
+1. 対象を表すローカル状態をchartStateに追加する（例: editPointMarker）
+2. その状態を更新する専用setter関数を新設する（例: setEditPointMarker）
 3. 判定は_renderChartGrid()のslotループ内で行う（post-render DOM patchは導入しない）
 4. 正本（selectionやeditPoint等）からの導出ロジックはapp.js側に置き、
    chartmode.js側は「渡された値を表示するだけ」の責務に留める
+
+[Phase96での適用例] Boundary Handleは当初この例（boundaryHandleChordId /
+setBoundaryHandleTarget）で実装されたが、hover駆動版（Phase95-A2）導入後に
+選択駆動版の存在意義が薄れ、Phase96のDecorator Inventory整理で選択駆動版を
+廃止した。ドラッグ確定時に渡すchordIdは、selection経由ではなくbuffer
+から直接boundaryIndexを導出する方式（app.js `_boundaryDragState`）へ
+差し替えている。ローカル状態・専用setterというルール自体は変わらないが、
+「どこから正本を導出するか」は実装過程で見直されうる、という実例。
 ```
 
 ### [DECORATOR VISUAL LANGUAGE PRINCIPLE]
@@ -1210,6 +1221,176 @@ Decoratorは新しい機能ごとに新しい色を追加しない。
 | Search候補 | 緑（薄・同一トークン流用） | 面（薄い） | 候補 |
 | Boundary Handle | Amber | 左線 | 動かせる境界 |
 | EditPoint | 紫 | 縦カーソル（点滅） | 挿入位置 |
+```
+
+### Decorator Inventory（Phase96で確立）
+
+Chart Mode上に同時に存在しうる視覚装飾（Decorator）の一覧。
+新規Decorator追加時は、まずこの表と照合し、既存Intentとの重複が無いか確認すること。
+
+| Decorator | Intent（何を伝えたいか） | Layer | Primary/Secondary | 表示条件 | Exclusive（排他） |
+|---|---|---|---|---|---|
+| Playhead | 今どこを演奏しているか | Overlay | Primary | 再生中 | 共存可 |
+| Active Slot | 今の拍を把握する（Playheadの補助） | Overlay | Secondary | 再生中 かつ 対象slot | 共存可 |
+| Active Measure | 小節を見失わない（Playheadの補助） | Background | Secondary | 再生中 かつ 対象小節 | 共存可 |
+| 拍線／拍頭 | 拍・小節の区切りを常に示す | Background | Primary | 常時 | 共存可 |
+| Selection | 編集対象を示す | Background | Primary | 選択中 | **EditPointと排他** |
+| Boundary Handle | 編集可能な境界を示す | Overlay | Primary | 編集中 AND hover AND 左境界あり（曲頭でない） | Selectionと共存可 |
+| EditPoint | 挿入位置を示す | Overlay | Primary | selection.editPoint確定時 | **Selectionと排他** |
+| Search候補（未アクティブ） | 検索結果の存在を示す | Background | Secondary | 検索中のみ | Selectionが視覚的に勝つ（共存可） |
+| Search候補（現在の検索位置） | 今どの検索結果を見ているかを示す | Background | Primary（検索中のみ） | 検索中 かつ 現在地 | Selectionと事実上同一表現（共存可） |
+| Collision Indicator | 隠れているコードの存在を警告する | Overlay | Secondary | 衝突時のみ | 共存可 |
+| Correction Badge | 解析タイミング補正の状態を示す | Overlay | Secondary（開発者寄り） | 補正時のみ | 共存可 |
+
+**[運用ルール] Decorator Usability Audit**
+新規Decoratorを追加・変更する際は、Decorator Inventory表への追加に加えて
+以下を確認する（Phase96のUIレビューで最も価値があったのは「表示を減らす」
+ことではなく「ユーザーが意味を理解できないDecoratorを減らす」ことだった、
+という教訓に基づく。表を作った後も形骸化させないための継続運用ルール）:
+  ・目的（Intent）は何か
+  ・対象ユーザーは誰か（演奏者向け／編集者向け／開発者向け）
+  ・初見のユーザーが5秒以内に意味を理解できるか
+
+### [ONE INTENT, ONE PRIMARY DECORATOR]（Phase96で確立）
+
+```
+同じIntent（伝えたい意味）を持つDecoratorが複数存在する場合、
+そのうち1つだけをPrimaryとし、視覚強度を最大にする。
+残りはSecondaryとして、Primaryより明確に弱い表現に留める。
+
+[注記] Primaryは「Chart Mode全体で1つ」ではなく「Intent単位で1つ」。
+Intentが異なれば、それぞれが独立してPrimaryを持ってよい
+（例: Playhead=「再生位置」のPrimary、Selection=「編集対象」のPrimary、
+EditPoint=「挿入位置」のPrimaryは、互いに競合しない別々のIntent）。
+
+新規Decorator追加時は、Decorator Inventoryの「Intent」列を確認し、
+既存Decoratorと同じIntentを持っていないか必ず評価すること。
+同じIntentが既にPrimaryとして存在する場合、新規Decoratorは
+Secondary（弱い表現）として追加するか、既存Decoratorへ統合することを検討する。
+
+例（現在の再生位置という1つのIntentに対して）:
+  Playhead       — Primary（唯一の強い表現）
+  Active Slot    — Secondary（拍の把握を助けるだけ）
+  Active Measure — Secondary（小節を見失わない程度）
+```
+
+背景（経緯）: Chart Modeの視覚装飾は個々には正しい役割を持っていたが、
+「今どこを演奏しているか」という1つの意味を複数のDecorator（Playhead・
+Active Slot・Active Measure）が同時に、かつ同程度の視覚強度で表現していたため、
+実際に使う側からは「意味は複数あるはずなのに、知覚上は1種類にしか見えない」
+という状態になっていた（Semantic は複数でも Visual が近すぎる、という
+UI設計上よくある問題）。個々のDecoratorの実装は誤っていなかったが、
+「主役が決まっていない」ことが根本原因だった。
+
+### [VISUAL HIERARCHY]（Phase96で確立）
+
+```
+Decoratorは実装上の重要度ではなく、ユーザーが最初に知覚してほしい順番で
+視覚強度を決める。視覚強度は Primary > Secondary を維持すること。
+
+architecture.mdには視覚強度の設計意図（Primary/Secondaryの区分）のみを書き、
+具体的な実装値（outline alpha値・border-width等）はchart.css側の
+コメントに留める（WHAT/HOWの分離。THEME LAYER RESPONSIBILITYと同じ考え方）。
+
+[Search Highlightの事例（Phase97〜98の試行錯誤を経て確立）]
+候補が多数同時に表示されるDecorator（Search候補等）では、VSCodeの検索
+ウィジェットと同じ「候補は同じ形のまま低い強度・現在地は同じ形のまま
+高い強度」という設計に倣う。試行錯誤の過程で、一度は形状（ドット等の
+追加装飾）による区別を試みたが、装飾が増えることでかえって画面が
+うるさくなり効果も薄かった。最終的には形状を増やさず、候補の強度を
+大きく下げることと、その強度値をテーマごとに調整すること
+（THEME LAYER RESPONSIBILITY参照）の組み合わせで解決した。
+教訓: 強弱だけの区別が機能しない場合、まず装飾を足す前に「弱い方の
+強度が本当に十分弱いか」「テーマごとの基準色に対して強度が適切か」を
+先に見直すこと。
+```
+
+### [THEME LAYER RESPONSIBILITY]（Phase97で確立）
+
+```
+theme.cssは色トークン（color / border-color等の値。alphaを含む
+rgba()形式の色トークンも対象）を持つ。
+Decoratorの状態表現そのもの（あるDecoratorにbackground/outline/
+box-shadowを適用するかどうかという判断）はchart.css（Decoratorの
+実装側）が責務を持つ。theme.cssで「chart.css側が定義していない
+状態表現を追加する」形の上書きは行わない。
+
+[明確化] これは「theme.cssにbackgroundプロパティの値を一切書けない」
+という意味ではない。例えば--color-search-candidate-bgのように、
+「この色トークンの強さ（alpha）をテーマごとに変える」ことは色
+トークンの定義そのものであり許容される。禁止しているのは、
+chart.css側の対象Decoratorに存在しない状態表現をtheme.css側だけで
+独自に追加・復活させることである。
+```
+
+背景（経緯）: chart.css側でActive Measureの背景塗りを廃止したにも関わらず、
+theme.cssのsilverテーマ専用オーバーライド（`body[data-theme="silver"] .chart-measure--active`）
+に古い`background`定義が独立して残っており、シルバーテーマだけ旧デザインが
+復活して見える不具合が発生した（実機検証で発見・修正済み）。原則として、
+chart.cssを直せば全テーマへ反映される、という前提を保つための原則。
+
+### Boundary Handle統合（Phase96で確立）
+
+```
+Boundary Handleは「選択版」（常時表示・selection.boundaryIndex駆動）と
+「hover版」（Phase95-A2・hover駆動）の2種類が存在していたが、選択版を廃止し
+hover版へ一本化した。理由: Phase95-A2でhoverだけでも境界編集できるように
+なった時点で、「選択したから常時ハンドルが出る」という設計の存在意義が
+薄れていた（Decorator Inventory棚卸しで発見）。
+
+ドラッグ確定時に渡すchordIdは、selection経由ではなくbufferから直接
+boundaryIndexを導出する（app.js: `_boundaryDragState`。selectionとは
+独立したephemeral state）。これにより「選択中とは別のコードの境界を
+hoverから直接ドラッグする」ケースにも対応している。
+```
+
+### Selection Hit-Test統一（Phase97で確立）
+
+```
+[HIT-TEST INVARIANT]
+コードを表すslot（onset・carry。empty/projectionEmptyは対象外）は、
+いずれも自分自身（slotEl）にdata-chord-idを持つ。従来はonsetセルのみ
+ラベル（chart-chord-name、セル下部にのみ配置）にdata-chord-idがあり、
+セル自身には無かったため、セル上部をクリックするとclosest('[data-chord-id]')
+が失敗し、意図せずeditPointへ落ちる不具合があった（実機で発見・修正済み）。
+
+[MEASURE NUMBER HIT-TEST INVARIANT]
+.chart-measure-numはposition:absolute + pointer-events:noneとする。
+position指定の無い通常ブロック要素のままだと、見た目は右上の小さい
+数字だけでも、実際のDOM要素は小節の横幅いっぱいの帯としてレイアウト上の
+場所を占有し、chart-slotsより前面でクリック・ホバーを横取りしてしまう
+（実機で発見・修正済み）。装飾目的の要素はpointer-events:none等で
+クリックを素通りさせることを、今後の新規Decorator追加時にも徹底する。
+
+[POINTER CAPTURE INVARIANT]
+setPointerCapture()は「ドラッグが確定した瞬間」まで呼び出しを遅らせる。
+pointerdown時点で無条件にcaptureすると、ドラッグしないプレーンな
+クリックでも後続clickイベントのe.targetが捕捉元要素に固定され、
+data-chord-idを持つ子要素を正しく解決できなくなる（実機で発見・修正済み）。
+```
+
+### Search Engine: Enharmonic対応（Phase97で確立）
+
+```
+[SEARCH ENHARMONIC INVARIANT]
+searchChords()の比較はnormalizeEnharmonic()（chords.js）を通した
+正規化キー同士で行う。findChord()（CHORD_DB lookup）・表示・保存には
+一切使わない（enharmonicを統合しないという既存方針は変えない。
+検索マッチングという1箇所のみの例外）。
+
+背景: Capo往復変換（画面表示 → toCanonicalChord()）の結果、
+transposeRoot()の出力表記（シャープ/フラットどちらで返すか）は
+「入力文字列にb/#が付いているか」に依存するため、bufferの実際の綴りと
+異なる表記になるケースがあった（例: buffer='Eb', capo適用後の画面表示
+'B'を検索語として入力 → toCanonicalChord('B',+4)='D#' となり、
+'D#' !== 'Eb' で一致しない）。音は同じでも綴りが違うだけで検索が
+機能しなくなる、異名同音特有の不具合だった（実機・実データで確認済み）。
+
+[既知の制約] 検索欄は「画面に表示されている名前」で検索する設計であり、
+実音（canonical）そのものを直接入力すると、capo分の変換がもう一度
+適用されて別の音になる（バグではなく設計上の入力仕様）。実音そのもので
+検索したいという需要があれば、将来的な機能拡張として別途検討する
+（current-issues.md Future Features参照）。
 ```
 
 ### Known Design Gap
@@ -1268,14 +1449,15 @@ Runtime Projection・Derived Cache・Decorator状態はAuthorityではなく、
 | Projection | Derived From | 導出関数 |
 |---|---|---|
 | editorMode | selection | `deriveEditorMode(selection)` |
-| chartState.boundaryHandleChordId | selection.boundaryIndex | `setBoundaryHandleTarget()` |
+| chartState（hover先のboundary対象） | pointerover対象chordId | `_setupBoundaryHoverEvents()`（Phase95-A2。selection非依存） |
+| _boundaryDragState | ドラッグ対象chordId | `_getChordBufferIndex(chordId)`経由でboundaryIndexをその場導出（app.js。Phase96で選択駆動版から差し替え） |
 | chartState.editPointMarker | selection.editPoint | `setEditPointMarker()` |
 | chartState.searchMatchIds | analysisEditor.search.query + buffer | `setSearchMatches()` |
-| analysisEditor.search.matches | analysisEditor.search.query + buffer | `searchChords(buffer, query)` |
+| analysisEditor.search.matches | analysisEditor.search.query + buffer | `searchChords(buffer, query)`（Phase97よりnormalizeEnharmonic()経由の比較） |
 | GridViewModel slot.hiddenCount（Phase92） | measure.slots[].onsets（衝突数） | `resolveCollision()`呼び出しに付随する集計（normal pathのみ・§9.5参照） |
 
 [PROJECTION AUTHORITY INVARIANT]
-Projectionの更新窓口（setBoundaryHandleTarget()等）はchartmode.js側に置かれるが、
+Projectionの更新窓口（setEditPointMarker()等）はchartmode.js側に置かれるが、
 「いつ・何から再計算するか」の判断（正本からの導出ロジック）はapp.js側が持つ。
 chartmode.js側は「渡された値を表示するだけ」の責務に留める（[DECORATOR ADDITION RULE]、§12参照）。
 

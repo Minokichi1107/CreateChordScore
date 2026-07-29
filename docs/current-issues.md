@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase92完了時点
+> 最終更新: Phase98完了時点（Documentation Audit実施済み・Phase93〜98を反映）
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -86,6 +86,13 @@ hiddenCountはnormal pathのslot projection時のみ付与される（pickup mea
 縦線が残ることがある。静的コード確認では原因を特定できなかった。次回発生時に
 `window.__CS_DEBUG__.chart` / `window.__analysisEditorDebug.state.selection` を
 コンソールで取得し、事実ベースで原因を切り分ける方針。
+
+#### Boundary Handle Dragのpointercancel経路が未検証
+状態: 未検証（Phase93で発見・Phase95-A2まで継続保留）
+内容: 実機検証は「通常クリック」「8px以上ドラッグ＋Undo」「ドラッグ後click握りつぶし」
+のみ実施済み。`pointercancel`（ウィンドウ外へのドラッグ・OSジェスチャ介入等での発火）は
+実機で一度も踏んでいない経路。`_endGridBoundaryDrag()`は`pointerup`と共通処理のため
+理論上は問題ないはずだが、未検証である旨を明記しておく。
 
 ### Analysis Editor 系
 
@@ -185,6 +192,10 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 - Result型（CommandResult）が共有typedefファイルとして独立していない
   （Phase87）。現状はanalysisCommands.js冒頭のコメントに型定義があるのみ。
   優先度低。
+- 検索欄の入力仕様（画面表示名ベース）が直感的でない可能性（Phase97発見）
+  capo適用中に実音（canonical）をそのまま検索欄へ入力すると、意図と
+  異なる結果になる（バグではなく仕様。検索欄は画面表示名で検索する設計）。
+  案内方法の具体案（プレースホルダー等）は着手時に改めて検討する。
 
 ---
 
@@ -219,10 +230,6 @@ insertion cursor化・行またぎnavigation・hover-only削除ボタンは対�
 4層 architecture contract確立済みのため設計着手可能な段階だが、projection layerの
 boundaryはまだ新しく、着手前に設計フェーズを必ず挟むこと。
 
-#### Boundary Handle のドラッグ操作
-内容: `requestBoundaryShift()` という入口のみ用意済み。ボタン・矢印キー以外に
-ドラッグでの境界移動を追加する。
-
 #### Pickup-aware Collision Indicator（P1 v2）
 内容: Phase92のCollision Indicator（`hiddenCount`可視化）はnormal path限定。
 pickup measureでは`remapPickupOnsetMap()`による視覚圧縮衝突（Stage2 collision）
@@ -239,14 +246,44 @@ pickup measureでは`remapPickupOnsetMap()`による視覚圧縮衝突（Stage2 
 内容: 「選択範囲の先頭コードだけ動く」という違和感が実機確認で発覚したため、
 単一選択専用に限定した（範囲シフトで代替）。再要望があれば再検討する。
 
-#### 通常のChart Modeクリック全体への「選択+シーク」一般化
-内容: 検索結果クリック時の「選択+シーク」（Phase80実装済み）を、通常のコード選択
-クリック全体へ一般化する。デフォルトON、Shift+クリック・editPoint選択はシークしない
-という設計方針は合意済み。
-
 #### Boundary Handle / Playhead の表示条件見直し
 内容: 検索モード中のBoundary Handle非表示/減光、再生停止中のPlayhead淡色化などの案。
 現時点では「改善アイデア」の段階。
+
+#### 実音（canonical）そのものでの検索モード（Phase97発見）
+状態: 未着手・優先度低
+内容: 現在の検索欄は「画面に表示されている名前（capo適用後）」で検索する
+設計。実音そのもの（capo適用前の値）を直接入力して検索したいという
+ニーズがあれば、検索モード切替（表示名検索／実音検索）のようなUIを
+将来検討する。Phase97では「画面表示名で検索する」という既存仕様に対する
+バグ（enharmonic不一致）の修正のみを行った。
+
+#### Correction Badge の開発者情報トグル化（Phase96発見）
+状態: 未着手・優先度低
+内容: 小節補正バッジ（`.chart-measure--estimated`等）は解析アルゴリズム
+調整時のみ有用な情報であり、通常編集時は不要という位置づけがDecorator
+Inventory整理（Phase96）で明確になった。「開発者情報を表示」のような
+表示設定トグルを将来追加し、デフォルトでは非表示にすることを検討する。
+
+#### Selectionの水玉テクスチャ（Phase96で試作→撤回）
+状態: 保留・再挑戦の余地あり
+内容: 「和紙のような質感」を目指して試作したが、(1)小節をまたぐコードで
+継ぎ目が途切れる、(2)alpha合成用トークンのテーマ欠落、(3)他Decoratorとの
+z-index競合、という3つの問題が同時発生し撤回した。再挑戦する場合は、
+carryセルへ跨る継ぎ目問題を根本的に解決する設計（コード全体を1つの
+連続した要素として扱う等）から着手すること。
+
+#### Section Data Layer（曲構造編集・長期構想）
+状態: 仕様確定済み（Phase98）・実装未着手
+内容: Verse/Chorus等のセクション単位で編集できるようにする構想。
+データモデル `{ id, type, name, startChordId, endChordId }`・境界コード
+増減ルール・Authority Scope（Analysis Editor Session限定）・ライフサイクル
+（生成/更新/削除）はPhase98で確定済み。詳細設計は `section-model.md`
+（Section設計の集約先。`[DOCUMENT AUTHORITY]`参照）を参照すること。
+「Chart Modeと通常モードのシステム統合」（本ファイル内ロードマップ）
+とAuthority問題（将来のProject Repository統合）を共有するため、
+本格的な範囲拡張の判断はそちらとセットで行うこと。
+実装（Section Data Layer本体）はPhase99以降の候補。
 
 #### カポ範囲拡張（-2 まで対応）
 内容: 現在カポは 0〜11 の範囲のみ。半音下げチューニング用途で -2 まで対応できるようにする。
