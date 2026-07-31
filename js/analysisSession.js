@@ -30,6 +30,8 @@ export function createAnalysisSession() {
     clipboard: null,   // Phase74-E（コピー＆ペースト）用・現在未使用
     dirty:     false,  // 未保存変更フラグ
     search: { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false },
+    sections:  [],     // Section[]（Phase100-A・section-model.md §4.1）。
+                        // Authority Scopeは Analysis Editor Session限定（永続化しない・section-model.md §5）
   };
 }
 
@@ -48,6 +50,7 @@ export function resetSessionFields(session) {
   session.clipboard = null;
   session.dirty     = false;
   session.search    = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
+  session.sections  = [];
 }
 
 /**
@@ -223,4 +226,77 @@ export function activateSearchIndex(session, index) {
   const clamped = ((index % matches.length) + matches.length) % matches.length;
   session.search.activeIndex = clamped;
   return matches[clamped];
+}
+
+/**
+ * validateSectionInvariants — Section単体が[SECTION INVARIANTS]（section-model.md §4.4）
+ * を満たすかを判定する純粋関数（Phase100-A）。
+ *
+ * [NOTE] 「コード本体を持たない」（§4.4の4条件目）は構造上自明に満たされるため、
+ * ここでは判定しない。判定対象は以下の3条件のみ。
+ *   ・startChordId / endChordId が buffer 上に実在する
+ *   ・startChordId が endChordId より時間的に後方を指していない
+ *   ・区間内（start〜end）が buffer 上で連続している（歯抜けがない）
+ *
+ * @param {object} section - { id, type, name, startChordId, endChordId }
+ * @param {Array|null} buffer - analysisEditor.buffer
+ * @returns {{ valid: boolean, reason?: string }}
+ */
+export function validateSectionInvariants(section, buffer) {
+  if (!buffer) return { valid: false, reason: 'no-buffer' };
+
+  const startIdx = buffer.findIndex(c => c._id === section.startChordId);
+  const endIdx   = buffer.findIndex(c => c._id === section.endChordId);
+
+  if (startIdx === -1) return { valid: false, reason: 'start-not-found' };
+  if (endIdx === -1)   return { valid: false, reason: 'end-not-found' };
+  if (startIdx > endIdx) return { valid: false, reason: 'start-after-end' };
+
+  // 区間内の連続性（歯抜けがない）は、bufferが常に時系列順の配列であるため
+  // startIdx〜endIdxのindex連続性がそのまま「連続区間」を意味する
+  // （tokenの削除・並べ替えはCommand Layer側で常にbuffer配列自体を更新するため）。
+
+  return { valid: true };
+}
+
+/**
+ * reconcile — session.sections をbufferとの整合性に基づき修復する（Phase100-A）。
+ *
+ * [SCOPE] この関数が行うのは Validation + 最小限の Repair のみ。
+ * 新しい境界の推測・自動生成は一切行わない。
+ * invalidと判定されたSectionは常に削除する（§4.3ケースB「隣接コードへの
+ * 付け替え」は今回のスコープに含めない）。
+ *
+ * TODO(Phase100-B):
+ * Implement §4.3 Case B boundary reassignment.
+ * Current implementation intentionally falls back to Case C (remove invalid section)
+ * to keep reconcile() deterministic and idempotent.
+ *
+ * [INVARIANT] reconcile() は冪等（idempotent）である。
+ * 同じ buffer/sections に対して複数回呼び出しても結果は変わらない。
+ * [INVARIANT] この関数はDOM・audio・Chart Mode runtimeに一切触れない（[SCOPE]準拠）。
+ *
+ * @param {object} session - analysisEditor
+ */
+export function reconcile(session) {
+  const buffer = session.buffer;
+  session.sections = session.sections.filter(
+    section => validateSectionInvariants(section, buffer).valid
+  );
+}
+
+/**
+ * getSections — Section Sessionの唯一の公開読み取りAPI（Phase100-A）。
+ *
+ * [SECTION SESSION CONSISTENCY INVARIANT]
+ * このAPIが返すSectionコレクションは常にreconcile済みでなければならない。
+ * 呼び出し側（Command Layer / Renderer / UI）はSectionの整合性修復を
+ * 行ってはならない（修復責務はreconcile()のみに集約する）。
+ *
+ * @param {object} session - analysisEditor
+ * @returns {Array} reconcile済みのsection配列
+ */
+export function getSections(session) {
+  reconcile(session);
+  return session.sections;
 }

@@ -26,7 +26,7 @@
 // @property {string[]} [selectedChordIds] - コマンド後にselectionへ反映すべきchordId配列（ok:true時）
 // @property {number} [count]             - 対象件数（成功メッセージの件数表示用。ある場合のみ）
 
-import { pushHistory, refreshSelection } from './analysisSession.js';
+import { pushHistory, refreshSelection, getSections, validateSectionInvariants } from './analysisSession.js';
 
 /**
  * _isNoChordEntry — bufferエントリがno_chord（無音）プレースホルダーか判定
@@ -490,4 +490,123 @@ export function mergeSelectionCommand(state) {
   refreshSelection(state, [merged._id], merged._id);
 
   return { ok: true, selectedChordIds: [merged._id] };
+}
+
+// ════════════════════════════════════════
+// SECTION COMMANDS（Phase100-A）
+// ════════════════════════════════════════
+//
+// [SCOPE]
+// Sectionに対するCreate/Rename/UpdateBoundary/Deleteを担う。
+// 他のCommand同様、DOM/Chart Mode runtime/toast等の副作用は一切行わない。
+//
+// [SECTION HISTORY INTEGRATION]
+// Section commands intentionally do not participate in History during
+// Phase100-A. pushHistory()はここでは呼ばない
+// （既存のhistory機構はbuffer専用のsnapshotであり、sectionsを含まない。
+//  呼び出してもUndo/Redoが実際には機能しない状態を作るだけのため）。
+// History拡張方針（buffer維持のまま／複合Snapshot化／独立History化）は、
+// SectionがEditor Coreへ本格統合される段階で再設計する。
+// See Phase100-B for History integration design.
+//
+// TODO(Phase100-B)
+//   - Section History Integration（Undo/Redo対応方針の設計）
+//   - Section Selection State（selectedSectionId等。UI着手時に検討）
+//
+// [INVARIANT] SectionのReconcile（Validation + Repair）はSession Layerの
+// getSections()のみが行う。Command LayerはvalidateSectionInvariants()での
+// 事前検証のみを行い、reconcile()は呼ばない（責務境界を保つ・ChatGPTレビュー反映）。
+
+/**
+ * createSectionCommand — 新規Sectionを作成する（Phase100-A）
+ *
+ * [NOTE] 既存sectionsをreconcile済みの状態に揃えてから追加するため、
+ * 直接 state.sections を触らず getSections(state) を経由する。
+ *
+ * @param {object} state - analysisEditor
+ * @param {{ type: string, name: string, startChordId: string, endChordId: string }} input
+ * @returns {CommandResult & { sectionId?: string }}
+ *   reason: 'no-buffer' | 'start-not-found' | 'end-not-found' | 'start-after-end'
+ */
+export function createSectionCommand(state, { type, name, startChordId, endChordId }) {
+  getSections(state); // reconcile済みに揃える（Session APIを必ず経由する・ChatGPTレビュー反映）
+
+  const candidate = { id: crypto.randomUUID(), type, name, startChordId, endChordId };
+  const check = validateSectionInvariants(candidate, state.buffer);
+  if (!check.valid) return { ok: false, reason: check.reason };
+
+  state.sections.push(candidate);
+  return { ok: true, sectionId: candidate.id };
+}
+
+/**
+ * renameSectionCommand — Sectionの名前・種類を変更する（Phase100-A）
+ *
+ * @param {object} state - analysisEditor
+ * @param {string} sectionId
+ * @param {{ name?: string, type?: string }} patch
+ * @returns {CommandResult}
+ *   reason: 'section-not-found'
+ */
+export function renameSectionCommand(state, sectionId, patch = {}) {
+  const sections = getSections(state);
+  const section = sections.find(s => s.id === sectionId);
+  if (!section) return { ok: false, reason: 'section-not-found' };
+
+  if (patch.name !== undefined) section.name = patch.name;
+  if (patch.type !== undefined) section.type = patch.type;
+
+  return { ok: true, sectionId };
+}
+
+/**
+ * updateSectionBoundaryCommand — Sectionの境界（startChordId/endChordId）を変更する
+ * （Phase100-A）
+ *
+ * [INVARIANT] 変更前にローカルでcandidateを作りvalidateSectionInvariants()で
+ * 妥当性を確認してから反映する。壊れたSectionをSessionへ入れない
+ * （ChatGPTレビュー反映）。
+ *
+ * @param {object} state - analysisEditor
+ * @param {string} sectionId
+ * @param {{ startChordId?: string, endChordId?: string }} patch
+ * @returns {CommandResult}
+ *   reason: 'section-not-found' | 'no-buffer' | 'start-not-found' | 'end-not-found' | 'start-after-end'
+ */
+export function updateSectionBoundaryCommand(state, sectionId, patch = {}) {
+  const sections = getSections(state);
+  const section = sections.find(s => s.id === sectionId);
+  if (!section) return { ok: false, reason: 'section-not-found' };
+
+  const candidate = {
+    ...section,
+    startChordId: patch.startChordId !== undefined ? patch.startChordId : section.startChordId,
+    endChordId:   patch.endChordId   !== undefined ? patch.endChordId   : section.endChordId,
+  };
+
+  const check = validateSectionInvariants(candidate, state.buffer);
+  if (!check.valid) return { ok: false, reason: check.reason };
+
+  section.startChordId = candidate.startChordId;
+  section.endChordId   = candidate.endChordId;
+
+  return { ok: true, sectionId };
+}
+
+/**
+ * deleteSectionCommand — Sectionを明示的に削除する（Phase100-A・section-model.md §6）
+ *
+ * @param {object} state - analysisEditor
+ * @param {string} sectionId
+ * @returns {CommandResult}
+ *   reason: 'section-not-found'
+ */
+export function deleteSectionCommand(state, sectionId) {
+  const sections = getSections(state);
+  const idx = sections.findIndex(s => s.id === sectionId);
+  if (idx === -1) return { ok: false, reason: 'section-not-found' };
+
+  sections.splice(idx, 1);
+
+  return { ok: true, sectionId };
 }
