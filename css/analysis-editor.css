@@ -249,3 +249,124 @@
   background: var(--color-green);
   color: var(--surface-base);
 }
+
+/* ── Phase101-1: Section Bar（app.js所有・Chart Mode上部・読み取り専用一覧） ── */
+#section-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border-ui);
+  background: var(--surface-raised);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+#section-bar[hidden] {
+  display: none !important;
+}
+.sec-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.sec-empty {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.sec-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 6px 3px 8px;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+}
+.sec-chip-name {
+  /* [Phase101-3] チップ本体クリックは101-4のPreview用に予約。現時点では
+     クリック可能に見せない（cursorはデフォルトのまま・pointer化しない）。 */
+  white-space: nowrap;
+}
+/* Phase101-3: ▼メニュートリガー。既存.aep-btn--clear（×バッジ）と同系統の
+   軽量ボタン（borderなし・小さいhit target）にする。新規token追加なし。 */
+.sec-chip-menu-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: var(--r-sm);
+}
+.sec-chip-menu-btn:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+/* Phase101-3: ドロップダウン本体。.aep-overflow-menu（Footer側の同種UI）と
+   同じ視覚言語（surface-overlay / border-ui / r-md / shadow-sm）を踏襲する。
+   Section Barは画面上部にあるため、Footer側（上向き展開）とは逆に下向きに開く。 */
+.sec-chip-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 150px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: var(--shadow-sm);
+}
+.sec-chip-menu[hidden] {
+  display: none !important;
+}
+.sec-chip-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.sec-chip-menu-item:hover {
+  background: var(--surface-selected);
+}
+.sec-chip-menu-item--danger:hover {
+  color: var(--color-red);
+}
+/* Phase101-2: Section作成ボタン。既存.aep-btnと同系統の見た目に揃える */
+.sec-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.sec-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.sec-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
