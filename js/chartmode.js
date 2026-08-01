@@ -775,6 +775,13 @@ export const chartState = {
   // Selectionとは独立した別state（同じ色で塗ると「選択」と「検索結果」が
   // 混同されるため）。
   searchMatchIds: new Set(),
+
+  // [Phase102] Section Preview（チップクリックで範囲を閲覧表示）の対象コード。
+  // [OWNERSHIP] 正本は app.js の _previewSectionId（ephemeral UI state）。
+  // chartmode.js は Section という概念を一切知らない。渡された chordId 集合を
+  // 塗るだけ（selectedChordIds/searchMatchIdsと同型のProjection）。
+  // SelectionともSearchとも独立した別state。
+  sectionPreviewChordIds: new Set(),
 };
 
 /**
@@ -824,6 +831,21 @@ export function setEditPointMarker(marker) {
  */
 export function setSearchMatches(ids) {
   chartState.searchMatchIds = new Set(ids);
+}
+
+/**
+ * setSectionPreview — Section Preview（範囲閲覧表示）の対象を更新する（Phase102）
+ *
+ * [OWNERSHIP] 正本は app.js の _previewSectionId。ここは描画用のローカル表示
+ * 状態を更新するだけ。chartmode.js はSectionの構造（startChordId/endChordId等）
+ * を一切知らない。Section→chordId集合の変換はapp.js側の責務（resolveSectionChordIds）。
+ * [責務] 状態更新のみ。renderChartMode()はここでは呼ばない（呼び出し後の再描画は
+ * 呼び出し側=app.jsの責務。setSelectedChordIds/setSearchMatchesと同じ形）。
+ *
+ * @param {string[]} ids - Section範囲内の chord._id の配列
+ */
+export function setSectionPreview(ids) {
+  chartState.sectionPreviewChordIds = new Set(ids);
 }
 
 // ────────────────────────────────────────
@@ -2355,6 +2377,18 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
           const next = si < measureSlots.length - 1 ? measureSlots[si + 1] : null;
           const prevOwner = prev ? (prev.type === 'onset' ? prev.id : prev.sourceChordId) : null;
           const nextOwner = next ? (next.type === 'onset' ? next.id : next.sourceChordId) : null;
+
+          // [Phase102] Section Preview。Selection/Searchとは独立した別state
+          // （chartState.sectionPreviewChordIds）。3つが同じslotに重なった場合、
+          // Selectionが最も強く見えるよう、このブロックをSearch Highlightより
+          // さらに前に置いている（components.cssの宣言順で調整・[VISUAL HIERARCHY]
+          // 準拠。Preview=Secondary・Search候補=Secondaryだが、Previewは
+          // 「単なる範囲の目印」でありSearchより弱い表現とする）。
+          if (chartState.sectionPreviewChordIds.has(ownerId)) {
+            slotEl.classList.add('chart-slot--section-preview');
+            if (prevOwner !== ownerId) slotEl.classList.add('chart-slot--section-preview-start');
+            if (nextOwner !== ownerId) slotEl.classList.add('chart-slot--section-preview-end');
+          }
 
           // [Phase80] Search Highlight。Selectionとは独立した別state
           // （chartState.searchMatchIds）。両方が同じslotに立った場合は

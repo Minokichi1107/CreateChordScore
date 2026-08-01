@@ -160,6 +160,29 @@
   /* 特別なスタイルなし */
 }
 
+/* ── Analysis Editor: Section Preview（Phase102） ──
+   [仕様] Sectionチップクリックで範囲を閲覧表示する。SelectionやSearchとは
+   独立した別概念（編集対象ではなく単なる閲覧の目印）。
+   [DECORATOR VISUAL LANGUAGE PRINCIPLE]に従い新色は追加せず、Search
+   Highlightと同じ「テーマ別完成済み背景トークン」方式を踏襲する
+   （--color-green-rgb未定義問題（silverテーマ・current-issues.md既知）を
+   避けるため、生のrgba()は使わない。theme.css参照）。
+   Search候補よりさらに弱い塗りのみの表現とする（枠線なし）。
+   宣言順を.chart-slot--search-matchより前に置くことで、同一slotで両方が
+   立った場合にSearchの背景が優先される（CSSの後勝ちの原則。同一slotで
+   Selectionも重なる場合はさらにSelectionが最後に勝つ）。 */
+.chart-slot--section-preview {
+  background: var(--color-section-preview-bg);
+}
+.chart-slot--section-preview-start {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+.chart-slot--section-preview-end {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
 /* ── Analysis Editor: Search Highlight（Phase80・実機フィードバックで再設計） ──
    [仕様変更の経緯] 当初は専用色（azure→マゼンタ）を試したが、実機で
    「小節フォーカス（青）・検索中の現在地（緑）・検索候補（マゼンタ）」の

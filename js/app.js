@@ -227,6 +227,7 @@ import {
   setSelectedChordIds,
   setEditPointMarker,
   setSearchMatches,
+  setSectionPreview, // Phase102
   getTimeForGridPosition,
 } from './chartmode.js';
 
@@ -1861,6 +1862,95 @@ document.addEventListener('click', () => {
   if (_openSectionMenuId !== null) _closeSectionMenu();
 });
 
+// [Phase102] Section Bar内の空白部分（ラベル・余白）クリックでPreview解除。
+// チップ名・▼メニュー領域は個別ハンドラでe.stopPropagation()済みのため、
+// ここに到達するのはbar自身への直接クリックのみ。document委譲で1回だけbindする
+// （renderSectionBar()内でbar要素へ直接addEventListenerすると、再描画のたびに
+// リスナーが蓄積してしまうため避けている）。
+document.addEventListener('click', (e) => {
+  const bar = e.target.closest('#section-bar');
+  if (!bar) return;
+  if (e.target === bar || e.target.classList.contains('sec-label')) {
+    _clearSectionPreview();
+  }
+});
+
+/**
+ * resolveSectionChordIds — Section範囲（startChordId〜endChordId）を
+ * chordId配列へ変換する（Phase102）
+ *
+ * [PURE FUNCTION] analysisEditor等のグローバル状態に依存しない。
+ * bufferとsectionを引数で受け取るだけの純粋関数（ChatGPTレビュー反映）。
+ * Preview専用ではなく、将来のNavigation/Export/Statistics等からも
+ * 共通利用できるSectionユーティリティとして命名している。
+ *
+ * @param {Array} buffer - analysisEditor.buffer（コード配列）
+ * @param {{startChordId: string, endChordId: string}} section
+ * @returns {string[]} 区間内の chord._id 配列（start/endが見つからない場合は空配列）
+ */
+function resolveSectionChordIds(buffer, section) {
+  const startIdx = buffer.findIndex(c => c._id === section.startChordId);
+  const endIdx = buffer.findIndex(c => c._id === section.endChordId);
+  if (startIdx === -1 || endIdx === -1) return [];
+  return buffer.slice(startIdx, endIdx + 1).map(c => c._id);
+}
+
+/**
+ * _previewSectionId — Section Preview（範囲閲覧表示）の対象（Phase102）
+ *
+ * [SCOPE] _openSectionMenuIdと同格の、完全にapp.js限定のephemeral UI stateである。
+ * session（analysisEditor.sections）にもanalysisSession.js/analysisCommands.js
+ * にも一切触れない・渡さない（Command Layerからは不可視）。History対象外・
+ * 永続化しない。
+ *
+ * [Selection⇔Preview独立] SelectionはEditorの編集対象（正本はanalysisEditor.
+ * selection）、Section Previewは単なる閲覧状態。片方の変更が他方に影響しない
+ * ことを意図的な仕様とする（Preview表示中でもコード編集を継続できる）。
+ */
+let _previewSectionId = null;
+
+/**
+ * _syncSectionPreviewVisibility — _previewSectionId が指すSectionが
+ * 再描画後も存在するかを確認し、消えていればPreviewを解除する（Phase102）
+ *
+ * _syncSectionMenuVisibility()と同型のガード。Rename/Delete等でSectionが
+ * 変化した直後のrenderSectionBar()から必ず呼ぶ。
+ */
+function _syncSectionPreviewVisibility() {
+  if (_previewSectionId === null) return;
+  const sections = getSections(analysisEditor);
+  const found = sections.some(s => s.id === _previewSectionId);
+  if (!found) {
+    _previewSectionId = null;
+    setSectionPreview([]);
+    renderChartMode();
+  }
+}
+
+/**
+ * _setSectionPreview — チップ本体クリック時のPreviewトグル（Phase102）
+ *
+ * 同じSectionを再クリックで解除、別Sectionクリックで対象を差し替える
+ * （排他・_toggleSectionMenuと同じトグル方式）。
+ */
+function _setSectionPreview(sectionId) {
+  _previewSectionId = (_previewSectionId === sectionId) ? null : sectionId;
+  const sections = getSections(analysisEditor);
+  const target = sections.find(s => s.id === _previewSectionId);
+  setSectionPreview(target ? resolveSectionChordIds(analysisEditor.buffer, target) : []);
+  renderChartMode();
+}
+
+/**
+ * _clearSectionPreview — Preview解除（Escape・空白クリック用）（Phase102）
+ */
+function _clearSectionPreview() {
+  if (_previewSectionId === null) return;
+  _previewSectionId = null;
+  setSectionPreview([]);
+  renderChartMode();
+}
+
 /**
  * renderSectionBar — Section一覧を表示する（Phase101-1で新設・Phase101-2で作成UI追加・
  * Phase101-3でRename/Delete用▼メニュー追加）
@@ -1907,6 +1997,16 @@ function renderSectionBar() {
 
   document.getElementById('sec-create-btn')?.addEventListener('click', openSectionModal);
 
+  // [Phase102] チップ本体クリック → Section Preview トグル（101-3ではOut of Scope
+  // として予約していた部分）。▼メニュー領域は別ハンドラで既にstopPropagation
+  // されるため、ここに到達するのは名前部分クリックのみ。
+  bar.querySelectorAll('.sec-chip-name').forEach(nameEl => {
+    nameEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _setSectionPreview(nameEl.closest('.sec-chip').dataset.sectionId);
+    });
+  });
+
   // Phase101-3: ▼メニューのトリガー（stopPropagationでdocument click listenerへ到達させない）
   bar.querySelectorAll('.sec-chip-menu-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -1931,8 +2031,9 @@ function renderSectionBar() {
     });
   });
 
-  // 再描画をまたいでメニュー開閉状態を保持する
+  // 再描画をまたいでメニュー開閉状態・Preview対象を保持する
   _syncSectionMenuVisibility();
+  _syncSectionPreviewVisibility();
 }
 
 /**
@@ -4236,6 +4337,13 @@ function setupEventHandlers() {
       // ここに到達するのは「メニューは開いているがModalは無い」場合のみ。
       if (_openSectionMenuId !== null) {
         _closeSectionMenu();
+        return;
+      }
+      // [Phase102] Section Previewは▼メニューの次・検索バーより前。
+      // Previewは単なる閲覧状態のため、編集系UI（▼メニュー）より弱く、
+      // 検索バー（入力中の作業）より強い優先度に位置づける。
+      if (_previewSectionId !== null) {
+        _clearSectionPreview();
         return;
       }
       // [Phase80] 検索バーが開いていればEsc最優先で閉じる（入力欄にフォーカスが
