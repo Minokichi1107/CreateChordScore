@@ -160,14 +160,15 @@
   /* 特別なスタイルなし */
 }
 
-/* ── Analysis Editor: Section Preview（Phase102） ──
+/* ── Analysis Editor: Section Preview（Phase102・色相変更Phase102-B） ──
    [仕様] Sectionチップクリックで範囲を閲覧表示する。SelectionやSearchとは
    独立した別概念（編集対象ではなく単なる閲覧の目印）。
-   [DECORATOR VISUAL LANGUAGE PRINCIPLE]に従い新色は追加せず、Search
-   Highlightと同じ「テーマ別完成済み背景トークン」方式を踏襲する
-   （--color-green-rgb未定義問題（silverテーマ・current-issues.md既知）を
-   避けるため、生のrgba()は使わない。theme.css参照）。
-   Search候補よりさらに弱い塗りのみの表現とする（枠線なし）。
+   [Phase102-B] 当初はSelectionトークンを流用していたが、
+   [DECORATOR LEGIBILITY PRINCIPLE]（architecture.md §12反映待ち）に
+   基づき専用のゴールド系トークンへ変更した（theme.css参照）。
+   Selection/Search（緑系）とは色相そのもので区別し、alpha値による
+   強弱（Search候補より弱い等）には依存しない設計とした。
+   枠線なし・面のみの表現である点は変更していない。
    宣言順を.chart-slot--search-matchより前に置くことで、同一slotで両方が
    立った場合にSearchの背景が優先される（CSSの後勝ちの原則。同一slotで
    Selectionも重なる場合はさらにSelectionが最後に勝つ）。 */

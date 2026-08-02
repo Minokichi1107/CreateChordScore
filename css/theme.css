@@ -61,13 +61,13 @@
   --color-selection-bg: rgba(127,255,212,.44);
   --color-search-candidate-bg: rgba(127,255,212,.10);
 
-  /* [Phase102] Section Preview専用トークン。専用色は持たず、Search Highlightと
-     同じ--color-selection-rgb（緑系）を流用する。Search候補（.10）よりさらに
-     弱い表現とし、Selection/Search/Previewが同一slotで重なった際の視覚的
-     優先順位（Selection > Search > Preview）をalpha値の強弱でも裏付ける。
-     --color-green-rgb（silverテーマで未定義・current-issues.md既知）は
-     意図的に使わない。 */
-  --color-section-preview-bg: rgba(127,255,212,.05);
+  /* [Phase102-B] [DECORATOR LEGIBILITY PRINCIPLE]（architecture.md §12
+     反映待ち）に基づき、Selectionトークンの流用をやめ専用のゴールド系
+     RGBへ変更した。色相は3テーマ共通（255,196,0）とし、alpha値のみ
+     背景の明暗に応じて調整する（Boundary Handle=Amberの既存パターンを
+     踏襲）。テーマ間の等価性は「同じRGBA値」ではなく「同じ役割だと
+     一目で分かること」を基準に、3テーマ実機比較の上で確定した。 */
+  --color-section-preview-bg: rgba(255,196,0,.14);
 
   /* [Sprint2-1] EditPointマーカー専用トークン。
      旧実装はamberを流用していたが、Selection Highlightと混同されるため分離した。
@@ -389,10 +389,9 @@ body[data-theme="silver"] {
   --color-selection-rgb: 46,168,125;
   --color-selection-bg: rgba(46,168,125,.22);
   --color-search-candidate-bg: rgba(46,168,125,.20);
-  /* [Phase102] Search候補（.20）の約半分。silverは背景が明るくSearch候補の
-     alphaも他テーマより高めに調整済みのため、Previewもそれに合わせて比率を
-     揃える（絶対値ではなくSearch候補との相対的な弱さを基準にする）。 */
-  --color-section-preview-bg: rgba(46,168,125,.10);
+  /* [Phase102-B] ゴールド系へ変更（dark共通ブロックのコメント参照）。
+     背景が明るいためalphaは3テーマ中もっとも高く設定（.22）。 */
+  --color-section-preview-bg: rgba(255,196,0,.22);
 
   /* [Sprint2-1] EditPointを紫系へ変更（暗い黄色は茶色化しamberと区別
      つかなくなるという根本問題のため、dark共通ブロックのコメント参照）。
@@ -641,8 +640,9 @@ body[data-theme="blue"] {
   --color-selection-rgb: 31,143,104;
   --color-selection-bg: rgba(31,143,104,.22);
   --color-search-candidate-bg: rgba(31,143,104,.18);
-  /* [Phase102] silverと同じ考え方。Search候補（.18）の約半分。 */
-  --color-section-preview-bg: rgba(31,143,104,.09);
+  /* [Phase102-B] ゴールド系へ変更（dark共通ブロックのコメント参照）。
+     背景が青系で補色関係により薄く見えやすいため、alphaは.18に設定。 */
+  --color-section-preview-bg: rgba(255,196,0,.18);
 
   /* [Sprint2-1] EditPointを紫系へ変更（黄色系は暗くすると茶色化し
      amberと区別つかなくなる根本問題のため。dark共通ブロック参照）。
