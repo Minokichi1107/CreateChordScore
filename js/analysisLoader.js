@@ -22,7 +22,16 @@
  *
  * 【拡張予定】
  *   analysis.raw.lyrics    → 歌詞アライメント
- *   analysis.raw.sections  → セクション構造（verse / chorus 等）
+ *   analysis.raw.sections  → セクション構造（verse / chorus 等・Phase103〜）
+ *
+ *     [OWNERSHIP]
+ *     sections は ChordMini が生成した解析データではなく、
+ *     ユーザーが定義する構造メタデータである。
+ *
+ *     永続化スキーマとの一貫性を優先し、analysis.raw に保持して保存するが、
+ *     ownership は raw.chords / raw.beats / raw.downbeats とは異なる
+ *     （保存場所＝raw、生成元＝User。両者は必ずしも一致しない）。
+ *
  *   これらが追加されても本ファイルで normalize する経路は変わらない。
  *
  * 【normalize pipeline】（Phase84更新）

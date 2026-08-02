@@ -410,6 +410,11 @@ function resetAnalysisEditor() {
   resetSessionFields(analysisEditor);
   setSearchMatches([]);
   _refreshSelection([]);
+  // [Phase103-bugfix] Section Previewは_previewSectionId（app.js ephemeral）が
+  // 正本のため、resetSessionFields()の対象外。Selection/Searchと同じ「唯一の
+  // リセット窓口」に揃えるため、ここで明示的にクリアする（Phase102実装時の漏れ）。
+  _previewSectionId = null;
+  setSectionPreview([]);
 }
 
 /**
@@ -501,6 +506,7 @@ function beginAnalysisEdit() {
   analysisEditor.buffer = structuredClone(project.analysis.raw.chords);
   analysisEditor.history = [];
   analysisEditor.future  = [];
+  analysisEditor.sections = structuredClone(project.analysis.raw.sections ?? []);
   analysisEditor.dirty = false;
   analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
   setSearchMatches([]);
@@ -1615,6 +1621,7 @@ async function saveAnalysisEdit() {
 
   project.analysis.raw.chords = structuredClone(analysisEditor.buffer);
   project.analysis.chords = sanitizeChords(project.analysis.raw.chords);
+  project.analysis.raw.sections = structuredClone(getSections(analysisEditor));
   const ok = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
   if (!ok) {
     toast('⚠ 保存に失敗しました。編集内容は失われていません');
@@ -1801,7 +1808,7 @@ function openSectionModal() {
           return; // [ORDER] 失敗時はcloseしない・入力内容を保持する
         }
         close();
-        renderSectionBar();
+        _refreshEditorView();
         toast(`✅ Section「${name}」を作成しました`);
       }),
     ],
@@ -2098,7 +2105,7 @@ function openSectionRenameModal(section) {
           return; // [ORDER] 失敗時はcloseしない・入力内容を保持する
         }
         close();
-        renderSectionBar();
+        _refreshEditorView();
         toast(`✅ Section「${name}」を変更しました`);
       }),
     ],
@@ -2132,7 +2139,7 @@ function openSectionDeleteConfirm(section) {
           return;
         }
         close();
-        renderSectionBar();
+        _refreshEditorView();
         toast(`🗑 Section「${section.name}」を削除しました`);
       }),
     ],

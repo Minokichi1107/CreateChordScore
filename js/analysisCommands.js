@@ -536,6 +536,7 @@ export function createSectionCommand(state, { type, name, startChordId, endChord
   if (!check.valid) return { ok: false, reason: check.reason };
 
   state.sections.push(candidate);
+  state.dirty = true;
   return { ok: true, sectionId: candidate.id };
 }
 
@@ -556,6 +557,7 @@ export function renameSectionCommand(state, sectionId, patch = {}) {
   if (patch.name !== undefined) section.name = patch.name;
   if (patch.type !== undefined) section.type = patch.type;
 
+  state.dirty = true;
   return { ok: true, sectionId };
 }
 
@@ -590,6 +592,7 @@ export function updateSectionBoundaryCommand(state, sectionId, patch = {}) {
   section.startChordId = candidate.startChordId;
   section.endChordId   = candidate.endChordId;
 
+  state.dirty = true;
   return { ok: true, sectionId };
 }
 
@@ -608,5 +611,6 @@ export function deleteSectionCommand(state, sectionId) {
 
   sections.splice(idx, 1);
 
+  state.dirty = true;
   return { ok: true, sectionId };
 }

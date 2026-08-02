@@ -249,6 +249,8 @@ AIは continuity support / review assistant として利用する。
 - `architecture.md` を現状に合わせて更新
 - `current-issues.md` のバックログを整理・削除・追加
 
+- Archiveは20〜25フェーズ単位でサブディレクトリ化する。ディレクトリ名は phase081-100 のように開始・終了フェーズを表す。
+
 ---
 ---
 
