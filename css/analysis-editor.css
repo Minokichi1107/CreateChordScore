@@ -289,9 +289,9 @@
   color: var(--text-secondary);
 }
 .sec-chip-name {
-  /* [Phase101-3] チップ本体クリックは101-4のPreview用に予約。現時点では
-     クリック可能に見せない（cursorはデフォルトのまま・pointer化しない）。 */
+  /* Section Preview の Primary Interaction（Phase102で実装済み） */
   white-space: nowrap;
+  cursor: pointer;
 }
 /* Phase101-3: ▼メニュートリガー。既存.aep-btn--clear（×バッジ）と同系統の
    軽量ボタン（borderなし・小さいhit target）にする。新規token追加なし。 */
