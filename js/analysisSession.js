@@ -54,37 +54,64 @@ export function resetSessionFields(session) {
 }
 
 /**
+ * _snapshotSession — session.buffer / session.sections を独立クローンとして
+ * 1組のスナップショットにまとめる（純粋・内部ヘルパー・Phase104）。
+ *
+ * [INVARIANT] buffer・sectionsとも参照ではなく structuredClone による
+ * 独立したコピーを返す。history/future積み込み後にsession側の値を
+ * 変更しても、スナップショット側には一切影響しない。
+ *
+ * @param {object} session
+ * @returns {{ buffer: Array|null, sections: Array }}
+ */
+function _snapshotSession(session) {
+  return {
+    buffer: structuredClone(session.buffer),
+    sections: structuredClone(session.sections),
+  };
+}
+
+/**
  * pushHistory — 編集操作前のスナップショットをhistoryへ積む（純粋）
  *
  * [INVARIANT] すべての編集API（updateChord/deleteChord/shiftAll等）は
  * buffer書き換えの直前に必ずこれを呼ぶこと。
  * 新規編集が発生したら future（Redoスタック）は破棄する。
+ *
+ * [Phase104] スナップショット形状を buffer 単体から { buffer, sections } へ
+ * 拡張した。Section系4コマンド（create/rename/updateBoundary/delete）も
+ * 本関数経由でHistoryへ統合される（[SECTION HISTORY INTEGRATION]解消）。
+ * buffer・sectionsは _snapshotSession() によりそれぞれ独立クローンされる。
  */
 export function pushHistory(session) {
-  session.history.push(structuredClone(session.buffer));
+  session.history.push(_snapshotSession(session));
   session.future = [];
   session.dirty = true;
 }
 
 /**
- * undoBuffer — history⇄buffer の入替のみを行う（純粋。描画・selection同期は呼び出し元の責務）
+ * undoBuffer — history⇄{buffer,sections} の入替のみを行う（純粋。描画・selection同期は呼び出し元の責務）
  * @returns {boolean} 入替が行われたか（historyが空ならfalse）
  */
 export function undoBuffer(session) {
   if (!session.history.length) return false;
-  session.future.push(structuredClone(session.buffer));
-  session.buffer = session.history.pop();
+  session.future.push(_snapshotSession(session));
+  const snap = session.history.pop();
+  session.buffer = snap.buffer;
+  session.sections = snap.sections;
   return true;
 }
 
 /**
- * redoBuffer — future⇄buffer の入替のみを行う（純粋。描画・selection同期は呼び出し元の責務）
+ * redoBuffer — future⇄{buffer,sections} の入替のみを行う（純粋。描画・selection同期は呼び出し元の責務）
  * @returns {boolean} 入替が行われたか（futureが空ならfalse）
  */
 export function redoBuffer(session) {
   if (!session.future.length) return false;
-  session.history.push(structuredClone(session.buffer));
-  session.buffer = session.future.pop();
+  session.history.push(_snapshotSession(session));
+  const snap = session.future.pop();
+  session.buffer = snap.buffer;
+  session.sections = snap.sections;
   return true;
 }
 

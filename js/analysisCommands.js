@@ -500,17 +500,18 @@ export function mergeSelectionCommand(state) {
 // Sectionに対するCreate/Rename/UpdateBoundary/Deleteを担う。
 // 他のCommand同様、DOM/Chart Mode runtime/toast等の副作用は一切行わない。
 //
-// [SECTION HISTORY INTEGRATION]
-// Section commands intentionally do not participate in History during
-// Phase100-A. pushHistory()はここでは呼ばない
-// （既存のhistory機構はbuffer専用のsnapshotであり、sectionsを含まない。
-//  呼び出してもUndo/Redoが実際には機能しない状態を作るだけのため）。
-// History拡張方針（buffer維持のまま／複合Snapshot化／独立History化）は、
-// SectionがEditor Coreへ本格統合される段階で再設計する。
-// See Phase100-B for History integration design.
+// [SECTION HISTORY INTEGRATION]（Phase104で解消）
+// Section系4コマンドは pushHistory(state) を呼び、Historyへ統合済み。
+// history/futureのスナップショット形状が { buffer, sections } へ拡張された
+// ことで（analysisSession.js参照）、Section変更もUndo/Redo対象となった。
+// pushHistory()の呼び出し位置は既存コマンド（deleteChordCommand等）と
+// 同じ規則（バリデーション通過後・実際の変更の直前）に揃えている。
+//
+// [Phase104] dirty更新はpushHistory()内のsession.dirty=trueに一本化した。
+// Phase100-A時点で各コマンドへ個別に置いていたstate.dirty=trueは削除した
+// （二重管理を避けるため）。
 //
 // TODO(Phase100-B)
-//   - Section History Integration（Undo/Redo対応方針の設計）
 //   - Section Selection State（selectedSectionId等。UI着手時に検討）
 //
 // [INVARIANT] SectionのReconcile（Validation + Repair）はSession Layerの
@@ -535,8 +536,9 @@ export function createSectionCommand(state, { type, name, startChordId, endChord
   const check = validateSectionInvariants(candidate, state.buffer);
   if (!check.valid) return { ok: false, reason: check.reason };
 
+  pushHistory(state); // [Phase104] 既存コマンドと同じ位置（バリデーション通過後・反映直前）
+
   state.sections.push(candidate);
-  state.dirty = true;
   return { ok: true, sectionId: candidate.id };
 }
 
@@ -554,10 +556,11 @@ export function renameSectionCommand(state, sectionId, patch = {}) {
   const section = sections.find(s => s.id === sectionId);
   if (!section) return { ok: false, reason: 'section-not-found' };
 
+  pushHistory(state); // [Phase104] 既存コマンドと同じ位置（バリデーション通過後・反映直前）
+
   if (patch.name !== undefined) section.name = patch.name;
   if (patch.type !== undefined) section.type = patch.type;
 
-  state.dirty = true;
   return { ok: true, sectionId };
 }
 
@@ -589,10 +592,11 @@ export function updateSectionBoundaryCommand(state, sectionId, patch = {}) {
   const check = validateSectionInvariants(candidate, state.buffer);
   if (!check.valid) return { ok: false, reason: check.reason };
 
+  pushHistory(state); // [Phase104] 既存コマンドと同じ位置（バリデーション通過後・反映直前）
+
   section.startChordId = candidate.startChordId;
   section.endChordId   = candidate.endChordId;
 
-  state.dirty = true;
   return { ok: true, sectionId };
 }
 
@@ -609,8 +613,9 @@ export function deleteSectionCommand(state, sectionId) {
   const idx = sections.findIndex(s => s.id === sectionId);
   if (idx === -1) return { ok: false, reason: 'section-not-found' };
 
+  pushHistory(state); // [Phase104] 既存コマンドと同じ位置（バリデーション通過後・反映直前）
+
   sections.splice(idx, 1);
 
-  state.dirty = true;
   return { ok: true, sectionId };
 }

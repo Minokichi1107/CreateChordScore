@@ -5,8 +5,9 @@
 > `current-issues.md` のロードマップ「Chart Modeと通常モードのシステム統合」
 > と密接に関連するため、本格的な範囲拡張の判断はそちらとセットで行うこと。
 >
-> ステータス: **仕様確定済み（Phase98・Design Freeze）。実装未着手（Phase99以降）。**
-> 最終更新: Phase98完了時点
+> ステータス: **仕様確定済み（Phase98・Design Freeze）。実装はPhase99〜104で
+> Specification→Session→Editor UI→Preview→Persistence→Historyまで一巡。**
+> 最終更新: Phase104完了時点
 
 ---
 
@@ -277,6 +278,14 @@ Repositoryへ広がる）だけで、Authorityの所在の説明ロジック自�
   Session Layer側のSection更新を呼び出すか（各Commandの内部で呼ぶのか、
   app.js側のラッパーが呼ぶのか等）は実装フェーズで設計する。
   「責務」と「API設計」を分けて考え、責務のみをここで確定する。
+- **[Phase104補足]** 上記は§4.3の**暗黙の更新**（境界コード増減の自動反映。
+  reconcile()内で発生）についての記述であり、ユーザーが明示的に呼び出す
+  `updateSectionBoundaryCommand()` / `renameSectionCommand()`（Command Layer）
+  とは別の経路である。Command Layer側の明示的更新はPhase104で
+  `pushHistory()`を呼ぶよう統合され、他のCommand（deleteChordCommand等）と
+  同じくUndo/Redo対象となった（詳細はarchitecture.md §12
+  [SECTION HISTORY INTEGRATION]参照）。暗黙の更新（reconcile側）は
+  引き続き「親コマンドのUndoトランザクションに含める」方式のまま変更なし。
 
 ### 削除（Delete）
 
@@ -303,10 +312,10 @@ S. Section Specification（仕様固定）── Phase98で完了
     ・Authorityの所在確定（§5）
     ・ライフサイクル確定（§6）
 
-A. Section Data Layer（Phase99以降）
-    ・モデル定義（実装）
-    ・永続化（試作スコープ内。Analysis Editor Session内）
-    ・Undo対応
+A. Section Data Layer（Phase99〜104で完了）
+    ・モデル定義（実装）── Phase100-A
+    ・永続化（試作スコープ内。Analysis Editor Session内）── Phase103
+    ・Undo対応 ── Phase104（History Integration。§6・§9追記参照）
 
 B. Section Editor
     ・作成・リネーム・複製・並べ替え・削除
@@ -391,14 +400,42 @@ Phase98（仕様固定フェーズ）:
       「Section Identity」という意味を明記（project.id/chord._idと
       同じIdentity思想の踏襲）、(c) §6 Updateの記述を「責務は確定・
       具体的なAPI設計はPhase99」という形まで踏み込んで整理
+
+Phase104（History Integration）:
+  15. Section系4コマンド（create/rename/updateBoundary/delete）を
+      pushHistory()経由でHistoryへ統合。history/futureのスナップショット
+      形状を`buffer`単体から`{ buffer, sections }`へ拡張することで対応
+      （A案採用。ChatGPTレビュー: 「ユーザー操作1回=Undo1回」という
+      既存原則との整合を優先）
+  16. pushHistory()の呼び出し位置は既存Command（deleteChordCommand等）と
+      完全に同じ規則（バリデーション通過後・実際の変更の直前）に統一。
+      Sectionだけ異なるタイミングにならないことを実コード確認の上で徹底
+      （ChatGPTレビュー反映）
+  17. Phase103で個別追加していた`state.dirty = true`（Section系4コマンド）は
+      削除し、pushHistory()内の`session.dirty = true`へ一本化した
+      （「Historyに積まれた＝未保存変更がある」という既存原則へ回帰）
+  18. Section Selection State・チップクリック時の自動スクロール
+      （Navigation機能）はPhase104のスコープ外と判断。History（過去へ戻す）
+      とNavigation（今どこを見るか）は責務が異なるため、次フェーズ
+      （Phase105候補）へ分離した
+  19. `updateSectionBoundaryCommand()`は本フェーズ時点でapp.js側から
+      呼び出す経路が未実装（境界編集UI自体が未着手・current-issues.md
+      P2/P3参照）だが、将来の境界編集UI実装に備え、History対応済みの
+      実装として維持する方針とした（削除・簡略化はしない）
 ```
 
 ---
 
 ## 10. 次にこのメモを開く時にやること
 
-- [ ] Phase99着手時、§8の影響範囲を実際にarchitecture.mdへ反映する
-- [ ] Section Session Layerの実装方針（historyの扱い・Command Layer
-      との関係）を§6「更新」の未確定部分に沿って設計する
-- [ ] B（Section Editor）着手前に、UI設計（作成・リネーム・複製・
-      並べ替え・削除の操作フロー）を別途詰める
+- [x] Phase99着手時、§8の影響範囲を実際にarchitecture.mdへ反映する（済）
+- [x] Section Session Layerの実装方針（historyの扱い・Command Layer
+      との関係）を§6「更新」の未確定部分に沿って設計する（Phase100-A・
+      Phase104で完了）
+- [x] B（Section Editor）着手前に、UI設計（作成・リネーム・複製・
+      並べ替え・削除の操作フロー）を別途詰める（Phase101で完了）
+- [ ] Phase105着手時: Section Selection State・チップクリック時の
+      自動スクロール（Navigation）の設計に着手する
+- [ ] P2（Boundary reassignment）着手時: `updateSectionBoundaryCommand()`
+      をapp.js側から呼び出すUIを設計し、その際にPreview中の
+      chordIds再計算（`_setSectionPreview`側の追随）も併せて確認する

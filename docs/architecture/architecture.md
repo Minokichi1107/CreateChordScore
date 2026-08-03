@@ -177,7 +177,7 @@ JSモジュール境界とCSS責務がほぼ一致していることが判明し
 | analysisLoader.js | analysis.raw の validate / sanitize / normalize → project.analysis 生成。buildNormalizedTimingAnalysis() の呼び出し元（Phase64〜）。normalized の rebuild responsibility を集約。repairRule（Phase72）・sanitizeChords export（Phase74-C）を含む | Phase41 |
 | timing.js | TimingModel（beat / measure grid 構築・quantize）。外部依存ゼロ。Phase59で diagnostics / repair / normalized pipeline 追加。Phase72-Bで applyAnchorRepair() 追加 | Phase41 |
 | chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer）。rAF playback loop ownership（Phase63〜）。解析編集モードの選択・境界移動UI（Phase74）。Collision Indicator projection（Phase92）。Boundary Handle Drag Editing（Phase93）・Hover + Direct Drag（Phase95-A2）・Decorator Inventory整理／Visual Hierarchy確立（Phase96）・Selection Hit-Test統一（Phase97） | Phase41 |
-| analysisSession.js | Analysis Editor Session Layer。state primitiveの計算のみを担う（history push/pop・selection計算・editPoint確定等）。DOM/audio/Chart runtimeには一切触れない（§12参照）。Section Session（validateSectionInvariants / reconcile / getSections。Phase100-A）を含む | Phase86-2 |
+| analysisSession.js | Analysis Editor Session Layer。state primitiveの計算のみを担う（history push/pop・selection計算・editPoint確定等）。DOM/audio/Chart runtimeには一切触れない（§12参照）。Section Session（validateSectionInvariants / reconcile / getSections。Phase100-A）を含む。History snapshotは`{ buffer, sections }`形状（Phase104でbuffer単体から拡張） | Phase86-2 |
 | analysisCommands.js | Analysis Editor Command Layer。「ユーザー操作1回」単位のbuffer mutation（copy/cut/delete/paste/merge/update/split/moveBoundary/addChord）を担う。DOM/Chart runtime/toastには触れない（[BOUNDARY INVARIANT]参照・§12）。Section Commands（create/rename/updateBoundary/deleteSectionCommand。Phase100-A）を含む | Phase87〜89 |
 
 ### 依存関係ルール
@@ -1445,7 +1445,7 @@ Verse / Chorus のような曲構造単位（Section）を扱うAnalysis Editor�
 Section機能から確立した設計原則のみを記載する。
 ```
 
-**実装の対応関係**（S→A→B→Preview→Persistenceの各段階）
+**実装の対応関係**（S→A→B→Preview→Persistence→Historyの各段階）
 
 | 段階 | 内容 | Phase | 実装箇所 |
 |---|---|---|---|
@@ -1455,6 +1455,7 @@ Section機能から確立した設計原則のみを記載する。
 | B. Editor UI | Section Bar・作成ダイアログ・Rename/Delete管理メニュー | 101-1〜3 | app.js |
 | Preview Decorator | selectionとは独立したChart Mode上のハイライト（`_previewSectionId`） | 102・102-B | app.js / chartmode.js |
 | Persistence | `analysis.raw.sections`。既存の`saveAnalysisFile()`等はAPI無変更のまま対応 | 103 | analysisLoader.js / app.js |
+| History Integration | Section系4コマンドをpushHistory()経由でUndo/Redo対象化。history/futureのスナップショット形状を`{ buffer, sections }`へ拡張 | 104 | analysisSession.js / analysisCommands.js |
 
 **データモデル**（詳細は section-model.md §4）
 
@@ -1474,19 +1475,45 @@ Sectionコレクションは必ず getSections(session) 経由でのみ読む。
 （reconcile）を行ってはならない（修復責務はreconcile()のみに集約する）。
 ```
 
-**[SECTION HISTORY INTEGRATION]（Phase100-Aで確立・現在も継続中の制約）**
+**[SECTION HISTORY INTEGRATION]（Phase100-Aで確立・Phase104で解消）**
 
 ```
-Section系4コマンドは意図的にpushHistory()を呼ばない（Undo非対応）。
-理由: 既存History機構がbuffer専用のsnapshotであり、Section変更を
-そのままpushHistory()に乗せても機能しない（History機構自体の拡張が必要）。
+Section系4コマンド（createSectionCommand / renameSectionCommand /
+updateSectionBoundaryCommand / deleteSectionCommand）は、Phase104で
+pushHistory()を呼ぶよう統合された。呼び出し位置は既存Command
+（deleteChordCommand等）と完全に同じ規則（バリデーション通過後・
+実際の変更の直前）に揃えてある。
 
-[Phase103での関連修正] dirty（未保存変更の有無）とhistory（Undo記録）は
-本来独立した責務である。Section系コマンドはpushHistory()を呼ばないが、
-未保存変更の検知（保存ボタンの活性化）のためstate.dirty = trueは
-個別に呼ぶ（Historyへの不参加とは矛盾しない）。
+対応方法: history/futureのスナップショット形状を、buffer単体から
+{ buffer, sections } へ拡張した（analysisSession.js の
+_snapshotSession()・pushHistory()/undoBuffer()/redoBuffer()）。
+buffer・sectionsはそれぞれ独立にstructuredCloneされるため、
+一方の変更がもう一方へ波及することはない。
 
-Section Undo/Redo対応自体は未着手（current-issues.md P1参照）。
+[Phase103での関連修正だった内容の解消] Phase103時点ではdirty（未保存
+変更の有無）とhistory（Undo記録）が独立した責務として扱われ、
+Section系コマンドはpushHistory()を呼ばずにstate.dirty = trueのみを
+個別に呼んでいた。Phase104でpushHistory()呼び出しに統合したことで、
+この個別dirty設定は削除し、既存コマンドと同じくpushHistory()内の
+session.dirty = trueへ一本化した（二重管理の解消）。
+
+[app.js側への影響確認（Phase104）] undoEdit()/redoEdit()は
+undoBuffer()/redoBuffer()の戻り値がtrueであれば_refreshEditorView()
+を呼ぶという既存フローのまま変更不要だった。_refreshEditorView()が
+無条件にrenderSectionBar()を呼ぶため、undo/redo後のSection Bar再描画は
+自動的に行われる。Section Preview（_previewSectionId）・▼メニュー
+（_openSectionMenuId）の残留防止ガード（_syncSectionPreviewVisibility /
+_syncSectionMenuVisibility）もrenderSectionBar()末尾から呼ばれる
+既存の仕組みのため、undo/redoによるSection消滅にも自動的に対応できる
+（Phase102・101-3で確立済みの仕組みがそのまま機能した）。
+
+[既知の制約・将来対応] updateSectionBoundaryCommand()はPhase104時点で
+app.js側から呼び出すUI（境界編集UI）が未実装のため、実質的に到達しない
+（current-issues.md P2/P3参照）。History対応済みの実装として維持する
+方針であり、将来UIが実装された際は、Section Previewが有効な状態で
+境界がUndo/Redoされた場合にPreview側のchordIds（Derived Cache）が
+追随して再計算されるか、別途確認が必要（現状は経路自体が存在しない
+ため実害なし）。
 ```
 
 ### [PERSISTENCE OWNERSHIP PRINCIPLE]（Phase103で明文化）
