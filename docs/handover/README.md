@@ -249,6 +249,8 @@ AIは continuity support / review assistant として利用する。
 - `architecture.md` を現状に合わせて更新
 - `current-issues.md` のバックログを整理・削除・追加
 
+- Archiveは20〜25フェーズ単位でサブディレクトリ化する。ディレクトリ名は phase081-100 のように開始・終了フェーズを表す。
+
 ---
 ---
 
@@ -323,3 +325,52 @@ phaseをまたいだ未完了事項やsubsystem continuityが失われやすい�
 - 関数単位で置換する（前後数行だけの部分置換は避ける）
 - 適用後は `node --check` と `git diff` で実コード反映を確認する
 - 1 commit = 1 logical concern（1目的）に制限する（目安: 20箇所超は分割検討）
+
+---
+
+## Decorator開発運用ルール（Phase102-Bで提案）
+
+> 設計原則そのもの（[DECORATOR VISUAL LANGUAGE PRINCIPLE] /
+> [DECORATOR LEGIBILITY PRINCIPLE] 等）は architecture.md §12 が保持する。
+> ここに書くのは「実装時・レビュー時にその原則をどう適用するか」という
+> 開発プロセスのみ（役割分担はREADME冒頭の運用ルールと同じ考え方）。
+
+### Decorator追加時のフロー
+
+新しいDecoratorを追加する際は、以下の順序で進める。
+
+1. Defaultテーマで設計・実装する（他テーマは一旦考慮しない）
+2. Defaultテーマで動作確認する
+3. Theme Auditで他テーマへの反映を行う（下記）
+4. ドキュメント更新（architecture.md Decorator Inventory等）
+
+UI設計フェーズとテーマ移植フェーズを分離することで、
+毎回3テーマ同時に調整するコストを避ける。
+
+### Theme Audit
+
+5〜10フェーズごと、または新規Decorator追加時に、以下をまとめて行う:
+- 新トークン追加漏れの確認
+- 全テーマでのコントラスト・視認性確認（[DECORATOR LEGIBILITY
+  PRINCIPLE]に基づく）
+- 各テーマ固有の未定義トークン（silverの--color-green-rgb欠落等の
+  既知パターン）の再発確認
+
+### Decorator Development Checklist
+
+新規Decorator実装が完了したら、以下を確認する。
+
+```
+□ Theme Audit（3テーマでの視認性・トークン欠落確認）
+□ 既存Decoratorとの重複確認（architecture.md Decorator Inventory参照）
+□ [ONE INTENT, ONE PRIMARY DECORATOR] 準拠確認
+  （同じIntentを持つ既存Decoratorが無いか／Primary/Secondaryの区分）
+□ Hover / Active / Selected 等の状態別表示確認
+□ 編集中限定の機能か？ → [EDITOR RESET AUTHORITY] に従い
+  resetAnalysisEditor() へのクリア処理登録を確認
+□ handoverへ反映（Design Decisions・Decorator Inventoryの更新要否）
+```
+
+このチェックリストは今後Decoratorを追加するたびに使い回す想定。
+項目自体の追加・見直しは気づいた時点で本セクションを直接更新してよい。
+
