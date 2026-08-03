@@ -296,18 +296,18 @@ carryセルへ跨る継ぎ目問題を根本的に解決する設計（コード
 連続した要素として扱う等）から着手すること。
 
 #### Section Data Layer（曲構造編集）
-状態: 中核（Specification/Session/Editor UI/Preview/Persistence）は
-Phase98〜103で完了・残課題のみ
+状態: 中核（Specification/Session/Editor UI/Preview/Persistence/History）は
+Phase98〜104で完了・残課題のみ
 内容: Verse/Chorus等のセクション単位で編集できる機能。データモデル・
 仕様はPhase98で確定済み、Session/Command Layer・Editor UI・Preview
-Decorator・永続化（analysis.raw.sections）はPhase100-A〜103で実装済み
-（進捗の詳細一覧はphase-status.md「Section Subsystem Progress」参照）。
+Decorator・永続化（analysis.raw.sections）・History統合（Undo/Redo）は
+Phase100-A〜104で実装済み（進捗の詳細一覧はphase-status.md「Section
+Subsystem Progress」参照）。
 残課題（優先順）:
-  P1 Section History Integration（Undo/Redo対応。既存History機構が
-     buffer専用snapshotのため機構自体の拡張が必要）
   P2 Boundary reassignment（境界コード削除時の隣接コードへの自動付け替え。
      現状は常にSection自体を削除する仕様で運用中）
-  P3 Section Selection State（selectedSectionId等。P1と合わせて設計）
+  P3 Section Selection State（selectedSectionId等。チップクリックでの
+     自動スクロール／Navigation機能とセットで設計する方針・次フェーズ候補）
   P4 チップ本体クリック時の挙動拡張（現状はPreviewトグルのみ）
 詳細設計は `section-model.md` を参照。「Chart Modeと通常モードのシステム
 統合」（本ファイル内ロードマップ）とAuthority問題を共有するため、
