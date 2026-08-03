@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase98完了時点（Documentation Audit実施済み・Phase93〜98を反映）
+> 最終更新: Phase103完了時点（Phase99〜103を反映）
 
 ---
 
@@ -28,11 +28,19 @@ Completed（完了済み）
   Selection Hit-Test統一・Search Enharmonic対応（詳細は「3. Phase
   Timeline」参照）
 ✓ Section Architecture Design（Phase98・Design Freeze。実装はPhase99以降）
+✓ current-issues軽量課題2件解消（Phase99・ライブラリ順序退行／音声停止問題）
+✓ Section Session Layer（Phase100-A・非永続・Command API・Validation・Lazy Reconcile）
+✓ Section Editor MVP（Phase101-1〜3・Section Bar・作成・Rename・Delete。
+  Preview/選択状態/Undo統合/永続化は当時未実装）
+✓ Section Preview Decorator（Phase102・selectionとは独立したChart Mode上のハイライト）
+✓ Section Preview 視覚言語の独立化（Phase102-B・[DECORATOR LEGIBILITY PRINCIPLE]採用）
+✓ Section永続化（Phase103・analysis.raw.sections。Section機能が
+  Specification→Session→UI→Preview→Persistenceまで一巡し実用レベルに到達）
 
 Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」参照）
 ------------------------------------------------------------
-Phase93〜98が完了し、5フェーズ棚卸し（本更新）を実施済み。
-次の主候補は未確定（Future Candidates参照）。
+Phase99〜103が完了し、5フェーズ棚卸し（本更新）を実施済み。
+次の主候補はP1 Section History Integration（Future Candidates参照）。
 ```
 
 ---
@@ -91,6 +99,11 @@ Phase93〜98が完了し、5フェーズ棚卸し（本更新）を実施済み�
 | 90 | Search Navigation Session層抽出（activateSearchIndex） |
 | 94 | Playback-aware Editing UX（B4 Scroll Recovery・C1 Selection Measure Span）・Header Visual Language整理（Green=編集ワークフロー系／Amber=編集補助系） |
 | 98 | Section Specification（仕様固定・Design Freeze。データモデル・Authority Scope・ライフサイクル確定。実装なし） |
+| 100-A | Section Session Layer（非永続・Validation・Reconcile・Command API。History非対応は意図的） |
+| 101-1〜3 | Section Editor MVP（Section Bar・作成ダイアログ・Rename/Delete管理メニュー） |
+| 102 | Section Preview Decorator（selectionとは独立したChart Mode上のハイライト） |
+| 102-B | Section Preview視覚言語の独立化（[DECORATOR LEGIBILITY PRINCIPLE]採用） |
+| 103 | Section永続化（analysis.raw.sections）。実機検証でdirty・Section Preview残留の2バグを発見・修正 |
 
 ### 基盤・アーキテクチャ整理
 
@@ -108,12 +121,44 @@ Phase93〜98が完了し、5フェーズ棚卸し（本更新）を実施済み�
 | 91 | Chart Mode Rendering collision semanticsの確定（調査フェーズ・修正コミットなし。resolveCollision()のタイブレーク（tie-break）規則を実測で確定） |
 | 92 | **Chart Mode Collision Indicator（P1 v1）**（同一quantized slot衝突をhiddenCount/Amberドットで可視化。Rendering-only・normal-path-only。architecture.md §9.5参照） |
 | 96〜97 | **Decorator Design Principles確立**（[ONE INTENT, ONE PRIMARY DECORATOR]・[VISUAL HIERARCHY]・[THEME LAYER RESPONSIBILITY]。Chart Mode上の全Decoratorを棚卸しし、Intent（伝えたい意味）軸で整理。architecture.md §12参照） |
+| 98 | Section Subsystem仕様固定（データモデル・Authority Scope・境界コード増減ルール・ライフサイクル。詳細はsection-model.md参照） |
+| 100-A | Section Session Layer（reconcile()による整合性維持。[SECTION SESSION CONSISTENCY INVARIANT]確立） |
+| 102-B | **[DECORATOR LEGIBILITY PRINCIPLE]採用**（編集ツールとしての視認性をテーマとの調和より優先。architecture.md §12参照） |
+| 103 | **[PERSISTENCE OWNERSHIP PRINCIPLE]・[EDITOR RESET AUTHORITY]明文化**（ownershipと保存場所の分離／Analysis Editor限定stateの一元リセット。architecture.md §12参照） |
 
 ---
 
 ## 3. Future Candidates（次フェーズ候補）
 
 詳細は `current-issues.md` のバックログを参照。
+
+### Section Subsystem Progress（Phase100-Aより継続・優先度付き）
+
+```
+S. Specification            — Phase98完了
+A. Session Layer            — Phase100-A完了
+B. Editor UI（作成/Rename/Delete） — Phase101-1〜3完了
+   Preview Decorator        — Phase102・102-B完了
+   Persistence              — Phase103完了
+
+P1  Section History Integration（Section Undo/Redo対応）
+    Section系Command（create/rename/updateBoundary/delete）はUndo非対応の
+    まま（[SECTION HISTORY INTEGRATION]）。History機構がbuffer専用の
+    snapshotであるため、SectionをHistoryへ含めるには機構自体の拡張が必要。
+    Section機能がSpecification→Session→UI→Preview→Persistenceまで
+    一巡した現在、最後の主要な未完了事項（Phase103 handover参照）
+
+P2  Boundary reassignment
+    境界コード削除時、隣接コードへの自動付け替え（section-model.md §4.3
+    ケースB）は未実装。現在reconcile()は常にSection自体を削除する
+    （ケースC相当）のみ
+
+P3  Section Selection State
+    selectedSectionId等。History Integration（P1）と合わせて設計する方針
+
+P4  チップ本体クリック時の挙動拡張
+    現状はPreview表示/解除のトグルのみ
+```
 
 ### Future Features（新機能・優先順位未定）
 
@@ -132,11 +177,6 @@ Phase93〜98が完了し、5フェーズ棚卸し（本更新）を実施済み�
   小節またぎの継ぎ目・テーマ依存色・z-index重なり順の3問題が同時に
   発生し撤回。再挑戦する場合はcarryセルを跨る継ぎ目問題の根本解決から
   着手すること（current-issues.md参照）
-
-・Section Data Layer（Phase98で仕様確定・実装未着手）
-  データモデル・境界コード増減ルール・Authority Scope（Analysis
-  Editor Session限定）はPhase98で確定済み。詳細は section-model.md
-  参照
 ```
 
 ### Technical Debt（技術的負債・既存挙動の見直し）
@@ -189,7 +229,6 @@ Phase93〜98が完了し、5フェーズ棚卸し（本更新）を実施済み�
 ```
 ・「緑の棒」バグ（原因未特定・次回発生時にDevToolsで実測）
 ・replaceCurrentAndAdvance()のbackward方向の簡略化（意図的な仕様・バグではない）
-・ライブラリ：曲を開いた後、同一アーティスト内で選択行が先頭へジャンプする（退行の疑い・未調査）
 ```
 
 ---
@@ -611,4 +650,100 @@ Phase98   Section Specification（仕様固定・Design Freeze）
 
 </details>
 
+<details>
+<summary>Phase99-103 を展開 — Section Data Layer本体（Session → UI → Preview → Persistence）</summary>
+
+Phase99〜103は、Phase98で仕様固定したSectionサブシステムを実装に落とし込む
+一連の流れである。途中Phase99だけはSectionと無関係の軽量課題解消だが、
+Section関連作業の合間の「一息」として位置づけられる。
+
+```
+Phase99     current-issues軽量課題2件解消（Section作業とは無関係）
+    ▼
+Phase100-A  Section Session Layer（非永続・Validation・Reconcile・Command API）
+    ▼
+Phase101-1〜3  Section Editor MVP（Section Bar・作成・Rename/Delete）
+    ▼
+Phase102    Section Preview Decorator
+    ▼
+Phase102-B  Section Preview 視覚言語の独立化（[DECORATOR LEGIBILITY PRINCIPLE]）
+    ▼
+Phase103    Section永続化（Specification→Session→UI→Preview→Persistenceが一巡）
+```
+
+#### Phase99 — current-issues軽量課題2件の解消
+- ライブラリ：曲を開くと同じアーティスト内で先頭へ移動する退行を解消。
+  `getSortedProjects()`の`'artist'`分岐へ`title`タイブレーク（tie-break）を追加
+  （原因: `Array.sort()`の安定ソート特性により、`autoSaveLocal()`が更新する
+  `updatedAt`降順の元配列順がそのまま同名artist内の順序に漏れ出ていた）
+- バックアップ中に音声が止まらない問題を解消。`pagehide`イベントで`aEl.pause()`
+  を呼ぶよう追加（`visibilitychange`は他タブ参照等の通常利用まで止めてしまう
+  ためChatGPTレビューで却下・`pagehide`に限定）
+- 確立した原則：【表示ソートは決定的であるべき】（Deterministic Display Sort）。
+  グルーピングキーが同値の場合は必ず明示的な二次キーで決定する
+
+#### Phase100-A — Section Session Layer実装
+- `analysisSession.js`へ`session.sections`・`validateSectionInvariants()`・
+  `reconcile()`・`getSections()`を新設。`analysisCommands.js`へ
+  `createSectionCommand`/`renameSectionCommand`/`updateSectionBoundaryCommand`/
+  `deleteSectionCommand`の4コマンドを新設
+- reconcileは「読み取り時のLazy評価」方式を採用（`getSections()`呼び出しの
+  たびに`reconcile()`実行）。Chord側のCommandに一切手を入れずに済み、
+  依存方向を「Chord→Section」の一方向に保てる
+- [SECTION SESSION CONSISTENCY INVARIANT]を確立：Sectionコレクションは
+  必ず`getSections()`経由でのみ読む
+- 境界コード削除時の自動付け替え（§4.3ケースB）は実装せず、常にSection削除
+  （ケースC相当）とした。CorrectnessはケースCのみで満たされ、ケースBは
+  UX最適化のため次フェーズへ委ねた
+- Section CommandsはHistoryへ意図的に不参加（[SECTION HISTORY INTEGRATION]）。
+  既存History機構がbuffer専用snapshotであり、Section変更を伴うと壊れた
+  Undo挙動になるため。実装中に発見した制約（仕様確定段階では見えなかった）
+- 永続化・UI・Selection State・History統合はすべて意図的にOut of Scope
+
+#### Phase101-1〜2 — Section Editor MVP（Section Bar・作成ダイアログ）
+- `#chart-header`と`#chart-grid`の間に読み取り専用のSection一覧バーを新設
+- 作成ダイアログ（種類11種プルダウン・自動採番＋手動編集追従ルール・範囲固定表示）
+- [FIXED RANGE]：作成対象のstart/endはダイアログを開いた時点のselectionで確定
+- 単一コードのSectionも正当（`startChordId === endChordId`）
+
+#### Phase101-3 — Rename / Delete 管理メニュー
+- Sectionチップへ▼メニュー追加（Rename/Delete）。Escape優先順位へ
+  Section▼メニューを割り込ませ（①Modal最優先の直後）
+- チップ本体クリックは101-3では意図的に無効化（101-4のPreview用に予約）
+- [実機確認で発見・修正] Escapeでメニューを閉じた後もfocus outlineが
+  ▼ボタンに残る不具合を`_closeSectionMenu()`への`blur()`追加で解消
+
+#### Phase102 — Section Preview Decorator
+- チップ本体クリックでSection範囲をChart Mode上にハイライト表示
+  （selectionとは独立した別state。`_previewSectionId`はapp.js ephemeral）
+- 当初はSelectionトークンを流用した色で実装
+
+#### Phase102-B — Section Preview 視覚言語の独立化
+- Selectionと重なると判別しづらい課題が実機確認で判明し、専用のゴールド系
+  トークンへ変更（色相は3テーマ共通・alpha値のみテーマ別）
+- **[DECORATOR LEGIBILITY PRINCIPLE]を採用**：編集ツールとして、Decoratorは
+  意味の伝達を最優先し、テーマとの調和より視認性を優先してよい。
+  [THEME LAYER RESPONSIBILITY]（Phase97）とは別の関心事であり、競合時は
+  本原則を優先する
+
+#### Phase103 — Section永続化
+- `analysis.raw.sections`へ永続化。`beginAnalysisEdit()`でSessionへ読込・
+  `saveAnalysisEdit()`でSessionから書き戻し。`saveAnalysisFile()`等の
+  既存APIは無変更（rawオブジェクトの参照透過性を利用）
+- **[PERSISTENCE OWNERSHIP PRINCIPLE]を明文化**：ownership（生成元）と
+  storage location（保存場所）は必ずしも一致しない。保存場所は永続化
+  スキーマとの一貫性・実装コストの最小化で決めてよい
+- 実機検証で2件の既存バグを発見・修正：
+  - dirtyフラグがSection操作で立たない（Phase100-A由来。dirtyが
+    `pushHistory()`の副作用としてのみ実装されていたため）
+  - Section Previewが編集終了後も残留する（Phase102由来。
+    `resetAnalysisEditor()`への登録漏れ）
+- **[EDITOR RESET AUTHORITY]を明文化**：Analysis Editor限定のephemeral
+  stateは必ず`resetAnalysisEditor()`（唯一のリセット窓口）へ登録する
+- Section機能がSpecification→Session→UI→Preview→Persistenceまで一巡し、
+  実用レベルに到達
+
+</details>
+
 ---
+

@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase98完了時点（Documentation Audit実施済み・Phase93〜98を反映）
+> 最終更新: Phase103完了時点（Phase99〜103を反映）
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -25,9 +25,37 @@
 
 ---
 
+### Issue #28 — Decorator視認性優先原則の既存Decoratorへの適用確認（Phase102-Bで発見）
+状態: 検討中
+目的:
+- [DECORATOR LEGIBILITY PRINCIPLE]（architecture.md §12・Phase102-Bで採用）を、
+  Section Preview以外の既存Decoratorにも適用すべきか判断する
+- 「テーマとの調和」を主眼に設計された可能性のある既存色（Selection /
+  Search Highlight等）が、実際の編集作業で視認性の課題を抱えていないか棚卸しする
+
+対象候補:
+- Selection Highlight / Search Highlight（同系色の濃淡による表現）
+- EditPoint / Collision Indicator / Correction Badge
+
+方向性:
+- 単独では優先度が低いため、次回のTheme Audit（README.md運用ルール参照）と
+  合わせて実施する
+
+---
+
 ## 2. Current Issues（未解決の問題・バグ・既知の設計ギャップ）
 
 ### Chart Mode 系
+
+#### 編集中に小節頭補正を変更すると表示が編集前の状態に戻る（要調査）
+状態: 観察中・原因未特定（Phase103棚卸し時に報告）
+内容: Analysis Editorで解析編集モード中に小節頭補正（repairRule・Correction
+Authority）を変更すると、Chart Modeの表示が編集の修正前の状態に戻って
+しまう。Undoを行うと表示が戻る。データ（analysisEditor.buffer）自体が
+失われているのか、表示（Chart Mode projection）のみの問題かは未切り分け。
+次回発生時、`window.__CS_DEBUG__.timing`（repairRule/normalized）と
+`window.__analysisEditorDebug`（buffer状態）を突き合わせて事実ベースで
+原因を特定する方針（[FEATURE REGRESSION POLICY]・実装漏れと断定しない）。
 
 #### Chart Mode pickup measure（実曲検証待ち）
 状態: 実装済み・実曲検証未実施
@@ -140,6 +168,12 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 ### 演奏モードの繰り返し表示
 状態: 未対応
 内容: 繰り返しが行の下に表示されて見づらく、「×N回」表記も削除操作との視覚的衝突がある。Simile記号（𝄋）の使用を検討
+
+### 演奏モード復帰のプルダウンメニューのデザイン改善
+状態: 未対応
+内容: 演奏モードからの復帰（曲選択等）に使うプルダウンメニューの見た目が
+簡素なため、もう少しスタイリッシュなデザインへ修正する。具体的な方向性
+（既存token活用か新規デザインか）は着手時に検討する。
 
 ---
 
@@ -261,17 +295,24 @@ z-index競合、という3つの問題が同時発生し撤回した。再挑戦
 carryセルへ跨る継ぎ目問題を根本的に解決する設計（コード全体を1つの
 連続した要素として扱う等）から着手すること。
 
-#### Section Data Layer（曲構造編集・長期構想）
-状態: 仕様確定済み（Phase98）・実装未着手
-内容: Verse/Chorus等のセクション単位で編集できるようにする構想。
-データモデル `{ id, type, name, startChordId, endChordId }`・境界コード
-増減ルール・Authority Scope（Analysis Editor Session限定）・ライフサイクル
-（生成/更新/削除）はPhase98で確定済み。詳細設計は `section-model.md`
-（Section設計の集約先。`[DOCUMENT AUTHORITY]`参照）を参照すること。
-「Chart Modeと通常モードのシステム統合」（本ファイル内ロードマップ）
-とAuthority問題（将来のProject Repository統合）を共有するため、
-本格的な範囲拡張の判断はそちらとセットで行うこと。
-実装（Section Data Layer本体）はPhase99以降の候補。
+#### Section Data Layer（曲構造編集）
+状態: 中核（Specification/Session/Editor UI/Preview/Persistence）は
+Phase98〜103で完了・残課題のみ
+内容: Verse/Chorus等のセクション単位で編集できる機能。データモデル・
+仕様はPhase98で確定済み、Session/Command Layer・Editor UI・Preview
+Decorator・永続化（analysis.raw.sections）はPhase100-A〜103で実装済み
+（進捗の詳細一覧はphase-status.md「Section Subsystem Progress」参照）。
+残課題（優先順）:
+  P1 Section History Integration（Undo/Redo対応。既存History機構が
+     buffer専用snapshotのため機構自体の拡張が必要）
+  P2 Boundary reassignment（境界コード削除時の隣接コードへの自動付け替え。
+     現状は常にSection自体を削除する仕様で運用中）
+  P3 Section Selection State（selectedSectionId等。P1と合わせて設計）
+  P4 チップ本体クリック時の挙動拡張（現状はPreviewトグルのみ）
+詳細設計は `section-model.md` を参照。「Chart Modeと通常モードのシステム
+統合」（本ファイル内ロードマップ）とAuthority問題を共有するため、
+Session限定Authorityの範囲拡張（Project Repository統合）はそちらと
+セットで判断すること。
 
 #### カポ範囲拡張（-2 まで対応）
 内容: 現在カポは 0〜11 の範囲のみ。半音下げチューニング用途で -2 まで対応できるようにする。

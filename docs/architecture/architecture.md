@@ -177,8 +177,8 @@ JSモジュール境界とCSS責務がほぼ一致していることが判明し
 | analysisLoader.js | analysis.raw の validate / sanitize / normalize → project.analysis 生成。buildNormalizedTimingAnalysis() の呼び出し元（Phase64〜）。normalized の rebuild responsibility を集約。repairRule（Phase72）・sanitizeChords export（Phase74-C）を含む | Phase41 |
 | timing.js | TimingModel（beat / measure grid 構築・quantize）。外部依存ゼロ。Phase59で diagnostics / repair / normalized pipeline 追加。Phase72-Bで applyAnchorRepair() 追加 | Phase41 |
 | chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer）。rAF playback loop ownership（Phase63〜）。解析編集モードの選択・境界移動UI（Phase74）。Collision Indicator projection（Phase92）。Boundary Handle Drag Editing（Phase93）・Hover + Direct Drag（Phase95-A2）・Decorator Inventory整理／Visual Hierarchy確立（Phase96）・Selection Hit-Test統一（Phase97） | Phase41 |
-| analysisSession.js | Analysis Editor Session Layer。state primitiveの計算のみを担う（history push/pop・selection計算・editPoint確定等）。DOM/audio/Chart runtimeには一切触れない（§12参照） | Phase86-2 |
-| analysisCommands.js | Analysis Editor Command Layer。「ユーザー操作1回」単位のbuffer mutation（copy/cut/delete/paste/merge/update/split/moveBoundary/addChord）を担う。DOM/Chart runtime/toastには触れない（[BOUNDARY INVARIANT]参照・§12） | Phase87〜89 |
+| analysisSession.js | Analysis Editor Session Layer。state primitiveの計算のみを担う（history push/pop・selection計算・editPoint確定等）。DOM/audio/Chart runtimeには一切触れない（§12参照）。Section Session（validateSectionInvariants / reconcile / getSections。Phase100-A）を含む | Phase86-2 |
+| analysisCommands.js | Analysis Editor Command Layer。「ユーザー操作1回」単位のbuffer mutation（copy/cut/delete/paste/merge/update/split/moveBoundary/addChord）を担う。DOM/Chart runtime/toastには触れない（[BOUNDARY INVARIANT]参照・§12）。Section Commands（create/rename/updateBoundary/deleteSectionCommand。Phase100-A）を含む | Phase87〜89 |
 
 ### 依存関係ルール
 
@@ -543,6 +543,9 @@ Analysis EditorはPhase82でdisplay projection modelへ統一済み。
 Layer 1: Persistence Domain
   analysis/{id}.json:
     raw                persisted canonical source（timing persistence の唯一の canonical source）
+      raw.sections      Section構造（user-authored structural metadata。Phase103）。
+                        ChordMini由来ではないが、既存の永続化スキーマとの一貫性を
+                        優先しrawに保持する（[PERSISTENCE OWNERSHIP PRINCIPLE]・§12参照）
     repairRule         null または { version, type:'anchorDownbeat', beatTime }（Phase72）
   project.json:
     project.lines      コード譜本体
@@ -1241,6 +1244,7 @@ Chart Mode上に同時に存在しうる視覚装飾（Decorator）の一覧。
 | Search候補（現在の検索位置） | 今どの検索結果を見ているかを示す | Background | Primary（検索中のみ） | 検索中 かつ 現在地 | Selectionと事実上同一表現（共存可） |
 | Collision Indicator | 隠れているコードの存在を警告する | Overlay | Secondary | 衝突時のみ | 共存可 |
 | Correction Badge | 解析タイミング補正の状態を示す | Overlay | Secondary（開発者寄り） | 補正時のみ | 共存可 |
+| Section Preview | 曲構造（Section）の範囲を示す | Background | Primary（Sectionという独自Intent） | チップクリックでPreview中のみ | Selection/Searchと共存可（selectionとは独立したstate） |
 
 **[運用ルール] Decorator Usability Audit**
 新規Decoratorを追加・変更する際は、Decorator Inventory表への追加に加えて
@@ -1329,6 +1333,33 @@ theme.cssのsilverテーマ専用オーバーライド（`body[data-theme="silve
 復活して見える不具合が発生した（実機検証で発見・修正済み）。原則として、
 chart.cssを直せば全テーマへ反映される、という前提を保つための原則。
 
+### [DECORATOR LEGIBILITY PRINCIPLE]（Phase102-Bで採用）
+
+```
+CreateChordScoreは鑑賞アプリではなく編集ツールである。Decoratorは
+意味の伝達を最優先し、必要であればテーマとの調和より視認性を優先してよい。
+
+運用ルール:
+・色相（Hue）はテーマ間で統一し、alpha値・明度のみ背景の明暗に応じて
+  調整する（Boundary Handle=Amberの既存パターンを踏襲）
+・テーマ間の等価性は「同じRGBA値」ではなく「同じ役割だと一目で
+  分かること」を基準とする
+・彩度・明度の具体的な選択（原色寄り／中彩度等）は都度の判断に委ねる。
+  本原則が定めるのは優先順位（視認性 > テーマ調和）のみ
+
+[THEME LAYER RESPONSIBILITY]（Phase97）との関係:
+  [THEME LAYER RESPONSIBILITY]は「色の値をどこで定義するか」という
+  責務分離の原則であり、本原則（視認性優先）とは別の関心事。
+  2つが競合する場面では本原則を優先する。
+```
+
+背景（経緯）: Section Preview（Phase102）が当初Selectionトークンを流用した
+結果、重なると判別しづらいという課題が実機確認で判明した。「背景色と調和
+させよう」とする微調整では視認性を損なうことが分かり、専用色相（ゴールド系）
+へ変更する過程でこの原則を確立した。Section Preview以外の既存Decorator
+（Selection / Search Highlight等）への適用可否は`current-issues.md`の
+検討事項として別途管理する。
+
 ### Boundary Handle統合（Phase96で確立）
 
 ```
@@ -1404,6 +1435,98 @@ Nを表示前に除外する。編集モデルと表示モデルの間に、何�
 
 詳細・対応状況は `current-issues.md` を参照。
 
+### Section Subsystem（Phase98〜103）
+
+```
+Verse / Chorus のような曲構造単位（Section）を扱うAnalysis Editorの
+サブシステム。詳細設計・データモデル・ライフサイクルは section-model.md
+（[DOCUMENT AUTHORITY]・Sectionサブシステムの設計判断を集約する
+設計ドキュメント）を参照する。本節では実装済みの構成要素の対応関係と、
+Section機能から確立した設計原則のみを記載する。
+```
+
+**実装の対応関係**（S→A→B→Preview→Persistenceの各段階）
+
+| 段階 | 内容 | Phase | 実装箇所 |
+|---|---|---|---|
+| S. Specification | データモデル・境界コード増減ルール・Invariants確定（Design Freeze） | 98 | section-model.md |
+| A. Session Layer | `validateSectionInvariants()` / `reconcile()` / `getSections()` | 100-A | analysisSession.js |
+| A. Command Layer | `createSectionCommand` / `renameSectionCommand` / `updateSectionBoundaryCommand` / `deleteSectionCommand` | 100-A | analysisCommands.js |
+| B. Editor UI | Section Bar・作成ダイアログ・Rename/Delete管理メニュー | 101-1〜3 | app.js |
+| Preview Decorator | selectionとは独立したChart Mode上のハイライト（`_previewSectionId`） | 102・102-B | app.js / chartmode.js |
+| Persistence | `analysis.raw.sections`。既存の`saveAnalysisFile()`等はAPI無変更のまま対応 | 103 | analysisLoader.js / app.js |
+
+**データモデル**（詳細は section-model.md §4）
+
+```javascript
+Section = { id, type, name, startChordId, endChordId }
+```
+
+**Authority Scope**：Analysis Editor Session限定（`session.sections`。Runtime Authority）。
+永続化先は `analysis.raw.sections`（Persistence Authority）。両者の関係は
+[PERSISTENCE OWNERSHIP PRINCIPLE]（下記）に従う。
+
+**[SECTION SESSION CONSISTENCY INVARIANT]（Phase100-Aで確立）**
+
+```
+Sectionコレクションは必ず getSections(session) 経由でのみ読む。
+呼び出し側（Command Layer / Renderer / UI）はSectionの整合性修復
+（reconcile）を行ってはならない（修復責務はreconcile()のみに集約する）。
+```
+
+**[SECTION HISTORY INTEGRATION]（Phase100-Aで確立・現在も継続中の制約）**
+
+```
+Section系4コマンドは意図的にpushHistory()を呼ばない（Undo非対応）。
+理由: 既存History機構がbuffer専用のsnapshotであり、Section変更を
+そのままpushHistory()に乗せても機能しない（History機構自体の拡張が必要）。
+
+[Phase103での関連修正] dirty（未保存変更の有無）とhistory（Undo記録）は
+本来独立した責務である。Section系コマンドはpushHistory()を呼ばないが、
+未保存変更の検知（保存ボタンの活性化）のためstate.dirty = trueは
+個別に呼ぶ（Historyへの不参加とは矛盾しない）。
+
+Section Undo/Redo対応自体は未着手（current-issues.md P1参照）。
+```
+
+### [PERSISTENCE OWNERSHIP PRINCIPLE]（Phase103で明文化）
+
+```
+ownership（生成元）と storage location（保存場所）は
+必ずしも一致させる必要はない。
+
+保存場所は、永続化スキーマとの整合性・既存APIとの互換性・
+変更範囲の最小化を優先して決定してよい。ownershipの違いは
+コード変更ではなく、ドキュメントコメント（[OWNERSHIP]）で
+明文化すれば十分に伝わる。
+
+[適用例] Sectionはユーザー定義の構造メタデータ（generation: User）
+だが、raw.chords/beats/downbeats（generation: ChordMini）と同じ
+analysis.raw配下（raw.sections）に保存する。既存の永続化スキーマ
+（rawを丸ごとPOSTする1回の保存経路）を維持し、saveAnalysisFile()
+等のAPI変更を避けるための判断（詳細はhandover_phase103.md参照）。
+
+将来 lyrics / bookmarks / annotations / AI metadata 等の
+ユーザー定義メタデータが追加される際も、この原則に従って
+保存場所を判断できる。
+```
+
+### [EDITOR RESET AUTHORITY]（Phase103で明文化）
+
+```
+Analysis Editor終了時に破棄すべきephemeral stateは、
+必ず resetAnalysisEditor()（唯一のリセット窓口。Cancel / Save成功 /
+Project切替 / Chart Mode終了のすべてがここを経由する）に集約する。
+
+編集中限定の新機能（selection/search/Section Preview等）を追加した
+場合、対応するreset処理を同時にここへ登録すること。
+
+[発見の経緯] Phase102で追加されたSection Preview（_previewSectionId）
+がこの窓口への登録から漏れており、編集終了後も非編集のChart Mode表示に
+ハイライトが残留するバグとしてPhase103の実機検証で発見された
+（詳細はhandover_phase103.md参照）。
+```
+
 ---
 
 ## 13. Authority Index
@@ -1423,6 +1546,8 @@ Runtime Projection・Derived Cache・Decorator状態はAuthorityではなく、
 |---|---|---|---|---|
 | Project core data | project.js | Project Repository | Persistence | `saveProjectToDB()` |
 | Analysis（raw/repairRule） | analysisLoader.js | analysis/{id}.json | Persistence | `saveAnalysisFile()` |
+| Section（session.sections） | analysisSession.js | Analysis Editor Session | Runtime | `createSectionCommand()` 等4コマンド（analysisCommands.js） |
+| Section永続化（raw.sections） | analysisLoader.js | analysis/{id}.json | Persistence | `saveAnalysisFile()`（Analysis本体と同一。raw丸ごとPOST時に含まれる） |
 | 境界（コード間の時刻） | app.js | Analysis Editor | Runtime | `moveBoundary()` |
 | 選択状態（chordIds/boundaryIndex/anchorChordId） | app.js | Analysis Editor | Runtime | `_refreshSelection()` |
 | 挿入位置（editPoint） | app.js | Analysis Editor | Runtime | `setEditPoint()` / `clearEditPoint()` |
@@ -1455,6 +1580,7 @@ Runtime Projection・Derived Cache・Decorator状態はAuthorityではなく、
 | chartState.searchMatchIds | analysisEditor.search.query + buffer | `setSearchMatches()` |
 | analysisEditor.search.matches | analysisEditor.search.query + buffer | `searchChords(buffer, query)`（Phase97よりnormalizeEnharmonic()経由の比較） |
 | GridViewModel slot.hiddenCount（Phase92） | measure.slots[].onsets（衝突数） | `resolveCollision()`呼び出しに付随する集計（normal pathのみ・§9.5参照） |
+| chartState.sectionPreviewChordIds | _previewSectionId（app.js ephemeral）+ Section.startChordId/endChordId | `setSectionPreview()`（Phase102。selection/searchとは独立したstate。resetAnalysisEditor()でのクリアが必須・[EDITOR RESET AUTHORITY]参照） |
 
 [PROJECTION AUTHORITY INVARIANT]
 Projectionの更新窓口（setEditPointMarker()等）はchartmode.js側に置かれるが、
