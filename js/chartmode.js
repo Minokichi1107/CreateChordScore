@@ -848,6 +848,36 @@ export function setSectionPreview(ids) {
   chartState.sectionPreviewChordIds = new Set(ids);
 }
 
+/**
+ * scrollToChord — 指定chordIdの位置までChart Modeをスクロールする（Phase105）
+ *
+ * [NAVIGATION OWNERSHIP]
+ * scrollToChord() は「指定されたchordIdを表示位置へスクロールする」
+ * だけを責務とする。
+ *
+ * ・Sectionを知らない
+ * ・Playbackを知らない
+ * ・Previewを知らない
+ * ・Selectionを知らない
+ *
+ * Navigationの判断はapp.jsが行い、chartmode.jsは
+ * Rendering / DOM Navigationのみ担当する。
+ *
+ * [既存scrollIntoViewとの関係] updateChartPlayback()内のscrollIntoView
+ * （chartState.lastScrolledMeasure）とは完全に独立している。scrollToChord()
+ * はlastScrolledMeasureに一切触れない（Navigation scrollとPlayback
+ * scrollの責務を混ぜない）。
+ *
+ * @param {string} chordId
+ */
+export function scrollToChord(chordId) {
+  if (!chordId) return;
+  const slotEl = document.querySelector(`.chart-slot[data-chord-id="${chordId}"]`);
+  if (!slotEl) return;
+  const measureEl = slotEl.closest('.chart-measure');
+  (measureEl || slotEl).scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
 // ────────────────────────────────────────
 // 注入変数
 // ────────────────────────────────────────

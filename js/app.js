@@ -228,6 +228,7 @@ import {
   setEditPointMarker,
   setSearchMatches,
   setSectionPreview, // Phase102
+  scrollToChord, // Phase105
   getTimeForGridPosition,
 } from './chartmode.js';
 
@@ -1903,7 +1904,15 @@ function resolveSectionChordIds(buffer, section) {
 }
 
 /**
- * _previewSectionId — Section Preview（範囲閲覧表示）の対象（Phase102）
+ * _previewSectionId — Section Navigation（現在選択中のSection）の対象。
+ * 結果としてPreview（範囲閲覧表示）も兼ねる（Phase102で導入・Phase105で
+ * 意味を拡張）。
+ *
+ * [Phase105] Phase102時点では「Previewの対象」のみを意味したが、チップ
+ * クリックにNavigation（選択+スクロール）を統合したことに伴い、「現在
+ * 選択中のSection」という意味も兼ねるようになった。実体（変数）は2つに
+ * 分けず1つのまま拡張している（[PERSISTENCE OWNERSHIP PRINCIPLE]と同じ
+ * 考え方＝意味の数と変数の数は一致させなくてよい）。
  *
  * [SCOPE] _openSectionMenuIdと同格の、完全にapp.js限定のephemeral UI stateである。
  * session（analysisEditor.sections）にもanalysisSession.js/analysisCommands.js
@@ -1911,8 +1920,9 @@ function resolveSectionChordIds(buffer, section) {
  * 永続化しない。
  *
  * [Selection⇔Preview独立] SelectionはEditorの編集対象（正本はanalysisEditor.
- * selection）、Section Previewは単なる閲覧状態。片方の変更が他方に影響しない
- * ことを意図的な仕様とする（Preview表示中でもコード編集を継続できる）。
+ * selection）、Section Preview/Navigationは単なる閲覧状態。片方の変更が
+ * 他方に影響しないことを意図的な仕様とする（Preview表示中でもコード編集を
+ * 継続できる）。
  */
 let _previewSectionId = null;
 
@@ -1935,16 +1945,23 @@ function _syncSectionPreviewVisibility() {
 }
 
 /**
- * _setSectionPreview — チップ本体クリック時のPreviewトグル（Phase102）
+ * _selectSection — チップ本体クリック時のSection選択（Navigation）（Phase105）
  *
- * 同じSectionを再クリックで解除、別Sectionクリックで対象を差し替える
- * （排他・_toggleSectionMenuと同じトグル方式）。
+ * [Phase105] Phase102では「同じSectionを再クリックで解除」というPreview
+ * トグルだったが、Navigation（今どこを見ているか）を兼ねる状態へ役割を
+ * 拡張したことに伴い、トグルOFFは廃止した。常に「選択+スクロール+Preview」
+ * を行う（同じSectionの再クリックは実質的に何もしない・副作用なし）。
+ * 解除はEscape/空白クリック（_clearSectionPreview）経由のみとする。
+ *
+ * 音声の再生位置（seek）には触れない。スクロールはあくまで視界の移動のみ
+ * （Navigation と Playback の責務を混ぜない）。
  */
-function _setSectionPreview(sectionId) {
-  _previewSectionId = (_previewSectionId === sectionId) ? null : sectionId;
+function _selectSection(sectionId) {
+  _previewSectionId = sectionId;
   const sections = getSections(analysisEditor);
   const target = sections.find(s => s.id === _previewSectionId);
   setSectionPreview(target ? resolveSectionChordIds(analysisEditor.buffer, target) : []);
+  if (target) scrollToChord(target.startChordId);
   renderChartMode();
 }
 
@@ -2004,13 +2021,14 @@ function renderSectionBar() {
 
   document.getElementById('sec-create-btn')?.addEventListener('click', openSectionModal);
 
-  // [Phase102] チップ本体クリック → Section Preview トグル（101-3ではOut of Scope
-  // として予約していた部分）。▼メニュー領域は別ハンドラで既にstopPropagation
-  // されるため、ここに到達するのは名前部分クリックのみ。
+  // [Phase105] チップ本体クリック → Section選択+スクロール+Preview（Navigation）。
+  // Phase102時点はPreviewトグルのみだったが、トグルOFFを廃止しNavigationを
+  // 統合した（解除はEscape/空白クリックのみ）。▼メニュー領域は別ハンドラで
+  // 既にstopPropagationされるため、ここに到達するのは名前部分クリックのみ。
   bar.querySelectorAll('.sec-chip-name').forEach(nameEl => {
     nameEl.addEventListener('click', (e) => {
       e.stopPropagation();
-      _setSectionPreview(nameEl.closest('.sec-chip').dataset.sectionId);
+      _selectSection(nameEl.closest('.sec-chip').dataset.sectionId);
     });
   });
 
