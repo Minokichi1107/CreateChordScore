@@ -1,5 +1,8 @@
 # Handover 運用ルール
 
+> handoverはフェーズ時点の設計判断・実装経緯・検証結果を記録する履歴であり、
+> architecture.mdの代替ではない。Named Invariantの正本はarchitecture.mdとする。
+
 ## このディレクトリの役割
 
 各フェーズ完了時の引き継ぎ情報を集約する。
@@ -182,7 +185,25 @@ micro-log セクション自体は削除してよい。
 | 変更 | 内容 | ファイル |
 |---|---|---|
 
+## 設計判断（あれば）
+
+```
+結論:
+
+理由:
+```
+
 ## 確定した設計原則
+
+## Out of Scope（あれば）
+
+今回はやらないと決めたこと・その理由。
+
+## 実機確認（あれば）
+
+```
+□ ○○ → 期待する結果
+```
 
 ## current-issues.md更新（該当issueがある場合）
 - 今回closeしたissue: （なければ「なし」）
@@ -191,6 +212,19 @@ micro-log セクション自体は削除してよい。
 ## 積み残し・保留バグ
 
 ## 次フェーズ候補
+
+## Deferred Documentation（棚卸し時に反映する内容）
+
+```
+phase-status.md
+  -
+
+current-issues.md
+  -
+
+README.md
+  -
+```
 
 ## 運用ルール（変わらず）
 → docs/handover/README.md 参照
@@ -238,6 +272,67 @@ AIは continuity support / review assistant として利用する。
 - バグ修正: `bugfix/xxx` ブランチ
 - 1フィーチャー1コミット
 - リファクタリングと機能追加の混在禁止
+
+---
+
+## ドキュメント更新ポリシー（Phase105で確定）
+
+毎フェーズ・棚卸しのどちらで各ドキュメントを更新するかの判断基準。
+
+```
+毎フェーズ必須
+──────────────
+✅ handover
+
+即時更新（機械的判定・棚卸しを待たない）
+──────────────
+✅ architecture.md（該当箇所のみ）
+    Named Invariant（[XXX]形式のコメント）を
+      ・新設
+      ・意味変更
+      ・廃止
+    した場合
+
+✅ docs/handover/README.md
+    handover運用ルールそのものを変更した場合のみ
+
+棚卸し（5フェーズごと）
+──────────────
+・phase-status.md
+・current-issues.md
+・README.md（プロジェクトルート）
+・architecture.mdの全体整合性チェック
+```
+
+### なぜこの基準か
+
+以前は「設計判断が複数あるか」「重大な変更か」といった主観的な基準で
+即時更新の要否を判断していたが、判断が人によって・タイミングによって
+ぶれやすいという課題があった。
+
+`[XXX]`形式のNamed Invariant（例: `[BOUNDARY INVARIANT]`、
+`[PERSISTENCE OWNERSHIP PRINCIPLE]`）は、コード内コメントとして
+grepで発見される前提の仕組みである。これがhandoverだけに存在し
+architecture.mdへの反映が数フェーズ遅れると、コードを読んだ人が
+grepしても正本にたどり着けない期間が生まれる。この「grep→正本」の
+導線を途切れさせないことが、即時更新すべきかどうかの唯一の判断基準
+である。
+
+一方、実装の詳細（新規関数の追加等、既存の設計原則の範囲内に収まる
+変更や、実機確認の結果）は、grepで検索される対象ではなく、かつ
+設計原則そのものの変更でもないため、handoverに記録すれば十分で
+architectureには波及させない。
+
+### ドキュメントの役割分担（本ポリシーの前提）
+
+```
+handover              … フェーズごとの事実・設計判断・実装履歴
+architecture.md        … 現在有効な設計原則（Named Invariant）の正本
+docs/handover/README.md … handover運用ルールの正本
+README.md（ルート）     … プロジェクト利用・開発の入口
+phase-status.md /
+current-issues.md      … 定期的な棚卸し対象
+```
 
 ---
 
@@ -373,4 +468,11 @@ UI設計フェーズとテーマ移植フェーズを分離することで、
 
 このチェックリストは今後Decoratorを追加するたびに使い回す想定。
 項目自体の追加・見直しは気づいた時点で本セクションを直接更新してよい。
+
+---
+
+## Named Invariant即時反映ルール（Phase105で確定）
+
+Named Invariant（[XXX]形式）の新設・意味変更・廃止を伴う場合は、
+handoverへの記録に加えて、architecture.mdの該当箇所を即時更新する。
 

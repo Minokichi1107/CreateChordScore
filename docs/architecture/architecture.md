@@ -1208,6 +1208,49 @@ setBoundaryHandleTarget）で実装されたが、hover駆動版（Phase95-A2）
 「どこから正本を導出するか」は実装過程で見直されうる、という実例。
 ```
 
+### Section Navigation（Phase105で確立）
+
+Section Barのチップクリックは、Preview表示（Phase102）に加えて
+Navigation（現在選択中のSectionへ移動する）を兼ねる。
+
+```
+チップクリック
+    ↓
+_previewSectionId 更新（Navigation Target）
+    ↓
+scrollToChord(section.startChordId)   ← chartmode.js（DOM Navigation）
+    ↓
+setSectionPreview(...)                ← 結果としてのPreview表示
+```
+
+**[NAVIGATION OWNERSHIP]**
+
+```
+scrollToChord() は「指定されたchordIdを表示位置へスクロールする」
+だけを責務とする。Section/Playback/Preview/Selectionを一切知らない。
+Navigationの判断はapp.jsが行い、chartmode.jsは
+Rendering / DOM Navigationのみ担当する（[DECORATOR ADDITION RULE]と
+同じ「正本の導出はapp.js・chartmode.jsは渡された値を扱うだけ」という
+既存原則をNavigation（スクロール）にも適用したもの）。
+
+NavigationとPlayback（updateChartPlayback()内のscrollIntoView・
+chartState.lastScrolledMeasure）は完全に独立しており、互いのstateに
+触れない。
+```
+
+**_previewSectionIdの意味拡張（Phase102→Phase105）**
+
+```
+Phase102: Previewの対象のみを意味した
+Phase105: 「現在選択中のSection（Navigation Target）」の意味を兼ねる
+          ようになった。Navigation TargetとPreview TargetがPhase105
+          では常に一致するため、状態を分離せず1つのephemeral state
+          （変数）のまま意味だけを拡張している。
+
+同じSectionの再クリックによるトグルOFFはPhase105で廃止した。
+解除はEscape/空白クリック（_clearSectionPreview）経由のみ。
+```
+
 ### [DECORATOR VISUAL LANGUAGE PRINCIPLE]
 
 ```
