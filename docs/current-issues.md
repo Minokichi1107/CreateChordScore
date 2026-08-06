@@ -175,6 +175,15 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 簡素なため、もう少しスタイリッシュなデザインへ修正する。具体的な方向性
 （既存token活用か新規デザインか）は着手時に検討する。
 
+### Section Previewの解除方法が分かりにくい（Phase106発見）
+状態: 未対応
+内容: Section Preview（ゴールドハイライト）の解除は現状Escapeキーまたは
+空白部分クリックのみ。空白部分は視覚的な手がかりがなく、初見のユーザーには
+気づきにくい。改善候補: Section Bar上に「× プレビュー解除」ボタンを明示的に
+置く、チップの再クリックで解除するトグル方式へ戻す、Preview中のチップを
+視覚的に強調して「今これを見ている」ことを分かりやすくする、等。
+具体的な方式は着手時に検討する。
+
 ---
 
 ## 4. 既知の技術的負債
@@ -313,6 +322,123 @@ Subsystem Progress」参照）。
 統合」（本ファイル内ロードマップ）とAuthority問題を共有するため、
 Session限定Authorityの範囲拡張（Project Repository統合）はそちらと
 セットで判断すること。
+
+**この項目（Section Data Layer）は基盤機能（Platform）である。
+下記のSection UX Epicは、この基盤の上に成り立つ活用機能（Section UX）**
+という親子関係にある。基盤側の残課題（P2〜P4・上記）とEpic側の項目
+（下記P1〜P7）は別々の優先順位で管理する。
+
+#### Section UX Epic — Section機能をアプリ全体の楽曲構造レイヤーへ拡張（Phase106発見）
+状態: 未着手・構想段階
+内容: 現在のSectionはAnalysis Editor限定の「編集時の補助機能（Previewハイライト）」
+に留まっている。これをAnalysis Editor専用機能から、Chart Mode・演奏モードを含む
+アプリ全体で共有する「楽曲構造（Song Structure）」レイヤーへ発展させる構想。
+Phase98〜106でデータ層（Specification→Session→UI→Preview→Persistence→
+History→Boundary Editing）が一巡し安定したことを受けて浮上した、次の発展方向。
+
+設計思想（Creator UX / Performer UX）:
+```
+編集（Creator UX・PC主体）はKeyboard-firstを重視し、
+演奏（Performer UX・PC/タブレット/スマホ）はTouch-firstを重視する。
+Sectionは両者を繋ぐSong Structure Layerとして機能する。
+
+Editor   Keyboard First
+Chart    Keyboard + Mouse
+Perform  Touch First
+```
+この役割分担は、既存Future Featuresの「Keyboard-first UI」（Creator UX寄り・
+下記参照）・「LAN配信モード」（Performer UX寄り・PCサーバー→スマホブラウザ
+構想・下記参照）とも一致する。同じデータ（Section＝楽曲構造）を、
+編集端末（PC）と演奏端末（PC/タブレット/スマホ）それぞれに最適なUIで
+提供する、という考え方が両構想を繋ぐ。
+
+[Future候補] `Song Structure Layer` という概念は、Section機能の発展次第で
+将来architecture.mdへ独立した章として昇格する可能性がある
+（Project → Song Structure → Section/Marker/Repeat/Navigation/Playlist、
+というような構造が将来像として想定される）。現時点ではFuture Features内の
+構想に留め、実装フェーズへ入るタイミングで判断する。
+
+投資対効果順（優先度目安）:
+
+```
+P1  Section Navigation Across Modes
+    Chart Mode限定のSection Navigationを、演奏モード・Analysis Editorでも
+    共通利用できるようにする。演奏モードでは「前のSection／次のSectionへ
+    ジャンプ」だけでもコードを探してスクロールする手間が大きく減る。
+
+P2  Section Header Rendering
+    Chart Mode内にSection名の区切り（見出し）を常時表示する。スクロール中も
+    「今どのSectionにいるか」が一目で分かる。
+
+P3  Section Metrics（長さの可視化）
+    Sectionごとの長さ（小節数・拍数）をチップやHeaderに表示する。
+    例:「Verse 8m / 32b」。将来の拍子変更対応を考慮し、小節数と拍数の
+    両方を保持できる設計が望ましい。
+
+P4  Editing Interaction Modernization（旧称: Direct Section Manipulation）
+    Section編集のインタラクション全般を、メニュー操作依存から
+    「入力手段（Input Modality）ごとに最適な形」へ拡張する。
+
+    Input Modality:
+      Mouse-first（Creator UX・PC編集時の補助）:
+        Boundaryドラッグ・Headerドラッグ（既存のBoundary Handle Drag・
+        コード側Phase93と同じ設計パターンを転用できる可能性がある）・
+        Shift+ドラッグでの新規Section作成・ダブルクリックでの編集
+      Keyboard-first（Creator UX・PC編集の主力）:
+        次/前Sectionへのジャンプ・Section作成/名前変更/削除の
+        ショートカット・境界の微調整（コード側の個別移動と同じ思想）
+      Touch-first（Performer UX・演奏時。詳細設計は将来のLAN配信モード
+      着手時に本格化する想定。ここでは方向性のみ記載）:
+        タップでSection移動・スワイプで前後Sectionへ・長押しでメニュー
+    その他:
+      Context Menu簡略化・操作方法のDiscoverability向上
+
+    [責務分離] 本項目はSection固有の編集体験に限定する。アプリ全体の
+    操作体系（モード切替・タブ切替・再生操作・検索等）は既存の
+    「Keyboard-first UI」（本ファイル内Future Features）が別途管理する。
+    両者は同じ思想（キーボードだけでも快適に操作できるUI）を共有するが、
+    対象範囲が異なるため項目としては分離したまま、実装時に設計を
+    揃えることを意識する。
+```
+
+Future Features寄り（自動化・解析要素を含むため、上記P1〜P4より優先度低）:
+
+```
+P5  Section Pattern Matching（同一パターン検出による提案）
+    同じコード進行の繰り返し（例: 1番と2番のVerse）を検出し、
+    「同じパターンが3か所見つかりました。適用しますか？」という形で
+    Section設定を提案する。自動適用はせず、必ずユーザー確認を挟む
+    （コード進行が同じでも曲構成上は別Sectionというケースがあるため）。
+
+P6  Section Templates
+    ユーザーが「これは同じVerseだ」と明示的に宣言し、1箇所の編集を
+    同種の全Sectionへ反映できるようにする。P5（パターン検出＝機械が
+    「似ている」を判定）とは異なり、こちらはユーザー主導の宣言的な
+    紐付け。ライブ用途・楽譜編集での活用を想定。
+
+P7  Automatic Section Generation
+    コードパターン・小節数・リズム・Downbeat・繰り返し構造等から
+    Intro/Verse/Chorus等を自動生成する。ヒューリスティック解析や
+    将来的なAI活用を組み合わせる余地がある構想段階の項目。
+
+P8  Section Quick Actions
+    定型Section（Verse/Chorus/Bridge等）をワンキーで作成する
+    （例: Alt+1=Intro、Alt+2=Verse、Alt+3=Chorus）。「作る→名前を
+    入力→OK」という現行フローを1操作へ短縮する。ライブ編集・解析
+    作業では定型Section種別しか使わないことがほとんどであるため、
+    編集速度への効果が大きいと見込まれる。P4（Editing Interaction
+    Modernization）のKeyboard-first項目群と密接に関連するため、
+    実装時はP4とセットで設計する。
+```
+
+設計上の留意点: ここまで発展させる場合、Sectionの位置づけを「Analysis Editorの
+機能」から「Project全体で共有する楽曲構造データ」へ昇格させる判断が必要になる。
+これは既存ロードマップの「Chart Modeと通常モードのシステム統合」
+（Authority再設計を伴う規模のテーマ）と関心事が重なるため、着手時はそちらと
+セットで設計フェーズを設けること。P1（全モード共通Navigation）は特に、
+現在Analysis Editor Session限定になっているSection Authority Scope
+（section-model.md §5）の範囲拡張を伴う可能性が高く、真っ先にこの判断を
+要する項目である。
 
 #### カポ範囲拡張（-2 まで対応）
 内容: 現在カポは 0〜11 の範囲のみ。半音下げチューニング用途で -2 まで対応できるようにする。

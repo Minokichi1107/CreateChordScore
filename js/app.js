@@ -212,6 +212,7 @@ import {
   createSectionCommand, // Phase101-2
   renameSectionCommand, // Phase101-3
   deleteSectionCommand, // Phase101-3
+  updateSectionBoundaryCommand, // Phase106
 } from './analysisCommands.js';
 
 import {
@@ -1847,9 +1848,27 @@ function _syncSectionMenuVisibility() {
   if (_openSectionMenuId !== null && !found) _openSectionMenuId = null;
 }
 
+/**
+ * _toggleSectionMenu — Section▼メニューの開閉（Phase101-3・Phase106でSelection連動化）
+ *
+ * [Phase106] メニューを開く操作は、そのSectionの選択（_selectSection）を
+ * 必ず伴うようにした。理由: 境界ステッパー（◀開始▶／◀終了▶）は「今見えている
+ * （ハイライトされている）Section」に対して操作するのが自然であり、逆に
+ * Preview対象と異なるSectionの境界を誤って動かせてしまうのは人的ミスの温床
+ * になる（実機フィードバックで指摘）。メニューを開く＝選択する、を1つの操作に
+ * 統合することで、「今から編集しようとしている対象」を常に視覚的に
+ * （ゴールドのPreviewハイライトで）確認できる状態にする。
+ * メニューを閉じる操作（トグルOFF）はPreview状態を変更しない
+ * （Escape/空白クリックでのPreview解除という既存経路と役割を分けるため）。
+ */
 function _toggleSectionMenu(sectionId) {
-  _openSectionMenuId = (_openSectionMenuId === sectionId) ? null : sectionId;
+  const opening = _openSectionMenuId !== sectionId;
+  _openSectionMenuId = opening ? sectionId : null;
   _syncSectionMenuVisibility();
+  // [Phase106] メニューを開く操作は「誤編集防止のためのPreview同期」のみを行い、
+  // 画面はスクロールしない（_selectSection()ではなく_previewSection()を呼ぶ）。
+  // 詳細はコメント参照（_previewSection()の定義部）。
+  if (opening) _previewSection(sectionId);
 }
 
 function _closeSectionMenu() {
@@ -1940,7 +1959,11 @@ function _syncSectionPreviewVisibility() {
   if (!found) {
     _previewSectionId = null;
     setSectionPreview([]);
-    renderChartMode();
+    // [Phase106で発見・修正] measuresPerRowを渡さないとrenderChartMode()の
+    // デフォルト値（3）で描画され、ユーザーが選択中の列数（4列等）が一瞬
+    // リセットされる。総高さが激変し「画面が動く」ように見える不具合の
+    // 原因の1つだった（Phase102由来の既存バグ）。
+    renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
   }
 }
 
@@ -1956,13 +1979,52 @@ function _syncSectionPreviewVisibility() {
  * 音声の再生位置（seek）には触れない。スクロールはあくまで視界の移動のみ
  * （Navigation と Playback の責務を混ぜない）。
  */
-function _selectSection(sectionId) {
+/**
+ * _previewSection — Sectionの選択状態・Previewハイライトのみを同期する
+ * （画面はスクロールしない）（Phase106修正版）
+ *
+ * [発見の経緯] 当初_toggleSectionMenu()は_selectSection()（Navigation込み）を
+ * そのまま呼んでいたため、「▼メニューを開いただけで画面が中央寄せされる」
+ * という実機フィードバックが繰り返し報告された。原因はSection境界編集
+ * （_moveSectionBoundary）ではなく、メニューを開く操作に紛れ込んでいた
+ * scrollToChord()だった（数値診断でboundary編集自体は画面を一切動かして
+ * いないことを確認済み）。
+ *
+ * 「開いているメニュー＝選択中のSection」という整合性を保つための同期
+ * （誤編集防止・[Phase106]）と、「画面を該当位置へ移動する」という
+ * Navigation（Phase105）は本来別の関心事だったため、ここで分離する。
+ *
+ * @param {string} sectionId
+ */
+function _previewSection(sectionId) {
+  if (_openSectionMenuId !== null && _openSectionMenuId !== sectionId) {
+    _closeSectionMenu();
+  }
   _previewSectionId = sectionId;
   const sections = getSections(analysisEditor);
   const target = sections.find(s => s.id === _previewSectionId);
   setSectionPreview(target ? resolveSectionChordIds(analysisEditor.buffer, target) : []);
+  // [Phase106で発見・修正] measuresPerRowを渡さないとデフォルト値（3）で
+  // 描画され、選択中の列数が一瞬リセットされる（詳細は
+  // _syncSectionPreviewVisibility()のコメント参照）。
+  renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
+}
+
+/**
+ * _selectSection — Sectionを選択し、その位置へNavigateする（Phase105・チップ名クリック用）
+ *
+ * [Phase106] Preview同期部分は_previewSection()へ委譲し、Navigation
+ * （scrollToChord）はこの関数（明示的なチップ名クリック経由）のみが行う。
+ * ▼メニューを開く操作（_toggleSectionMenu）は_previewSection()のみを呼び、
+ * Navigateしない（上記コメント参照）。
+ *
+ * @param {string} sectionId
+ */
+function _selectSection(sectionId) {
+  _previewSection(sectionId);
+  const sections = getSections(analysisEditor);
+  const target = sections.find(s => s.id === _previewSectionId);
   if (target) scrollToChord(target.startChordId);
-  renderChartMode();
 }
 
 /**
@@ -1972,7 +2034,8 @@ function _clearSectionPreview() {
   if (_previewSectionId === null) return;
   _previewSectionId = null;
   setSectionPreview([]);
-  renderChartMode();
+  // [Phase106で発見・修正] 詳細は_syncSectionPreviewVisibility()のコメント参照。
+  renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
 }
 
 /**
@@ -1998,19 +2061,42 @@ function renderSectionBar() {
   bar.hidden = false;
 
   const sections = getSections(analysisEditor);
+  const buffer = analysisEditor.buffer || [];
   // [Phase101-2] 単一コードでも作成可能（startChordId === endChordIdも正当なSection）。
   const canCreate = analysisEditor.selection.chordIds.length >= 1;
 
   const chipsHtml = sections.length
-    ? sections.map(s => `
+    ? sections.map(s => {
+        // [Phase106] 境界ステッパーのdisabled判定用にbuffer上のindexを求める。
+        // updateSectionBoundaryCommand()側のvalidateSectionInvariants()が
+        // 最終的な妥当性保証を持つため、ここでの判定はUI上の誤操作防止に限定する。
+        const startIdx = buffer.findIndex(c => c._id === s.startChordId);
+        const endIdx = buffer.findIndex(c => c._id === s.endChordId);
+        const startLeftDisabled  = startIdx <= 0;
+        const startRightDisabled = startIdx === -1 || endIdx === -1 || startIdx >= endIdx;
+        const endLeftDisabled    = startIdx === -1 || endIdx === -1 || endIdx <= startIdx;
+        const endRightDisabled   = endIdx === -1 || endIdx >= buffer.length - 1;
+        return `
       <span class="sec-chip" data-section-id="${s.id}">
         <span class="sec-chip-name">${s.name}</span>
         <button class="sec-chip-menu-btn" data-section-id="${s.id}" title="Sectionメニュー" aria-label="Sectionメニュー">▼</button>
         <div class="sec-chip-menu" data-section-id="${s.id}" hidden>
+          <div class="sec-boundary-row">
+            <button class="sec-boundary-btn" data-side="start" data-dir="-1" data-section-id="${s.id}" title="開始位置を1コード前へ" aria-label="開始位置を1コード前へ" ${startLeftDisabled ? 'disabled' : ''}>◀</button>
+            <span class="sec-boundary-label">開始</span>
+            <button class="sec-boundary-btn" data-side="start" data-dir="1" data-section-id="${s.id}" title="開始位置を1コード後へ" aria-label="開始位置を1コード後へ" ${startRightDisabled ? 'disabled' : ''}>▶</button>
+          </div>
+          <div class="sec-boundary-row">
+            <button class="sec-boundary-btn" data-side="end" data-dir="-1" data-section-id="${s.id}" title="終了位置を1コード前へ" aria-label="終了位置を1コード前へ" ${endLeftDisabled ? 'disabled' : ''}>◀</button>
+            <span class="sec-boundary-label">終了</span>
+            <button class="sec-boundary-btn" data-side="end" data-dir="1" data-section-id="${s.id}" title="終了位置を1コード後へ" aria-label="終了位置を1コード後へ" ${endRightDisabled ? 'disabled' : ''}>▶</button>
+          </div>
+          <div class="sec-chip-menu-divider"></div>
           <button class="sec-chip-menu-item" data-action="rename" data-section-id="${s.id}">✎ 名前を変更</button>
           <button class="sec-chip-menu-item sec-chip-menu-item--danger" data-action="delete" data-section-id="${s.id}">🗑 削除</button>
         </div>
-      </span>`).join('')
+      </span>`;
+      }).join('')
     : `<span class="sec-empty">未作成</span>`;
 
   bar.innerHTML = `
@@ -2040,6 +2126,19 @@ function renderSectionBar() {
     });
   });
 
+  // [Phase106] 境界ステッパー（◀開始▶／◀終了▶）。1クリック = 隣接コード1つ分の移動。
+  // Rename/Deleteと異なりモーダルへ遷移しないため、_closeSectionMenu()は呼ばない
+  // （メニューを開いたまま連続クリックで微調整できるようにする・仕様確定事項）。
+  bar.querySelectorAll('.sec-boundary-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (btn.disabled) return;
+      const target = sections.find(s => s.id === btn.dataset.sectionId);
+      if (!target) return; // reconcile等で既に消えている場合は何もしない
+      _moveSectionBoundary(target, btn.dataset.side, parseInt(btn.dataset.dir, 10));
+    });
+  });
+
   // Phase101-3: メニュー項目の実行（Rename/Delete）
   bar.querySelectorAll('.sec-chip-menu-item').forEach(item => {
     item.addEventListener('click', (e) => {
@@ -2059,6 +2158,57 @@ function renderSectionBar() {
   // 再描画をまたいでメニュー開閉状態・Preview対象を保持する
   _syncSectionMenuVisibility();
   _syncSectionPreviewVisibility();
+}
+
+/**
+ * _moveSectionBoundary — Section境界（開始/終了）を隣接コード1つ分だけ移動する
+ * （Phase106・▼メニューの境界ステッパー用）
+ *
+ * [SCOPE] 1クリック = 隣接コード1つ分の移動に限定する（長押し連続送りは非対応。
+ * 「1クリック=1コード=1Undo」を崩さないための意図的な仕様）。
+ * 境界の可動範囲（交差禁止）の最終的な保証はupdateSectionBoundaryCommand()内の
+ * validateSectionInvariants()が持つ。renderSectionBar()側のdisabled表示は
+ * UI上の誤操作防止のための事前チェックに過ぎない。
+ *
+ * @param {object} section - { id, startChordId, endChordId, ... }
+ * @param {'start'|'end'} side
+ * @param {number} dir - 移動方向（-1: 前へ, 1: 後へ）
+ */
+function _moveSectionBoundary(section, side, dir) {
+  const buffer = analysisEditor.buffer;
+  if (!buffer) return;
+
+  const currentChordId = side === 'start' ? section.startChordId : section.endChordId;
+  const idx = buffer.findIndex(c => c._id === currentChordId);
+  if (idx === -1) return;
+
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= buffer.length) return;
+  const newChordId = buffer[newIdx]._id;
+
+  const patch = side === 'start' ? { startChordId: newChordId } : { endChordId: newChordId };
+  const result = updateSectionBoundaryCommand(analysisEditor, section.id, patch);
+  if (!result.ok) {
+    toast(`⚠ 境界の移動に失敗しました: ${result.reason}`);
+    return;
+  }
+
+  // [Phase106] Previewが有効な対象の境界が変わった場合、Preview側のchordIds
+  // （Derived Cache）を再計算する。updateSectionBoundaryCommand()は同じsection
+  // オブジェクト参照をmutateするため、この時点でsection.startChordId/endChordId
+  // は既に新しい値になっている（Phase104 handoverで指摘されていた懸念が、
+  // このUI実装によって初めて実際の経路として発生したため、ここで解消する）。
+  if (_previewSectionId === section.id) {
+    setSectionPreview(resolveSectionChordIds(buffer, section));
+  }
+
+  _refreshEditorView();
+
+  // [Phase106] scrollToChord()は呼ばない。境界編集はNavigationではなく
+  // 「その場の微調整」であり、画面は動かないのが正しい挙動（実測で確認済み。
+  // 数値診断上、この関数自体は一度も画面を動かしていなかった。実際に画面が
+  // 動いていた原因は▼メニューを開く操作側にあった。詳細は_previewSection()の
+  // コメント参照）。
 }
 
 /**

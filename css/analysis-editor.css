@@ -351,6 +351,46 @@
 .sec-chip-menu-item--danger:hover {
   color: var(--color-red);
 }
+/* Phase106: Section境界編集ステッパー（▼メニュー内・「◀ 開始 ▶」「◀ 終了 ▶」）。
+   .aep-overflow-divider（Footer側の同種区切り線）と同じ視覚言語を踏襲。新規token追加なし。 */
+.sec-chip-menu-divider {
+  height: 1px;
+  background: var(--border-ui);
+  margin: 4px 2px;
+}
+.sec-boundary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 4px;
+}
+.sec-boundary-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: 1;
+  text-align: center;
+}
+.sec-boundary-btn {
+  background: transparent;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 2px 8px;
+}
+.sec-boundary-btn:hover:not(:disabled) {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+}
+.sec-boundary-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 /* Phase101-2: Section作成ボタン。既存.aep-btnと同系統の見た目に揃える */
 .sec-btn {
   font-family: var(--font-mono);
