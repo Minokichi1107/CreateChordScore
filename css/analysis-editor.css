@@ -293,6 +293,19 @@
   white-space: nowrap;
   cursor: pointer;
 }
+/* Phase107: Preview中チップの押し込み表現。既存の「強調」表現である
+   .aep-group--primary（surface-selected / border-selected）と同じtoken組を
+   転用する（新規token追加なし・[DECORATOR LEGIBILITY PRINCIPLE]準拠）。
+   トグル方式（もう一度クリックで解除・_selectSection()参照）のため、
+   「押されているボタン」という視覚表現がそのまま操作のアフォーダンスを兼ねる。
+   派手なアニメーションは使わず、背景の濃淡・borderの強調・1px沈み込みのみで
+   表現する。 */
+.sec-chip--previewing {
+  background: var(--surface-selected);
+  border-color: var(--border-selected);
+  color: var(--text-primary);
+  transform: translateY(1px);
+}
 /* Phase101-3: ▼メニュートリガー。既存.aep-btn--clear（×バッジ）と同系統の
    軽量ボタン（borderなし・小さいhit target）にする。新規token追加なし。 */
 .sec-chip-menu-btn {

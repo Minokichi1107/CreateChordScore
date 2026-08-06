@@ -1968,13 +1968,14 @@ function _syncSectionPreviewVisibility() {
 }
 
 /**
- * _selectSection — チップ本体クリック時のSection選択（Navigation）（Phase105）
+ * _selectSection — チップ本体クリック時のSection選択（Navigation）（Phase105・
+ * Phase107でトグル方式へ復帰）
  *
- * [Phase105] Phase102では「同じSectionを再クリックで解除」というPreview
- * トグルだったが、Navigation（今どこを見ているか）を兼ねる状態へ役割を
- * 拡張したことに伴い、トグルOFFは廃止した。常に「選択+スクロール+Preview」
- * を行う（同じSectionの再クリックは実質的に何もしない・副作用なし）。
- * 解除はEscape/空白クリック（_clearSectionPreview）経由のみとする。
+ * [Phase105] 当初「Navigationを兼ねる」役割拡張に伴いトグルOFFを廃止したが、
+ * [Phase107] 実機検証の結果、「押し込まれたチップをもう一度押すと解除される」
+ * という挙動の方が認知的に自然であり、専用の解除ボタンを別途置くよりも
+ * UIとして引き算になる（ボタン要素を1つ減らせる）と判断し、トグル方式へ
+ * 戻した。Escape/空白クリックでの解除は既存のまま併存する。
  *
  * 音声の再生位置（seek）には触れない。スクロールはあくまで視界の移動のみ
  * （Navigation と Playback の責務を混ぜない）。
@@ -2008,6 +2009,12 @@ function _previewSection(sectionId) {
   // 描画され、選択中の列数が一瞬リセットされる（詳細は
   // _syncSectionPreviewVisibility()のコメント参照）。
   renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
+  // [Phase107バグ修正] 従来このタイミングでrenderChartMode()のみを呼んでいたため、
+  // Chart Mode側（ゴールドハイライト）は更新されるがSection Bar自体（チップの
+  // 押し込み表現・Preview解除ボタン）は再描画されず反映されなかった
+  // （実機報告により発見）。Section Barの見た目は_previewSectionIdから導出される
+  // Projectionであるため、状態変更のたびに再描画する必要がある。
+  renderSectionBar();
 }
 
 /**
@@ -2021,6 +2028,12 @@ function _previewSection(sectionId) {
  * @param {string} sectionId
  */
 function _selectSection(sectionId) {
+  // [Phase107] 既にPreview中の同じSectionなら解除（トグルOFF）。
+  // Navigateは行わない（既に見ている位置なので動かす必要がない）。
+  if (_previewSectionId === sectionId) {
+    _clearSectionPreview();
+    return;
+  }
   _previewSection(sectionId);
   const sections = getSections(analysisEditor);
   const target = sections.find(s => s.id === _previewSectionId);
@@ -2036,6 +2049,8 @@ function _clearSectionPreview() {
   setSectionPreview([]);
   // [Phase106で発見・修正] 詳細は_syncSectionPreviewVisibility()のコメント参照。
   renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
+  // [Phase107バグ修正] _previewSection()と同じ理由。詳細はそちらのコメント参照。
+  renderSectionBar();
 }
 
 /**
@@ -2076,8 +2091,14 @@ function renderSectionBar() {
         const startRightDisabled = startIdx === -1 || endIdx === -1 || startIdx >= endIdx;
         const endLeftDisabled    = startIdx === -1 || endIdx === -1 || endIdx <= startIdx;
         const endRightDisabled   = endIdx === -1 || endIdx >= buffer.length - 1;
+        // [Phase107] Preview中チップへ押し込み表現（.sec-chip--previewing）を付与する。
+        // このチップは「押されているボタン」でもあり、再クリックで解除される
+        // （トグル方式・_selectSection()参照）。_previewSectionId は既存の
+        // Navigation/Preview正本（Phase105）をそのまま参照するだけで、新規stateは
+        // 追加しない。
+        const isPreviewing = s.id === _previewSectionId;
         return `
-      <span class="sec-chip" data-section-id="${s.id}">
+      <span class="sec-chip${isPreviewing ? ' sec-chip--previewing' : ''}" data-section-id="${s.id}">
         <span class="sec-chip-name">${s.name}</span>
         <button class="sec-chip-menu-btn" data-section-id="${s.id}" title="Sectionメニュー" aria-label="Sectionメニュー">▼</button>
         <div class="sec-chip-menu" data-section-id="${s.id}" hidden>
