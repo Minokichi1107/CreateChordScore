@@ -947,6 +947,39 @@ Collision Indicator（P1 v1）はnormal path（`expandToSlots()`の通常経路�
   文脈を持ち込まない）。
 ```
 
+### renderChartMode() 呼び出し規約（Phase106で確立）
+
+```
+[RENDER CONTEXT INVARIANT]
+
+renderChartMode({ measuresPerRow, editing } = {}) は両方のプロパティに
+デフォルト値（measuresPerRow=3, editing=false）を持つが、このデフォルト値が
+「ユーザーの現在の選択状態」と一致する保証はない。
+
+renderChartMode() を新規に呼び出す全ての箇所は、必ず以下を明示的に渡す。
+
+  renderChartMode({
+    measuresPerRow: chartMeasuresPerRow,
+    editing: isAnalysisEditing(),
+  })
+
+引数を省略すると、その回の描画だけ強制的にmeasuresPerRow=3（3列表示）で
+再構築される。3列と4列ではコンテンツの総高さ（scrollHeight）が大きく異なる
+ため、直後の別経路の再描画（正しい引数で呼ばれる）との間でレイアウトが
+一瞬入れ替わり、「画面が意図せず動く」ように見える不具合を引き起こす
+（scrollTop自体は不変のまま、表示内容だけがscrollHeightの変化に応じて
+入れ替わるため、スクロール位置の診断だけでは発見できない）。
+```
+
+[発見の経緯] Phase106のSection境界編集UI追加時、この不具合が実機検証で
+発見された。原因箇所は新規追加コード（`_previewSection()`）だけでなく、
+Phase102由来の既存コード（`_syncSectionPreviewVisibility()` /
+`_clearSectionPreview()`）にも同じ欠陥があった。scrollTop・
+getBoundingClientRect()・CSSのscroll-behavior・rAFループ内の自動スクロール
+等、スクロール関連の値を横断的に計測しても一切変化が見られず、最終的に
+scrollHeightの変化を計測したことで発見に至った（詳細はhandover_phase106.md
+参照）。
+
 ---
 
 ## 10. PICKER_IDS による用途別ファイル管理（Phase60.5で確立・Phase64で実装）
@@ -1206,49 +1239,6 @@ setBoundaryHandleTarget）で実装されたが、hover駆動版（Phase95-A2）
 から直接boundaryIndexを導出する方式（app.js `_boundaryDragState`）へ
 差し替えている。ローカル状態・専用setterというルール自体は変わらないが、
 「どこから正本を導出するか」は実装過程で見直されうる、という実例。
-```
-
-### Section Navigation（Phase105で確立）
-
-Section Barのチップクリックは、Preview表示（Phase102）に加えて
-Navigation（現在選択中のSectionへ移動する）を兼ねる。
-
-```
-チップクリック
-    ↓
-_previewSectionId 更新（Navigation Target）
-    ↓
-scrollToChord(section.startChordId)   ← chartmode.js（DOM Navigation）
-    ↓
-setSectionPreview(...)                ← 結果としてのPreview表示
-```
-
-**[NAVIGATION OWNERSHIP]**
-
-```
-scrollToChord() は「指定されたchordIdを表示位置へスクロールする」
-だけを責務とする。Section/Playback/Preview/Selectionを一切知らない。
-Navigationの判断はapp.jsが行い、chartmode.jsは
-Rendering / DOM Navigationのみ担当する（[DECORATOR ADDITION RULE]と
-同じ「正本の導出はapp.js・chartmode.jsは渡された値を扱うだけ」という
-既存原則をNavigation（スクロール）にも適用したもの）。
-
-NavigationとPlayback（updateChartPlayback()内のscrollIntoView・
-chartState.lastScrolledMeasure）は完全に独立しており、互いのstateに
-触れない。
-```
-
-**_previewSectionIdの意味拡張（Phase102→Phase105）**
-
-```
-Phase102: Previewの対象のみを意味した
-Phase105: 「現在選択中のSection（Navigation Target）」の意味を兼ねる
-          ようになった。Navigation TargetとPreview TargetがPhase105
-          では常に一致するため、状態を分離せず1つのephemeral state
-          （変数）のまま意味だけを拡張している。
-
-同じSectionの再クリックによるトグルOFFはPhase105で廃止した。
-解除はEscape/空白クリック（_clearSectionPreview）経由のみ。
 ```
 
 ### [DECORATOR VISUAL LANGUAGE PRINCIPLE]

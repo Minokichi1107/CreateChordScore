@@ -868,6 +868,13 @@ export function setSectionPreview(ids) {
  * はlastScrolledMeasureに一切触れない（Navigation scrollとPlayback
  * scrollの責務を混ぜない）。
  *
+ * [Phase106] behavior:'smooth'は廃止し瞬間移動（'auto'相当）にした。
+ * Navigation直後（アニメーション進行中）に別の再描画（例:
+ * Section境界編集）が発生すると、_renderChartGrid()がアニメーション途中の
+ * 不安定なscrollTopを「復元すべき値」として捕まえてしまい、画面が不自然に
+ * 動く不具合が実機で発見された。アニメーション自体を無くすことで、
+ * この種の競合が構造的に起こらないようにする。
+ *
  * @param {string} chordId
  */
 export function scrollToChord(chordId) {
@@ -875,7 +882,7 @@ export function scrollToChord(chordId) {
   const slotEl = document.querySelector(`.chart-slot[data-chord-id="${chordId}"]`);
   if (!slotEl) return;
   const measureEl = slotEl.closest('.chart-measure');
-  (measureEl || slotEl).scrollIntoView({ block: 'center', behavior: 'smooth' });
+  (measureEl || slotEl).scrollIntoView({ block: 'center' });
 }
 
 // ────────────────────────────────────────
@@ -2107,6 +2114,14 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
   const container = document.getElementById('chart-grid');
   if (!container) return;
 
+  // [Phase106] container.innerHTML = '' によるDOM丸ごと再構築は、ブラウザの
+  // scroll anchoring（新旧DOM要素の同一性に基づく自動スクロール保持）を
+  // 無効化してしまう。再描画のたびに現在のスクロール位置を保存し、
+  // 描画完了後に明示的に復元することで、コード編集・Section境界編集等
+  // どの再描画経路でも閲覧位置が意図せず動かないことを保証する
+  // （実機で「Section境界編集後に画面が飛ぶ」不具合として発見）。
+  const _prevScrollTop = container.scrollTop;
+
   // [Phase95-A2] DOMを丸ごと再構築するため、hover中だったslotElへの参照は
   // ここで必ず破棄する（isConnectedチェックに頼らず、再描画のたびに無条件でクリア）。
   _boundaryHoverEl = null;
@@ -2115,6 +2130,7 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
 
   if (!vm || !analysis) {
     _renderFallbackGrid(container, analysis);
+    container.scrollTop = _prevScrollTop;
     return;
   }
 
@@ -2122,6 +2138,7 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
 
   if (model.mode === 'fallback') {
     _renderFallbackGrid(container, analysis);
+    container.scrollTop = _prevScrollTop;
     return;
   }
 
@@ -2459,6 +2476,9 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
 
     container.appendChild(rowEl);
   }
+
+  // [Phase106] 通常経路（full/beat-only）の描画完了後にもスクロール位置を復元する。
+  container.scrollTop = _prevScrollTop;
 }
 
 // ────────────────────────────────────────
