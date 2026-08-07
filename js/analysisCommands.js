@@ -26,7 +26,7 @@
 // @property {string[]} [selectedChordIds] - コマンド後にselectionへ反映すべきchordId配列（ok:true時）
 // @property {number} [count]             - 対象件数（成功メッセージの件数表示用。ある場合のみ）
 
-import { pushHistory, refreshSelection, getSections, validateSectionInvariants } from './analysisSession.js';
+import { pushHistory, refreshSelection, getSections, validateSectionInvariants, reconcile } from './analysisSession.js';
 
 /**
  * _isNoChordEntry — bufferエントリがno_chord（無音）プレースホルダーか判定
@@ -75,6 +75,13 @@ export function deleteChordCommand(state, id) {
   }
 
   state.buffer.splice(idx, 1);
+
+  // [Phase108] §4.3ケースB: 削除idがSectionの境界であれば吸収先へ付け替える。
+  // 付け替え先の決定ロジック自体はreconcile()内に閉じている
+  // （[BOUNDARY REMAP AUTHORITY]・analysisSession.js参照）。ここでは
+  // 「削除された」という事実（chordIdRemap）を伝えるだけ。
+  reconcile(state, { chordIdRemap: new Map([[id, absorbing._id]]) });
+
   refreshSelection(state, [absorbing._id]);
 
   return { ok: true, selectedChordIds: [absorbing._id] };
@@ -517,6 +524,14 @@ export function mergeSelectionCommand(state) {
 // [INVARIANT] SectionのReconcile（Validation + Repair）はSession Layerの
 // getSections()のみが行う。Command LayerはvalidateSectionInvariants()での
 // 事前検証のみを行い、reconcile()は呼ばない（責務境界を保つ・ChatGPTレビュー反映）。
+//
+// [Phase108の例外] deleteChordCommand()（Chord Commands側）のみ、削除実行の
+// 直後にreconcile(state, { chordIdRemap })を呼ぶ。付け替え先の情報は削除操作の
+// 実行時点にしか存在しないため（[BOUNDARY REMAP AUTHORITY]・analysisSession.js
+// 参照）。Command Layerがremap先を決定しているわけではなく、削除の事実を
+// reconcile()へ伝えているだけであり、付け替えロジック自体はreconcile()内に
+// 閉じたまま。Section系4コマンド（create/rename/updateBoundary/delete）は
+// この例外の対象外で、従来通りgetSections()経由のみでreconcileへ触れる。
 
 /**
  * createSectionCommand — 新規Sectionを作成する（Phase100-A）

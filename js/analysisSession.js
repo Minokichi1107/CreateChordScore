@@ -287,29 +287,42 @@ export function validateSectionInvariants(section, buffer) {
 }
 
 /**
- * reconcile — session.sections をbufferとの整合性に基づき修復する（Phase100-A）。
+ * reconcile — session.sections をbufferとの整合性に基づき修復する
+ * （Phase100-A・Phase108でCase B対応）。
  *
  * [SCOPE] この関数が行うのは Validation + 最小限の Repair のみ。
  * 新しい境界の推測・自動生成は一切行わない。
- * invalidと判定されたSectionは常に削除する（§4.3ケースB「隣接コードへの
- * 付け替え」は今回のスコープに含めない）。
  *
- * TODO(Phase100-B):
- * Implement §4.3 Case B boundary reassignment.
- * Current implementation intentionally falls back to Case C (remove invalid section)
- * to keep reconcile() deterministic and idempotent.
+ * [BOUNDARY REMAP AUTHORITY]（Phase108で確立）
+ * reconcile()はbuffer上の隣接関係からSectionの付け替え先を推測しない。
+ * 付け替え情報（chordIdRemap: oldChordId→newChordId）が必要な場合、
+ * 呼び出し元が削除操作の実行と同時に判明した事実として明示的に渡さなければ
+ * ならない。chordIdRemapを渡さない呼び出し（getSections()経由の通常の
+ * 読み取り時）は従来通り、無効なSectionを削除する（§4.3ケースC）のみを行う。
  *
  * [INVARIANT] reconcile() は冪等（idempotent）である。
- * 同じ buffer/sections に対して複数回呼び出しても結果は変わらない。
+ * chordIdRemapを渡さない呼び出しを複数回行っても結果は変わらない
+ * （remapは1度適用されればsection側のIDが更新されるため、以降の
+ * 無引数呼び出しは単なる再検証になる）。
  * [INVARIANT] この関数はDOM・audio・Chart Mode runtimeに一切触れない（[SCOPE]準拠）。
  *
  * @param {object} session - analysisEditor
+ * @param {{ chordIdRemap?: Map<string,string> }} [options] - Phase108追加。
+ *   削除されたchordId→付け替え先chordIdの対応表（§4.3ケースB用）。
  */
-export function reconcile(session) {
+export function reconcile(session, { chordIdRemap } = {}) {
   const buffer = session.buffer;
-  session.sections = session.sections.filter(
-    section => validateSectionInvariants(section, buffer).valid
-  );
+  session.sections = session.sections
+    .map(section => {
+      if (!chordIdRemap) return section;
+      const startChordId = chordIdRemap.get(section.startChordId) ?? section.startChordId;
+      const endChordId   = chordIdRemap.get(section.endChordId)   ?? section.endChordId;
+      if (startChordId === section.startChordId && endChordId === section.endChordId) {
+        return section;
+      }
+      return { ...section, startChordId, endChordId };
+    })
+    .filter(section => validateSectionInvariants(section, buffer).valid);
 }
 
 /**
