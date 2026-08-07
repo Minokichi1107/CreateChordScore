@@ -80,6 +80,12 @@ current-issues.md は **open issuesのみ** を保持する。
 phase-status.mdに既に残るため、current-issues.md側での「完了」表記は
 二重管理になる。
 
+[ISSUE NUMBER GAP TOLERANCE]
+`Issue #N`形式の番号は、closeされたIssueの番号を欠番のまま許容する
+（[CLOSE BY DELETION]により該当項目自体が削除されるため）。
+番号の振り直し・再利用は行わない。連番であることよりも、過去の会話や
+コミットメッセージで参照した番号が指す対象を将来も変えないことを優先する。
+
 ---
 
 ## テンプレートの使い分け（軽量版／重量版）

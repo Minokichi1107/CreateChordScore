@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase103完了時点（Phase99〜103を反映）
+> 最終更新: Phase108完了時点（Phase104〜108を反映）
 
 ---
 
@@ -34,13 +34,27 @@ Completed（完了済み）
   Preview/選択状態/Undo統合/永続化は当時未実装）
 ✓ Section Preview Decorator（Phase102・selectionとは独立したChart Mode上のハイライト）
 ✓ Section Preview 視覚言語の独立化（Phase102-B・[DECORATOR LEGIBILITY PRINCIPLE]採用）
-✓ Section永続化（Phase103・analysis.raw.sections。Section機能が
-  Specification→Session→UI→Preview→Persistenceまで一巡し実用レベルに到達）
+✓ Section永続化（Phase103・analysis.raw.sections）
+✓ Section History Integration（Phase104・Section系4コマンドをUndo/Redo
+  対象化。history/futureのスナップショット形状を{buffer, sections}へ拡張）
+✓ Section Navigation（Phase105・チップクリックで選択+スクロール。
+  [NAVIGATION OWNERSHIP]確立）
+✓ Section Boundary Editing UI（Phase106・境界ステッパーUIから
+  updateSectionBoundaryCommand()を初めて接続。[RENDER CONTEXT INVARIANT]
+  発見・確立）
+✓ Section Preview UX Polish（Phase107・Preview解除を専用ボタンから
+  チップ再クリックのトグル方式へ）
+✓ Section Boundary Reassignment（Phase108・単一削除時の境界コード
+  自動付け替え。[BOUNDARY REMAP AUTHORITY]確立。Section Data Layerが
+  基盤機能として完結）
 
 Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」参照）
 ------------------------------------------------------------
-Phase99〜103が完了し、5フェーズ棚卸し（本更新）を実施済み。
-次の主候補はP1 Section History Integration（Future Candidates参照）。
+Phase104〜108が完了し、5フェーズ棚卸し（本更新）を実施済み。
+単一Mutationを対象としたSection Data Layer（基盤機能）はPhase98〜108を
+通じて実用レベルに到達した。複合Mutation（複数選択削除・Merge・Paste）は
+次フェーズの設計対象である。次の主候補はSection UX Epic（Future
+Candidates参照）。
 ```
 
 ---
@@ -104,6 +118,11 @@ Phase99〜103が完了し、5フェーズ棚卸し（本更新）を実施済み
 | 102 | Section Preview Decorator（selectionとは独立したChart Mode上のハイライト） |
 | 102-B | Section Preview視覚言語の独立化（[DECORATOR LEGIBILITY PRINCIPLE]採用） |
 | 103 | Section永続化（analysis.raw.sections）。実機検証でdirty・Section Preview残留の2バグを発見・修正 |
+| 104 | Section History Integration（history/futureを{buffer,sections}複合スナップショット化。Section系4コマンドがUndo/Redo対象に） |
+| 105 | Section Navigation（チップクリック=選択+スクロール+Preview。[NAVIGATION OWNERSHIP]確立） |
+| 106 | Section Boundary Editing UI（境界ステッパー実装・[RENDER CONTEXT INVARIANT]発見） |
+| 107 | Section Preview UX Polish（Preview解除をトグル方式へ） |
+| 108 | Section Boundary Reassignment（単一削除時の境界自動付け替え。[BOUNDARY REMAP AUTHORITY]確立） |
 
 ### 基盤・アーキテクチャ整理
 
@@ -125,6 +144,9 @@ Phase99〜103が完了し、5フェーズ棚卸し（本更新）を実施済み
 | 100-A | Section Session Layer（reconcile()による整合性維持。[SECTION SESSION CONSISTENCY INVARIANT]確立） |
 | 102-B | **[DECORATOR LEGIBILITY PRINCIPLE]採用**（編集ツールとしての視認性をテーマとの調和より優先。architecture.md §12参照） |
 | 103 | **[PERSISTENCE OWNERSHIP PRINCIPLE]・[EDITOR RESET AUTHORITY]明文化**（ownershipと保存場所の分離／Analysis Editor限定stateの一元リセット。architecture.md §12参照） |
+| 105 | **[NAVIGATION OWNERSHIP]確立**（Section Navigationのスクロール責務分離）・**ドキュメント更新ポリシー確定**（Named Invariant即時反映ルール。docs/handover/README.md参照） |
+| 106 | **[RENDER CONTEXT INVARIANT]確立**（renderChartMode()呼び出し規約。デフォルト引数によるレイアウト崩壊バグの発見から。architecture.md §9参照） |
+| 108 | **[BOUNDARY REMAP AUTHORITY]確立**（reconcile()はbufferから付け替え先を推測しない・呼び出し元が明示的に伝える。architecture.md §12参照） |
 
 ---
 
@@ -140,24 +162,25 @@ A. Session Layer            — Phase100-A完了
 B. Editor UI（作成/Rename/Delete） — Phase101-1〜3完了
    Preview Decorator        — Phase102・102-B完了
    Persistence              — Phase103完了
+   History Integration      — Phase104完了
+   Navigation               — Phase105完了
+   Boundary Editor UI       — Phase106完了
+   UX Polish                — Phase107完了
+   Boundary Reassignment（単一削除） — Phase108完了
 
-P1  Section History Integration（Section Undo/Redo対応）
-    Section系Command（create/rename/updateBoundary/delete）はUndo非対応の
-    まま（[SECTION HISTORY INTEGRATION]）。History機構がbuffer専用の
-    snapshotであるため、SectionをHistoryへ含めるには機構自体の拡張が必要。
-    Section機能がSpecification→Session→UI→Preview→Persistenceまで
-    一巡した現在、最後の主要な未完了事項（Phase103 handover参照）
+単一Mutationを対象としたSection Data Layer（基盤機能）はPhase98〜108を
+通じて実用レベルに到達した。複合Mutationは次フェーズの設計対象である。
+残る発展方向は以下の2つ:
 
-P2  Boundary reassignment
-    境界コード削除時、隣接コードへの自動付け替え（section-model.md §4.3
-    ケースB）は未実装。現在reconcile()は常にSection自体を削除する
-    （ケースC相当）のみ
+P1  Compound Mutation対応
+    複数選択削除／Merge／Paste上書き時のSection境界付け替え。
+    Phase108は単一コード削除（deleteChordCommand）のみ対応。
+    複数Sectionが同時に影響を受ける場合の扱い等、実装より前に
+    仕様策定が必要（current-issues.md参照）。
 
-P3  Section Selection State
-    selectedSectionId等。History Integration（P1）と合わせて設計する方針
-
-P4  チップ本体クリック時の挙動拡張
-    現状はPreview表示/解除のトグルのみ
+P2  Section UX Epic
+    Section機能をAnalysis Editor専用から全モード共通の楽曲構造レイヤーへ
+    発展させる構想（current-issues.md参照）。
 ```
 
 ### Future Features（新機能・優先順位未定）
@@ -742,6 +765,100 @@ Phase103    Section永続化（Specification→Session→UI→Preview→Persiste
   stateは必ず`resetAnalysisEditor()`（唯一のリセット窓口）へ登録する
 - Section機能がSpecification→Session→UI→Preview→Persistenceまで一巡し、
   実用レベルに到達
+
+</details>
+
+<details>
+<summary>Phase104-108 を展開 — Section Data Layer完結（History → Navigation → Boundary Editor → UX Polish → Boundary Reassignment）</summary>
+
+Phase104〜108は、Phase103までに実用レベルへ到達したSection機能を、
+最後の未完了事項（History・Navigation・境界編集UI）まで仕上げ、
+実機フィードバックに基づくUX調整（Phase107）を経て、最後に残った
+仕様上の欠落（Phase98で定義されたケースB・境界コード削除時の
+自動付け替え）を解消するまでの一連の流れである。
+
+```
+Phase104   Section History Integration
+    │        Section系4コマンドをpushHistory()経由でUndo/Redo対象化
+    ▼
+Phase105   Section Navigation
+    │        チップクリック=選択+スクロール+Preview。[NAVIGATION OWNERSHIP]確立
+    ▼
+Phase106   Section Boundary Editing UI
+    │        境界ステッパー実装。実機検証で[RENDER CONTEXT INVARIANT]を発見
+    ▼
+Phase107   Section Preview UX Polish
+    │        Preview解除を専用ボタンからチップ再クリックのトグル方式へ
+    ▼
+Phase108   Section Boundary Reassignment
+             境界コード削除時の隣接コードへの自動付け替え（単一削除）。
+             [BOUNDARY REMAP AUTHORITY]確立。Section Data Layer完結
+```
+
+#### Phase104 — Section History Integration
+- history/futureのスナップショット形状を、buffer単体から
+  `{ buffer, sections }`へ拡張（`_snapshotSession()`新設）
+- Section系4コマンド（create/rename/updateBoundary/delete）へ
+  `pushHistory()`を追加。呼び出し位置は既存Command（deleteChordCommand等）
+  と完全に同じ規則（バリデーション通過後・実際の変更の直前）に統一
+- Phase103で個別追加していた`state.dirty = true`は削除し、
+  `pushHistory()`内の`session.dirty = true`へ一本化（二重管理の解消）
+- app.js側は無変更で要件を満たした：`undoEdit()`/`redoEdit()`が
+  無条件に`_refreshEditorView()`→`renderSectionBar()`を呼ぶ既存フローが
+  そのままSection Bar再描画・Preview/メニューの残留防止ガードに対応できた
+
+#### Phase105 — Section Navigation
+- `scrollToChord(chordId)`新設（chartmode.js。指定chordIdの位置まで
+  DOMスクロールするだけの責務）
+- クリック挙動を`_setSectionPreview()`（トグル式）から`_selectSection()`
+  （常に選択+スクロール+Preview）へ変更。トグルOFFは一旦廃止
+- `_previewSectionId`の意味を「Previewの対象」から「現在選択中のSection
+  （Navigation Target）」へ拡張（新規state追加はせず1つの変数のまま）
+- **[NAVIGATION OWNERSHIP]を確立**：`scrollToChord()`はスクロールのみを
+  責務とし、Section/Playback/Preview/Selectionを一切知らない
+- **ドキュメント更新ポリシーを確定**：Named Invariant（`[XXX]`形式）の
+  新設・意味変更・廃止は即時にarchitecture.mdへ反映する、という運用
+  ルールをdocs/handover/README.mdへ新設（判断基準のブレを解消するため）
+
+#### Phase106 — Section Boundary Editing UI
+- Section▼メニューへ境界ステッパー（「◀ 開始 ▶」「◀ 終了 ▶」）を追加し、
+  Phase104で実装済みだったが未接続だった`updateSectionBoundaryCommand()`
+  を初めてUIから呼び出し可能にした
+- `_previewSection()`（選択同期のみ）と`_selectSection()`（選択同期+
+  Navigation）を分離。▼メニューを開く操作はNavigateしない
+- ★[重要発見] Section境界編集に付随して画面が意図せず動く不具合を実機検証で
+  発見。真因は`renderChartMode()`の引数省略によるレイアウト崩壊
+  （デフォルト値measuresPerRow=3で一瞬再描画され、直後に正しい列数へ
+  戻る際のscrollHeight変動）。Phase102由来の既存バグ（3箇所）だった
+- **[RENDER CONTEXT INVARIANT]を確立**：`renderChartMode()`を呼び出す
+  全箇所は`{ measuresPerRow, editing }`を必ず明示的に渡す
+
+#### Phase107 — Section Preview UX Polish
+- 一度実装した専用「Preview解除」ボタンを撤回し、Phase105で廃止していた
+  トグル方式（チップ再クリックで解除）へ復帰。実機検証で「解除ボタンの
+  位置が分かりにくい」というフィードバックを受けた判断（Phase105の判断が
+  誤りだったわけではなく、実使用評価に基づく仕様見直し）
+- `.sec-chip--previewing`クラスでPreview中チップの押し込み表現を追加
+  （既存token組を転用・新規token追加なし）
+- `_previewSection()`/`_clearSectionPreview()`の再描画漏れ
+  （`renderSectionBar()`未呼び出し）を修正
+
+#### Phase108 — Section Boundary Reassignment
+- section-model.md §4.3ケースB（境界コード削除時の隣接コードへの自動
+  付け替え）を実装。Phase100-A時点でTODO化されていた最後の仕様欠落
+- `reconcile()`へ第2引数`{ chordIdRemap: Map<oldId, newId> }`を追加
+  （省略時は従来通りケースCのみ。後方互換）
+- `deleteChordCommand()`から、削除時点で判明する「削除id→吸収先id」の
+  対応を`reconcile()`へ渡すよう変更。survivor決定ロジック自体は既存の
+  `_pickAbsorbingNeighbor()`（Phase75由来）をそのまま利用
+- **[BOUNDARY REMAP AUTHORITY]を確立**：reconcile()はbuffer上の隣接
+  関係から付け替え先を推測しない。呼び出し元が削除の事実として明示的に
+  渡す（ChatGPTレビューで確立）
+- start==end（単一コードSection）を特殊ケースとして扱わず、start/endへの
+  独立したremap適用の自然な結果として説明する一般化した設計を採用
+- スコープを単一コード削除（deleteChordCommand）のみに限定。複数選択
+  削除・Merge・Paste経由の境界削除は仕様未確定のため対象外とし、
+  「Compound Mutation対応」として新Issueへ分離（current-issues.md参照）
 
 </details>
 

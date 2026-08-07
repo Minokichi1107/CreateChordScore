@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase103完了時点（Phase99〜103を反映）
+> 最終更新: Phase108完了時点（Phase104〜108を反映）
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -57,7 +57,7 @@ Authority）を変更すると、Chart Modeの表示が編集の修正前の状�
 `window.__analysisEditorDebug`（buffer状態）を突き合わせて事実ベースで
 原因を特定する方針（[FEATURE REGRESSION POLICY]・実装漏れと断定しない）。
 
-#### Chart Mode pickup measure（実曲検証待ち）
+#### Pickup Measure（表示補正・実曲検証待ち）
 状態: 実装済み・実曲検証未実施
 内容: pickup measureの表示補正（番号・位置調整）は実装済み（architecture.md §9.5参照）。
 synthetic testでは動作確認済みだが、手元の楽曲が全てpickupなしのため実曲での
@@ -76,7 +76,7 @@ synthetic testでは動作確認済みだが、手元の楽曲が全てpickupな
 - Type D: 発生ケース収集後に repair: true で効果検証
 - Type A/C: 手動修正UI設計フェーズ（大規模・将来）
 
-#### Chart Mode: 極小durationコード衝突の可視化（Phase91-92で対応・pickup measureは未対応）
+#### Pickup Measure（Collision可視化・Phase91-92で対応・pickup measureは未対応）
 状態: normal path対応済み（Phase92・Collision Indicator P1 v1）・pickup measureは
 visual compression collisionの意味論整理待ちのため適用対象外
 内容: 個別移動ボタンでコードの幅を極端に狭めた（duration≈0だが0ではない）状態で
@@ -174,15 +174,6 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 内容: 演奏モードからの復帰（曲選択等）に使うプルダウンメニューの見た目が
 簡素なため、もう少しスタイリッシュなデザインへ修正する。具体的な方向性
 （既存token活用か新規デザインか）は着手時に検討する。
-
-### Section Previewの解除方法が分かりにくい（Phase106発見）
-状態: 未対応
-内容: Section Preview（ゴールドハイライト）の解除は現状Escapeキーまたは
-空白部分クリックのみ。空白部分は視覚的な手がかりがなく、初見のユーザーには
-気づきにくい。改善候補: Section Bar上に「× プレビュー解除」ボタンを明示的に
-置く、チップの再クリックで解除するトグル方式へ戻す、Preview中のチップを
-視覚的に強調して「今これを見ている」ことを分かりやすくする、等。
-具体的な方式は着手時に検討する。
 
 ---
 
@@ -305,19 +296,21 @@ carryセルへ跨る継ぎ目問題を根本的に解決する設計（コード
 連続した要素として扱う等）から着手すること。
 
 #### Section Data Layer（曲構造編集）
-状態: 中核（Specification/Session/Editor UI/Preview/Persistence/History）は
-Phase98〜104で完了・残課題のみ
-内容: Verse/Chorus等のセクション単位で編集できる機能。データモデル・
-仕様はPhase98で確定済み、Session/Command Layer・Editor UI・Preview
-Decorator・永続化（analysis.raw.sections）・History統合（Undo/Redo）は
-Phase100-A〜104で実装済み（進捗の詳細一覧はphase-status.md「Section
-Subsystem Progress」参照）。
-残課題（優先順）:
-  P2 Boundary reassignment（境界コード削除時の隣接コードへの自動付け替え。
-     現状は常にSection自体を削除する仕様で運用中）
-  P3 Section Selection State（selectedSectionId等。チップクリックでの
-     自動スクロール／Navigation機能とセットで設計する方針・次フェーズ候補）
-  P4 チップ本体クリック時の挙動拡張（現状はPreviewトグルのみ）
+状態: 完了（Specification/Session/Editor UI/Preview/Persistence/History/
+Navigation/Boundary Editor/UX Polish/Boundary Reassignment〔単一削除〕は
+Phase98〜108で完了）
+内容: Verse/Chorus等のセクション単位で編集できる機能。単一Mutation
+（作成・Rename・単一コード削除等）を対象とした基盤機能としては
+実用レベルに到達している。複合Mutation（複数選択削除・Merge・Paste）は
+下記「残課題」の通り別途仕様策定が必要（進捗の詳細一覧はphase-status.md
+「Section Subsystem Progress」参照）。
+
+残課題:
+  Compound Mutation対応（複数選択削除／Merge／Paste上書き時のSection
+     境界付け替え。Phase108は単一コード削除のみ対応。複数Sectionが
+     同時に影響を受ける場合の扱い等、実装より前に仕様策定が必要。
+     設計の出発点はhandover_phase108.md「Future Design Notes」参照）
+
 詳細設計は `section-model.md` を参照。「Chart Modeと通常モードのシステム
 統合」（本ファイル内ロードマップ）とAuthority問題を共有するため、
 Session限定Authorityの範囲拡張（Project Repository統合）はそちらと
@@ -325,16 +318,16 @@ Session限定Authorityの範囲拡張（Project Repository統合）はそちら�
 
 **この項目（Section Data Layer）は基盤機能（Platform）である。
 下記のSection UX Epicは、この基盤の上に成り立つ活用機能（Section UX）**
-という親子関係にある。基盤側の残課題（P2〜P4・上記）とEpic側の項目
-（下記P1〜P7）は別々の優先順位で管理する。
+という親子関係にある。
 
 #### Section UX Epic — Section機能をアプリ全体の楽曲構造レイヤーへ拡張（Phase106発見）
 状態: 未着手・構想段階
 内容: 現在のSectionはAnalysis Editor限定の「編集時の補助機能（Previewハイライト）」
 に留まっている。これをAnalysis Editor専用機能から、Chart Mode・演奏モードを含む
 アプリ全体で共有する「楽曲構造（Song Structure）」レイヤーへ発展させる構想。
-Phase98〜106でデータ層（Specification→Session→UI→Preview→Persistence→
-History→Boundary Editing）が一巡し安定したことを受けて浮上した、次の発展方向。
+Phase98〜108でデータ層（Specification→Session→UI→Preview→Persistence→
+History→Navigation→Boundary Editing→UX Polish→Boundary Reassignment）が
+一巡し安定したことを受けて浮上した、次の発展方向。
 
 設計思想（Creator UX / Performer UX）:
 ```
@@ -370,10 +363,34 @@ P2  Section Header Rendering
     Chart Mode内にSection名の区切り（見出し）を常時表示する。スクロール中も
     「今どのSectionにいるか」が一目で分かる。
 
-P3  Section Metrics（長さの可視化）
-    Sectionごとの長さ（小節数・拍数）をチップやHeaderに表示する。
-    例:「Verse 8m / 32b」。将来の拍子変更対応を考慮し、小節数と拍数の
-    両方を保持できる設計が望ましい。
+P3  Section Length Mismatch Detection（旧称: Section Metrics・Phase108後の
+    設計議論で具体化・[ChatGPT未レビュー]）
+    動機: 1番と2番のように同じtype（verse/chorus等）のSectionを人力で
+    複数作成する際、コピペの起点となる範囲選択がズレて小節数が揃わない
+    ことがある。「単なる長さの表示」ではなく「不一致の検知」まで行う
+    ことで、この不安に直接対処する。
+
+    設計方針（たかっちとの相談で確定済み・詳細設計は未着手）:
+      グルーピング: 名前ではなくtype（種類）ベース。リネームに強く、
+        1曲に1回しか出てこないtype（Intro/Outro等）は同type1件のため
+        自動的に比較対象から除外される（特別扱いのコード不要）
+      比較単位: 小節数のみで判定する。拍数は「小節数×8」（4/4拍子前提の
+        簡易計算）でhover時の参考表示にのみ使い、判定自体には使わない
+      基準の決め方（複合ルール）:
+        同typeが3つ以上 かつ 明確な多数派がある
+          → 多数派を基準にし、外れたものだけ警告
+        同typeが2つだけ、または多数派が無い場合
+          → 「どちらが正しいか」は判定せず、関係する全員に中立な警告を出す
+            （AIが一方を誤りと決めつけない設計）
+      警告UI: チップにはアイコンのみ表示、hoverで両者の長さを見せる
+        （常時数字表示は情報過多と判断）
+
+    データ設計の見込み: 新規の永続化は不要（Runtime Projectionとして
+    実装可能）。Section.startChordId/endChordIdの時間範囲をChart Mode
+    タイミンググリッドに当てはめて小節数を算出する。
+
+    着手条件: Compound Mutation対応・Section UX Epicの他項目の進捗を
+    見た上で、詳細設計（実装箇所・API形状）に着手する。
 
 P4  Editing Interaction Modernization（旧称: Direct Section Manipulation）
     Section編集のインタラクション全般を、メニュー操作依存から

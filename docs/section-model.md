@@ -5,9 +5,11 @@
 > `current-issues.md` のロードマップ「Chart Modeと通常モードのシステム統合」
 > と密接に関連するため、本格的な範囲拡張の判断はそちらとセットで行うこと。
 >
-> ステータス: **仕様確定済み（Phase98・Design Freeze）。実装はPhase99〜104で
-> Specification→Session→Editor UI→Preview→Persistence→Historyまで一巡。**
-> 最終更新: Phase104完了時点
+> ステータス: **仕様確定済み（Phase98・Design Freeze）。実装はPhase99〜108で
+> Specification→Session→Editor UI→Preview→Persistence→History→
+> Navigation→Boundary Editor→UX Polish→Boundary Reassignment（単一削除）
+> まで一巡。**
+> 最終更新: Phase108完了時点
 
 ---
 
@@ -167,15 +169,32 @@ Section = {
         「その間に存在するコードはすべてSection」という定義が
         シンプルで例外がない。
 
-ケースB: 境界コード自体が削除される
-  startChordIdが削除された場合
-    → 削除後に隣接する（削除位置の次にあった）コードへ自動的に
-      付け替える
-  endChordIdが削除された場合
-    → 削除後に隣接する（削除位置の前にあった）コードへ自動的に
-      付け替える
+ケースB: 境界コード自体が削除される（Phase108で実装）
+  startChordId / endChordId への付け替えはそれぞれ独立に適用される。
+    startChordIdが削除された場合
+      → 削除後に隣接する（削除位置の次にあった）コードへ自動的に
+        付け替える
+    endChordIdが削除された場合
+      → 削除後に隣接する（削除位置の前にあった）コードへ自動的に
+        付け替える
+  startChordIdとendChordIdが同じID（単一コードSection）を参照して
+  いる場合も特殊扱いはしない。両者は独立にremapされるため、結果として
+  両方が同じ付け替え先（survivor）へ更新される。
+
   理由: 既存のeditPoint / boundaryHandleChordIdの「削除時の隣接
         再割り当てパターン」と同じ思想を転用し、一貫性を保つ。
+        「start==endは特殊ケース」として個別に扱わないことで、
+        分岐を増やさずシンプルな1ルールに保っている。
+
+  [実装範囲・Phase108] 単一コード削除（deleteChordCommand）のみ対応。
+  複数選択削除・Merge・Paste上書き経由での境界削除は対象外で、
+  現状は引き続きケースC（Section自体の削除）となる（Compound Mutation
+  対応として将来検討。current-issues.md参照）。
+
+  [設計原則] 付け替え先の判断は削除操作を実行したCommand Layer側から
+  明示的に渡される（chordIdRemap: oldChordId→newChordId）。
+  reconcile()自身はbuffer上の隣接関係から付け替え先を推測しない
+  （[BOUNDARY REMAP AUTHORITY]・architecture.md §12参照）。
 
 ケースC: Section内が0コードになった場合
   （startとendの間にコードが1つも残らなくなった場合）
@@ -419,9 +438,44 @@ Phase104（History Integration）:
       とNavigation（今どこを見るか）は責務が異なるため、次フェーズ
       （Phase105候補）へ分離した
   19. `updateSectionBoundaryCommand()`は本フェーズ時点でapp.js側から
-      呼び出す経路が未実装（境界編集UI自体が未着手・current-issues.md
-      P2/P3参照）だが、将来の境界編集UI実装に備え、History対応済みの
-      実装として維持する方針とした（削除・簡略化はしない）
+      呼び出す経路が未実装（境界編集UI自体が未着手）だが、将来の境界編集UI
+      実装に備え、History対応済みの実装として維持する方針とした
+      （削除・簡略化はしない。Phase106でUI接続完了）
+
+Phase105（Section Navigation）:
+  20. チップクリックの意味を「Preview表示のみ」から「選択+スクロール
+      （Navigation）+Preview表示」へ拡張。トグルOFFは一旦廃止
+  21. `[NAVIGATION OWNERSHIP]`を確立：`scrollToChord()`はスクロールのみを
+      責務とし、Section/Playback/Preview/Selectionを一切知らない
+  22. ドキュメント更新ポリシーを確定：Named Invariantの新設・意味変更・
+      廃止は即時にarchitecture.mdへ反映する、という運用ルールを
+      docs/handover/README.mdへ新設
+
+Phase106（Boundary Editing UI）:
+  23. `updateSectionBoundaryCommand()`（Phase104で実装済みだが未接続
+      だった）をSection▼メニューのステッパーUIから初めて呼び出し可能に
+  24. 実機検証で`renderChartMode()`引数省略によるレイアウト崩壊
+      （Phase102由来の既存バグ）を発見・修正。`[RENDER CONTEXT INVARIANT]`
+      をarchitecture.md §9へ新設
+
+Phase107（Preview UX Polish）:
+  25. Preview解除の専用ボタンを実装後に撤回し、チップ再クリックによる
+      トグル方式（Phase105で一旦廃止していたもの）へ復帰。実機フィード
+      バックに基づく仕様見直しであり、Phase105の判断が誤りだったわけ
+      ではない
+
+Phase108（Boundary Reassignment）:
+  26. §4.3ケースB（境界コード削除時の隣接コードへの自動付け替え）を
+      単一コード削除に限定して実装。付け替え情報（chordIdRemap）は
+      削除を実行したCommand Layerから明示的に渡す方式を採用し、
+      reconcile()はbufferから推測しないという制約を`[BOUNDARY REMAP
+      AUTHORITY]`として明文化（ChatGPTレビュー指摘・採用）
+  27. start==end（単一コードSection）を特殊ケースとして扱わず、
+      start/endへの独立したremap適用の自然な結果として説明する形へ
+      §4.3の記述を一般化
+  28. 複数選択削除・Merge・Paste経由での境界削除（Compound Mutation）は
+      仕様未確定のためPhase108のスコープ外とし、将来課題として
+      current-issues.mdへ分離
 ```
 
 ---
@@ -434,8 +488,16 @@ Phase104（History Integration）:
       Phase104で完了）
 - [x] B（Section Editor）着手前に、UI設計（作成・リネーム・複製・
       並べ替え・削除の操作フロー）を別途詰める（Phase101で完了）
-- [ ] Phase105着手時: Section Selection State・チップクリック時の
-      自動スクロール（Navigation）の設計に着手する
-- [ ] P2（Boundary reassignment）着手時: `updateSectionBoundaryCommand()`
+- [x] Phase105着手時: Section Selection State・チップクリック時の
+      自動スクロール（Navigation）の設計に着手する（Phase105で完了。
+      `[NAVIGATION OWNERSHIP]`確立）
+- [x] Boundary reassignment（単一削除）着手時: `updateSectionBoundaryCommand()`
       をapp.js側から呼び出すUIを設計し、その際にPreview中の
       chordIds再計算（`_setSectionPreview`側の追随）も併せて確認する
+      （Phase106でUI実装・Phase106実機検証で確認済み）
+- [x] §4.3ケースB（境界コード削除時の隣接コードへの自動付け替え）を
+      単一コード削除に限定して実装する（Phase108で完了。
+      `[BOUNDARY REMAP AUTHORITY]`確立）
+- [ ] Compound Mutation対応着手時: 複数選択削除・Merge・Paste上書き経由の
+      境界削除の仕様（複数Sectionが同時に影響を受ける場合の扱い等）を
+      先に策定してから実装する（current-issues.md参照）

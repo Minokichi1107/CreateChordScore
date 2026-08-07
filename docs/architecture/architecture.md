@@ -1468,7 +1468,7 @@ Nを表示前に除外する。編集モデルと表示モデルの間に、何�
 
 詳細・対応状況は `current-issues.md` を参照。
 
-### Section Subsystem（Phase98〜103）
+### Section Subsystem（Phase98〜108）
 
 ```
 Verse / Chorus のような曲構造単位（Section）を扱うAnalysis Editorの
@@ -1478,7 +1478,8 @@ Verse / Chorus のような曲構造単位（Section）を扱うAnalysis Editor�
 Section機能から確立した設計原則のみを記載する。
 ```
 
-**実装の対応関係**（S→A→B→Preview→Persistence→Historyの各段階）
+**実装の対応関係**（S→A→B→Preview→Persistence→History→Navigation→
+Boundary Editor→UX Polish→Boundary Reassignmentの各段階）
 
 | 段階 | 内容 | Phase | 実装箇所 |
 |---|---|---|---|
@@ -1489,6 +1490,10 @@ Section機能から確立した設計原則のみを記載する。
 | Preview Decorator | selectionとは独立したChart Mode上のハイライト（`_previewSectionId`） | 102・102-B | app.js / chartmode.js |
 | Persistence | `analysis.raw.sections`。既存の`saveAnalysisFile()`等はAPI無変更のまま対応 | 103 | analysisLoader.js / app.js |
 | History Integration | Section系4コマンドをpushHistory()経由でUndo/Redo対象化。history/futureのスナップショット形状を`{ buffer, sections }`へ拡張 | 104 | analysisSession.js / analysisCommands.js |
+| Navigation | Section Barのチップクリックで選択+スクロール（[NAVIGATION OWNERSHIP]確立） | 105 | app.js / chartmode.js |
+| Boundary Editor UI | Section▼メニューへ境界ステッパーを追加。`updateSectionBoundaryCommand()`を初めてUIから接続 | 106 | app.js |
+| UX Polish | Preview解除方式の見直し（専用ボタン→チップ再クリックのトグル方式） | 107 | app.js |
+| Boundary Reassignment | 境界コード削除時の隣接コードへの自動付け替え（単一削除のみ・[BOUNDARY REMAP AUTHORITY]確立） | 108 | analysisSession.js / analysisCommands.js |
 
 **データモデル**（詳細は section-model.md §4）
 
@@ -1506,6 +1511,31 @@ Section = { id, type, name, startChordId, endChordId }
 Sectionコレクションは必ず getSections(session) 経由でのみ読む。
 呼び出し側（Command Layer / Renderer / UI）はSectionの整合性修復
 （reconcile）を行ってはならない（修復責務はreconcile()のみに集約する）。
+```
+
+**[BOUNDARY REMAP AUTHORITY]（Phase108で確立）**
+
+```
+reconcile()はbuffer上の隣接関係からSectionの付け替え先を推測しない。
+付け替え情報（chordIdRemap: oldChordId→newChordId）が必要な場合、
+呼び出し元（Command Layer）が削除操作の実行と同時に判明した事実として
+明示的に渡さなければならない。reconcile()は決定的な repair のみを行い、
+履歴的な再構築は一切行わない。
+
+[背景] 削除後のbufferだけでは「消えたIDの隣に何があったか」を判別
+できない（bufferは削除後の状態しか保持しない）。この制約はSectionが
+絶対時間を持たない設計（section-model.md §3）から導かれる本質的な
+制約であり、実装の都合による制限ではない。
+
+chordIdRemapを渡さない呼び出し（getSections()経由の通常の読み取り時）
+は、従来通り無効なSectionを削除する（§4.3ケースC）のみを行う。
+これによりreconcile()の冪等性（[INVARIANT]・analysisSession.js側の
+コメント参照）は維持される。
+
+[実装範囲] Phase108時点ではdeleteChordCommand()（単一コード削除）のみ
+がchordIdRemapを渡す。複数選択削除・Merge・Paste上書き経由での境界削除は
+対象外で、引き続きケースC（Section自体の削除）となる（Compound Mutation
+対応として将来検討・current-issues.md参照）。
 ```
 
 **[SECTION HISTORY INTEGRATION]（Phase100-Aで確立・Phase104で解消）**
@@ -1540,14 +1570,49 @@ _syncSectionMenuVisibility）もrenderSectionBar()末尾から呼ばれる
 既存の仕組みのため、undo/redoによるSection消滅にも自動的に対応できる
 （Phase102・101-3で確立済みの仕組みがそのまま機能した）。
 
-[既知の制約・将来対応] updateSectionBoundaryCommand()はPhase104時点で
-app.js側から呼び出すUI（境界編集UI）が未実装のため、実質的に到達しない
-（current-issues.md P2/P3参照）。History対応済みの実装として維持する
-方針であり、将来UIが実装された際は、Section Previewが有効な状態で
-境界がUndo/Redoされた場合にPreview側のchordIds（Derived Cache）が
-追随して再計算されるか、別途確認が必要（現状は経路自体が存在しない
-ため実害なし）。
+[Phase106で解消済み] updateSectionBoundaryCommand()はPhase104時点では
+app.js側から呼び出すUI（境界編集UI）が未実装のため実質的に到達しない
+状態だったが、Phase106でSection▼メニューへ境界ステッパーUIが追加され、
+初めて実際に呼び出されるようになった。Section Previewが有効な状態で
+境界がUndo/Redoされた場合のPreview側chordIds（Derived Cache）追随も
+Phase106の実機検証で確認済み（handover_phase106.md参照）。
 ```
+
+### Section Navigation（Phase105で確立・Phase107で挙動更新）
+
+Section Barのチップクリックは、Preview表示（Phase102）とNavigation
+（現在選択中のSectionへ移動する・Phase105）を兼ねる。
+
+```
+チップクリック
+    ↓
+既にPreview中の同じSectionか？
+    ├─ Yes → Preview解除（トグルOFF・Phase107）
+    └─ No  → _previewSectionId 更新（Navigation Target）
+              ↓
+              scrollToChord(section.startChordId)  ← chartmode.js（DOM Navigation）
+              ↓
+              setSectionPreview(...)                ← 結果としてのPreview表示
+```
+
+**[NAVIGATION OWNERSHIP]**
+
+```
+scrollToChord() は「指定されたchordIdを表示位置へスクロールする」
+だけを責務とする。Section/Playback/Preview/Selectionを一切知らない。
+Navigationの判断はapp.jsが行い、chartmode.jsは
+Rendering / DOM Navigationのみ担当する（[DECORATOR ADDITION RULE]と
+同じ「正本の導出はapp.js・chartmode.jsは渡された値を扱うだけ」という
+既存原則をNavigation（スクロール）にも適用したもの）。
+
+NavigationとPlayback（updateChartPlayback()内のscrollIntoView・
+chartState.lastScrolledMeasure）は完全に独立しており、互いのstateに
+触れない。
+```
+
+チップの再クリックによる解除（トグルOFF）は、専用の「解除」ボタンを
+追加せず、チップ1つに1つの操作面を保つ（UI引き算方針。Phase107）ための
+意図的な設計。
 
 ### [PERSISTENCE OWNERSHIP PRINCIPLE]（Phase103で明文化）
 
