@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase108完了時点（Phase104〜108を反映）
+> 最終更新: Phase109完了時点（Phase109を反映）
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -145,6 +145,23 @@ forward方向（Enter）は自然に正しく動作するが、backward方向（
 コード不具合としては再現できていないため、断定はしていない。ショートカットUXの
 改善候補（例: Escapeでフォーカスを外してからCtrl+Zする案等）として保留。
 
+#### Section境界編集ステッパーが動作しない（Phase109実機テストで発見）
+状態: 未調査
+内容: Section▼メニューの境界ステッパー（◀開始 ▶ ◀終了 ▶）を操作しても
+反映されない。Phase109のreconcile()引数拡張との因果関係は現時点では
+確認されていない（getSections()の無引数呼び出し経路自体はPhase108までと
+同一のまま、という限定的な確認は取れている）。Phase109以前から
+存在していた可能性もあるため、次回updateSectionBoundaryCommand()の
+呼び出し経路を実機で再調査する（[FEATURE REGRESSION POLICY]・
+実装漏れと断定しない）。
+
+#### merge実行でSectionが削除される場合の確認UX未実装（Phase109で発見）
+状態: 意図的に先送り（使用頻度が低いと判断）
+内容: [SECTION EXTENT GUARD]（architecture.md §12）によりSection外を
+巻き込んだmergeはSection削除となる仕様（正しい動作・バグではない）。
+現在は警告なしに実行されるため、意図せずSectionを削除してしまう可能性が
+ある。将来merge実行前の確認ダイアログを検討する。
+
 ### restore lifecycle 系
 
 #### beat cursorが一瞬停止して数ビートジャンプする
@@ -218,6 +235,11 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
   capo適用中に実音（canonical）をそのまま検索欄へ入力すると、意図と
   異なる結果になる（バグではなく仕様。検索欄は画面表示名で検索する設計）。
   案内方法の具体案（プレースホルダー等）は着手時に改めて検討する。
+- merge操作の意味論見直し（Phase109で発見・保留）
+  mergeSelectionCommandは選択範囲全体を削除し、新規UUID・confidence
+  固定値1で置き換える実装（先頭コードのUUIDを引き継いでいるわけでは
+  ない）。先頭コードのUUID維持へ変更するかどうかは、Compound Mutation
+  とは独立した設計判断として保留。
 
 ---
 
@@ -297,19 +319,22 @@ carryセルへ跨る継ぎ目問題を根本的に解決する設計（コード
 
 #### Section Data Layer（曲構造編集）
 状態: 完了（Specification/Session/Editor UI/Preview/Persistence/History/
-Navigation/Boundary Editor/UX Polish/Boundary Reassignment〔単一削除〕は
-Phase98〜108で完了）
+Navigation/Boundary Editor/UX Polish/Boundary Reassignment〔単一削除〕/
+Compound Mutation Boundary Resolution〔複数選択削除・Merge〕は
+Phase98〜109で完了）
 内容: Verse/Chorus等のセクション単位で編集できる機能。単一Mutation
-（作成・Rename・単一コード削除等）を対象とした基盤機能としては
-実用レベルに到達している。複合Mutation（複数選択削除・Merge・Paste）は
-下記「残課題」の通り別途仕様策定が必要（進捗の詳細一覧はphase-status.md
-「Section Subsystem Progress」参照）。
+（作成・Rename・単一コード削除等）に加え、複数選択削除・Mergeの
+Compound Mutationも対応済みとなり、基盤機能としては実用レベルに
+到達している。Paste上書き時のSection境界付け替えのみ下記「残課題」の
+通り別途対応が必要（進捗の詳細一覧はphase-status.md「Section Subsystem
+Progress」参照）。
 
 残課題:
-  Compound Mutation対応（複数選択削除／Merge／Paste上書き時のSection
-     境界付け替え。Phase108は単一コード削除のみ対応。複数Sectionが
-     同時に影響を受ける場合の扱い等、実装より前に仕様策定が必要。
-     設計の出発点はhandover_phase108.md「Future Design Notes」参照）
+  Compound Mutation対応（Paste。Phase109で複数選択削除／Mergeは
+     解消済み。pasteSelectionCommand上書き時のSection境界付け替えは
+     「削除と生成が同時に起こる」性質上、既存Facts（removedChordIds/
+     leftSurvivorId/rightSurvivorId/replacement）で表現できるか
+     未検証。設計の出発点はhandover_phase109.md参照）
 
 詳細設計は `section-model.md` を参照。「Chart Modeと通常モードのシステム
 統合」（本ファイル内ロードマップ）とAuthority問題を共有するため、
@@ -319,6 +344,14 @@ Session限定Authorityの範囲拡張（Project Repository統合）はそちら�
 **この項目（Section Data Layer）は基盤機能（Platform）である。
 下記のSection UX Epicは、この基盤の上に成り立つ活用機能（Section UX）**
 という親子関係にある。
+
+#### Section境界の共有（同一chordIdを複数Sectionのstart/endが指す）の正式サポート
+状態: 未着手・価値のある拡張候補（Phase109の設計討議で判明）
+内容: 現在データモデル上は境界共有を禁止していないが、UI側で
+「明確にSectionを分けられず共有させたいコードがあった」という実際の
+ニーズが確認された。ただしUI・作成フロー・Boundary Editor・Preview・
+Navigationすべてに影響する規模のため、独立したEpicとして着手すること
+（Compound Mutation対応とは別スコープ）。
 
 #### Section UX Epic — Section機能をアプリ全体の楽曲構造レイヤーへ拡張（Phase106発見）
 状態: 未着手・構想段階

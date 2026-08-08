@@ -1686,6 +1686,15 @@ function _refreshEditorView() {
     }
   }
   setSearchMatches(analysisEditor.search.open ? analysisEditor.search.matches : []);
+  // [Phase109] renderChartMode()（実際の描画）より前にSection Previewの
+  // chordIdsを最新化しておく。従来はrenderSectionBar()（本関数の末尾で
+  // 呼ばれる）内の_syncSectionPreviewVisibility()のみに任せていたが、
+  // それだと「renderChartMode()が今回の描画で古いchordIdsを使ってしまい、
+  // 次の操作でようやく反映される」という1描画分の遅延（ちらつき）が生じる
+  // （Undo実行時に実機で発見）。renderSectionBar()側の呼び出しは
+  // Section Bar UI自身の同期のため残置し、ここでの呼び出しと重複しても
+  // 実害はない（冪等）。
+  _syncSectionPreviewVisibility();
   const currentChords = getCurrentChordSource();
   const liveAnalysis = {
     ...project.analysis,
@@ -1947,7 +1956,19 @@ let _previewSectionId = null;
 
 /**
  * _syncSectionPreviewVisibility — _previewSectionId が指すSectionが
- * 再描画後も存在するかを確認し、消えていればPreviewを解除する（Phase102）
+ * 再描画後も存在するかを確認し、消えていればPreviewを解除する（Phase102）。
+ * 存在する場合も、Derived Cacheであるsection Preview chordIdsを常に
+ * 再計算する（Phase109）。
+ *
+ * [Phase109で修正] 従来はSectionの存在有無のみを見ていたが、Compound
+ * Mutation（delete/merge等）によりSectionは生存したままstartChordId/
+ * endChordIdだけが書き換わるケース（reconcile()によるBoundary Remap）
+ * では何もしておらず、Previewが古いchordIdsを指したまま取り残される
+ * バグがあった（実機報告により発見）。Phase106の境界編集UI
+ * （updateSectionBoundaryCommand呼び出し元）では個別にこの再計算を
+ * 行っていたが、delete/merge等の他経路には同じ対処がなかった。
+ * ここで「Sectionが存在する限り常に最新のchordIdsへ同期する」よう
+ * 一本化することで、以後の全てのCompound Mutationに自動的に対応する。
  *
  * _syncSectionMenuVisibility()と同型のガード。Rename/Delete等でSectionが
  * 変化した直後のrenderSectionBar()から必ず呼ぶ。
@@ -1955,8 +1976,8 @@ let _previewSectionId = null;
 function _syncSectionPreviewVisibility() {
   if (_previewSectionId === null) return;
   const sections = getSections(analysisEditor);
-  const found = sections.some(s => s.id === _previewSectionId);
-  if (!found) {
+  const target = sections.find(s => s.id === _previewSectionId);
+  if (!target) {
     _previewSectionId = null;
     setSectionPreview([]);
     // [Phase106で発見・修正] measuresPerRowを渡さないとrenderChartMode()の
@@ -1964,7 +1985,9 @@ function _syncSectionPreviewVisibility() {
     // リセットされる。総高さが激変し「画面が動く」ように見える不具合の
     // 原因の1つだった（Phase102由来の既存バグ）。
     renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
+    return;
   }
+  setSectionPreview(resolveSectionChordIds(analysisEditor.buffer, target));
 }
 
 /**

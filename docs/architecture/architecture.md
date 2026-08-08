@@ -1494,6 +1494,7 @@ Boundary Editor→UX Polish→Boundary Reassignmentの各段階）
 | Boundary Editor UI | Section▼メニューへ境界ステッパーを追加。`updateSectionBoundaryCommand()`を初めてUIから接続 | 106 | app.js |
 | UX Polish | Preview解除方式の見直し（専用ボタン→チップ再クリックのトグル方式） | 107 | app.js |
 | Boundary Reassignment | 境界コード削除時の隣接コードへの自動付け替え（単一削除のみ・[BOUNDARY REMAP AUTHORITY]確立） | 108 | analysisSession.js / analysisCommands.js |
+| Compound Mutation Boundary Resolution | 複数選択削除・Mergeへ対応拡大。`reconcile()`のFactsを刷新（[COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]・[SECTION EXTENT GUARD]確立。[BOUNDARY REMAP AUTHORITY]を統合・廃止） | 109 | analysisSession.js / analysisCommands.js / app.js |
 
 **データモデル**（詳細は section-model.md §4）
 
@@ -1513,29 +1514,96 @@ Sectionコレクションは必ず getSections(session) 経由でのみ読む。
 （reconcile）を行ってはならない（修復責務はreconcile()のみに集約する）。
 ```
 
-**[BOUNDARY REMAP AUTHORITY]（Phase108で確立）**
+**[MUTATION SEMANTICS]（Phase109で確立）**
+
+```
+Compound Mutation（delete/merge等）がSectionへ与える影響は、
+Mutationの種類によって意味が異なる。
+
+delete（消滅）: 削除された領域を代表する新しい実体は生まれない。
+  境界はブロック外側の生存コード（leftSurvivorId/rightSurvivorId）
+  へ逃がすだけでよい。
+
+merge（置換）: ブロックが1つの新しいコード（replacement）に置き換わる。
+  このコードがブロックの全領域を「代表」するため、Section境界が
+  ブロックの一部だけでなくブロック外まで巻き込んでいないかの確認
+  （[SECTION EXTENT GUARD]）が必要になる。
+
+この区別により、duration吸収（_pickAbsorbingNeighbor()の方向選択。
+音楽的なタイミング処理）とSection境界のremap方向は完全に独立した
+別問題として扱われる。
+```
+
+**[COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]（Phase109で確立・
+[BOUNDARY REMAP AUTHORITY]（Phase108）を発展的に統合・廃止）**
 
 ```
 reconcile()はbuffer上の隣接関係からSectionの付け替え先を推測しない。
-付け替え情報（chordIdRemap: oldChordId→newChordId）が必要な場合、
-呼び出し元（Command Layer）が削除操作の実行と同時に判明した事実として
-明示的に渡さなければならない。reconcile()は決定的な repair のみを行い、
-履歴的な再構築は一切行わない。
+Mutation（delete/merge）が「何を削除し、その領域を何が代表するか」
+という事実を、呼び出し元（Command Layer）が明示的に渡さなければ
+ならない。
+
+reconcile(session, {
+  removedChordIds?: Set<chordId>,
+  leftSurvivorId?:  chordId | null,
+  rightSurvivorId?: chordId | null,
+  replacement?: { firstChordId, lastChordId, replacementChordId },
+})
 
 [背景] 削除後のbufferだけでは「消えたIDの隣に何があったか」を判別
 できない（bufferは削除後の状態しか保持しない）。この制約はSectionが
 絶対時間を持たない設計（section-model.md §3）から導かれる本質的な
 制約であり、実装の都合による制限ではない。
 
-chordIdRemapを渡さない呼び出し（getSections()経由の通常の読み取り時）
-は、従来通り無効なSectionを削除する（§4.3ケースC）のみを行う。
-これによりreconcile()の冪等性（[INVARIANT]・analysisSession.js側の
-コメント参照）は維持される。
+[SCOPE] removedChordIds / replacement.firstChordId・lastChordIdは、
+1つの連続したMutation blockに由来することを呼び出し元が保証する
+前提で成立する。非連続selectionや複数block同時Mutationにはこの
+判定をそのまま適用してはならない。
 
-[実装範囲] Phase108時点ではdeleteChordCommand()（単一コード削除）のみ
-がchordIdRemapを渡す。複数選択削除・Merge・Paste上書き経由での境界削除は
-対象外で、引き続きケースC（Section自体の削除）となる（Compound Mutation
-対応として将来検討・current-issues.md参照）。
+[実装範囲] Phase109時点ではdeleteChordCommand（単一削除）・
+deleteSelectionCommand（複数選択削除）・mergeSelectionCommand
+（結合）の3コマンドが対応。pasteSelectionCommand経由の境界変更は
+対象外で、Phase110で改めて検討する（current-issues.md参照）。
+
+判定順序（Sectionごとに独立評価）:
+  1. [SECTION EXTENT GUARD]（下記）→ 該当すれば即Case C
+  2. start・endの両方が削除された
+     → replacementがあり完全一致 → Section生存（両方をreplacementChordIdへ）
+     → それ以外（pure delete、または一致しないmerge）→ Case C
+  3. startのみ削除された → replacement.replacementChordId、
+     なければrightSurvivorId（どちらも無ければCase C）
+  4. endのみ削除された → replacement.replacementChordId、
+     なければleftSurvivorId（どちらも無ければCase C）
+  5. どちらも削除されていない → 無変化（§4.3ケースA）
+
+引数を渡さない呼び出し（getSections()経由の通常の読み取り時）は、
+従来通り無効なSectionを削除する（§4.3ケースC）のみを行う。これにより
+reconcile()の冪等性（[INVARIANT]・analysisSession.js側のコメント参照）
+は維持される。
+
+Phase108のchordIdRemap（Map<oldChordId, newChordId>）は完全廃止した。
+「ブロック全体に1つのsurvivorを対応付ける」という設計では、複数
+Sectionが同時に影響を受けるケースや、mergeがSection外を巻き込む
+ケースを正しく表現できないことが実機検証で判明したため。
+```
+
+**[SECTION EXTENT GUARD]（Phase109で新設）**
+
+```
+mergeがSectionの意味領域（interior）を超えて外側のコードまで
+巻き込んでいる場合、Sectionは部分remapではなく削除される。
+
+extendsLeft  = startRemoved && replacement &&
+               replacement.firstChordId !== section.startChordId
+extendsRight = endRemoved && replacement &&
+               replacement.lastChordId !== section.endChordId
+
+extendsLeft || extendsRight → Case C（Section削除）
+
+merge範囲がSectionの意味領域とぴったり一致する場合はSection生存
+（start=end=replacementChordId）。deleteには適用しない
+（[MUTATION SEMANTICS]参照。deleteには「領域を代表する実体」が
+存在しないため、この種の拡大は原理的に起こらない）。
 ```
 
 **[SECTION HISTORY INTEGRATION]（Phase100-Aで確立・Phase104で解消）**

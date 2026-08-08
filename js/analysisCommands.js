@@ -65,6 +65,11 @@ export function deleteChordCommand(state, id) {
   }
 
   const target = state.buffer[idx];
+  // [Phase109] Section remap用にsplice前のブロック外側の生存コードを確定しておく。
+  // _pickAbsorbingNeighbor()（duration吸収の方向決定）とは独立に計算する
+  // （[MUTATION SEMANTICS]・analysisSession.js参照）。
+  const leftSurvivorId = state.buffer[idx - 1]?._id ?? null;
+  const rightSurvivorId = state.buffer[idx + 1]?._id ?? null;
   pushHistory(state);
 
   const { absorbing, direction } = _pickAbsorbingNeighbor(state.buffer, idx, idx);
@@ -76,11 +81,14 @@ export function deleteChordCommand(state, id) {
 
   state.buffer.splice(idx, 1);
 
-  // [Phase108] §4.3ケースB: 削除idがSectionの境界であれば吸収先へ付け替える。
-  // 付け替え先の決定ロジック自体はreconcile()内に閉じている
-  // （[BOUNDARY REMAP AUTHORITY]・analysisSession.js参照）。ここでは
-  // 「削除された」という事実（chordIdRemap）を伝えるだけ。
-  reconcile(state, { chordIdRemap: new Map([[id, absorbing._id]]) });
+  // [Phase109] §4.3ケースB/C: durationの吸収方向（absorbing）とSection境界の
+  // remap方向は無関係（[MUTATION SEMANTICS]）。Section側は常にブロック外側の
+  // 生存コード（leftSurvivorId/rightSurvivorId）へ逃がす。
+  reconcile(state, {
+    removedChordIds: new Set([id]),
+    leftSurvivorId,
+    rightSurvivorId,
+  });
 
   refreshSelection(state, [absorbing._id]);
 
@@ -119,6 +127,11 @@ export function deleteSelectionCommand(state) {
 
   const blockStart = buffer[lo];
   const blockEnd = buffer[hi];
+  // [Phase109] reconcile()呼び出しに使うため、splice前に確定しておく
+  // （splice後はblock内のオブジェクト自体・隣接情報がbufferから失われるため）。
+  const blockIds = buffer.slice(lo, hi + 1).map(c => c._id);
+  const leftSurvivorId = buffer[lo - 1]?._id ?? null;
+  const rightSurvivorId = buffer[hi + 1]?._id ?? null;
   pushHistory(state);
 
   const { absorbing, direction } = _pickAbsorbingNeighbor(buffer, lo, hi);
@@ -129,6 +142,17 @@ export function deleteSelectionCommand(state) {
   }
 
   buffer.splice(lo, removeCount);
+
+  // [Phase109] §4.3ケースB/C: durationの吸収方向（absorbing）とSection境界の
+  // remap方向は無関係（[MUTATION SEMANTICS]）。複数Sectionが同時に影響を
+  // 受ける場合も、各Sectionが自身のstart/endに応じて独立に解決される
+  // （reconcile()側の責務。[SECTION SESSION CONSISTENCY INVARIANT]）。
+  reconcile(state, {
+    removedChordIds: new Set(blockIds),
+    leftSurvivorId,
+    rightSurvivorId,
+  });
+
   refreshSelection(state, [absorbing._id], absorbing._id);
 
   return { ok: true, selectedChordIds: [absorbing._id] };
@@ -482,6 +506,9 @@ export function mergeSelectionCommand(state) {
 
   const first = buffer[lo];
   const last = buffer[hi];
+  // [Phase109] reconcile()呼び出しに使うため、splice前にblock内の全idを確定しておく
+  // （merge前にblock内に存在していた全chordId。merged._idはここに含まれない）。
+  const blockIds = buffer.slice(lo, hi + 1).map(c => c._id);
 
   pushHistory(state);
 
@@ -494,6 +521,19 @@ export function mergeSelectionCommand(state) {
   };
 
   buffer.splice(lo, hi - lo + 1, merged);
+
+  // [Phase109] §4.3ケースB/C: mergeはブロックを1つの新しいコード（replacement）
+  // で置換する（[MUTATION SEMANTICS]）。reconcile()側の[SECTION EXTENT GUARD]が、
+  // mergeブロックがSectionの意味領域を超えて外側まで巻き込んでいないかを判定する。
+  reconcile(state, {
+    removedChordIds: new Set(blockIds),
+    replacement: {
+      firstChordId: blockIds[0],
+      lastChordId: blockIds[blockIds.length - 1],
+      replacementChordId: merged._id,
+    },
+  });
+
   refreshSelection(state, [merged._id], merged._id);
 
   return { ok: true, selectedChordIds: [merged._id] };
@@ -525,13 +565,16 @@ export function mergeSelectionCommand(state) {
 // getSections()のみが行う。Command LayerはvalidateSectionInvariants()での
 // 事前検証のみを行い、reconcile()は呼ばない（責務境界を保つ・ChatGPTレビュー反映）。
 //
-// [Phase108の例外] deleteChordCommand()（Chord Commands側）のみ、削除実行の
-// 直後にreconcile(state, { chordIdRemap })を呼ぶ。付け替え先の情報は削除操作の
-// 実行時点にしか存在しないため（[BOUNDARY REMAP AUTHORITY]・analysisSession.js
-// 参照）。Command Layerがremap先を決定しているわけではなく、削除の事実を
-// reconcile()へ伝えているだけであり、付け替えロジック自体はreconcile()内に
-// 閉じたまま。Section系4コマンド（create/rename/updateBoundary/delete）は
-// この例外の対象外で、従来通りgetSections()経由のみでreconcileへ触れる。
+// [Phase108の例外・Phase109で対象コマンド拡大] deleteChordCommand() /
+// deleteSelectionCommand() / mergeSelectionCommand()（Chord Commands側）のみ、
+// 削除・結合実行の直後にreconcile(state, { removedChordIds, ... })を呼ぶ。
+// 付け替え先の情報はMutation実行時点にしか存在しないため
+// （[COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]・analysisSession.js
+// 参照）。Command Layerがremap先を決定しているわけではなく、Mutationの事実
+// （削除された範囲・生存コード・置換結果）をreconcile()へ伝えているだけであり、
+// 付け替えロジック自体はreconcile()内に閉じたまま。Section系4コマンド
+// （create/rename/updateBoundary/delete）はこの例外の対象外で、従来通り
+// getSections()経由のみでreconcileへ触れる。
 
 /**
  * createSectionCommand — 新規Sectionを作成する（Phase100-A）

@@ -293,35 +293,98 @@ export function validateSectionInvariants(section, buffer) {
  * [SCOPE] この関数が行うのは Validation + 最小限の Repair のみ。
  * 新しい境界の推測・自動生成は一切行わない。
  *
- * [BOUNDARY REMAP AUTHORITY]（Phase108で確立）
+ * [COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]（Phase109で確立・
+ * Phase108の[BOUNDARY REMAP AUTHORITY]を発展させたもの）
+ *
  * reconcile()はbuffer上の隣接関係からSectionの付け替え先を推測しない。
- * 付け替え情報（chordIdRemap: oldChordId→newChordId）が必要な場合、
- * 呼び出し元が削除操作の実行と同時に判明した事実として明示的に渡さなければ
- * ならない。chordIdRemapを渡さない呼び出し（getSections()経由の通常の
- * 読み取り時）は従来通り、無効なSectionを削除する（§4.3ケースC）のみを行う。
+ * Mutation（delete/merge）が「何を削除し、その領域を何が代表するか」という
+ * 事実を、呼び出し元（Command Layer）が明示的に渡さなければならない。
+ *
+ * [SCOPE] removedChordIds / replacement.firstChordId・lastChordId は、
+ * 1つの連続したMutation blockに由来することを呼び出し元が保証する前提で
+ * 成立する。非連続selectionや複数block同時Mutationにはこの判定をそのまま
+ * 適用してはならない（将来そのようなMutationを扱う場合は別途設計すること）。
+ *
+ * Mutationの種類ごとに渡す事実が異なる（[MUTATION SEMANTICS]）:
+ *   delete（消滅）: その領域を代表する新しい実体は生まれない。
+ *     境界はブロック外側の生存コード（leftSurvivorId/rightSurvivorId）へ
+ *     逃がすだけで良い。
+ *   merge（置換）: ブロックが1つの新しいコード（replacement）に置き換わる。
+ *     このコードがブロックの全領域を「代表」するため、Section境界が
+ *     ブロックの一部だけでなくブロック外まで巻き込んでいないか
+ *     （[SECTION EXTENT GUARD]）を確認する必要がある。
+ *
+ * 判定順序（Sectionごとに独立評価）:
+ *   1. [SECTION EXTENT GUARD]
+ *      replacementが存在し、かつ削除された境界が
+ *      ブロックの先頭/末尾と一致しない場合（＝Section外まで
+ *      巻き込んでいる場合）→ 無条件でCase C
+ *   2. start・endの両方が削除された
+ *      → replacementがあり範囲が完全一致 → Section生存（両方をreplacementChordIdへ）
+ *      → それ以外（pure delete、または一致しないmerge）→ Case C
+ *   3. startのみ削除された
+ *      → replacement.replacementChordId、なければrightSurvivorIdへ
+ *      → どちらも無ければCase C
+ *   4. endのみ削除された
+ *      → replacement.replacementChordId、なければleftSurvivorIdへ
+ *      → どちらも無ければCase C
+ *   5. どちらも削除されていない → 無変化（§4.3ケースA）
+ *
+ * [BEHAVIOR CHANGE]（Phase108→Phase109）
+ * ・単一コードSection（start===end）の唯一のコードが削除された場合、
+ *   Phase108では隣接コードへremapして生存していたが、Phase109では
+ *   Section自体が削除されるようになった（区間の意味領域が完全に
+ *   消滅したと判断するため）。
+ * ・単一削除（旧deleteChordCommand）についても、Phase108では
+ *   duration吸収先（_pickAbsorbingNeighbor()の選択）をそのまま
+ *   Section境界のremap先に使っていたが、これはSection外への意図しない
+ *   拡大を引き起こす潜在バグだった。Phase109でduration吸収方向と
+ *   Section remap方向を分離し、修正した。
+ * ・merge時、mergeブロックがSectionの意味領域を超えて外側のコードまで
+ *   巻き込んでいる場合、Sectionは（部分remapではなく）削除されるように
+ *   なった（[SECTION EXTENT GUARD]）。
  *
  * [INVARIANT] reconcile() は冪等（idempotent）である。
- * chordIdRemapを渡さない呼び出しを複数回行っても結果は変わらない
- * （remapは1度適用されればsection側のIDが更新されるため、以降の
- * 無引数呼び出しは単なる再検証になる）。
  * [INVARIANT] この関数はDOM・audio・Chart Mode runtimeに一切触れない（[SCOPE]準拠）。
  *
  * @param {object} session - analysisEditor
- * @param {{ chordIdRemap?: Map<string,string> }} [options] - Phase108追加。
- *   削除されたchordId→付け替え先chordIdの対応表（§4.3ケースB用）。
+ * @param {{
+ *   removedChordIds?: Set<string>,
+ *   leftSurvivorId?: string|null,
+ *   rightSurvivorId?: string|null,
+ *   replacement?: { firstChordId: string, lastChordId: string, replacementChordId: string },
+ * }} [facts]
  */
-export function reconcile(session, { chordIdRemap } = {}) {
+export function reconcile(session, facts = {}) {
+  const { removedChordIds, leftSurvivorId, rightSurvivorId, replacement } = facts;
   const buffer = session.buffer;
+
   session.sections = session.sections
     .map(section => {
-      if (!chordIdRemap) return section;
-      const startChordId = chordIdRemap.get(section.startChordId) ?? section.startChordId;
-      const endChordId   = chordIdRemap.get(section.endChordId)   ?? section.endChordId;
-      if (startChordId === section.startChordId && endChordId === section.endChordId) {
-        return section;
+      if (!removedChordIds) return section;
+
+      const startRemoved = removedChordIds.has(section.startChordId);
+      const endRemoved = removedChordIds.has(section.endChordId);
+      if (!startRemoved && !endRemoved) return section;
+
+      // [SECTION EXTENT GUARD] mergeでSection外まで巻き込んでいないか
+      const extendsLeft = startRemoved && replacement && replacement.firstChordId !== section.startChordId;
+      const extendsRight = endRemoved && replacement && replacement.lastChordId !== section.endChordId;
+      if (extendsLeft || extendsRight) return null;
+
+      if (startRemoved && endRemoved) {
+        const id = replacement ? replacement.replacementChordId : null;
+        return id ? { ...section, startChordId: id, endChordId: id } : null;
       }
-      return { ...section, startChordId, endChordId };
+      if (startRemoved) {
+        const id = replacement ? replacement.replacementChordId : rightSurvivorId;
+        return id ? { ...section, startChordId: id } : null;
+      }
+      // endRemoved
+      const id = replacement ? replacement.replacementChordId : leftSurvivorId;
+      return id ? { ...section, endChordId: id } : null;
     })
+    .filter(section => section !== null)
     .filter(section => validateSectionInvariants(section, buffer).valid);
 }
 
