@@ -162,6 +162,19 @@ forward方向（Enter）は自然に正しく動作するが、backward方向（
 現在は警告なしに実行されるため、意図せずSectionを削除してしまう可能性が
 ある。将来merge実行前の確認ダイアログを検討する。
 
+#### Ctrl+V（そのまま貼り付け）がSection境界reconciliationに未対応（Phase110で発見）
+状態: 未対応・優先度高（次フェーズ最優先候補）
+内容: buildPastePlan()/commitPastePlan()（Ctrl+V経路）はreconcile()を
+一切呼ばない。実機検証の結果、Section境界コードを含む範囲へCtrl+Vで
+貼り付けると、削除された旧IDをSectionが参照したまま残り、後続の
+getSections()呼び出し時にvalidateSectionInvariants()が「参照先が
+見つからない」と判定し、結果的にSectionが削除されることを確認した。
+Ctrl+Shift+V（範囲に合わせて貼り付け・pasteSelectionCommand）は
+正しくremapされる（Phase110で対応済み）。対応候補は、
+buildPastePlan()/commitPastePlan()側にもreconciliation対応を
+拡張するか、Section境界を巻き込む場合に警告UIを出すか。設計方針は
+次フェーズ開始時に検討する。
+
 ### restore lifecycle 系
 
 #### beat cursorが一瞬停止して数ビートジャンプする
@@ -316,34 +329,6 @@ Inventory整理（Phase96）で明確になった。「開発者情報を表示�
 z-index競合、という3つの問題が同時発生し撤回した。再挑戦する場合は、
 carryセルへ跨る継ぎ目問題を根本的に解決する設計（コード全体を1つの
 連続した要素として扱う等）から着手すること。
-
-#### Section Data Layer（曲構造編集）
-状態: 完了（Specification/Session/Editor UI/Preview/Persistence/History/
-Navigation/Boundary Editor/UX Polish/Boundary Reassignment〔単一削除〕/
-Compound Mutation Boundary Resolution〔複数選択削除・Merge〕は
-Phase98〜109で完了）
-内容: Verse/Chorus等のセクション単位で編集できる機能。単一Mutation
-（作成・Rename・単一コード削除等）に加え、複数選択削除・Mergeの
-Compound Mutationも対応済みとなり、基盤機能としては実用レベルに
-到達している。Paste上書き時のSection境界付け替えのみ下記「残課題」の
-通り別途対応が必要（進捗の詳細一覧はphase-status.md「Section Subsystem
-Progress」参照）。
-
-残課題:
-  Compound Mutation対応（Paste。Phase109で複数選択削除／Mergeは
-     解消済み。pasteSelectionCommand上書き時のSection境界付け替えは
-     「削除と生成が同時に起こる」性質上、既存Facts（removedChordIds/
-     leftSurvivorId/rightSurvivorId/replacement）で表現できるか
-     未検証。設計の出発点はhandover_phase109.md参照）
-
-詳細設計は `section-model.md` を参照。「Chart Modeと通常モードのシステム
-統合」（本ファイル内ロードマップ）とAuthority問題を共有するため、
-Session限定Authorityの範囲拡張（Project Repository統合）はそちらと
-セットで判断すること。
-
-**この項目（Section Data Layer）は基盤機能（Platform）である。
-下記のSection UX Epicは、この基盤の上に成り立つ活用機能（Section UX）**
-という親子関係にある。
 
 #### Section境界の共有（同一chordIdを複数Sectionのstart/endが指す）の正式サポート
 状態: 未着手・価値のある拡張候補（Phase109の設計討議で判明）

@@ -306,13 +306,19 @@ export function validateSectionInvariants(section, buffer) {
  * 適用してはならない（将来そのようなMutationを扱う場合は別途設計すること）。
  *
  * Mutationの種類ごとに渡す事実が異なる（[MUTATION SEMANTICS]）:
- *   delete（消滅）: その領域を代表する新しい実体は生まれない。
+ *   delete（消滅・N→0）: その領域を代表する新しい実体は生まれない。
  *     境界はブロック外側の生存コード（leftSurvivorId/rightSurvivorId）へ
  *     逃がすだけで良い。
- *   merge（置換）: ブロックが1つの新しいコード（replacement）に置き換わる。
+ *   merge（置換・N→1）: ブロックが1つの新しいコード（replacement）に置き換わる。
  *     このコードがブロックの全領域を「代表」するため、Section境界が
  *     ブロックの一部だけでなくブロック外まで巻き込んでいないか
  *     （[SECTION EXTENT GUARD]）を確認する必要がある。
+ *     replacementFirstChordId・replacementLastChordIdは同一値（生成物が1個のため）。
+ *   paste（置換・N→M・Phase110）: ブロックが複数の新しいコード列に置き換わる。
+ *     mergeと同じくブロックの全領域を「代表」するため[SECTION EXTENT GUARD]の
+ *     対象となるが、生成物が複数個であるため、新ブロックの先頭
+ *     （replacementFirstChordId）と末尾（replacementLastChordId）を別々の
+ *     値として扱う必要がある（mergeはN→1のため両者が常に同一値になる特殊系）。
  *
  * 判定順序（Sectionごとに独立評価）:
  *   1. [SECTION EXTENT GUARD]
@@ -320,13 +326,17 @@ export function validateSectionInvariants(section, buffer) {
  *      ブロックの先頭/末尾と一致しない場合（＝Section外まで
  *      巻き込んでいる場合）→ 無条件でCase C
  *   2. start・endの両方が削除された
- *      → replacementがあり範囲が完全一致 → Section生存（両方をreplacementChordIdへ）
- *      → それ以外（pure delete、または一致しないmerge）→ Case C
+ *      → replacementがあり範囲が完全一致
+ *         → Section生存（startChordId=replacementFirstChordId、
+ *           endChordId=replacementLastChordId。Phase110でstart/endを
+ *           別々の値として設定可能に拡張。mergeのようにN→1の場合は
+ *           両者が同一値のため実質的に従来と同じ結果になる）
+ *      → それ以外（pure delete、または一致しないmerge/paste）→ Case C
  *   3. startのみ削除された
- *      → replacement.replacementChordId、なければrightSurvivorIdへ
+ *      → replacement.replacementFirstChordId、なければrightSurvivorIdへ
  *      → どちらも無ければCase C
  *   4. endのみ削除された
- *      → replacement.replacementChordId、なければleftSurvivorIdへ
+ *      → replacement.replacementLastChordId、なければleftSurvivorIdへ
  *      → どちらも無ければCase C
  *   5. どちらも削除されていない → 無変化（§4.3ケースA）
  *
@@ -344,6 +354,18 @@ export function validateSectionInvariants(section, buffer) {
  *   巻き込んでいる場合、Sectionは（部分remapではなく）削除されるように
  *   なった（[SECTION EXTENT GUARD]）。
  *
+ * [BEHAVIOR CHANGE]（Phase109→Phase110）
+ * ・replacement.replacementChordId（単数）を廃止し、
+ *   replacementFirstChordId / replacementLastChordId（2値）へ置き換えた。
+ *   旧フィールド名は互換用に残さない（呼び出し元・reconcile()内部とも
+ *   新フィールドへ完全移行）。理由: 単数の実体では、Paste（N→M）で
+ *   新ブロックの先頭と末尾が異なるコードになるケースを表現できないため。
+ * ・start・endの両方が削除された場合の生存分岐（判定順序2参照）が、
+ *   従来「両方に同一IDを代入」だったのに対し、Phase110では
+ *   startChordId/endChordIdへそれぞれ別の値を代入できるようになった。
+ *   Paste全体がSectionの意味領域と完全一致するケース（新ブロックの
+ *   先頭〜末尾がそのままSectionの新しいstart〜endになる）に対応する。
+ *
  * [INVARIANT] reconcile() は冪等（idempotent）である。
  * [INVARIANT] この関数はDOM・audio・Chart Mode runtimeに一切触れない（[SCOPE]準拠）。
  *
@@ -352,7 +374,12 @@ export function validateSectionInvariants(section, buffer) {
  *   removedChordIds?: Set<string>,
  *   leftSurvivorId?: string|null,
  *   rightSurvivorId?: string|null,
- *   replacement?: { firstChordId: string, lastChordId: string, replacementChordId: string },
+ *   replacement?: {
+ *     firstChordId: string,
+ *     lastChordId: string,
+ *     replacementFirstChordId: string,
+ *     replacementLastChordId: string,
+ *   },
  * }} [facts]
  */
 export function reconcile(session, facts = {}) {
@@ -373,15 +400,20 @@ export function reconcile(session, facts = {}) {
       if (extendsLeft || extendsRight) return null;
 
       if (startRemoved && endRemoved) {
-        const id = replacement ? replacement.replacementChordId : null;
-        return id ? { ...section, startChordId: id, endChordId: id } : null;
+        // [Phase110] N→M（Paste）ではstart用・end用で別々のIDになりうるため、
+        // 単一idではなくreplacementFirstChordId/replacementLastChordIdを
+        // それぞれ独立に使う（N→1のmergeでは両者が同一値になり従来と同じ結果）。
+        if (!replacement) return null;
+        const newStart = replacement.replacementFirstChordId;
+        const newEnd = replacement.replacementLastChordId;
+        return (newStart && newEnd) ? { ...section, startChordId: newStart, endChordId: newEnd } : null;
       }
       if (startRemoved) {
-        const id = replacement ? replacement.replacementChordId : rightSurvivorId;
+        const id = replacement ? replacement.replacementFirstChordId : rightSurvivorId;
         return id ? { ...section, startChordId: id } : null;
       }
       // endRemoved
-      const id = replacement ? replacement.replacementChordId : leftSurvivorId;
+      const id = replacement ? replacement.replacementLastChordId : leftSurvivorId;
       return id ? { ...section, endChordId: id } : null;
     })
     .filter(section => section !== null)

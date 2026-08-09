@@ -1495,6 +1495,7 @@ Boundary Editor→UX Polish→Boundary Reassignmentの各段階）
 | UX Polish | Preview解除方式の見直し（専用ボタン→チップ再クリックのトグル方式） | 107 | app.js |
 | Boundary Reassignment | 境界コード削除時の隣接コードへの自動付け替え（単一削除のみ・[BOUNDARY REMAP AUTHORITY]確立） | 108 | analysisSession.js / analysisCommands.js |
 | Compound Mutation Boundary Resolution | 複数選択削除・Mergeへ対応拡大。`reconcile()`のFactsを刷新（[COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]・[SECTION EXTENT GUARD]確立。[BOUNDARY REMAP AUTHORITY]を統合・廃止） | 109 | analysisSession.js / analysisCommands.js / app.js |
+| Compound Mutation Boundary Resolution（Paste対応拡大） | pasteSelectionCommandへ対応拡大。replacement FactsをreplacementFirstChordId/replacementLastChordIdへ拡張し、delete/merge/pasteを統一的に扱えるように（Ctrl+V/buildPastePlan経路は対象外） | 110 | analysisSession.js / analysisCommands.js |
 
 **データモデル**（詳細は section-model.md §4）
 
@@ -1514,20 +1515,31 @@ Sectionコレクションは必ず getSections(session) 経由でのみ読む。
 （reconcile）を行ってはならない（修復責務はreconcile()のみに集約する）。
 ```
 
-**[MUTATION SEMANTICS]（Phase109で確立）**
+**[MUTATION SEMANTICS]（Phase109で確立・Phase110でpasteSelectionCommandへ拡張）**
 
 ```
-Compound Mutation（delete/merge等）がSectionへ与える影響は、
+Compound Mutation（delete/merge/paste）がSectionへ与える影響は、
 Mutationの種類によって意味が異なる。
 
-delete（消滅）: 削除された領域を代表する新しい実体は生まれない。
+delete（消滅・N→0）: 削除された領域を代表する新しい実体は生まれない。
   境界はブロック外側の生存コード（leftSurvivorId/rightSurvivorId）
   へ逃がすだけでよい。
 
-merge（置換）: ブロックが1つの新しいコード（replacement）に置き換わる。
+merge（置換・N→1）: ブロックが1つの新しいコード（replacement）に置き換わる。
   このコードがブロックの全領域を「代表」するため、Section境界が
   ブロックの一部だけでなくブロック外まで巻き込んでいないかの確認
   （[SECTION EXTENT GUARD]）が必要になる。
+  replacementFirstChordId・replacementLastChordIdは同一値
+  （生成物が1個のため）。
+
+paste（置換・N→M）: ブロックが複数の新しいコード列に置き換わる。
+  mergeと同じくブロックの全領域を「代表」するため[SECTION EXTENT
+  GUARD]の対象となるが、生成物が複数個であるため、新ブロックの
+  先頭・末尾を別々の値（replacementFirstChordId/
+  replacementLastChordId）として扱う（mergeはN→1のため両者が
+  常に同一値になる特殊系）。pasteSelectionCommand（範囲に合わせて
+  貼り付け）のみが対応し、buildPastePlan/commitPastePlan
+  （そのまま貼り付け）は対象外（current-issues.md参照）。
 
 この区別により、duration吸収（_pickAbsorbingNeighbor()の方向選択。
 音楽的なタイミング処理）とSection境界のremap方向は完全に独立した
@@ -1539,7 +1551,7 @@ merge（置換）: ブロックが1つの新しいコード（replacement）に�
 
 ```
 reconcile()はbuffer上の隣接関係からSectionの付け替え先を推測しない。
-Mutation（delete/merge）が「何を削除し、その領域を何が代表するか」
+Mutation（delete/merge/paste）が「何を削除し、その領域を何が代表するか」
 という事実を、呼び出し元（Command Layer）が明示的に渡さなければ
 ならない。
 
@@ -1547,7 +1559,12 @@ reconcile(session, {
   removedChordIds?: Set<chordId>,
   leftSurvivorId?:  chordId | null,
   rightSurvivorId?: chordId | null,
-  replacement?: { firstChordId, lastChordId, replacementChordId },
+  replacement?: {
+    firstChordId: string,
+    lastChordId: string,
+    replacementFirstChordId: string,
+    replacementLastChordId: string,
+  },
 })
 
 [背景] 削除後のbufferだけでは「消えたIDの隣に何があったか」を判別
@@ -1560,19 +1577,23 @@ reconcile(session, {
 前提で成立する。非連続selectionや複数block同時Mutationにはこの
 判定をそのまま適用してはならない。
 
-[実装範囲] Phase109時点ではdeleteChordCommand（単一削除）・
-deleteSelectionCommand（複数選択削除）・mergeSelectionCommand
-（結合）の3コマンドが対応。pasteSelectionCommand経由の境界変更は
-対象外で、Phase110で改めて検討する（current-issues.md参照）。
+[実装範囲] deleteChordCommand（単一削除）・deleteSelectionCommand
+（複数選択削除）・mergeSelectionCommand（結合）・
+pasteSelectionCommand（範囲に合わせて貼り付け）の4コマンドが
+対応する。ただしbuildPastePlan()/commitPastePlan()（そのまま
+貼り付け）は本reconciliation経路の対象外（current-issues.md参照）。
 
 判定順序（Sectionごとに独立評価）:
   1. [SECTION EXTENT GUARD]（下記）→ 該当すれば即Case C
   2. start・endの両方が削除された
-     → replacementがあり完全一致 → Section生存（両方をreplacementChordIdへ）
-     → それ以外（pure delete、または一致しないmerge）→ Case C
-  3. startのみ削除された → replacement.replacementChordId、
+     → replacementがあり完全一致
+       → Section生存（startChordId=replacementFirstChordId、
+         endChordId=replacementLastChordId。mergeのようにN→1の
+         場合は両者が同一値のため実質的に単一IDへの代入と同じ結果）
+     → それ以外（pure delete、または一致しないmerge/paste）→ Case C
+  3. startのみ削除された → replacement.replacementFirstChordId、
      なければrightSurvivorId（どちらも無ければCase C）
-  4. endのみ削除された → replacement.replacementChordId、
+  4. endのみ削除された → replacement.replacementLastChordId、
      なければleftSurvivorId（どちらも無ければCase C）
   5. どちらも削除されていない → 無変化（§4.3ケースA）
 
@@ -1585,13 +1606,20 @@ Phase108のchordIdRemap（Map<oldChordId, newChordId>）は完全廃止した。
 「ブロック全体に1つのsurvivorを対応付ける」という設計では、複数
 Sectionが同時に影響を受けるケースや、mergeがSection外を巻き込む
 ケースを正しく表現できないことが実機検証で判明したため。
+
+Phase109のreplacementChordId（単数）も完全廃止した。単数の実体では
+Paste（N→M）で新ブロックの先頭と末尾が異なるコードになるケースを
+表現できないため（Phase110・実装詳細はhandover_phase110.md参照）。
 ```
 
-**[SECTION EXTENT GUARD]（Phase109で新設）**
+**[SECTION EXTENT GUARD]（Phase109で新設・Phase110でpaste対応）**
 
 ```
-mergeがSectionの意味領域（interior）を超えて外側のコードまで
-巻き込んでいる場合、Sectionは部分remapではなく削除される。
+Compound Mutation（merge/paste）がSectionの意味領域（interior）を
+超えて外側のコードまでMutation対象に含んでいる場合、Sectionは
+部分remapではなく削除される（deleteは「領域を代表する実体」を
+生成しないため、この種の拡大は原理的に起こらず対象外。
+[MUTATION SEMANTICS]参照）。
 
 extendsLeft  = startRemoved && replacement &&
                replacement.firstChordId !== section.startChordId
@@ -1600,8 +1628,16 @@ extendsRight = endRemoved && replacement &&
 
 extendsLeft || extendsRight → Case C（Section削除）
 
-merge範囲がSectionの意味領域とぴったり一致する場合はSection生存
-（start=end=replacementChordId）。deleteには適用しない
+[用語の区別] firstChordId/lastChordIdはMutation前の削除対象
+ブロックの先頭・末尾（EXTENT GUARDの判定に使う）。一方
+replacementFirstChordId/replacementLastChordIdはMutation後に
+生成された新ブロックの先頭・末尾（Section境界のremap先としての
+み使う）。両者を混同しないこと。
+
+merge/paste範囲がSectionの意味領域とぴったり一致する場合は
+Section生存（startChordId=replacementFirstChordId、
+endChordId=replacementLastChordId。mergeはN→1のため両者が
+同一値になる）。deleteには適用しない
 （[MUTATION SEMANTICS]参照。deleteには「領域を代表する実体」が
 存在しないため、この種の拡大は原理的に起こらない）。
 ```

@@ -214,6 +214,15 @@ export function cutSelectionCommand(state) {
 /**
  * pasteSelectionCommand — クリップボードを選択中コードの時間枠へ「置き換え」で貼り付ける
  * （Phase76-E由来・Phase87で移設）。Paste = Replace専用（Insertではない）。
+ *
+ * [Phase110] Section reconciliation対応。PasteはN→M mutation
+ * （選択範囲の旧コードN個 → クリップボード由来の新コードM個）であり、
+ * duration吸収（_pickAbsorbingNeighbor()）を行わないdelete/mergeとは異なる
+ * 独自のMutation種別として扱う（[MUTATION SEMANTICS]・analysisSession.js参照）。
+ * reconcile()へ渡すFacts（旧ブロックの先頭/末尾id・removedChordIds）は、
+ * splice前（buffer変更前）に確定しておく必要がある
+ * （splice後はブロック内の旧オブジェクト自体がbufferから失われるため）。
+ *
  * @returns {CommandResult}
  */
 export function pasteSelectionCommand(state) {
@@ -248,6 +257,13 @@ export function pasteSelectionCommand(state) {
     return { ok: false, reason: '貼り付けできません（不正な時間データです）' };
   }
 
+  // [Phase110] reconcile()呼び出しに使うため、splice前に旧ブロックの
+  // 先頭/末尾idとブロック内の全idを確定しておく（Phase108/109のdelete/merge
+  // と同じ前提。「Mutation FactsはMutation実行前に確定する」）。
+  const removedChordIds = new Set(buffer.slice(lo, hi + 1).map(c => c._id));
+  const firstChordId = buffer[lo]._id;
+  const lastChordId = buffer[hi]._id;
+
   pushHistory(state);
 
   let cursor = targetStart;
@@ -268,6 +284,20 @@ export function pasteSelectionCommand(state) {
   buffer.splice(lo, hi - lo + 1, ...newChords);
 
   const newIds = newChords.map(c => c._id);
+
+  // [Phase110] Paste（N→M）: 新ブロックの先頭・末尾をそれぞれ独立に
+  // Section境界の付け替え候補として渡す（[SECTION EXTENT GUARD]により
+  // Section外まで巻き込んでいた場合は削除されるのはdelete/mergeと同じ）。
+  reconcile(state, {
+    removedChordIds,
+    replacement: {
+      firstChordId,
+      lastChordId,
+      replacementFirstChordId: newIds[0],
+      replacementLastChordId: newIds[newIds.length - 1],
+    },
+  });
+
   refreshSelection(state, newIds, newIds[newIds.length - 1]);
 
   return { ok: true, selectedChordIds: newIds };
@@ -530,7 +560,9 @@ export function mergeSelectionCommand(state) {
     replacement: {
       firstChordId: blockIds[0],
       lastChordId: blockIds[blockIds.length - 1],
-      replacementChordId: merged._id,
+      // [Phase110] mergeはN→1のため、新ブロックの先頭・末尾は常に同一値（merged._id）。
+      replacementFirstChordId: merged._id,
+      replacementLastChordId: merged._id,
     },
   });
 
@@ -565,9 +597,10 @@ export function mergeSelectionCommand(state) {
 // getSections()のみが行う。Command LayerはvalidateSectionInvariants()での
 // 事前検証のみを行い、reconcile()は呼ばない（責務境界を保つ・ChatGPTレビュー反映）。
 //
-// [Phase108の例外・Phase109で対象コマンド拡大] deleteChordCommand() /
-// deleteSelectionCommand() / mergeSelectionCommand()（Chord Commands側）のみ、
-// 削除・結合実行の直後にreconcile(state, { removedChordIds, ... })を呼ぶ。
+// [Phase108の例外・Phase109で対象コマンド拡大・Phase110でPaste追加]
+// deleteChordCommand() / deleteSelectionCommand() / mergeSelectionCommand() /
+// pasteSelectionCommand()（Chord Commands側）のみ、削除・結合・貼り付け
+// 実行の直後にreconcile(state, { removedChordIds, ... })を呼ぶ。
 // 付け替え先の情報はMutation実行時点にしか存在しないため
 // （[COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]・analysisSession.js
 // 参照）。Command Layerがremap先を決定しているわけではなく、Mutationの事実
@@ -575,6 +608,10 @@ export function mergeSelectionCommand(state) {
 // 付け替えロジック自体はreconcile()内に閉じたまま。Section系4コマンド
 // （create/rename/updateBoundary/delete）はこの例外の対象外で、従来通り
 // getSections()経由のみでreconcileへ触れる。
+// [Phase110の対象外] buildPastePlan() / commitPastePlan()（「そのまま貼り付け」
+// 経路）はSection reconciliation対応の対象外。既存コードの分割・複製という
+// pasteSelectionCommand()とは異なるMutation構造を持つため、別途設計が必要
+// （Phase110では意図的にスコープ外とした）。
 
 /**
  * createSectionCommand — 新規Sectionを作成する（Phase100-A）
