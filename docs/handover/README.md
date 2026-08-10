@@ -289,6 +289,10 @@ AIは continuity support / review assistant として利用する。
 毎フェーズ必須
 ──────────────
 ✅ handover
+    closeしたissue・新規issue・状態変更したissueは、本文末尾の
+    「Deferred Documentation」セクション（固定フォーマット。
+    下記参照）へ、current-issues.mdへの正確な変更内容を書いておく。
+    current-issues.md自体は棚卸しまで一切触らない。
 
 即時更新（機械的判定・棚卸しを待たない）
 ──────────────
@@ -306,9 +310,58 @@ AIは continuity support / review assistant として利用する。
 ──────────────
 ・phase-status.md
 ・current-issues.md
+    対象5フェーズ分のhandoverから「Deferred Documentation」内の
+    current-issues.md部分を、Phase番号順（古い→新しい）に適用し、
+    最終状態を機械的に構築する。棚卸し担当者が内容を再判断・
+    再構築しない。
+
+    [重要] 各handoverのDeferred Documentationは「最終状態」ではなく
+    「現在の正本（current-issues.md）に対する差分」として扱う。
+    棚卸しでは対象フェーズを時系列順に処理し、各handoverの
+    Deferred Documentationを差分として順次適用する。後続フェーズの
+    記録が先行フェーズの状態を上書きする（同一issueに対しADD→
+    MODIFY→CLOSEのような複数回の変更履歴がある場合も、順番に
+    適用すれば自動的に正しい最終状態になる）。
 ・README.md（プロジェクトルート）
 ・architecture.mdの全体整合性チェック
 ```
+### Deferred Documentationのフォーマット（固定）
+
+handover本文の末尾に、必ず以下の形式で残す。変更がない場合も
+セクション自体は省略せず「No changes.」と明記する。
+
+```markdown
+## Deferred Documentation（棚卸し時に反映する内容）
+
+### current-issues.md
+
+#### ADD
+- 見出し: ...
+  状態: ...
+  内容: ...
+
+#### MODIFY
+- 見出し: ...
+  変更内容: ...
+
+#### CLOSE
+- 見出し: ...（closeの理由・対応Phase）
+
+（変更がなければ）
+- No changes.
+
+### phase-status.md
+
+- Current Status（完了済みリスト）に追加: ...
+- Major Milestones（該当テーブル）に追加: ...
+- Future Candidates の更新: ...
+
+（変更がなければ）
+- No changes.
+```
+
+自由記述にすると棚卸し時に再び同じ問題（更新漏れ・記憶依存）が
+発生するため、フォーマットは固定とする。
 
 ### なぜこの基準か
 

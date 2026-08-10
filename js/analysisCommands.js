@@ -341,17 +341,49 @@ export function buildPastePlan(state, originTime, clipboard) {
   }));
   newChords[newChords.length - 1].end = pasteEnd;
 
+  // [Phase111] Section reconciliation用のMutation Facts。
+  // removedChordIds: 完全に消滅する旧コードのid集合
+  //   （fully-inside消滅コード + 単一コード内完結パステで分断される旧コード自身）
+  // firstChordId/lastChordId: 消滅した旧コード列（Mutation block）の
+  //   先頭・末尾（buffer走査順＝時系列順で確定。1つの連続ブロックであることが前提）
+  // replacementFirstChordId/replacementLastChordId: 新しく生まれた
+  //   連続ブロックの先頭・末尾。newIds（貼付コードのみ）とは別物であり、
+  //   単一コード内完結パステ発生時はX-left/X-rightがこれに該当し、
+  //   newIdsには含まれない
+  const removedChordIds = new Set();
+  let firstChordId = null;
+  let lastChordId = null;
+  let replacementFirstChordId = newChords[0]._id;
+  let replacementLastChordId = newChords[newChords.length - 1]._id;
+
   const survivors = [];
   for (const c of buffer) {
     const fullyInside = c.start >= pasteStart - EPS && c.end <= pasteEnd + EPS;
-    if (fullyInside) continue;
+    if (fullyInside) {
+      removedChordIds.add(c._id);
+      if (firstChordId == null) firstChordId = c._id;
+      lastChordId = c._id;
+      continue;
+    }
 
     const overlapsStart = c.start < pasteStart - EPS && c.end > pasteStart + EPS;
     const overlapsEnd = c.start < pasteEnd - EPS && c.end > pasteEnd + EPS;
 
     if (overlapsStart && overlapsEnd) {
-      survivors.push({ ...c, _id: crypto.randomUUID(), end: pasteStart });
-      survivors.push({ ...c, _id: crypto.randomUUID(), start: pasteEnd });
+      removedChordIds.add(c._id);
+      if (firstChordId == null) firstChordId = c._id;
+      lastChordId = c._id;
+
+      const leftId = crypto.randomUUID();
+      const rightId = crypto.randomUUID();
+      survivors.push({ ...c, _id: leftId, end: pasteStart });
+      survivors.push({ ...c, _id: rightId, start: pasteEnd });
+
+      // paste領域を単一の既存コードが完全に包含するケースはbuffer構造上
+      // 高々1回しか発生しない（時系列で重複しない前提）ため、
+      // このブロックのX-left/X-rightで確定的に上書きしてよい
+      replacementFirstChordId = leftId;
+      replacementLastChordId = rightId;
       continue;
     }
     if (overlapsStart) {
@@ -367,7 +399,16 @@ export function buildPastePlan(state, originTime, clipboard) {
 
   const merged = [...survivors, ...newChords].sort((a, b) => a.start - b.start);
 
-  return { ok: true, buffer: merged, newIds: newChords.map(c => c._id) };
+  return {
+    ok: true,
+    buffer: merged,
+    newIds: newChords.map(c => c._id),
+    removedChordIds,
+    firstChordId,
+    lastChordId,
+    replacementFirstChordId,
+    replacementLastChordId,
+  };
 }
 
 /**
@@ -378,6 +419,22 @@ export function buildPastePlan(state, originTime, clipboard) {
 export function commitPastePlan(state, plan) {
   pushHistory(state);
   state.buffer = plan.buffer;
+
+  // [Phase111] removedChordIdsが空（=既存コードの消滅を伴わないpaste）
+  // の場合、Section boundaryへの影響がないためreconcile()自体を呼ばない
+  // （Mutation Semantics上、意味のある処理がないため）
+  if (plan.removedChordIds && plan.removedChordIds.size > 0) {
+    reconcile(state, {
+      removedChordIds: plan.removedChordIds,
+      replacement: {
+        firstChordId: plan.firstChordId,
+        lastChordId: plan.lastChordId,
+        replacementFirstChordId: plan.replacementFirstChordId,
+        replacementLastChordId: plan.replacementLastChordId,
+      },
+    });
+  }
+
   refreshSelection(state, plan.newIds, plan.newIds[plan.newIds.length - 1]);
   return { ok: true, selectedChordIds: plan.newIds, count: plan.newIds.length };
 }

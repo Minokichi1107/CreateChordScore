@@ -1496,6 +1496,7 @@ Boundary Editor→UX Polish→Boundary Reassignmentの各段階）
 | Boundary Reassignment | 境界コード削除時の隣接コードへの自動付け替え（単一削除のみ・[BOUNDARY REMAP AUTHORITY]確立） | 108 | analysisSession.js / analysisCommands.js |
 | Compound Mutation Boundary Resolution | 複数選択削除・Mergeへ対応拡大。`reconcile()`のFactsを刷新（[COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]・[SECTION EXTENT GUARD]確立。[BOUNDARY REMAP AUTHORITY]を統合・廃止） | 109 | analysisSession.js / analysisCommands.js / app.js |
 | Compound Mutation Boundary Resolution（Paste対応拡大） | pasteSelectionCommandへ対応拡大。replacement FactsをreplacementFirstChordId/replacementLastChordIdへ拡張し、delete/merge/pasteを統一的に扱えるように（Ctrl+V/buildPastePlan経路は対象外） | 110 | analysisSession.js / analysisCommands.js |
+| Compound Mutation Boundary Resolution（Ctrl+V対応拡大） | buildPastePlan()/commitPastePlan()（そのまま貼り付け）へ対応拡大。単一コード内完結ペーストという新しいMutation topologyも、既存Facts（N=1特殊系）で表現可能と確認。reconcile()自体は無変更 | 111 | analysisCommands.js |
 
 **データモデル**（詳細は section-model.md §4）
 
@@ -1515,7 +1516,8 @@ Sectionコレクションは必ず getSections(session) 経由でのみ読む。
 （reconcile）を行ってはならない（修復責務はreconcile()のみに集約する）。
 ```
 
-**[MUTATION SEMANTICS]（Phase109で確立・Phase110でpasteSelectionCommandへ拡張）**
+**[MUTATION SEMANTICS]（Phase109で確立・Phase110でpasteSelectionCommandへ拡張・
+Phase111でbuildPastePlan()/commitPastePlan()へ拡張）**
 
 ```
 Compound Mutation（delete/merge/paste）がSectionへ与える影響は、
@@ -1538,8 +1540,19 @@ paste（置換・N→M）: ブロックが複数の新しいコード列に置�
   先頭・末尾を別々の値（replacementFirstChordId/
   replacementLastChordId）として扱う（mergeはN→1のため両者が
   常に同一値になる特殊系）。pasteSelectionCommand（範囲に合わせて
-  貼り付け）のみが対応し、buildPastePlan/commitPastePlan
-  （そのまま貼り付け）は対象外（current-issues.md参照）。
+  貼り付け）・buildPastePlan()/commitPastePlan()（そのまま貼り付け・
+  Phase111で対応）の両方が該当する。
+
+  buildPastePlan()（そのまま貼り付け）では、paste時間領域と既存bufferの
+  時間的交差に応じて、1回のMutation内に以下3パターンが混在しうる。
+    ・fully-inside（既存コードを完全に内包）→ 消滅
+    ・片側overlap（既存コードの片端のみ接触）→ id維持のまま短縮
+      （Sectionから見てid消滅がないため対象外）
+    ・両側overlap（1つの既存コードがpaste領域を完全に包含）
+      → 元id消滅・左右2つの新idへ分断
+  このうち両側overlapは、firstChordId=lastChordId（分断される
+  既存コードのid）というN=1の特殊系として、既存のreconcile()
+  Factsモデルの範囲内で表現できる。reconcile()自体への変更は不要。
 
 この区別により、duration吸収（_pickAbsorbingNeighbor()の方向選択。
 音楽的なタイミング処理）とSection境界のremap方向は完全に独立した
@@ -1579,9 +1592,9 @@ reconcile(session, {
 
 [実装範囲] deleteChordCommand（単一削除）・deleteSelectionCommand
 （複数選択削除）・mergeSelectionCommand（結合）・
-pasteSelectionCommand（範囲に合わせて貼り付け）の4コマンドが
-対応する。ただしbuildPastePlan()/commitPastePlan()（そのまま
-貼り付け）は本reconciliation経路の対象外（current-issues.md参照）。
+pasteSelectionCommand（範囲に合わせて貼り付け）・
+buildPastePlan()/commitPastePlan()（そのまま貼り付け・Phase111）の
+5経路が対応する。
 
 判定順序（Sectionごとに独立評価）:
   1. [SECTION EXTENT GUARD]（下記）→ 該当すれば即Case C
