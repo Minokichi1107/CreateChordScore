@@ -2401,6 +2401,8 @@ function clearCurrentSelection() {
   } else {
     _refreshSelection([]);
     setSelectedChordIds([]);
+    // [Phase112] Chart/Panel再描画漏れ修正。他の選択変更経路（通常クリック・clearEditPoint()等）と同様、setSelectedChordIds()直後に_refreshEditorView()を呼ぶ。
+    _refreshEditorView();
   }
 }
 
