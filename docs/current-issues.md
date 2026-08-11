@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase109完了時点（Phase109を反映）
+> 最終更新: Phase113完了時点（Phase109〜113を反映）
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -56,12 +56,6 @@ Authority）を変更すると、Chart Modeの表示が編集の修正前の状�
 次回発生時、`window.__CS_DEBUG__.timing`（repairRule/normalized）と
 `window.__analysisEditorDebug`（buffer状態）を突き合わせて事実ベースで
 原因を特定する方針（[FEATURE REGRESSION POLICY]・実装漏れと断定しない）。
-
-#### Pickup Measure（表示補正・実曲検証待ち）
-状態: 実装済み・実曲検証未実施
-内容: pickup measureの表示補正（番号・位置調整）は実装済み（architecture.md §9.5参照）。
-synthetic testでは動作確認済みだが、手元の楽曲が全てpickupなしのため実曲での
-最終確認が未実施。次フェーズ候補の優先項目。
 
 #### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
 状態: Type B対応済み・Type A/C/D未対応
@@ -145,35 +139,12 @@ forward方向（Enter）は自然に正しく動作するが、backward方向（
 コード不具合としては再現できていないため、断定はしていない。ショートカットUXの
 改善候補（例: Escapeでフォーカスを外してからCtrl+Zする案等）として保留。
 
-#### Section境界編集ステッパーが動作しない（Phase109実機テストで発見）
-状態: 未調査
-内容: Section▼メニューの境界ステッパー（◀開始 ▶ ◀終了 ▶）を操作しても
-反映されない。Phase109のreconcile()引数拡張との因果関係は現時点では
-確認されていない（getSections()の無引数呼び出し経路自体はPhase108までと
-同一のまま、という限定的な確認は取れている）。Phase109以前から
-存在していた可能性もあるため、次回updateSectionBoundaryCommand()の
-呼び出し経路を実機で再調査する（[FEATURE REGRESSION POLICY]・
-実装漏れと断定しない）。
-
 #### merge実行でSectionが削除される場合の確認UX未実装（Phase109で発見）
 状態: 意図的に先送り（使用頻度が低いと判断）
 内容: [SECTION EXTENT GUARD]（architecture.md §12）によりSection外を
 巻き込んだmergeはSection削除となる仕様（正しい動作・バグではない）。
 現在は警告なしに実行されるため、意図せずSectionを削除してしまう可能性が
 ある。将来merge実行前の確認ダイアログを検討する。
-
-#### Ctrl+V（そのまま貼り付け）がSection境界reconciliationに未対応（Phase110で発見）
-状態: 未対応・優先度高（次フェーズ最優先候補）
-内容: buildPastePlan()/commitPastePlan()（Ctrl+V経路）はreconcile()を
-一切呼ばない。実機検証の結果、Section境界コードを含む範囲へCtrl+Vで
-貼り付けると、削除された旧IDをSectionが参照したまま残り、後続の
-getSections()呼び出し時にvalidateSectionInvariants()が「参照先が
-見つからない」と判定し、結果的にSectionが削除されることを確認した。
-Ctrl+Shift+V（範囲に合わせて貼り付け・pasteSelectionCommand）は
-正しくremapされる（Phase110で対応済み）。対応候補は、
-buildPastePlan()/commitPastePlan()側にもreconciliation対応を
-拡張するか、Section境界を巻き込む場合に警告UIを出すか。設計方針は
-次フェーズ開始時に検討する。
 
 ### restore lifecycle 系
 
