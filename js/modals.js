@@ -159,6 +159,48 @@ export function openTimeModal({ idx, line, onConfirm, onDelete }) {
 
 
 // ────────────────────────────────────────
+// openMergeSectionWarningModal
+// ────────────────────────────────────────
+/**
+ * merge実行によりSectionが削除される場合の確認モーダル（Phase114）
+ *
+ * 【ownership図】
+ *   app.js
+ *     └ previewMergeSectionImpact()の結果（sectionNames）・onConfirmを渡す
+ *           ↓
+ *     modals.js（このファイル）
+ *           └ 影響を受けるSection名を列挙表示
+ *           └ onConfirm() で app.js へ通知（実際のmerge実行はapp.js側）
+ *           └ closeModal() は内部で呼ぶ
+ *
+ * @param {object} opts
+ * @param {string[]}  opts.sectionNames - 削除される見込みのSection名一覧
+ * @param {Function}  opts.onConfirm    - () => void（「結合する」選択時）
+ */
+export function openMergeSectionWarningModal({ sectionNames, onConfirm }) {
+  const list = sectionNames.map(name => `<li>${name}</li>`).join('');
+  _openModal({
+    title: 'Sectionが削除されます',
+    body: `
+      <div class="modal-caption modal-section">
+        この結合操作により、以下のSectionが削除されます。
+      </div>
+      <ul style="margin:8px 0 0 20px;padding:0">${list}</ul>
+      <div class="modal-caption modal-section" style="margin-top:12px">
+        この操作は「元に戻す」で取り消せます。
+      </div>`,
+    buttons: (close) => [
+      _mkMBtn('キャンセル', '', close),
+      _mkMBtn('結合する', 'ok', () => {
+        onConfirm();
+        close();
+      }),
+    ],
+  });
+}
+
+
+// ────────────────────────────────────────
 // openRepeatModal
 // ────────────────────────────────────────
 /**

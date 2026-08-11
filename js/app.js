@@ -174,6 +174,7 @@ import {
   openAddDiagramModal,
   openEditDiagramModal,
   openChordEdit,
+  openMergeSectionWarningModal, // Phase114
 } from './modals.js';
 
 import { isSepToken, isNoChordToken } from './tokens.js';
@@ -205,6 +206,7 @@ import {
   buildPastePlan,
   commitPastePlan,
   mergeSelectionCommand,
+  previewMergeSectionImpact, // Phase114
   moveBoundaryCommand,
   updateChordCommand,
   splitChordCommand,
@@ -885,17 +887,48 @@ function pasteAbsolute() {
  * 結合後のコード名は先頭コードの名前を自動採用する。気に入らなければ
  * 続けて「変更」ボタン（openChordRenameSelector、Phase75）でリネームできる。
  *
- * [INVARIANT] 確認ダイアログなし・即実行。Undo/Redoが正式な復旧手段
- * （deleteChord等、Phase75から一貫した方針）。
+ * [INVARIANT]（Phase114で変更）通常は確認ダイアログなし・即実行のまま
+ * （deleteChord等、Phase75から一貫した方針）。ただし今回のmergeによって
+ * Sectionが削除される見込みの場合のみ、実行前に確認モーダルを挟む
+ * （current-issues.md「merge実行でSectionが削除される場合の確認UX未実装」・
+ * [SECTION EXTENT GUARD]対応）。
  * [INVARIANT] 選択が2件未満の場合は何もしない（結合する対象がないため）。
  * [INVARIANT] 結合後、新しく生成された1件を自動選択する。
- * [INVARIANT] Undo単位はこの関数全体で1回。
+ * [INVARIANT] Undo単位はこの関数全体で1回（確認モーダルを挟んでも、
+ * 実際のmutation自体はmergeSelectionCommand()呼び出し1回のみ・不変）。
  *
- * @returns {string|null} 結合後の新しいコードの_id。結合しなかった場合はnull。
+ * @returns {string|null} 結合後の新しいコードの_id。結合しなかった場合はnull
+ *   （キャンセル時・エラー時とも同じくnullを返す）。
  */
 function mergeSelection() {
   if (!isAnalysisEditing()) return null;
 
+  // [Phase114] 実際にmergeを実行する前に、削除される見込みのSectionを予測する。
+  // previewMergeSectionImpact()自体はmerge可否を判定しない
+  // （selectedIds.length<2等の判定はこの後の_runMerge()内でmergeSelectionCommand()
+  // 自体が改めて行う。previewが返すreason/okはmerge可否とは独立した予測結果）。
+  const preview = previewMergeSectionImpact(analysisEditor);
+
+  if (preview.ok && preview.impactedSections.length > 0) {
+    openMergeSectionWarningModal({
+      sectionNames: preview.impactedSections.map(s => s.name),
+      onConfirm: () => _runMerge(),
+    });
+    return null; // モーダルは非同期。実際の結果は_runMerge()側のUI反映で確定する
+  }
+
+  return _runMerge();
+}
+
+/**
+ * _runMerge — mergeSelectionCommand()を実際に呼び出す内部ヘルパー（Phase114で分離）。
+ *
+ * mergeSelection()から直接（確認不要時）、またはopenMergeSectionWarningModalの
+ * onConfirmから（確認後）呼ばれる。実行部分は既存のまま変更していない。
+ *
+ * @returns {string|null}
+ */
+function _runMerge() {
   // [Phase87] 実体は analysisCommands.js の mergeSelectionCommand() へ移管。
   const r = mergeSelectionCommand(analysisEditor);
   if (!r.ok) {

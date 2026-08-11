@@ -26,7 +26,7 @@
 // @property {string[]} [selectedChordIds] - コマンド後にselectionへ反映すべきchordId配列（ok:true時）
 // @property {number} [count]             - 対象件数（成功メッセージの件数表示用。ある場合のみ）
 
-import { pushHistory, refreshSelection, getSections, validateSectionInvariants, reconcile } from './analysisSession.js';
+import { pushHistory, refreshSelection, getSections, validateSectionInvariants, reconcile, predictSectionImpact } from './analysisSession.js';
 
 /**
  * _isNoChordEntry — bufferエントリがno_chord（無音）プレースホルダーか判定
@@ -569,10 +569,18 @@ export function moveBoundaryCommand(state, boundaryIndex, newTime) {
 }
 
 /**
- * mergeSelectionCommand — 連続する複数選択コードを1つに結合する（Phase76-F由来・Phase87で移設）
- * @returns {CommandResult}
+ * _buildMergeFacts — mergeSelectionCommand()が使うMutation Factsを、
+ * bufferを書き換えずに算出する（pure・Phase114）。
+ *
+ * [MERGE FACTS SINGLE SOURCE] mergeに関するFacts生成はこの関数のみが行う。
+ * previewMergeSectionImpact()（予測用）とmergeSelectionCommand()（実行用）は
+ * 両方ともこの関数の戻り値をそのまま使い、それぞれ独自にselectedIds/
+ * indices/blockIdsを再計算しない（ChatGPTレビュー・Phase114で確定）。
+ *
+ * @param {object} state - analysisEditor
+ * @returns {{ ok: boolean, reason?: string, lo?: number, hi?: number, blockIds?: string[] }}
  */
-export function mergeSelectionCommand(state) {
+function _buildMergeFacts(state) {
   const selectedIds = state.selection.chordIds;
   if (selectedIds.length < 2) return { ok: false, reason: null };
 
@@ -591,11 +599,24 @@ export function mergeSelectionCommand(state) {
     return { ok: false, reason: '選択範囲が連続していないため結合できません' };
   }
 
-  const first = buffer[lo];
-  const last = buffer[hi];
   // [Phase109] reconcile()呼び出しに使うため、splice前にblock内の全idを確定しておく
   // （merge前にblock内に存在していた全chordId。merged._idはここに含まれない）。
   const blockIds = buffer.slice(lo, hi + 1).map(c => c._id);
+  return { ok: true, lo, hi, blockIds };
+}
+
+/**
+ * mergeSelectionCommand — 連続する複数選択コードを1つに結合する（Phase76-F由来・Phase87で移設）
+ * @returns {CommandResult}
+ */
+export function mergeSelectionCommand(state) {
+  const built = _buildMergeFacts(state);
+  if (!built.ok) return { ok: false, reason: built.reason };
+
+  const { lo, hi, blockIds } = built;
+  const buffer = state.buffer;
+  const first = buffer[lo];
+  const last = buffer[hi];
 
   pushHistory(state);
 
@@ -626,6 +647,41 @@ export function mergeSelectionCommand(state) {
   refreshSelection(state, [merged._id], merged._id);
 
   return { ok: true, selectedChordIds: [merged._id] };
+}
+
+/**
+ * previewMergeSectionImpact — mergeSelectionCommand()を実行した場合に
+ * 削除される見込みのSectionを、実行せずに予測する（Phase114）。
+ *
+ * [SCOPE] mergeが実行可能かどうかの判定（選択件数・連続性チェック）は
+ * _buildMergeFacts()の戻り値（ok/reason）がそのまま担う。本関数は
+ * mergeが実行可能な場合のみ、Sectionへの影響を追加で予測する
+ * （predictSectionImpact()自体はMutationの成否判定を行わないため・
+ * ChatGPTレビュー・Phase114で確定）。
+ *
+ * @param {object} state - analysisEditor
+ * @returns {{ ok: boolean, reason?: string, impactedSections?: Array }}
+ */
+export function previewMergeSectionImpact(state) {
+  const built = _buildMergeFacts(state);
+  if (!built.ok) return { ok: false, reason: built.reason };
+
+  const { blockIds } = built;
+  const impactedSections = predictSectionImpact(state, {
+    removedChordIds: new Set(blockIds),
+    replacement: {
+      firstChordId: blockIds[0],
+      lastChordId: blockIds[blockIds.length - 1],
+      // [NOTE] 実際のmerged._idはまだ生成されていない（実行前のため）。
+      // 削除判定（[SECTION EXTENT GUARD]）はID値そのものではなく
+      // 「firstChordId/lastChordIdと一致するか」のみを見るため、
+      // プレースホルダーで代用しても判定結果は変わらない。
+      replacementFirstChordId: '__predicted__',
+      replacementLastChordId: '__predicted__',
+    },
+  });
+
+  return { ok: true, impactedSections };
 }
 
 // ════════════════════════════════════════
