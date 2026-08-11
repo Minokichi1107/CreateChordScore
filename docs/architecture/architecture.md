@@ -1433,6 +1433,37 @@ pointerdown時点で無条件にcaptureすると、ドラッグしないプレ�
 data-chord-idを持つ子要素を正しく解決できなくなる（実機で発見・修正済み）。
 ```
 
+### Phase113 Finding — Section Menu Stacking Context / Hit-Test
+
+```
+[MEASURE NUMBER HIT-TEST INVARIANT]（Phase97）と同種の「見た目の位置と
+実際にクリックを受け取る要素がズレる」不具合が、Section境界ステッパー
+メニュー（.sec-chip-menu）で発見された。ただし原因はPhase97とは異なる。
+
+Phase97: 装飾要素のDOM占有面積が見た目より広く、クリックを横取りしていた
+Phase113: CSSのtransformがstacking contextを生成する仕様により、
+          子要素のz-index指定がその外側の比較に一切参加できなくなっていた
+
+.sec-chip--previewing（Phase107・transform: translateY(1px)、Preview中
+チップの押し込み表現）は、position/z-indexの値に関わらずtransform:
+none以外を持つだけで新しいstacking contextを生成する。この結果、
+内部の.sec-chip-menuに設定されたz-index:20は「.sec-chip--previewingが
+作る箱の中」でのみ有効になり、#section-barと#chart-grid（.chart-slot）
+という外側の比較には参加できなくなっていた。#section-bar自体は
+position:static・z-index:autoのままだったため、#chart-grid
+（同じくz-index:auto）との間で明確な優劣が付かず、.chart-slotが
+クリックを受け取ってしまっていた。
+
+教訓: 兄弟要素同士でz-indexを比較させたい場合、比較させたい階層自体
+（今回は#section-bar）に明示的なposition+z-indexを持たせる必要がある。
+子要素だけにz-indexを与えても、途中の要素がtransform等で独自の
+stacking contextを作っていると、その効果は外側に伝播しない。
+
+修正は#section-bar側（position: relative; z-index: 10）で行い、
+.sec-chip--previewingのtransform（Phase107のUX表現）自体は変更して
+いない。詳細はhandover_phase113.md参照。
+```
+
 ### Search Engine: Enharmonic対応（Phase97で確立）
 
 ```

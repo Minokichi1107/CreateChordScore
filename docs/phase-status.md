@@ -47,14 +47,28 @@ Completed（完了済み）
 ✓ Section Boundary Reassignment（Phase108・単一削除時の境界コード
   自動付け替え。[BOUNDARY REMAP AUTHORITY]確立。Section Data Layerが
   基盤機能として完結）
+✓ Compound Mutation Boundary Resolution（Phase109〜111・複数選択削除／
+  Merge／pasteSelectionCommand／Ctrl+V(pasteAbsolute)の4経路すべてで
+  Section境界のreconciliationが完結。[COMPOUND MUTATION BOUNDARY
+  RESOLUTION PRINCIPLE]・[SECTION EXTENT GUARD]確立、[BOUNDARY REMAP
+  AUTHORITY]は統合・廃止）
+✓ 選択解除ボタン（×）Footer再描画漏れ修正（Phase112・Section機能とは
+  無関係の独立UIバグ。clearCurrentSelection()のelse分岐に
+  _refreshEditorView()呼び出しを追加）
+✓ Section境界メニューのHit-Test横取りバグ修正（Phase113・
+  .sec-chip--previewingのtransformが生成するstacking contextにより、
+  境界ステッパー/Rename/Deleteボタンのクリックが下層#chart-gridの
+  .chart-slotに奪われていた不具合を解消。#section-barへ明示的な
+  z-indexを付与）
 
 Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」参照）
 ------------------------------------------------------------
-Phase104〜108が完了し、5フェーズ棚卸し（本更新）を実施済み。
-単一Mutationを対象としたSection Data Layer（基盤機能）はPhase98〜108を
-通じて実用レベルに到達した。複合Mutation（複数選択削除・Merge・Paste）は
-次フェーズの設計対象である。次の主候補はSection UX Epic（Future
-Candidates参照）。
+Phase109〜113が完了し、5フェーズ棚卸し（本更新）を実施済み。
+Section Data LayerのCompound Mutation対応（delete/merge/pasteSelection/
+Ctrl+V全経路）はPhase111で完結した。Phase112・113では、Section機能に
+起因しない独立したUIバグ（Footer再描画漏れ・Hit-Test横取り）を解消した。
+次の主候補はB. Section境界共有の正式サポート、またはC. Section UX Epic
+（Future Candidates参照）。
 ```
 
 ---
@@ -123,6 +137,11 @@ Candidates参照）。
 | 106 | Section Boundary Editing UI（境界ステッパー実装・[RENDER CONTEXT INVARIANT]発見） |
 | 107 | Section Preview UX Polish（Preview解除をトグル方式へ） |
 | 108 | Section Boundary Reassignment（単一削除時の境界自動付け替え。[BOUNDARY REMAP AUTHORITY]確立） |
+| 109 | Compound Mutation Boundary Resolution（delete/merge限定。reconcile()のFactsを刷新し[COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]・[SECTION EXTENT GUARD]確立。[BOUNDARY REMAP AUTHORITY]を統合・廃止） |
+| 110 | Compound Mutation Boundary Resolution（Paste対応拡大。pasteSelectionCommandへreconciliation拡大。replacement Factsを2値化しdelete/merge/pasteを統一的に扱えるように。Ctrl+V経路は未対応のまま） |
+| 111 | Compound Mutation Boundary Resolution（Ctrl+V対応拡大。buildPastePlan()/commitPastePlan()へreconciliation拡大。単一コード内完結ペーストをN=1特殊系として統合） |
+| 112 | 選択解除ボタン（×）Footer再描画漏れ修正（clearCurrentSelection()のelse分岐に_refreshEditorView()欠落。Section機能とは無関係） |
+| 113 | Section境界メニューのHit-Test横取りバグ修正（.sec-chip--previewingのtransformが独自stacking contextを生成し、.sec-chip-menuのz-indexが#chart-grid側と比較されなくなっていた。#section-barへz-index明示で解決） |
 
 ### 基盤・アーキテクチャ整理
 
@@ -167,16 +186,15 @@ B. Editor UI（作成/Rename/Delete） — Phase101-1〜3完了
    Boundary Editor UI       — Phase106完了
    UX Polish                — Phase107完了
    Boundary Reassignment（単一削除） — Phase108完了
+   Boundary Reassignment（複数削除／Merge／Paste／Ctrl+V） — Phase109〜111完了
 
 単一Mutationを対象としたSection Data Layer（基盤機能）はPhase98〜108を
-通じて実用レベルに到達した。複合Mutationは次フェーズの設計対象である。
+通じて実用レベルに到達し、複合Mutation対応もPhase109〜111で完結した。
 残る発展方向は以下の2つ:
 
-P1  Compound Mutation対応
-    複数選択削除／Merge／Paste上書き時のSection境界付け替え。
-    Phase108は単一コード削除（deleteChordCommand）のみ対応。
-    複数Sectionが同時に影響を受ける場合の扱い等、実装より前に
-    仕様策定が必要（current-issues.md参照）。
+P1  Section境界共有の正式サポート
+    同一chordIdを複数Sectionのstart/endが共有できるようにする独立Epic
+    （current-issues.md Future Features参照）。
 
 P2  Section UX Epic
     Section機能をAnalysis Editor専用から全モード共通の楽曲構造レイヤーへ

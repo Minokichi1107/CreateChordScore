@@ -260,6 +260,15 @@
   background: var(--surface-raised);
   flex-shrink: 0;
   flex-wrap: wrap;
+  /* [Phase113] Section境界ステッパー/Rename/Deleteボタンのクリックが
+     下層の#chart-grid（.chart-slot）に奪われるバグの修正。
+     .sec-chip--previewing（Phase107・transform: translateY(1px)）が
+     独自のスタッキングコンテキストを作るため、内部の.sec-chip-menu
+     （z-index:20）は#section-bar内でしか有効にならない。
+     #section-bar自体にz-indexを与え、#chart-grid（z-index:auto）より
+     確実に手前のスタッキングコンテキストにすることで解決する。 */
+  position: relative;
+  z-index: 10;
 }
 #section-bar[hidden] {
   display: none !important;
