@@ -454,3 +454,32 @@ export function getSections(session) {
   reconcile(session);
   return session.sections;
 }
+
+/**
+ * predictSectionImpact — 予定されたMutationのFactsを与えた場合に、
+ * reconcile()によって削除される見込みのSectionを予測する純粋関数（Phase114）。
+ *
+ * [SCOPE] このFunctionはMutationの成否判定を行わない。呼び出し元
+ * （Command Layer）がMutation自体は実行可能と判断した後にのみ呼ぶこと。
+ * 責務は「削除される見込みのSectionを列挙する」ことのみに限定される
+ * （ChatGPTレビュー・Phase114で確定）。
+ *
+ * [SCOPE] _evaluateSectionMutation()を使い、reconcile()と同じ判定
+ * ロジックを共有する（[SECTION EXTENT GUARD]を含む判定の二重実装を避ける）。
+ * ここではsession.sectionsを書き換えない（reconcile()のみが唯一の書き手）。
+ *
+ * [LIMITATION] Mutation実行後のbuffer状態を前提とするinvariant検証
+ * （validateSectionInvariants）はここでは行わない。実行前時点では
+ * Mutation後の新しいIDがbuffer上にまだ存在しないため。判定できるのは
+ * [SECTION EXTENT GUARD]由来の削除のみ（mergeにおいて実質唯一の削除
+ * トリガー。reconcile()側の最終invariantチェックは実行後の安全網として
+ * 引き続き機能する）。
+ *
+ * @param {object} session - analysisEditor
+ * @param {object} facts - reconcile()と同じFacts形状
+ * @returns {Array} 削除される見込みのSection配列（現在のsections対象）
+ */
+export function predictSectionImpact(session, facts) {
+  const sections = getSections(session); // 現在のsectionsをreconcile済みに揃える
+  return sections.filter(section => _evaluateSectionMutation(section, facts, session.buffer) === null);
+}
