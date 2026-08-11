@@ -382,40 +382,59 @@ export function validateSectionInvariants(section, buffer) {
  *   },
  * }} [facts]
  */
-export function reconcile(session, facts = {}) {
+/**
+ * _evaluateSectionMutation — Mutationの事実（facts）を1つのSectionに適用した
+ * 結果を計算する純粋関数（reconcile()から抽出・Phase114）。
+ *
+ * [SCOPE] 判定ロジック本体はここに一元化する。reconcile()（実際にsectionを
+ * 更新する）と predictSectionImpact()（Phase114で追加予定。更新前に
+ * 「削除されるか」だけを予測する）の両方がこの関数を呼ぶことで、
+ * [SECTION EXTENT GUARD] を含む判定ロジックの二重実装を避ける。
+ *
+ * [INVARIANT] このコードはPhase108〜111で確立した既存reconcile()の
+ * 判定ロジックをそのまま移設したものであり、挙動は変更しない（Phase114 Commit1）。
+ *
+ * @param {object} section
+ * @param {object} facts - reconcile()と同じFacts形状
+ * @param {Array|null} buffer - invariant検証対象のbuffer
+ * @returns {object|null} 更新後のsection、または削除されるべき場合はnull
+ */
+function _evaluateSectionMutation(section, facts, buffer) {
   const { removedChordIds, leftSurvivorId, rightSurvivorId, replacement } = facts;
+  if (!removedChordIds) return section;
+
+  const startRemoved = removedChordIds.has(section.startChordId);
+  const endRemoved = removedChordIds.has(section.endChordId);
+  if (!startRemoved && !endRemoved) return section;
+
+  // [SECTION EXTENT GUARD] mergeでSection外まで巻き込んでいないか
+  const extendsLeft = startRemoved && replacement && replacement.firstChordId !== section.startChordId;
+  const extendsRight = endRemoved && replacement && replacement.lastChordId !== section.endChordId;
+  if (extendsLeft || extendsRight) return null;
+
+  if (startRemoved && endRemoved) {
+    // [Phase110] N→M（Paste）ではstart用・end用で別々のIDになりうるため、
+    // 単一idではなくreplacementFirstChordId/replacementLastChordIdを
+    // それぞれ独立に使う（N→1のmergeでは両者が同一値になり従来と同じ結果）。
+    if (!replacement) return null;
+    const newStart = replacement.replacementFirstChordId;
+    const newEnd = replacement.replacementLastChordId;
+    return (newStart && newEnd) ? { ...section, startChordId: newStart, endChordId: newEnd } : null;
+  }
+  if (startRemoved) {
+    const id = replacement ? replacement.replacementFirstChordId : rightSurvivorId;
+    return id ? { ...section, startChordId: id } : null;
+  }
+  // endRemoved
+  const id = replacement ? replacement.replacementLastChordId : leftSurvivorId;
+  return id ? { ...section, endChordId: id } : null;
+}
+
+export function reconcile(session, facts = {}) {
   const buffer = session.buffer;
 
   session.sections = session.sections
-    .map(section => {
-      if (!removedChordIds) return section;
-
-      const startRemoved = removedChordIds.has(section.startChordId);
-      const endRemoved = removedChordIds.has(section.endChordId);
-      if (!startRemoved && !endRemoved) return section;
-
-      // [SECTION EXTENT GUARD] mergeでSection外まで巻き込んでいないか
-      const extendsLeft = startRemoved && replacement && replacement.firstChordId !== section.startChordId;
-      const extendsRight = endRemoved && replacement && replacement.lastChordId !== section.endChordId;
-      if (extendsLeft || extendsRight) return null;
-
-      if (startRemoved && endRemoved) {
-        // [Phase110] N→M（Paste）ではstart用・end用で別々のIDになりうるため、
-        // 単一idではなくreplacementFirstChordId/replacementLastChordIdを
-        // それぞれ独立に使う（N→1のmergeでは両者が同一値になり従来と同じ結果）。
-        if (!replacement) return null;
-        const newStart = replacement.replacementFirstChordId;
-        const newEnd = replacement.replacementLastChordId;
-        return (newStart && newEnd) ? { ...section, startChordId: newStart, endChordId: newEnd } : null;
-      }
-      if (startRemoved) {
-        const id = replacement ? replacement.replacementFirstChordId : rightSurvivorId;
-        return id ? { ...section, startChordId: id } : null;
-      }
-      // endRemoved
-      const id = replacement ? replacement.replacementLastChordId : leftSurvivorId;
-      return id ? { ...section, endChordId: id } : null;
-    })
+    .map(section => _evaluateSectionMutation(section, facts, buffer))
     .filter(section => section !== null)
     .filter(section => validateSectionInvariants(section, buffer).valid);
 }
