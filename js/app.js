@@ -535,48 +535,8 @@ function endAnalysisEdit() {
   toast('編集をキャンセルしました');
 }
 
-// [TEMP DEBUG] Phase74-C 動作確認用。実装完了後に削除すること。
-window.__analysisEditorDebug = {
-  beginAnalysisEdit,
-  endAnalysisEdit,
-  saveAnalysisEdit,
-  getCurrentChordSource,
-  updateChord,
-  deleteChord,
-  shiftAll,
-  moveBoundary,
-  splitChord,
-  shiftSelectedBoundary,
-  requestBoundaryShift,
-  shiftSelectionRange,
-  setEditPoint,
-  clearEditPoint,
-  addChordAtEditPoint,
-  selectChordRange,
-  deleteSelection,
-  copySelection,
-  cutSelection,
-  pasteSelection,
-  pasteAbsolute,
-  getPasteOrigin,
-  // [Phase87] buildPastePlanはanalysisCommands.js側でstateが第1引数になったため、
-  // DevTools側の呼び出し契約（originTime, clipboardの2引数）を変えないようbindする。
-  buildPastePlan: (originTime, clipboard) => buildPastePlan(analysisEditor, originTime, clipboard),
-  mergeSelection,
-  undoEdit,
-  redoEdit,
-  validateAnalysis,
-  searchChords,
-  openSearchBar,
-  closeSearchBar,
-  searchGoToNext,
-  searchGoToPrev,
-  replaceCurrentMatch,
-  replaceCurrentAndAdvance,
-  replaceAllMatches,
-  get state() { return analysisEditor; },
-  get editorMode() { return deriveEditorMode(analysisEditor.selection); }, // [Phase78 Sprint1]
-};
+// [Phase116] window.__analysisEditorDebug（Phase74-C・mutation系35関数の直接公開）は撤去した。
+// 観測用だった state / editorMode は window.__CS_DEBUG__.analysisEditor へ移設済み（本ファイル末尾）。
 
 // ════════════════════════════════════════
 // ANALYSIS EDITOR - VALIDATION
@@ -5766,6 +5726,17 @@ window.__CS_DEBUG__ = {
     return {
       active:         chartState?.active ?? false,
       measuresPerRow: chartMeasuresPerRow,
+    };
+  },
+
+  // [Phase116] window.__analysisEditorDebug（Phase74-C・mutation系35関数の直接公開）から
+  // 観測専用の2項目のみを移設。state は analysisEditor のlive reference（cloneしない）。
+  // timing getterの raw/normalized と同じ既存パターンに揃えた判断であり、
+  // __CS_DEBUG__全体をimmutableにする設計変更ではない（[DEBUG LAYER INVARIANT]参照）。
+  get analysisEditor() {
+    return {
+      state:      analysisEditor,
+      editorMode: deriveEditorMode(analysisEditor.selection), // [Phase78 Sprint1]
     };
   },
 
