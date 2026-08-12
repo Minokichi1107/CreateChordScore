@@ -1528,6 +1528,7 @@ Boundary Editor→UX Polish→Boundary Reassignmentの各段階）
 | Compound Mutation Boundary Resolution | 複数選択削除・Mergeへ対応拡大。`reconcile()`のFactsを刷新（[COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]・[SECTION EXTENT GUARD]確立。[BOUNDARY REMAP AUTHORITY]を統合・廃止） | 109 | analysisSession.js / analysisCommands.js / app.js |
 | Compound Mutation Boundary Resolution（Paste対応拡大） | pasteSelectionCommandへ対応拡大。replacement FactsをreplacementFirstChordId/replacementLastChordIdへ拡張し、delete/merge/pasteを統一的に扱えるように（Ctrl+V/buildPastePlan経路は対象外） | 110 | analysisSession.js / analysisCommands.js |
 | Compound Mutation Boundary Resolution（Ctrl+V対応拡大） | buildPastePlan()/commitPastePlan()（そのまま貼り付け）へ対応拡大。単一コード内完結ペーストという新しいMutation topologyも、既存Facts（N=1特殊系）で表現可能と確認。reconcile()自体は無変更 | 111 | analysisCommands.js |
+| Section Deletion Preview（merge限定） | merge実行前にSectionへの影響を予測し、削除される見込みがある場合のみ確認モーダルを表示。`_evaluateSectionMutation()`をreconcile()と共有し判定ロジックの二重実装を回避（[MERGE FACTS SINGLE SOURCE]・[PREDICTION SCOPE INVARIANT]確立） | 114 | analysisSession.js / analysisCommands.js / app.js / modals.js |
 
 **データモデル**（詳細は section-model.md §4）
 
@@ -1684,6 +1685,56 @@ endChordId=replacementLastChordId。mergeはN→1のため両者が
 同一値になる）。deleteには適用しない
 （[MUTATION SEMANTICS]参照。deleteには「領域を代表する実体」が
 存在しないため、この種の拡大は原理的に起こらない）。
+```
+
+**[MERGE FACTS SINGLE SOURCE]（Phase114で確立）**
+
+```
+merge操作に関するMutation Facts（削除対象ID・置換後の新IDなど）の
+組み立ては、analysisCommands.js の `_buildMergeFacts()` のみが行う。
+
+  mergeSelectionCommand()        実行用。_buildMergeFacts()の戻り値を
+                                  そのままbuffer書き換え・reconcile()へ使う
+  previewMergeSectionImpact()    予測用。_buildMergeFacts()の戻り値を
+                                  そのままpredictSectionImpact()へ渡す
+
+両者は互いに独立してFacts（selectedIds/indices/blockIds等）を
+再計算しない。これにより「予測時と実行時でFactsの解釈がズレる」
+リスクを構造的に排除する。
+
+[背景] merge実行前にSectionへの影響（[SECTION EXTENT GUARD]による
+削除）をユーザーへ警告するUX（current-issues.md「merge実行でSectionが
+削除される場合の確認UX未実装」）を実装する際、予測用のFacts生成ロジックを
+別途新設すると、実行用ロジックとの間で将来の改修時に乖離するリスクが
+あった（ChatGPTレビューで指摘）。
+
+将来、delete/pasteにも同様の事前予測UXを追加する場合、
+`_buildMergeFacts()`と同じパターン（Command Layer内に
+`_build{Command}Facts()`を1つだけ持ち、実行・予測の両方から呼ぶ）を
+踏襲すること。
+```
+
+**[PREDICTION SCOPE INVARIANT]（Phase114で確立）**
+
+```
+predictSectionImpact()（analysisSession.js）はMutationの成否判定を
+行わない。Mutationが実行可能かどうか（選択件数・連続性等）は、
+各Command Layer側のFacts生成関数（例: _buildMergeFacts()）の
+戻り値（ok/reason）が担う。predictSectionImpact()の責務は、
+「実行可能なMutationがreconcile()に与える影響（削除される見込みの
+Section）を予測する」ことのみに限定される。
+
+また、predictSectionImpact()はreconcile()と同じ判定ロジック
+（_evaluateSectionMutation()）を共有する。EXTENT GUARDを含む判定を
+predict側で独自に再実装しない（[SECTION SESSION CONSISTENCY
+INVARIANT]と同種の「判定ロジックの一元化」原則）。
+
+[LIMITATION] predictSectionImpact()はMutation実行後のbuffer状態を
+前提とするinvariant検証（validateSectionInvariants）は行わない。
+実行前時点ではMutation後の新しいIDがbuffer上にまだ存在しないため。
+判定できるのは[SECTION EXTENT GUARD]由来の削除のみ（mergeにおいて
+実質唯一の削除トリガー。reconcile()側の最終invariantチェックは
+実行後の安全網として引き続き機能する）。
 ```
 
 **[SECTION HISTORY INTEGRATION]（Phase100-Aで確立・Phase104で解消）**

@@ -512,7 +512,7 @@ function beginAnalysisEdit() {
   analysisEditor.future  = [];
   analysisEditor.sections = structuredClone(project.analysis.raw.sections ?? []);
   analysisEditor.dirty = false;
-  analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
+  analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false, replaceUndoPending: false };
   setSearchMatches([]);
   _refreshSelection([]);
 
@@ -993,7 +993,7 @@ function openSearchBar() {
   _refreshEditorView();
 }
 function closeSearchBar() {
-  analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
+  analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false, replaceUndoPending: false };
   setSearchMatches([]);
   _refreshEditorView();
 }
@@ -1045,6 +1045,10 @@ function replaceCurrentMatch(newName) {
   const { matches, activeIndex } = analysisEditor.search;
   if (activeIndex === null || !matches[activeIndex]) return;
   updateChord(matches[activeIndex], { chord: newName });
+  // [Phase115] 置換欄にフォーカスが残ったままのCtrl+Zをアプリ側Undoとして
+  // 扱うためのフラグ。判定・解除箇所はグローバルkeydownハンドラとreplaceInputの
+  // inputイベント（本ファイル内、[Phase115]コメント参照）。
+  analysisEditor.search.replaceUndoPending = true;
 }
 
 /**
@@ -2843,6 +2847,9 @@ function renderAnalysisEditorPanel() {
       replaceInput.addEventListener('input', (e) => {
         // [Phase82] replaceTextも表示名のまま保持する（queryと同じ理由）。
         analysisEditor.search.replaceText = e.target.value;
+        // [Phase115] 置換欄を手動編集した時点で「置換直後」の文脈ではなくなるため、
+        // Ctrl+Zはブラウザ標準のテキストUndoへ戻す。
+        analysisEditor.search.replaceUndoPending = false;
       });
       // [キー割り当て・ChatGPTレビューで確定] 置換欄にフォーカス中のEnterは
       // 「置換して次へ」（Shift+Enterは「置換して前へ」）。
@@ -4717,7 +4724,13 @@ function setupEventHandlers() {
       // [Phase79] Undo/Redoのキーボードショートカット。
       // 上の「Ctrl+Z: import undo」ブロックは解析編集モード中は無効化済みのため競合しない。
       // Redoは Ctrl+Y（Windows定番）・Ctrl+Shift+Z（Mac/一部Webアプリ定番）の両方に対応する。
-      if (!inTextInput && e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      // [Phase115] 置換直後、置換欄（aep-search-replace-input）にフォーカスが
+      // 残ったままの間はinTextInputガードの例外とする。置換欄を手動編集した
+      // 時点でこの例外は自動的に無効化される（replaceInputのinputイベント参照）。
+      const replaceUndoException =
+        analysisEditor.search.replaceUndoPending &&
+        document.activeElement?.id === 'aep-search-replace-input';
+      if ((!inTextInput || replaceUndoException) && e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
         undoEdit();
       }
