@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase113完了時点（Phase109〜113を反映）
+> 最終更新: Phase118完了時点（Phase114〜118を反映）
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -53,9 +53,10 @@
 Authority）を変更すると、Chart Modeの表示が編集の修正前の状態に戻って
 しまう。Undoを行うと表示が戻る。データ（analysisEditor.buffer）自体が
 失われているのか、表示（Chart Mode projection）のみの問題かは未切り分け。
-次回発生時、`window.__CS_DEBUG__.timing`（repairRule/normalized）と
-`window.__analysisEditorDebug`（buffer状態）を突き合わせて事実ベースで
-原因を特定する方針（[FEATURE REGRESSION POLICY]・実装漏れと断定しない）。
+次回発生時、`window.__CS_DEBUG__.timing`（repairRule/normalized）と、
+Analysis Editorの現行debug/observability手段で取得できるbuffer状態を
+突き合わせて、事実ベースで原因を特定する方針（[FEATURE REGRESSION
+POLICY]・実装漏れと断定しない）。
 
 #### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
 状態: Type B対応済み・Type A/C/D未対応
@@ -91,8 +92,7 @@ hiddenCountはnormal pathのslot projection時のみ付与される（pickup mea
 残課題: pickup measure（`mode==='full'`かつ小節0）は対象外。`remapPickupOnsetMap()`
 による視覚圧縮衝突（Stage2 collision）は同一slot衝突（Stage1）と意味論が異なるため、
 今回は意図的にスコープ外とした（architecture.md §9.5
-「PICKUP COLLISION SCOPE INVARIANT」参照）。P1 v2として将来対応候補
-（phase-status.md「Future Candidates」参照）。
+「PICKUP COLLISION SCOPE INVARIANT」参照）。
 
 #### Known Design Gap — N（無音プレースホルダー）の表示モデル不一致
 状態: 未着手・優先度低
@@ -106,8 +106,9 @@ hiddenCountはnormal pathのslot projection時のみ付与される（pickup mea
 状態: 観察中（原因未特定）
 内容: 編集終了・保存後、または編集中に別プロジェクトへ切り替えた際、画面上に緑の細い
 縦線が残ることがある。静的コード確認では原因を特定できなかった。次回発生時に
-`window.__CS_DEBUG__.chart` / `window.__analysisEditorDebug.state.selection` を
-コンソールで取得し、事実ベースで原因を切り分ける方針。
+`window.__CS_DEBUG__.chart` と、Analysis Editorの現行debug/observability
+手段で取得できるselection状態をコンソールで取得し、事実ベースで原因を
+切り分ける方針。
 
 #### Boundary Handle Dragのpointercancel経路が未検証
 状態: 未検証（Phase93で発見・Phase95-A2まで継続保留）
@@ -130,21 +131,6 @@ forward方向（Enter）は自然に正しく動作するが、backward方向（
 内容: analysisEditor.clipboardは`beginAnalysisEdit()`/`resetAnalysisEditor()`の
 どちらでもクリアされず、編集セッションをまたいで保持される（「アプリ内
 クリップボード」に近い挙動）。意図的な仕様か検討の余地あり。
-
-#### 置換直後のCtrl+Zがブラウザ標準Undoと衝突しやすい
-状態: 仕様として説明可能・UX改善は未検討（Phase88で発見）
-内容: 置換直後、入力欄にフォーカスが残った状態でCtrl+Zを押すと、既存の
-`inTextInput`ガード（ブラウザ標準のテキストUndoと衝突させないための意図的設計）
-によりアプリ側のUndoが発火しない。「元に戻す」ボタンでは正常に動作する。
-コード不具合としては再現できていないため、断定はしていない。ショートカットUXの
-改善候補（例: Escapeでフォーカスを外してからCtrl+Zする案等）として保留。
-
-#### merge実行でSectionが削除される場合の確認UX未実装（Phase109で発見）
-状態: 意図的に先送り（使用頻度が低いと判断）
-内容: [SECTION EXTENT GUARD]（architecture.md §12）によりSection外を
-巻き込んだmergeはSection削除となる仕様（正しい動作・バグではない）。
-現在は警告なしに実行されるため、意図せずSectionを削除してしまう可能性が
-ある。将来merge実行前の確認ダイアログを検討する。
 
 ### restore lifecycle 系
 
@@ -185,10 +171,6 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
   key形式 `${projectId}:${type}` に新typeを追加。schema変更時は `DB_VERSION` を
   インクリメントして `onupgradeneeded` を更新すること
 - `isSepToken` の旧形式互換（`c.chord === '/'` / `type:'sep'`）は barline migration 完了後に削除判断
-- `isChordLikeInput` の末尾検証強化
-  状態: 未着手
-  内容: 現行の `/^[A-G](#|♯|b|♭)?/` は先頭のみ検証するため、`Cほげ` のような
-  入力が通ってしまう。優先度は低（誤入力されてもnormalizeChordNameで処理される）。
 - barline storage migration（意図的保留・Issue #26 の bars[] 設計フェーズ前後に実施検討）
 - `grid-template-columns` の分散管理（`#app` の定義が4箇所に分散。パネルレイアウト
   再設計フェーズで統合を検討）
@@ -207,11 +189,6 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 - `.library-sort-select`（HTML上のclass属性）にCSSルールが存在しない
   （Phase86棚卸しで発見）。実際のスタイルは `.library-toolbar select`
   という子孫セレクタから効いているため実害なし。低優先度。
-- `__analysisEditorDebug`の正式な扱い未確定（Phase87で発見）
-  コード内コメントで「[TEMP DEBUG] 実装完了後に削除すること」と書かれているが、
-  Phase74から現在までDevTools経由の実質的な公開インターフェースとして
-  使われ続けている。削除するか、正式なdebug APIとしてarchitecture.md §5.5に
-  昇格させるか要検討。
 - Result型（CommandResult）が共有typedefファイルとして独立していない
   （Phase87）。現状はanalysisCommands.js冒頭のコメントに型定義があるのみ。
   優先度低。
@@ -258,17 +235,6 @@ insertion cursor化・行またぎnavigation・hover-only削除ボタンは対�
 4層 architecture contract確立済みのため設計着手可能な段階だが、projection layerの
 boundaryはまだ新しく、着手前に設計フェーズを必ず挟むこと。
 
-#### Pickup-aware Collision Indicator（P1 v2）
-内容: Phase92のCollision Indicator（`hiddenCount`可視化）はnormal path限定。
-pickup measureでは`remapPickupOnsetMap()`による視覚圧縮衝突（Stage2 collision）
-が別途存在し、意味論が同一slot衝突（Stage1）と異なるため今回は意図的にスコープ外
-とした。将来対応する場合は、Stage1/Stage2のhiddenCountを単純合算せず、
-別概念として設計すること（architecture.md §9.5参照）。
-
-#### 二段階クリックモデルの見直し
-内容: 「1クリック＝選択、2回目クリック＝editPoint」という現行モデルから、
-「ダブルクリックまたは明示操作＝editPoint」への変更を候補として検討する。
-
 #### 複数選択時の個別移動
 状態: 意図的に見送り中
 内容: 「選択範囲の先頭コードだけ動く」という違和感が実機確認で発覚したため、
@@ -277,6 +243,18 @@ pickup measureでは`remapPickupOnsetMap()`による視覚圧縮衝突（Stage2 
 #### Boundary Handle / Playhead の表示条件見直し
 内容: 検索モード中のBoundary Handle非表示/減光、再生停止中のPlayhead淡色化などの案。
 現時点では「改善アイデア」の段階。
+
+#### Undo/Redo Navigation Feedback（変更箇所の一時ハイライト・Phase118発見）
+状態: 未着手・設計方向は決定済み
+内容: Phase118でUndo/Redo後にscrollToChord()が発火するようになったが、
+瞬間移動のため「どこから どこへ 移動したか」が分かりにくいという
+実機フィードバックがあった。smooth scroll復活は不採用（Phase106の
+[RENDER CONTEXT INVARIANT]発見の原因となったscrollTop競合を再発させる
+リスクがあるため。scrollToChord()はSection Navigationとも共有している）。
+第一候補案: scrollToChord()自体は変更せず、移動後の対象chordを
+300〜500ms程度の一時ハイライト（pulse等）で強調しフェードアウトさせる、
+独立したNavigation Feedback Decoratorとして実装する
+（[DECORATOR ADDITION RULE]に沿う）。
 
 #### 実音（canonical）そのものでの検索モード（Phase97発見）
 状態: 未着手・優先度低
@@ -292,14 +270,6 @@ pickup measureでは`remapPickupOnsetMap()`による視覚圧縮衝突（Stage2 
 調整時のみ有用な情報であり、通常編集時は不要という位置づけがDecorator
 Inventory整理（Phase96）で明確になった。「開発者情報を表示」のような
 表示設定トグルを将来追加し、デフォルトでは非表示にすることを検討する。
-
-#### Selectionの水玉テクスチャ（Phase96で試作→撤回）
-状態: 保留・再挑戦の余地あり
-内容: 「和紙のような質感」を目指して試作したが、(1)小節をまたぐコードで
-継ぎ目が途切れる、(2)alpha合成用トークンのテーマ欠落、(3)他Decoratorとの
-z-index競合、という3つの問題が同時発生し撤回した。再挑戦する場合は、
-carryセルへ跨る継ぎ目問題を根本的に解決する設計（コード全体を1つの
-連続した要素として扱う等）から着手すること。
 
 #### Section境界の共有（同一chordIdを複数Sectionのstart/endが指す）の正式サポート
 状態: 未着手・価値のある拡張候補（Phase109の設計討議で判明）

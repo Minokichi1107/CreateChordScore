@@ -390,6 +390,7 @@ window.__CS_DEBUG__ = {
   get project() { /* project + assetState shallow clone */ },
   get chart()   { /* chartState + chartMeasuresPerRow */ },
   perf: { ... }, // getter projection（Phase70-Aで確立）
+  analysisEditor: { ... }, // 観測専用projection（Phase116で確立。下記参照）
   dumpInvariants() { /* snapshot生成 + console出力 + return snapshot */ },
 };
 ```
@@ -418,6 +419,27 @@ chartmode.js が `_perfState`（lastRAFDelta / maxRAFDelta / longFrames / longFr
 getter projectionであり、他のgetter（timing/project/chart）と設計原則が統一されている。
 計測スコープはChart Mode open中のみ（`_rafLoop`と同じ）。openのたびにリセットする
 （タブ非アクティブ→open直後の巨大dtがstall判定に混入するのを防ぐため）。
+
+### analysisEditor observability（Phase116で確立）
+
+```javascript
+window.__CS_DEBUG__.analysisEditor = {
+  get state()      { /* analysisEditor を直接返す（live reference・cloneしない） */ },
+  get editorMode()  { /* deriveEditorMode(selection) の結果 */ },
+};
+```
+
+Analysis EditorのCommand Layer関数（updateChord/deleteSelection/undoEdit等）を
+DevToolsから直接呼び出せる公開インターフェース（旧`window.__analysisEditorDebug`）は
+Phase116で撤去した。DevTools経由でCommand Layerを直接操作する経路は存在せず、
+編集は通常のUI経路のみを通る。
+
+`state`は他のgetter（timing/project/chart）とは異なりshallow cloneしない
+（analysisEditorはbuffer/history/futureを含む比較的大きいobjectであり、
+アクセスの都度cloneするコストが見合わないため。Debug用途としては「今のbufferそのもの」を
+参照できる利便性を優先した判断）。[DEBUG LAYER INVARIANT]が定めるのは
+「debug layerがstateを所有しない」ことであり、「返り値経由の間接mutationを防ぐ」ことまでは
+保証しない。この前提は崩していない。
 
 ---
 
@@ -1957,6 +1979,7 @@ analysisEditor.search = {
   matches,          // 検索結果のchordId配列（Derived Cache）
   activeIndex,       // 現在アクティブな検索結果のindex
   focusRequested,    // 開いた直後の自動フォーカス制御用
+  replaceUndoPending, // 置換直後のCtrl+Z境界判定用フラグ（Phase115。14.4参照）
 }
 ```
 
@@ -1964,6 +1987,7 @@ analysisEditor.search = {
 |---|---|
 | query / replaceText（検索入力状態） | Authority |
 | matches / activeIndex | Derived Cache（query + bufferから導出） |
+| replaceUndoPending | Ephemeral（置換欄フォーカス時のCtrl+Z解釈を切り替えるためだけの一時フラグ） |
 
 ### 14.3 Search Flow
 
@@ -2000,6 +2024,23 @@ Decorator（Search Highlight・Selection Highlightの薄い版として表現）
 （updateChord等）を呼ぶか、bufferを直接操作した上でAE-6（Undo1操作の原則）
 に従う。Projectへは一切触れない（bufferのみを操作する、という
 Analysis Editor全体の原則[AE-1]をそのまま踏襲する）。
+
+**置換直後のCtrl+Z境界（Phase115で確立）**
+
+```
+グローバルCtrl+Zハンドラは、テキスト入力中はブラウザ標準のUndoへ処理を譲る
+（`inTextInput`ガード。既存の意図的設計）。この通常ロジックは変更していない。
+
+置換欄（`replaceInput`）にフォーカスが残ったままのCtrl+Zだけは例外として扱う。
+`replaceCurrentMatch()`成功時に`replaceUndoPending`をtrue化し、
+「フラグ ∧ フォーカスが置換欄にある」の両方を満たす場合のみアプリ側の
+`undoEdit()`を発火させる。フラグは置換欄への手動入力でのみクリアする
+（Undo実行時には消費しない）ため、フォーカスが置換欄にある限りCtrl+Z連打で
+複数件の置換を1件ずつ多段Undoできる。
+
+フォーカス条件を必須とすることで、置換後に別UIへフォーカスを移した場合は
+自動的に例外が無効化され、そのUIの標準Undoを誤って奪うことはない。
+```
 
 ### 14.5 Search Invariants
 

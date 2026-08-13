@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase108完了時点（Phase104〜108を反映）
+> 最終更新: Phase118完了時点（Phase114〜118を反映）
 
 ---
 
@@ -60,15 +60,34 @@ Completed（完了済み）
   境界ステッパー/Rename/Deleteボタンのクリックが下層#chart-gridの
   .chart-slotに奪われていた不具合を解消。#section-barへ明示的な
   z-indexを付与）
+✓ merge実行時のSection削除確認UX（Phase114・[SECTION EXTENT GUARD]
+  発動時にのみ確認モーダルを表示。_evaluateSectionMutation()共有化に
+  より reconcile()との判定ロジック二重実装を回避）
+✓ 置換直後のCtrl+Z UX改善（Phase115・replaceUndoPendingフラグと
+  フォーカス条件により、置換欄にフォーカスが残ったままのCtrl+Zを
+  アプリ側Undoとして扱えるようにした。既存inTextInputガードの
+  通常ロジックは無変更）
+✓ __analysisEditorDebugの正式化整理（Phase116・mutation系35関数を
+  全撤去し、観測専用のstate/editorModeのみ__CS_DEBUG__.analysisEditor
+  へ統合。DevTools経由でのCommand Layer直接操作経路を廃止）
+✓ isChordLikeInput()末尾検証強化（Phase117・正規表現へ末尾アンカーと
+  文字クラスのホワイトリストを追加。構文検証／意味論検証の責務分離を
+  維持したまま構文側の判定精度のみ強化）
+✓ Undo/Redo後の変更箇所ナビゲーション（Phase118・
+  computeMutationFocusChordId()新設。Undo/Redo実行前後のbuffer比較
+  のみからNavigation対象を導出するMutation Region方式を採用。History
+  snapshotの形状は無変更。Section系コマンドは自動的に対象外）
 
 Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」参照）
 ------------------------------------------------------------
-Phase109〜113が完了し、5フェーズ棚卸し（本更新）を実施済み。
-Section Data LayerのCompound Mutation対応（delete/merge/pasteSelection/
-Ctrl+V全経路）はPhase111で完結した。Phase112・113では、Section機能に
-起因しない独立したUIバグ（Footer再描画漏れ・Hit-Test横取り）を解消した。
-次の主候補はB. Section境界共有の正式サポート、またはC. Section UX Epic
-（Future Candidates参照）。
+Phase114〜118が完了し、5フェーズ棚卸し（本更新）を実施済み。
+Phase114ではmerge実行時のSection削除確認UXを実装し、Phase115〜117では
+UX改善（置換直後のCtrl+Z）・技術的負債整理（__analysisEditorDebug正式化・
+isChordLikeInput末尾検証強化）を行った。Phase118ではUndo/Redo後に
+変更箇所へ自動スクロールするNavigation機能を実装し、Mutation Region方式
+（swap前後のbuffer比較のみで対象を導出・History snapshotは無変更）を
+確立した。次候補は構想段階のUndo/Redo Navigation Feedback（変更箇所の
+一時ハイライト。Future Candidates参照）。
 ```
 
 ---
@@ -142,6 +161,11 @@ Ctrl+V全経路）はPhase111で完結した。Phase112・113では、Section機
 | 111 | Compound Mutation Boundary Resolution（Ctrl+V対応拡大。buildPastePlan()/commitPastePlan()へreconciliation拡大。単一コード内完結ペーストをN=1特殊系として統合） |
 | 112 | 選択解除ボタン（×）Footer再描画漏れ修正（clearCurrentSelection()のelse分岐に_refreshEditorView()欠落。Section機能とは無関係） |
 | 113 | Section境界メニューのHit-Test横取りバグ修正（.sec-chip--previewingのtransformが独自stacking contextを生成し、.sec-chip-menuのz-indexが#chart-grid側と比較されなくなっていた。#section-barへz-index明示で解決） |
+| 114 | merge実行時のSection削除確認UX（predictSectionImpact()・previewMergeSectionImpact()新設。_buildMergeFacts()をpreview/execute共通の唯一のFacts生成元とし、_evaluateSectionMutation()をreconcile()と共有することで判定ロジックの二重実装を回避。analysisSession.js/analysisCommands.js/modals.js/app.js） |
+| 115 | 置換直後のCtrl+Z UX改善（analysisEditor.search.replaceUndoPending新設。フラグ単独ではなくフォーカス位置とのAND条件とすることで、別UIへのフォーカス移動時に誤ってUndoを奪う問題を回避。Undo実行時にフラグを消費しない設計により、置換欄にフォーカスがある限りCtrl+Z連打で多段Undoが可能。app.js） |
+| 116 | `__analysisEditorDebug`の正式化整理（Phase74-Cから残置されていたmutation系35関数の直接公開を撤去。観測専用のstate/editorModeのみ__CS_DEBUG__.analysisEditorへ統合。timing.raw/normalizedの既存live reference方針に揃え、cloneはしない設計判断。app.js） |
+| 117 | `isChordLikeInput()` 末尾検証強化（先頭ルートのみ検証していた正規表現に末尾までの文字クラス検証を追加。CHORD_DB全サフィックス列挙ではなくホワイトリスト方式を採用し、将来のCHORD_DB拡張との同期保守を回避。chordEntry.js） |
+| 118 | Undo/Redo後の変更箇所ナビゲーション（computeMutationFocusChordId()新設。swap前後のbufferを`_id`基準で比較し、変更区間の和集合（Mutation Region）の中心に最も近いコードへscrollToChord()する方式。History snapshot（{buffer, sections}）・scrollToChord()本体は無変更。個別コマンドの知識を持たない汎用diff方式のため、Section系コマンドは自動的に対象外となる。analysisSession.js/app.js） |
 
 ### 基盤・アーキテクチャ整理
 
@@ -214,10 +238,14 @@ P2  Section UX Epic
   小節補正バッジは解析アルゴリズム調整時のみ有用。デフォルト非表示化を
   将来検討する
 
-・Selectionの水玉テクスチャ（Phase96で試作→撤回）
-  小節またぎの継ぎ目・テーマ依存色・z-index重なり順の3問題が同時に
-  発生し撤回。再挑戦する場合はcarryセルを跨る継ぎ目問題の根本解決から
-  着手すること（current-issues.md参照）
+・Undo/Redo Navigation Feedback（変更箇所の一時ハイライト。Phase118発見・
+  設計方向は決定済み）
+  Phase118でUndo/Redo後にscrollToChord()が発火するようになったが、
+  瞬間移動のため移動元と移動先の空間的関係が分かりにくいという実機
+  フィードバックがあった。smooth scroll復活は不採用（Phase106の
+  scrollTop競合再発リスクのため）。第一候補案は移動後の対象chordを
+  一時的にハイライト・フェードアウトさせる独立Decorator
+  （current-issues.md参照）
 ```
 
 ### Technical Debt（技術的負債・既存挙動の見直し）
@@ -232,28 +260,12 @@ P2  Section UX Epic
   silverの--color-green-rgb欠落・components.css残置35ブロックの
   再監査等は引き続きopen。詳細はcurrent-issues.md参照）
 
-・Pickup-aware Collision Indicator（P1 v2）
-  Phase92のCollision Indicatorはnormal path限定。pickup measureの
-  remapPickupOnsetMap()内で発生するStage2 collision（視覚圧縮による
-  合流衝突）はhiddenCountを合算しておらず未可視化のまま
-  （architecture.md §9.5「PICKUP COLLISION SCOPE INVARIANT」参照）
-
 ・clipboardのセッションスコープ見直し（Phase86-2/87で発見・未対応）
   analysisEditor.clipboardが編集セッションをまたいで永続化される仕様。
   「アプリ内クリップボード」として正式化するか設計議論が必要
 
 ・Result型（CommandResult）のJSDoc typedef共有ファイル化（優先度低）
   現状はanalysisCommands.js冒頭のコメントのみ
-
-・__analysisEditorDebugの正式な扱い（Phase87で発見）
-  「[TEMP DEBUG] 削除すること」とコメントされたままPhase74から現在まで
-  DevTools経由の実質的公開APIとして使われ続けている。削除するか、
-  正式なdebug APIとしてarchitecture.md §5.5に昇格させるか要検討
-
-・置換ショートカットUX（Phase88で発見・未確定）
-  置換直後、入力欄にフォーカスが残った状態でのCtrl+Zがブラウザ標準の
-  テキストUndoと衝突しやすい（既存のinTextInputガードによる仕様）。
-  「元に戻す」ボタンでは正常動作。UXとして改善余地があるか検討候補
 
 ・検索欄の入力仕様（画面表示名ベース）が直感的でない可能性（Phase97発見）
   capo適用中に実音（canonical）をそのまま検索欄へ入力すると、意図と
