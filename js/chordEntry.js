@@ -145,7 +145,7 @@ function isNoChordInput(v) {
  * @returns {boolean}
  */
 function isChordLikeInput(v) {
-  return /^[A-G](#|♯|b|♭)?/.test(v.trim());
+  return /^[A-G](#|♯|b|♭)?[A-Za-z0-9#♯b♭/+\-]*$/.test(v.trim());
 }
 
 // ────────────────────────────────────────
