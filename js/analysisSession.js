@@ -483,3 +483,105 @@ export function predictSectionImpact(session, facts) {
   const sections = getSections(session); // 現在のsectionsをreconcile済みに揃える
   return sections.filter(section => _evaluateSectionMutation(section, facts, session.buffer) === null);
 }
+
+/**
+ * computeMutationFocusChordId — Undo/Redoの前後bufferを比較し、
+ * ナビゲーション対象とすべきchordIdを求める純粋関数（Phase118）。
+ *
+ * [目的] History snapshot（{buffer, sections}）自体には一切変更を加えず、
+ * swap前後のbufferを比較するだけでNavigation対象を導出する。個別Command
+ * （delete/split/merge/paste/moveBoundary等）の知識を一切持たない
+ * （[COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]と同じ思想:
+ * 「何が起きたか」ではなく「結果として何が変わったか」だけを見る）。
+ *
+ * [Navigation上の「変更」の定義]
+ * _id をidentity keyとして oldBuffer/newBuffer を比較し、以下のみを対象とする。
+ *   - removed: oldにあり newに無い _id
+ *   - added:   newにあり oldに無い _id
+ *   - changed: 両方にあるが start / end / chord のいずれかが異なる _id
+ * 上記以外のプロパティ（confidence等の内部メタデータ）は比較対象に含めない
+ * （将来buffer要素にフィールドが増えても、誤ってnavigationが発火しないため）。
+ *
+ * [Mutation Region]
+ * 上記で見つかった全区間（各chordの[start,end)。changedは新旧両方の区間を含める）
+ * の和集合を取り、[最小start, 最大end] を1つの区間（region）とする。
+ * regionCenter = (最小start + 最大end) / 2 を代表時刻とする。
+ *
+ * [Navigation Target]
+ * newBuffer の中から regionCenter を含むchord（start <= regionCenter < end）を
+ * 優先する。無ければ regionCenterに最も近いchord（start/endとの距離）を採用する。
+ *
+ * [対象外となるケース]
+ *   - oldBuffer/newBufferの差分が無い（例: Sectionのみの変更。buffer自体は
+ *     不変のためremoved/added/changedが0件になり、自動的に対象外となる）
+ *   - newBufferが空
+ *   のいずれも null を返す（呼び出し側はnullならscrollToChord()を呼ばない）。
+ *
+ * @param {Array|null} oldBuffer - swap前のbuffer（undoBuffer/redoBuffer呼び出し前の参照）
+ * @param {Array|null} newBuffer - swap後のbuffer（undoBuffer/redoBuffer呼び出し後の参照）
+ * @returns {string|null} ナビゲーション対象のchordId、対象なしならnull
+ */
+export function computeMutationFocusChordId(oldBuffer, newBuffer) {
+  if (!newBuffer || !newBuffer.length) return null;
+  if (!oldBuffer) return null;
+
+  const oldMap = new Map(oldBuffer.map(c => [c._id, c]));
+  const newMap = new Map(newBuffer.map(c => [c._id, c]));
+
+  let regionMin = Infinity;
+  let regionMax = -Infinity;
+  let found = false;
+
+  const absorb = (chord) => {
+    if (!chord) return;
+    if (chord.start < regionMin) regionMin = chord.start;
+    if (chord.end > regionMax) regionMax = chord.end;
+    found = true;
+  };
+
+  for (const [id, oldChord] of oldMap) {
+    const newChord = newMap.get(id);
+    if (!newChord) {
+      // removed
+      absorb(oldChord);
+    } else if (
+      oldChord.start !== newChord.start ||
+      oldChord.end !== newChord.end ||
+      oldChord.chord !== newChord.chord
+    ) {
+      // changed（新旧両方の区間をregionへ含める）
+      absorb(oldChord);
+      absorb(newChord);
+    }
+  }
+  for (const [id, newChord] of newMap) {
+    if (!oldMap.has(id)) {
+      // added
+      absorb(newChord);
+    }
+  }
+
+  if (!found) return null;
+
+  const regionCenter = (regionMin + regionMax) / 2;
+
+  // newBufferの中からregionCenterを含む/最も近いchordを探す
+  let best = null;
+  let bestDist = Infinity;
+  for (const chord of newBuffer) {
+    if (chord.start <= regionCenter && regionCenter < chord.end) {
+      best = chord;
+      break; // 内包するchordが見つかれば確定（最近傍探索は不要）
+    }
+    const dist = Math.min(
+      Math.abs(chord.start - regionCenter),
+      Math.abs(chord.end - regionCenter)
+    );
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = chord;
+    }
+  }
+
+  return best ? best._id : null;
+}

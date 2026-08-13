@@ -11,6 +11,20 @@
 正式ドキュメント（phase-status.md / architecture.md 等）への
 反映は5フェーズごとの棚卸し時にまとめて行う。
 
+### ディレクトリ構成（active / archive）
+
+```
+docs/handover/
+  ├─ active/
+  │   └─ handover_phaseXX.md   ← 直前フェーズのhandoverを1件のみ置く
+  └─ archive/
+      └─ handover_phaseXX.md   ← それ以前のフェーズ（active/から移動済み）
+```
+
+新しいフェーズのhandoverを作成したら、`active/`内の旧handoverは
+`archive/`へ移動する（`git mv`）。`active/`には常に直前フェーズの
+1件のみが置かれる。
+
 ---
 
 ## なぜこの運用が必要か

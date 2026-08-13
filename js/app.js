@@ -195,6 +195,7 @@ import {
   clearEditPointField,
   activateSearchIndex,
   getSections, // Phase101-1: Section Bar読み取り専用表示用
+  computeMutationFocusChordId, // Phase118: Undo/Redo Navigation
 } from './analysisSession.js';
 
 import {
@@ -1573,24 +1574,38 @@ function shiftSelectionRange(deltaSec) {
 
 /**
  * undoEdit — 直前の編集操作を取り消す
+ *
+ * [Phase118] Undo/Redo Navigation: swap前後のbufferをcomputeMutationFocusChordId()
+ * で比較し、変更があった位置へscrollToChord()する。History snapshot自体
+ * （{buffer, sections}）には一切手を入れず、swap前後の結果を比較するだけの
+ * 追加処理（[NAVIGATION OWNERSHIP]と同じく、正本の導出はapp.js側・
+ * scrollToChord()は渡された値を使うだけ、という既存原則をそのまま踏襲）。
  */
 function undoEdit() {
   if (!isAnalysisEditing()) return;
   // [Phase86-2 Sprint B] buffer入替の実体は analysisSession.js の undoBuffer()。
   // history/future stack semanticsは変更していない（past/future stack方式のまま）。
+  const prevBuffer = analysisEditor.buffer; // swap前の参照（Phase118・diff用）
   if (!undoBuffer(analysisEditor)) return;
+  const focusChordId = computeMutationFocusChordId(prevBuffer, analysisEditor.buffer);
   _refreshSelection();
   _refreshEditorView();
+  if (focusChordId) scrollToChord(focusChordId);
 }
 
 /**
  * redoEdit — undoEdit() で取り消した操作をやり直す
+ *
+ * [Phase118] Undo/Redo Navigation（undoEdit()と同じロジック。詳細は上記コメント参照）
  */
 function redoEdit() {
   if (!isAnalysisEditing()) return;
+  const prevBuffer = analysisEditor.buffer; // swap前の参照（Phase118・diff用）
   if (!redoBuffer(analysisEditor)) return;
+  const focusChordId = computeMutationFocusChordId(prevBuffer, analysisEditor.buffer);
   _refreshSelection();
   _refreshEditorView();
+  if (focusChordId) scrollToChord(focusChordId);
 }
 
 /**
