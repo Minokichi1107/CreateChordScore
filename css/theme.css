@@ -84,6 +84,19 @@
   --color-edit-point: #C77DFF;
   --color-edit-point-bg: rgba(199,125,255,.22);
 
+  /* [Phase119] Mutation Feedback（Undo/Redo着地点の一時ハイライト）専用
+     トークン。既存色相との区別:
+       Playback（青・#4F9EFF系）: 継続的なoverlay。本トークンは彩度・明度を
+         大きく下げたパステル寄りの値にすることで、瞬間的なfill演出との
+         違いを出す
+       Selection（アクアマリン・#7FFFD4）: 色相的に真のシアンと近いため、
+         本トークンは彩度を落とし「青寄りのパステル」へ振ることで
+         Selectionのアクアマリンから明確に距離を取る
+     [初期値の位置づけ] EditPoint（本ファイル前述コメント参照）が3回の
+     実機調整を経て確定した前例があるように、本トークンも初期値であり、
+     実機確認後に微調整が必要になる可能性が高い。 */
+  --color-mutation-feedback-bg: rgba(140,200,255,.30);
+
   /* [Phase80] Search Highlightは専用トークンを持たない（廃止）。
      専用色（azure→マゼンタ）を2回試したが、「小節フォーカス（青）・検索中の
      現在地（緑）・検索候補（別色）」の3色が同時に出て視覚ノイズが大きいとの
@@ -399,6 +412,12 @@ body[data-theme="silver"] {
   --color-edit-point: #8B3FD1;
   --color-edit-point-bg: rgba(139,63,209,.18);
 
+  /* [Phase119] Mutation Feedback。silverの明るい背景（#909aac系border/
+     surface）に対し、dark同様の淡い値では埋没するため、彩度・明度を
+     下げた鈍い青（dusty steel blue）に調整する。Selection（#2EA87D・
+     森林寄りの緑）・EditPoint（紫）とは色相で明確に区別できる。 */
+  --color-mutation-feedback-bg: rgba(30,110,170,.24);
+
   --color-red:   #ff7c7c;
 
   /* --- perform text --- */
@@ -649,6 +668,14 @@ body[data-theme="blue"] {
      Blueの明るい背景向けに、silverと同程度の暗めの紫を採用する。 */
   --color-edit-point: #8034C2;
   --color-edit-point-bg: rgba(128,52,194,.18);
+
+  /* [Phase119] Mutation Feedback。blueテーマは背景自体がスカイブルー系
+     （--surface-base: #c8dff0等）のため、青系トークンをそのまま使うと
+     テーマの背景色に埋没するリスクが高い（Sprint2-1の--color-green調整
+     コメント「背景が青系で補色関係により薄く見えやすい」と同種の懸念）。
+     他2テーマより明確に暗く・彩度を上げた濃い青緑（deep teal）にすることで、
+     明るい背景に対しても輪郭が失われないようにする。 */
+  --color-mutation-feedback-bg: rgba(10,90,110,.32);
 
   --color-red:   #ff7c7c;
 

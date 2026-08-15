@@ -295,6 +295,32 @@
   pointer-events: auto; /* title属性のhoverを効かせるため */
 }
 
+/* ── Analysis Editor: Mutation Feedback（Phase119・改訂版） ──
+   [仕様] Undo/Redo直後、変更箇所へscrollToChord()した対象コードのセルを
+   400ms程度パステル背景でフェード表示する。Undo/Redo実行時に
+   Selectionは明示的に解除されるため（app.js側）、Selection（面・緑）との
+   同一セル共存は構造的に発生しない。
+   [経緯] 初版（輪郭box-shadowパルス・Selectionと共存させる設計）を
+   実機検証した結果、VSCodeのUndo/Redo演出（対象行の背景フェード）に
+   寄せる方針へ変更した。Selection解除を前提にしたことで、Selectionと
+   同時に存在しないシンプルな背景フィルで表現できるようになった。
+   [色] 新規token --color-mutation-feedback-bg（theme.css）。既存の
+   Playback（青・継続的なoverlay）ともSelection（緑・持続的な面）とも
+   色相・使われ方の両方で区別する（[DECORATOR VISUAL LANGUAGE
+   PRINCIPLE]）。 */
+.chart-slot--mutation-feedback {
+  animation: chart-mutation-feedback-fade 400ms ease-out;
+}
+@keyframes chart-mutation-feedback-fade {
+  from { background-color: var(--color-mutation-feedback-bg); }
+  to   { background-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-slot--mutation-feedback {
+    animation: none;
+  }
+}
+
 /* コード名
    Phase57（修正版）: slot DOM invariant 復活。
    onset slot に --duration-slots CSS変数を設定し、label がその分だけ右へ広がる。

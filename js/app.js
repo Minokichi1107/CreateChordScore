@@ -233,6 +233,8 @@ import {
   setSearchMatches,
   setSectionPreview, // Phase102
   scrollToChord, // Phase105
+  setMutationFeedback, // Phase119
+  clearMutationFeedback, // Phase119
   getTimeForGridPosition,
 } from './chartmode.js';
 
@@ -420,6 +422,12 @@ function resetAnalysisEditor() {
   // リセット窓口」に揃えるため、ここで明示的にクリアする（Phase102実装時の漏れ）。
   _previewSectionId = null;
   setSectionPreview([]);
+  // [Phase119] Mutation Feedbackのtimer/Authority/Projectionをまとめて
+  // クリアする。Selection/Search/Section Previewと同じ「唯一のリセット
+  // 窓口」に揃える（[EDITOR RESET AUTHORITY]）。renderは呼ばない
+  // （呼び出し側=endAnalysisEdit()/saveAnalysisEdit()が直後に必ず
+  // render系関数を呼ぶため。二重描画を避ける）。
+  _clearMutationFeedbackImmediate();
 }
 
 /**
@@ -1581,6 +1589,87 @@ function shiftSelectionRange(deltaSec) {
  * 追加処理（[NAVIGATION OWNERSHIP]と同じく、正本の導出はapp.js側・
  * scrollToChord()は渡された値を使うだけ、という既存原則をそのまま踏襲）。
  */
+/**
+ * _mutationFeedbackChordId / _mutationFeedbackTimerId — Undo/Redo
+ * Mutation Feedback（変更箇所の一時ハイライト）の状態（Phase119）。
+ *
+ * [OWNERSHIP] Authorityはこの2変数（app.js ephemeral）。
+ * chartState.mutationFeedbackChordId（chartmode.js）はここから
+ * setMutationFeedback()経由で一方向に同期されるだけのProjectionであり、
+ * app.js側はchartState.mutationFeedbackChordIdを読み返さない
+ * （selectedChordIds/sectionPreviewChordIds等と同じ既存の方向性）。
+ *
+ * [SCOPE] _previewSectionIdと同格の、Analysis Editor限定のephemeral UI
+ * state。session（analysisEditor）にもHistory（push/undo/redoBuffer）にも
+ * 一切触れない・渡さない。永続化しない。
+ *
+ * _mutationFeedbackTimerIdはUI lifecycle制御のための単なるタイマー
+ * ハンドルであり、正本ではない（History snapshotにNavigation情報を
+ * 含めなかったPhase118の判断と同じ考え方。canonical stateへ混入させない）。
+ *
+ * [Phase119改訂] 初版（輪郭box-shadowパルス・Selectionと共存させる設計）
+ * から、VSCode風の「対象セルの背景フェード＋Selection明示解除」方式へ
+ * 変更した。この変更に伴い変数名を_navigationFeedback*から
+ * _mutationFeedback*へ改めた（「Undoで移動した」ではなく「変更内容を
+ * 示す」という意味を明確にするため。プロジェクト全体でSection関連の
+ * 変更を指す既存用語Mutationに揃えた）。
+ */
+let _mutationFeedbackChordId = null;
+let _mutationFeedbackTimerId = null;
+
+const MUTATION_FEEDBACK_DURATION_MS = 400;
+
+/**
+ * _setMutationFeedback — Mutation Feedbackを対象chordIdへセットし、
+ * 一定時間後に自動的に解除する（Phase119）。undoEdit()/redoEdit()専用。
+ *
+ * 連続Undo/Redoで呼ばれた場合は、既存タイマーをclearしてから新しい対象へ
+ * 張り直す（古い対象への誤クリア・タイマー多重発火を防ぐ）。
+ *
+ * [呼び出し順序] _refreshEditorView()より前に呼ぶこと。chartStateへの
+ * 反映を先に済ませてから描画することで、1回目のrenderChartMode()の時点で
+ * Feedback付きの見た目になる（2回目のrenderは自動解除時のみ発生する）。
+ *
+ * @param {string|null} chordId - computeMutationFocusChordId()の戻り値。
+ *   nullの場合は何もしない（Section-onlyコマンド等、buffer diffが無く
+ *   Navigation自体が発生しないケース。既存のUndo/Redo Navigationと同じ
+ *   条件で自動的にスキップされる）
+ */
+function _setMutationFeedback(chordId) {
+  if (!chordId) return;
+  if (_mutationFeedbackTimerId) {
+    clearTimeout(_mutationFeedbackTimerId);
+    _mutationFeedbackTimerId = null;
+  }
+  _mutationFeedbackChordId = chordId;
+  setMutationFeedback(chordId);
+  _mutationFeedbackTimerId = setTimeout(() => {
+    _mutationFeedbackTimerId = null;
+    _mutationFeedbackChordId = null;
+    clearMutationFeedback();
+    _refreshEditorView();
+  }, MUTATION_FEEDBACK_DURATION_MS);
+}
+
+/**
+ * _clearMutationFeedbackImmediate — タイマーを待たずMutation Feedback
+ * を即座に解除する（Phase119）。resetAnalysisEditor()専用。
+ *
+ * [設計方針] ここではrenderChartMode()を一切呼ばない。resetAnalysisEditor()
+ * 自体が「状態のクリアのみ・再描画は呼び出し側の責務」という既存パターン
+ * （setSectionPreview([])等）を踏襲しているため。呼び出し側
+ * （endAnalysisEdit() / saveAnalysisEdit()）が必ず直後にrender系関数を
+ * 呼ぶので、ここで追加のrenderChartMode()を呼ぶと無駄な二重描画になる。
+ */
+function _clearMutationFeedbackImmediate() {
+  if (_mutationFeedbackTimerId) {
+    clearTimeout(_mutationFeedbackTimerId);
+    _mutationFeedbackTimerId = null;
+  }
+  _mutationFeedbackChordId = null;
+  clearMutationFeedback();
+}
+
 function undoEdit() {
   if (!isAnalysisEditing()) return;
   // [Phase86-2 Sprint B] buffer入替の実体は analysisSession.js の undoBuffer()。
@@ -1588,7 +1677,19 @@ function undoEdit() {
   const prevBuffer = analysisEditor.buffer; // swap前の参照（Phase118・diff用）
   if (!undoBuffer(analysisEditor)) return;
   const focusChordId = computeMutationFocusChordId(prevBuffer, analysisEditor.buffer);
-  _refreshSelection();
+  // [Phase119改訂] Undo/Redo後はSelectionを明示的に解除する（VSCode風の
+  // 挙動へ変更）。従来は_refreshSelection()を引数なしで呼んでおり、これは
+  // 「既存の選択をbufferと再照合するだけ（有効なら維持）」という意味
+  // だった。VSCode風の「Undo後は選択が外れる」挙動にするため、空配列を
+  // 明示的に渡す形へ変更した。selection.chordIdsが空になることで
+  // deriveEditorMode()の結果は自動的に'idle'になる（Footer側の追加対応
+  // 不要）。setSelectedChordIds([])は元々このundoEdit()には無かった
+  // 呼び出しで、chartState側（描画用Projection）を同期するために
+  // clearCurrentSelection()と同じペアとして新規に追加した
+  // （[grep/view before assert]で実コード確認済み）。
+  _refreshSelection([]);
+  setSelectedChordIds([]);
+  _setMutationFeedback(focusChordId); // Phase119: _refreshEditorView()より前に反映
   _refreshEditorView();
   if (focusChordId) scrollToChord(focusChordId);
 }
@@ -1603,7 +1704,11 @@ function redoEdit() {
   const prevBuffer = analysisEditor.buffer; // swap前の参照（Phase118・diff用）
   if (!redoBuffer(analysisEditor)) return;
   const focusChordId = computeMutationFocusChordId(prevBuffer, analysisEditor.buffer);
-  _refreshSelection();
+  // [Phase119改訂] undoEdit()と同じ理由でSelectionを明示的に解除する
+  // （詳細コメントはundoEdit()側参照）。
+  _refreshSelection([]);
+  setSelectedChordIds([]);
+  _setMutationFeedback(focusChordId); // Phase119: _refreshEditorView()より前に反映
   _refreshEditorView();
   if (focusChordId) scrollToChord(focusChordId);
 }

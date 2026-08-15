@@ -1300,6 +1300,7 @@ Chart Mode上に同時に存在しうる視覚装飾（Decorator）の一覧。
 | Collision Indicator | 隠れているコードの存在を警告する | Overlay | Secondary | 衝突時のみ | 共存可 |
 | Correction Badge | 解析タイミング補正の状態を示す | Overlay | Secondary（開発者寄り） | 補正時のみ | 共存可 |
 | Section Preview | 曲構造（Section）の範囲を示す | Background | Primary（Sectionという独自Intent） | チップクリックでPreview中のみ | Selection/Searchと共存可（selectionとは独立したstate） |
+| Mutation Feedback | Undo/Redoでどこへ着地したかを一時的に示す | Background | Primary（着地点という独自Intent） | Undo/Redo直後、短時間のフェード表示後に自動解除 | Undo/Redo直後の開始時点ではSelectionを明示解除するため重ならない（表示中に別操作で新たにSelectionされた場合は共存しうる） |
 
 **[運用ルール] Decorator Usability Audit**
 新規Decoratorを追加・変更する際は、Decorator Inventory表への追加に加えて
@@ -1835,6 +1836,69 @@ chartState.lastScrolledMeasure）は完全に独立しており、互いのstate
 追加せず、チップ1つに1つの操作面を保つ（UI引き算方針。Phase107）ための
 意図的な設計。
 
+### Mutation Feedback（Phase119で確立）
+
+Undo/Redo実行後、Phase118の`computeMutationFocusChordId()`が返す
+着地点chordIdへ`scrollToChord()`するだけでなく、対象コードのセルを
+短時間パステル背景でフェード表示する（VSCodeのUndo/Redo演出に
+倣った挙動）。
+
+```
+undoEdit() / redoEdit()
+    │
+    ├─ buffer swap（既存・Phase86-2）
+    ├─ focusChordId = computeMutationFocusChordId(prevBuffer, newBuffer)
+    │                 ← Phase118から無変更。Single Source of Truthとして
+    │                   再利用するのみで、本フェーズでは一切変更していない
+    │
+    ├─ Selectionを明示的に解除する
+    │     _refreshSelection([]) / setSelectedChordIds([])
+    │
+    ├─ setMutationFeedback(focusChordId)   ← chartStateへ反映（render前）
+    ├─ _refreshEditorView()                ← 1回目render（Feedback付き）
+    ├─ scrollToChord(focusChordId)
+    │
+    └─ MUTATION_FEEDBACK_DURATION_MS 経過後（app.js側のsetTimeout）
+          clearMutationFeedback()
+          _refreshEditorView()             ← 2回目render（Feedback消去）
+```
+
+**[設計方針] Selectionの明示解除**
+
+Undo/Redo実行時、選択状態を必ず空にする（`_refreshSelection([])`）。
+これにより、Undo/Redo直後の開始時点ではMutation FeedbackとSelectionが
+同一セルで重ならない。ただしこれは常時排他を保証するものではない。
+表示中に別の操作（コードクリック等）で新たにSelectionされた場合は、
+両者が同一セルに共存しうる（他操作によるMutation Feedbackの即時解除は
+意図的に実装していないため）。
+
+**[設計方針] タイマーの所有者はapp.js**
+
+表示時間（`MUTATION_FEEDBACK_DURATION_MS`）の管理はchartmode.js側に
+持たせない。chartmode.jsは「渡された値を表示するだけ」の責務に留め
+（[DECORATOR ADDITION RULE]）、「いつまで表示するか」というUI
+lifecycleの制御はapp.js側の`_mutationFeedbackTimerId`が持つ。連続
+Undo/Redoでは既存タイマーを`clearTimeout()`してから新しい対象へ
+張り直すことで、多重発火や古い対象への誤クリアを防ぐ。
+
+**[EDITOR RESET AUTHORITY]の適用**
+
+`resetAnalysisEditor()`はMutation Feedbackのtimer・Authority
+（`_mutationFeedbackChordId`）・Projection（`chartState.mutationFeedbackChordId`）
+をまとめてクリアする（Selection/Search/Section Previewと同じ「唯一の
+リセット窓口」）。ただしここではrenderChartMode()を呼ばない。
+`resetAnalysisEditor()`の呼び出し元（`endAnalysisEdit()` /
+`saveAnalysisEdit()`）が直後に必ずrender系関数を呼ぶため、ここで
+追加のrenderを行うと無駄な二重描画になる。
+
+**[色] 新規token**
+
+`--color-mutation-feedback-bg`（theme.css・3テーマ共通）。既存の
+Playback（青・継続的なoverlay）ともSelection（緑・持続的な面）とも
+色相・使われ方の両方で区別する（[DECORATOR VISUAL LANGUAGE
+PRINCIPLE]）。彩度・明度はテーマごとに個別調整している（EditPoint・
+Selectionが辿った既存の調整パターンを踏襲）。
+
 ### [PERSISTENCE OWNERSHIP PRINCIPLE]（Phase103で明文化）
 
 ```
@@ -1927,6 +1991,7 @@ Runtime Projection・Derived Cache・Decorator状態はAuthorityではなく、
 | analysisEditor.search.matches | analysisEditor.search.query + buffer | `searchChords(buffer, query)`（Phase97よりnormalizeEnharmonic()経由の比較） |
 | GridViewModel slot.hiddenCount（Phase92） | measure.slots[].onsets（衝突数） | `resolveCollision()`呼び出しに付随する集計（normal pathのみ・§9.5参照） |
 | chartState.sectionPreviewChordIds | _previewSectionId（app.js ephemeral）+ Section.startChordId/endChordId | `setSectionPreview()`（Phase102。selection/searchとは独立したstate。resetAnalysisEditor()でのクリアが必須・[EDITOR RESET AUTHORITY]参照） |
+| chartState.mutationFeedbackChordId | _mutationFeedbackChordId（app.js ephemeral） | `setMutationFeedback()`（Phase119。computeMutationFocusChordId()の戻り値のみを入力とする。タイマーによる自動解除・resetAnalysisEditor()でのクリアが必須・[EDITOR RESET AUTHORITY]参照） |
 
 [PROJECTION AUTHORITY INVARIANT]
 Projectionの更新窓口（setEditPointMarker()等）はchartmode.js側に置かれるが、

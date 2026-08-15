@@ -782,6 +782,13 @@ export const chartState = {
   // 塗るだけ（selectedChordIds/searchMatchIdsと同型のProjection）。
   // SelectionともSearchとも独立した別state。
   sectionPreviewChordIds: new Set(),
+
+  // [Phase119] Mutation Feedback（Undo/Redo直後の着地点を一時的に示す
+  // パステル背景フィル）の対象chordId。
+  // [OWNERSHIP] 正本は app.js の _mutationFeedbackChordId（ephemeral UI
+  // state）。chartmode.js はUndo/Redoという概念を一切知らない。単一chordId
+  // のみ（同時に複数表示する設計ではないためSetではなく単値）。
+  mutationFeedbackChordId: null,
 };
 
 /**
@@ -846,6 +853,30 @@ export function setSearchMatches(ids) {
  */
 export function setSectionPreview(ids) {
   chartState.sectionPreviewChordIds = new Set(ids);
+}
+
+/**
+ * setMutationFeedback — Mutation Feedback（Undo/Redo着地点の一時
+ * ハイライト）の対象を更新する（Phase119）。
+ *
+ * [OWNERSHIP] 正本は app.js の _mutationFeedbackChordId。ここは描画用の
+ * ローカル表示状態を更新するだけ。呼び出し後は renderChartMode() で
+ * 再描画が必要（setSelectedChordIds/setSectionPreviewと同じ形）。
+ * タイマー（表示時間の管理）はapp.js側の責務であり、ここでは一切扱わない。
+ *
+ * @param {string|null} chordId - 対象のchord._id。解除時はnullを渡す
+ *   （またはclearMutationFeedback()を使う）
+ */
+export function setMutationFeedback(chordId) {
+  chartState.mutationFeedbackChordId = chordId ?? null;
+}
+
+/**
+ * clearMutationFeedback — Mutation Feedbackを解除する（Phase119）。
+ * setMutationFeedback(null) の可読性のためのエイリアス。
+ */
+export function clearMutationFeedback() {
+  chartState.mutationFeedbackChordId = null;
 }
 
 /**
@@ -2451,6 +2482,17 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
             slotEl.classList.add('chart-slot--selected');
             if (prevOwner !== ownerId) slotEl.classList.add('chart-slot--selected-start');
             if (nextOwner !== ownerId) slotEl.classList.add('chart-slot--selected-end');
+          }
+
+          // [Phase119] Mutation Feedback。Selection/Search/Section Preview
+          // いずれとも独立した別state（chartState.mutationFeedbackChordId）。
+          // Undo/Redo実行時にSelectionは明示的に解除される（app.js側）ため、
+          // Selectionの面（background）と同一セルで同時に表示されることは
+          // 構造的に発生しない。start/end区分は設けない（複数slotに
+          // またがっても各セルへ同じ一時アニメーションが独立して掛かる
+          // だけで実害がないため）。
+          if (ownerId === chartState.mutationFeedbackChordId) {
+            slotEl.classList.add('chart-slot--mutation-feedback');
           }
         }
 
