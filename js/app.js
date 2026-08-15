@@ -5513,8 +5513,13 @@ window.addEventListener('DOMContentLoaded', async () => {
 
       // viewModel を再構築してから再描画
       // （repairRule が変わるため measures が変わる。renderChartMode だけでは不十分）
-      rebuildChartViewModel();
-      renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+      // [Phase120] 引数なしの rebuildChartViewModel() は project.analysis.raw
+      // （編集前のraw）を参照してしまい、Analysis Editor編集中はbuffer側の
+      // 変更が反映されない不具合があった（getCurrentChordSource()という
+      // Single Switch Pointを経由していなかったため）。正規の再描画経路
+      // である_refreshEditorView()に統一し、buffer-aware かつ
+      // editing: isAnalysisEditing() を渡す描画へ揃える。
+      _refreshEditorView();
       toast('✅ 小節頭を補正しました');
     },
 
@@ -5533,8 +5538,9 @@ window.addEventListener('DOMContentLoaded', async () => {
       project.analysis.repairRule = null;
 
       // viewModel を再構築してから再描画
-rebuildChartViewModel();
-      renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+      // [Phase120] onSetRepairRule と同じ理由でrebuildChartViewModel()の
+      // 個別呼び出しを廃止し、_refreshEditorView()へ統一する。
+      _refreshEditorView();
       toast('↩ 小節補正を解除しました');
     },
 
