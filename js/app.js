@@ -219,6 +219,16 @@ import {
 } from './analysisCommands.js';
 
 import {
+  isRecording as _recIsRecording,
+  startRecording as _recStart,
+  stopRecording as _recStop,
+  hasReport as _recHasReport,
+  record as _recRecord,
+  snapshotState as _recSnapshotState,
+  buildReport as _recBuildReport,
+} from './debugSessionRecorder.js'; // Phase121: Debug Session Recorder（既存Debug Layerとは独立したAuthority）
+
+import {
   initChartMode,
   openChartMode,
   closeChartMode,
@@ -635,6 +645,7 @@ function updateChord(id, patch) {
 function deleteChord(id) {
   if (!isAnalysisEditing()) return null;
 
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   const r = deleteChordCommand(analysisEditor, id);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
@@ -642,6 +653,9 @@ function deleteChord(id) {
   }
 
   setSelectedChordIds(r.selectedChordIds);
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('deleteChord', r, before, after);
+
   _refreshEditorView();
   return r.selectedChordIds[0];
 }
@@ -657,6 +671,7 @@ function deleteChord(id) {
 function deleteSelection() {
   if (!isAnalysisEditing()) return null;
 
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   const r = deleteSelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
@@ -664,6 +679,9 @@ function deleteSelection() {
   }
 
   setSelectedChordIds(r.selectedChordIds);
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('deleteSelection', r, before, after);
+
   _refreshEditorView();
   return r.selectedChordIds[0];
 }
@@ -699,6 +717,7 @@ function copySelection() {
   if (!isAnalysisEditing()) return false;
 
   // [Phase87] 実体は analysisCommands.js の copySelectionCommand() へ移管。
+  const before = _recIsRecording() ? _recSnapshot() : null;
   const r = copySelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
@@ -706,6 +725,11 @@ function copySelection() {
   }
 
   toast(`${r.count}件コピーしました`);
+  // [Phase121] copySelectionはbufferを変更しない読み取り専用操作のため
+  // includeBuffer:falseで記録する（common fieldsのみ）。
+  const after = _recIsRecording() ? _recSnapshot() : null;
+  _recRecord('copySelection', r, before, after);
+
   return true;
 }
 
@@ -733,6 +757,9 @@ function cutSelection() {
   // [Phase87] 実体は analysisCommands.js の cutSelectionCommand() へ移管。
   // [Q2確定事項] toast挙動は現状維持：成功時は「N件コピーしました」のみ表示し、
   // 削除成功時は無言のまま（deleteSelection()と同じ、既存UX）。
+  // [Phase121] cutSelectionCommandは内部でcopy+deleteに委譲するが、Recorderは
+  // ユーザー操作単位で1イベントとして記録する（委譲先個別には記録しない）。
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   const r = cutSelectionCommand(analysisEditor);
 
   // [既存挙動の再現] コピー成功時は常にtoast（deleteの成否に関わらず。
@@ -745,6 +772,9 @@ function cutSelection() {
   }
 
   setSelectedChordIds(r.selectedChordIds);
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('cutSelection', r, before, after);
+
   _refreshEditorView();
   return r.selectedChordIds[0];
 }
@@ -774,6 +804,7 @@ function pasteSelection() {
   if (!isAnalysisEditing()) return null;
 
   // [Phase87] 実体は analysisCommands.js の pasteSelectionCommand() へ移管。
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   const r = pasteSelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
@@ -781,6 +812,9 @@ function pasteSelection() {
   }
 
   setSelectedChordIds(r.selectedChordIds);
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('pasteSelection', r, before, after);
+
   _refreshEditorView();
   return r.selectedChordIds;
 }
@@ -899,6 +933,10 @@ function mergeSelection() {
  */
 function _runMerge() {
   // [Phase87] 実体は analysisCommands.js の mergeSelectionCommand() へ移管。
+  // [Phase121] mergeSelection()から直接、または確認モーダルのonConfirmから
+  // 呼ばれるが、実際のmutationはこの関数1箇所に集約されているため、
+  // ここで記録すればユーザー操作単位として過不足なく1イベントになる。
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true, includeSections: true }) : null;
   const r = mergeSelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
@@ -906,6 +944,9 @@ function _runMerge() {
   }
 
   setSelectedChordIds(r.selectedChordIds);
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true, includeSections: true }) : null;
+  _recRecord('mergeSelection', r, before, after);
+
   _refreshEditorView();
   return r.selectedChordIds[0];
 }
@@ -1013,7 +1054,15 @@ function replaceCurrentMatch(newName) {
   if (!String(newName ?? '').trim()) return; // 空文字での置換は行わない
   const { matches, activeIndex } = analysisEditor.search;
   if (activeIndex === null || !matches[activeIndex]) return;
+  // [Phase121] updateChord()は複数の呼び出し元（replace/rename/addChord内部）から
+  // 共有されるため、Recorderへの記録はupdateChord()内部ではなくここ（呼び出し元）で
+  // 'replace'として行う。replaceCurrentAndAdvance()経由の呼び出しも
+  // この1箇所に集約されるため二重記録は発生しない。
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   updateChord(matches[activeIndex], { chord: newName });
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('replace', { ok: true }, before, after);
+
   // [Phase115] 置換欄にフォーカスが残ったままのCtrl+Zをアプリ側Undoとして
   // 扱うためのフラグ。判定・解除箇所はグローバルkeydownハンドラとreplaceInputの
   // inputイベント（本ファイル内、[Phase115]コメント参照）。
@@ -1073,10 +1122,13 @@ function replaceAllMatches(newName) {
   const { matches } = analysisEditor.search;
   if (!matches.length) return 0;
   const targetIds = new Set(matches);
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _pushHistory();
   for (const c of analysisEditor.buffer) {
     if (targetIds.has(c._id)) c.chord = newName;
   }
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('replaceAll', { ok: true, count: targetIds.size }, before, after);
   _refreshEditorView();
   return targetIds.size;
 }
@@ -1091,6 +1143,7 @@ function replaceAllMatches(newName) {
  */
 function shiftAll(deltaSec) {
   if (!isAnalysisEditing()) return;
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _pushHistory();
   analysisEditor.buffer.forEach(c => {
     const duration = c.end - c.start;
@@ -1100,6 +1153,9 @@ function shiftAll(deltaSec) {
     c.start = Math.max(0, c.start + deltaSec);
     c.end   = c.start + duration;
   });
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('shiftAll', { ok: true }, before, after);
+
   _refreshEditorView();
 }
 
@@ -1215,8 +1271,12 @@ function addChordAtEditPoint() {
  */
 function splitChord(chordId, splitTime) {
   if (!isAnalysisEditing()) return null;
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   const r = splitChordCommand(analysisEditor, chordId, splitTime);
   if (!r.ok) return null;
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('splitChord', r, before, after);
+
   _refreshEditorView();
   return r.newId;
 }
@@ -1237,9 +1297,13 @@ function splitChord(chordId, splitTime) {
  */
 function addChord(chordId, splitTime, newChordName) {
   if (!isAnalysisEditing()) return null;
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   const r = addChordCommand(analysisEditor, chordId, splitTime, newChordName);
   if (!r.ok) return null;
   setSelectedChordIds([r.newId]);  // Chart Mode側ハイライト表示用の選択情報
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('addChord', r, before, after);
+
   _refreshEditorView();
   return r.newId;
 }
@@ -1260,7 +1324,13 @@ function openChordRenameSelector(chord) {
     // [Phase84] 初期表示のみRepresentation→Projectionの順で適用（書き込み側は変更なし）。
     initialChord: toDisplayChord(toReadableChord(chord.chord), capo),
     onSelect: (selected) => {
+      // [Phase121] updateChord()は複数の呼び出し元から共有されるため、
+      // ここ（呼び出し元）で'renameChord'として記録する（replaceとの区別）。
+      const before = _recIsRecording() ? _recSnapshot() : null;
       updateChord(chord._id, { chord: toCanonicalChord(selected.name, capo) });
+      const after = _recIsRecording() ? _recSnapshot() : null;
+      _recRecord('renameChord', { ok: true }, before, after);
+
       // [NOTE] 変更は既存コードの上書きのみ。buffer長は変わらないため
       // selection（chordIds/boundaryIndex）はどちらも変化しない
       // （splitChordのような_refreshSelection()呼び出しは不要）。
@@ -1299,8 +1369,12 @@ function shiftSelectedBoundary(deltaSec) {
     return;
   }
 
+  const before = _recIsRecording() ? _recSnapshot() : null;
   _pushHistory();
   moveBoundary(boundaryIndex, proposed);
+  const after = _recIsRecording() ? _recSnapshot() : null;
+  _recRecord('moveBoundary', { ok: true }, before, after);
+
   _refreshEditorView();
 }
 
@@ -1407,7 +1481,14 @@ function _handleBoundaryDragStart(chordId) {
   if (!isAnalysisEditing()) return;
   const idx = _getChordBufferIndex(chordId);
   if (idx <= 0) return; // 曲頭（左境界なし）・該当なしは対象外
-  _boundaryDragState = { chordId, boundaryIndex: idx - 1 };
+  // [Phase121] ドラッグ全体（pointerdown〜pointerup）で1イベントとして記録するため、
+  // beforeスナップショットをここ（開始点）で取得しstateへ保持する。
+  // moveBoundary()自体（_handleBoundaryDragMove内）では記録しない（連続呼び出しのため）。
+  _boundaryDragState = {
+    chordId,
+    boundaryIndex: idx - 1,
+    _recBefore: _recIsRecording() ? _recSnapshot() : null,
+  };
   _pushHistory();
 }
 
@@ -1457,6 +1538,23 @@ function _handleBoundaryDragMove(newTime) {
  * 専用setterを追加した上でクリアする）。
  */
 function _handleBoundaryDragEnd() {
+  // [Phase121] 開始点で保持したbeforeスナップショットと現在値を比較し、
+  // ドラッグ全体（連続したmoveBoundary()呼び出し）を1イベントとして記録する。
+  // 実際に境界が動かなかった場合（クリックのみ等）もbefore===afterとして記録され、
+  // Debug Report側で差分なしと表示される（既存のフォーマッタが自動的に処理する）。
+  //
+  // [既知の仕様] Recording状態がドラッグ中に変化した場合の挙動:
+  //   ・Recording中に開始→ドラッグ中にStop: record()内部のisRecording()
+  //     ガードにより記録されない（不完全なイベントは残らない）。
+  //   ・Recording OFF中に開始→ドラッグ中にStart: _recBeforeがnullのため
+  //     このifブロック自体に入らず、記録されない（ドラッグの後半だけ
+  //     Recording中でも、操作全体としては記録対象外）。
+  //   どちらも「ジェスチャー開始時点のRecording状態で対象を確定する」
+  //   という一貫した挙動であり、Phase121 MVPでは許容する。
+  if (_boundaryDragState && _boundaryDragState._recBefore) {
+    const after = _recIsRecording() ? _recSnapshot() : null;
+    _recRecord('moveBoundary', { ok: true }, _boundaryDragState._recBefore, after);
+  }
   _boundaryDragState = null;
 }
 
@@ -1560,6 +1658,7 @@ function shiftSelectionRange(deltaSec) {
 
   if (actualDelta === 0) return; // 壁に到達済み・トーストなしで静かに無視
 
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _pushHistory();
 
   // 選択範囲の内部（先頭〜末尾-1）を平行移動。方向による分岐は無い。
@@ -1576,6 +1675,9 @@ function shiftSelectionRange(deltaSec) {
   if (tailChord.end - tailChord.start < -EPS || prevChord.end - prevChord.start < -EPS) {
     throw new Error('[FORWARD WALL MODEL] invariant violated: negative chord length');
   }
+
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('shiftSelectionRange', { ok: true }, before, after);
 
   _refreshEditorView();
 }
@@ -1670,11 +1772,29 @@ function _clearMutationFeedbackImmediate() {
   clearMutationFeedback();
 }
 
+/**
+ * _recSnapshot — Debug Session Recorder用のstate snapshotを組み立てる薄いラッパー。
+ * [Phase121] editorMode / selectedSectionId はapp.js側でしか導出できないため
+ * ここで補ってからdebugSessionRecorder.jsのsnapshotState()へ渡す。
+ * Recording中でない場合も安全に呼べる（record()側がisRecording()でガードするため、
+ * ここでの計算コスト自体は毎回発生するが、snapshotは軽量な値のみのため許容する）。
+ *
+ * @param {object} [opts] - snapshotState()と同じ opts（includeBuffer/includeSections）
+ */
+function _recSnapshot(opts = {}) {
+  return _recSnapshotState(analysisEditor, {
+    ...opts,
+    editorMode: deriveEditorMode(analysisEditor.selection),
+    selectedSectionId: _previewSectionId,
+  });
+}
+
 function undoEdit() {
   if (!isAnalysisEditing()) return;
   // [Phase86-2 Sprint B] buffer入替の実体は analysisSession.js の undoBuffer()。
   // history/future stack semanticsは変更していない（past/future stack方式のまま）。
   const prevBuffer = analysisEditor.buffer; // swap前の参照（Phase118・diff用）
+  const recBefore = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   if (!undoBuffer(analysisEditor)) return;
   const focusChordId = computeMutationFocusChordId(prevBuffer, analysisEditor.buffer);
   // [Phase119改訂] Undo/Redo後はSelectionを明示的に解除する（VSCode風の
@@ -1690,6 +1810,9 @@ function undoEdit() {
   _refreshSelection([]);
   setSelectedChordIds([]);
   _setMutationFeedback(focusChordId); // Phase119: _refreshEditorView()より前に反映
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('undo', { ok: true }, recBefore, after);
+
   _refreshEditorView();
   if (focusChordId) scrollToChord(focusChordId);
 }
@@ -1702,6 +1825,7 @@ function undoEdit() {
 function redoEdit() {
   if (!isAnalysisEditing()) return;
   const prevBuffer = analysisEditor.buffer; // swap前の参照（Phase118・diff用）
+  const recBefore = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   if (!redoBuffer(analysisEditor)) return;
   const focusChordId = computeMutationFocusChordId(prevBuffer, analysisEditor.buffer);
   // [Phase119改訂] undoEdit()と同じ理由でSelectionを明示的に解除する
@@ -1709,6 +1833,9 @@ function redoEdit() {
   _refreshSelection([]);
   setSelectedChordIds([]);
   _setMutationFeedback(focusChordId); // Phase119: _refreshEditorView()より前に反映
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('redo', { ok: true }, recBefore, after);
+
   _refreshEditorView();
   if (focusChordId) scrollToChord(focusChordId);
 }
@@ -1930,12 +2057,16 @@ function openSectionModal() {
       mkMBtn('作成', 'ok', () => {
         const type = document.getElementById('sec-type-in')?.value ?? defaultType;
         const name = document.getElementById('sec-name-in')?.value.trim() || _generateSectionName(type);
+        const before = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
         const result = createSectionCommand(analysisEditor, { type, name, startChordId, endChordId });
         if (!result.ok) {
           toast(`⚠ Section作成に失敗しました: ${result.reason}`);
           return; // [ORDER] 失敗時はcloseしない・入力内容を保持する
         }
         close();
+        const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
+        _recRecord('createSection', result, before, after);
+
         _refreshEditorView();
         toast(`✅ Section「${name}」を作成しました`);
       }),
@@ -2348,11 +2479,14 @@ function _moveSectionBoundary(section, side, dir) {
   const newChordId = buffer[newIdx]._id;
 
   const patch = side === 'start' ? { startChordId: newChordId } : { endChordId: newChordId };
+  const before = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
   const result = updateSectionBoundaryCommand(analysisEditor, section.id, patch);
   if (!result.ok) {
     toast(`⚠ 境界の移動に失敗しました: ${result.reason}`);
     return;
   }
+  const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
+  _recRecord('updateSectionBoundary', result, before, after);
 
   // [Phase106] Previewが有効な対象の境界が変わった場合、Preview側のchordIds
   // （Derived Cache）を再計算する。updateSectionBoundaryCommand()は同じsection
@@ -2428,12 +2562,16 @@ function openSectionRenameModal(section) {
       mkMBtn('保存', 'ok', () => {
         const type = document.getElementById('sec-rename-type-in')?.value ?? section.type;
         const name = document.getElementById('sec-rename-name-in')?.value.trim() || section.name;
+        const before = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
         const result = renameSectionCommand(analysisEditor, section.id, { type, name });
         if (!result.ok) {
           toast(`⚠ Section変更に失敗しました: ${result.reason}`);
           return; // [ORDER] 失敗時はcloseしない・入力内容を保持する
         }
         close();
+        const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
+        _recRecord('renameSection', result, before, after);
+
         _refreshEditorView();
         toast(`✅ Section「${name}」を変更しました`);
       }),
@@ -2462,12 +2600,16 @@ function openSectionDeleteConfirm(section) {
     buttons: (close) => [
       mkMBtn('キャンセル', '', close),
       mkMBtn('削除', 'ok', () => {
+        const before = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
         const result = deleteSectionCommand(analysisEditor, section.id);
         if (!result.ok) {
           toast(`⚠ Section削除に失敗しました: ${result.reason}`);
           return;
         }
         close();
+        const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
+        _recRecord('deleteSection', result, before, after);
+
         _refreshEditorView();
         toast(`🗑 Section「${section.name}」を削除しました`);
       }),
@@ -3023,6 +3165,45 @@ function _updateChartDiagMenu(enabled) {
   const btn = document.getElementById('btn-toggle-chart-diag');
   if (!btn) return;
   btn.textContent = (enabled ? '✔ ' : '　') + '♬ Chart コード図';
+}
+
+// Debug Menuのラベル更新（Phase121）
+// [DESIGN] Record状態はボタンラベルの書き換えのみで表現する
+// （_updateChartDiagMenu()と同じ既存パターンを踏襲）。
+// [Phase121改訂] Recording中インジケータ（#debug-rec-indicator）の
+// 表示/非表示もここに統合する。呼び出し元（メニュークリック/Alt+R）が
+// 増えても、状態反映のロジックを1箇所に保つため。
+function _updateDebugMenu() {
+  const recordBtn = document.getElementById('btn-debug-record');
+  const copyBtn = document.getElementById('btn-debug-copy-report');
+  const indicator = document.getElementById('debug-rec-indicator');
+  const recording = _recIsRecording();
+  if (recordBtn) {
+    recordBtn.textContent = recording
+      ? '⏹ Recording停止'
+      : '● Recording開始';
+  }
+  if (copyBtn) {
+    copyBtn.disabled = !_recHasReport();
+  }
+  if (indicator) {
+    indicator.hidden = !recording;
+  }
+}
+
+// Recording Start/Stopの唯一の窓口（Phase121）
+// [OWNERSHIP] Debugメニューのクリックハンドラ・Alt+Rショートカットの
+// 両方がここを経由する。Recorder自体のAuthorityはdebugSessionRecorder.js
+// が持ち、この関数はapp.js側の薄いトグル処理＋UI反映のみを担う。
+function _toggleRecording() {
+  if (_recIsRecording()) {
+    _recStop();
+    toast('⏹ Recording停止');
+  } else {
+    _recStart();
+    toast('● Recording開始');
+  }
+  _updateDebugMenu();
 }
 
 window.addEventListener('resize', () => {
@@ -3987,6 +4168,13 @@ async function loadProj(data){
   // project.id をトークンにしない理由: 同一プロジェクトの連続loadを区別できないため。
   const myGeneration = ++_loadGeneration;
 
+  // [Phase121] loadProj()はAnalysis Editorの外側（project全体）の切替であり、
+  // _recSnapshot()が扱うeditorMode等の編集状態フィールドは意味を持たない
+  // （project切替時点でAnalysis Editorは通常非アクティブなため）。そのため
+  // 他のイベントとは異なり、projectIdの変化のみを最小限記録する。
+  const recWasRecording = _recIsRecording();
+  const recBeforeProjectId = recWasRecording ? (project?.id ?? null) : null;
+
   // Reset existing state
   resetProject();
   
@@ -4163,6 +4351,10 @@ async function loadProj(data){
   // TOKEN MIGRATION の結果を IndexedDB に即書き戻す。
   // これにより次回の自動保存復元時も migration 済みデータが使われる。
   autoSaveLocal();
+
+  if (recWasRecording) {
+    _recRecord('projectSwitch', { ok: true }, { projectId: recBeforeProjectId }, { projectId: project?.id ?? null });
+  }
 }
 
 // ════════════════════════════════════════
@@ -4639,6 +4831,17 @@ function setupEventHandlers() {
     if (e.altKey && e.key === 'n') {
       e.preventDefault();
       document.getElementById('btn-new').click();
+    }
+
+    // Alt+R: Debug Session Recorder Recording開始/停止（Phase121）
+    // [Global scope] Chart/Perform/TAP等の全画面overlay表示中も発火する
+    // （document.addEventListenerのため、overlayによるz-index重なりの
+    // 影響を受けない）。テキスト入力中はguardする（既存のL等と同じ方針）。
+    if (e.altKey && e.key === 'r') {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      _toggleRecording();
     }
 
     // Ctrl+Z: import undo
@@ -5118,6 +5321,12 @@ function setupEventHandlers() {
     ?.querySelector('.menu-trigger')
     ?.addEventListener('click', updateViewMenuChecks, { capture: true });
 
+  // Debugメニューを開く直前にラベル状態を更新（Phase121・表示メニューと同じパターン）
+  document.getElementById('menu-debug')
+    ?.closest('.menu-group')
+    ?.querySelector('.menu-trigger')
+    ?.addEventListener('click', _updateDebugMenu, { capture: true });
+
   // 左パネル トグル
   document.getElementById('btn-toggle-left')?.addEventListener('click', () => {
     const tag = document.activeElement?.tagName;
@@ -5144,6 +5353,25 @@ function setupEventHandlers() {
     setTooltipEnabled(next);
     _updateChartDiagMenu(next);
     toast(next ? '🎸 コード図ホバー ON' : '🎸 コード図ホバー OFF');
+  });
+
+  // ============================================
+  // Debug Menu Events（Phase121: Debug Session Recorder）
+  // ============================================
+  _updateDebugMenu();
+
+  document.getElementById('btn-debug-record')?.addEventListener('click', () => {
+    _toggleRecording();
+  });
+
+  document.getElementById('btn-debug-copy-report')?.addEventListener('click', async () => {
+    const report = _recBuildReport();
+    try {
+      await navigator.clipboard.writeText(report);
+      toast('📋 Debug Reportをコピーしました');
+    } catch (err) {
+      toast('⚠ クリップボードへのコピーに失敗しました');
+    }
   });
 
   // ============================================
