@@ -30,3 +30,38 @@
 
 .play-btn.playing .icon-pause { display: block; }
 .play-btn.playing .icon-play  { display: none; }
+/* Debug Session Recorder Recording indicator (Phase121)
+   Recording status has no existing Semantic token match, so this
+   references the Primitive layer (--color-red) directly
+   (ui-rules.md 5: direct Primitive reference is allowed when there
+   is a clear reason; adding a new Semantic token is out of scope
+   for Phase121).
+   [Phase121実機テストで発見] 当初z-index:400としていたが、
+   #perform-overlay（perform.css）がz-index:9999であることが判明し、
+   演奏モード表示中はインジケータが完全に隠れていた（実機テストで発見）。
+   perform.css側の9999という値を変更するとperform-overlay自体の設計
+   （他要素との重なり順）に影響するリスクがあるため、変更せず、
+   このインジケータ側の値を確実に上回るよう10000へ引き上げて対応する。
+   [既知の制約] tap-overlay（tapmode.css・未確認）が万一9999より高い
+   z-indexを持つ場合、同じ問題が再発する可能性がある。今回はTAPモード
+   での実機確認まで手が回っていないため、次回TAPモード表示中の
+   確認時に合わせて検証すること。 */
+#debug-rec-indicator{
+  position:fixed;
+  top:8px;
+  right:8px;
+  z-index:10000;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  padding:3px 8px;
+  background:var(--surface-overlay);
+  border:1px solid var(--border-ui);
+  border-radius:var(--r-md);
+  box-shadow:var(--shadow-md);
+  font-family:var(--font-mono);
+  font-size:11px;
+  color:var(--color-red);
+  pointer-events:none;
+}
+#debug-rec-indicator[hidden]{display:none}

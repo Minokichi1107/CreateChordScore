@@ -78,6 +78,14 @@
   </div>
 
   <div class="menu-group">
+    <button class="menu-trigger hdr-btn">デバッグ ▼</button>
+    <div class="dropdown" id="menu-debug">
+      <button class="dd-item" id="btn-debug-record">● Recording開始</button>
+      <button class="dd-item" id="btn-debug-copy-report" disabled>📋 Debug Reportをコピー</button>
+    </div>
+  </div>
+
+  <div class="menu-group">
     <button class="menu-trigger hdr-btn">ツール ▼</button>
     <div class="dropdown" id="menu-tools">
       <button class="dd-item" disabled>🎵 コードDB</button>
@@ -419,6 +427,12 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- Phase121: Debug Session Recorder — Recording中のみ表示するインジケータ。
+       Chart/Perform/TAP等の全画面overlayより確実に手前に出るよう、
+       state.cssで高いz-indexを明示する。Recorder自体のAuthorityは
+       持たない（app.js側が表示/非表示を切り替えるだけの純粋なDOM要素）。 -->
+<div id="debug-rec-indicator" hidden>● REC</div>
 
 
 <!-- SETTINGS PANEL -->
