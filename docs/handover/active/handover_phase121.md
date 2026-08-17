@@ -25,11 +25,19 @@ Phase121の失敗ではなく、Mutation Recording基盤の実装完了を経て
 
 - `js/debugSessionRecorder.js` 新設。既存Debug Layer（`__CS_DEBUG__`）とは
   独立したAuthorityとして、Semantic Event履歴をメモリ上にのみ保持
-- `app.js`: 18種類のCommand Layer起点イベント（addChord/deleteSelection/
-  undo/redo/Section系4コマンド等）への記録差し込み
+- `app.js`: 21種類のCommand Layer起点イベント（addChord/deleteSelection/
+  undo/redo/Section系4コマンド/shiftAll/shiftSelectionRange等）への
+  記録差し込み
 - `index.html`: 「デバッグ」menu-group新設（既存表示メニューと同じパターン）
 - Recording state: 手動Start/Stop、デフォルトOFF、メモリのみ保持
 - 出力: 人間可読テキストのみ（Copy Debug Report → クリップボード）
+- **[実機テストを受けての追加実装]** `Alt+R`（Global shortcut）による
+  Recording Start/Stopのトグル。Debugメニューのボタンとロジックを共通化
+  （`_toggleRecording()`に集約）
+- **[実機テストを受けての追加実装]** `#debug-rec-indicator`（Recording中
+  のみ表示する「● REC」インジケータ）を新設。Chart/Perform/TAP等の
+  全画面overlayより手前に固定表示されるよう`z-index`を調整（4. Findings
+  参照）
 
 ---
 
@@ -44,10 +52,19 @@ Phase121の失敗ではなく、Mutation Recording基盤の実装完了を経て
   意味的な操作情報として設計し直す方が自然なため、今回はsnapshot項目を
   拡張しない（4. Findings参照。Phase122で必ず解決する）。
 - **JSON Export**（当初設計時点で見送り済み）
+- **Copy Debug Reportのショートカット化**（Alt+R等）
+  Start/Stopのみショートカット化し、Copyは従来通りDebugメニューからの
+  操作に限定する。Recording停止後、落ち着いて操作する想定のため
+  ショートカット化の優先度は低いと判断した。
+- **常時表示のRECインジケータ**
+  Recording OFF時は完全に非表示とし、ON時のみ表示する。「主張が強い
+  表示は避けたい」という要望を踏まえ、UIへの圧迫を最小限にした。
 
 ---
 
 ## 4. Findings（判明した知見）
+
+### Mutation Recordingの記録漏れ（実機テスト後のコードレビューで発見）
 
 - 実機テストで、Section境界移動を2回行った際のReportが
   `updateSectionBoundary / result: ok` のみで差分情報が一切出ない
@@ -58,10 +75,49 @@ Phase121の失敗ではなく、Mutation Recording基盤の実装完了を経て
   同じ記録層で扱おうとしたことに起因する、設計レベルの制約である。
   Phase122でSemantic Interaction Event（例: ドラッグ開始/終了、
   ステッパークリック）として記録することで解決する。
+- コードレビュー（ChatGPT指摘）を受けて`_pushHistory()`を呼ぶ全箇所を
+  機械的に洗い出したところ、`shiftAll()`（全体シフト・Ctrl+Shift+Arrow）
+  と`shiftSelectionRange()`（範囲シフト）の2件でRecorder記録が漏れて
+  いたことが判明し、実装漏れとして修正した。実装当初、Command Layerを
+  経由しない独自mutation（`_pushHistory()`を自前で呼ぶ関数）の網羅性
+  確認が不十分だったことが原因。
+- `after`側snapshotの計算が、Recording OFF時も無条件に評価されていた
+  （`before`側は`_recIsRecording()`で条件分岐していたが`after`側は
+  していなかった）。「Recording OFF時のコストをゼロにする」という
+  設計思想とコードの実態が矛盾していたため、21箇所すべてを機械的に
+  統一した。
 - `splitChord()`（app.js）はapp.js・chartmode.jsのどちらからも
   呼び出し箇所が存在しないことを実コード確認で確定した（デッドコード）。
   Recorderへの記録自体は追加済みだが、実際に発火する経路がない。
   Phase121のスコープ外の既存の技術的負債として記録するのみとする。
+
+### UI到達性の問題（実機テストで発見・設計変更に至った）
+
+- **[重大発見]** 当初「デバッグメニューからRecording Start/Stop・
+  Copy Debug Reportを操作する」設計だったが、実機テストで
+  **Chart Mode表示中はデバッグメニュー自体が操作不能**であることが
+  判明した。`#chart-overlay`が`fixed, z-index:300`の全画面要素であり、
+  ヘッダー（`<header id="header">`。デバッグメニューを含む）を完全に
+  覆ってしまうため。演奏モード（`#perform-overlay`）・TAPモード
+  （`#tap-overlay`）も同様に独自の全画面オーバーレイ構造を持つ。
+  Recorderで記録したい操作の大半はChart Mode表示中に発生するため、
+  「最も使いたい場面でRecorderを操作できない」という実用上の欠陥
+  だった。
+- 対応として、Recording Start/Stopを`Alt+R`のGlobal shortcut化した。
+  `document.addEventListener('keydown', ...)`はDOM全体に登録されて
+  おり、overlayによるCSS上の重なりに関わらず発火することを実コードで
+  確認済み（既存の`Alt+N`と同じ仕組み）。
+- インジケータ（`#debug-rec-indicator`）を新設し、Recording中かどうかを
+  視覚的に示す必要が生じた（ショートカットだけでは「押しても効いて
+  いるか分からない」問題があるため）。当初`z-index:400`で実装したが、
+  実機テストで**演奏モード表示中はインジケータが見えない**ことが発覚。
+  `perform.css`確認の結果、`#perform-overlay`が`z-index:9999`という
+  突出した値を持っていたことが原因と判明し、インジケータ側を
+  `z-index:10000`へ引き上げて解決した。`perform.css`側の値は変更して
+  いない（既存overlayの重なり順設計への影響を避けるため）。
+- 実装過程で、機械的なコード置換の際に閉じ括弧`}`の対応関係を誤り、
+  一時的に構文エラーを作ってしまったことがあった。`node --check`で
+  即座に検出・修正済み（既存コードへの実害はなし）。
 
 ---
 
@@ -125,6 +181,27 @@ Command Layer関数そのものではなく、app.js側の「ユーザー操作�
 この3パターンはPhase122のSemantic Interaction Event設計でも
 再利用できる判断基準になる見込み。
 
+### [RECORDER GLOBAL ACCESSIBILITY]（Phase121・実機テストを受けて確立）
+
+Debug Recorderの操作手段（Start/Stop）は、Chart/Perform/TAP等の
+全画面overlay表示中でも到達可能でなければならない。理由は、
+Recorderが記録したい操作の大半がこれらのoverlay表示中に発生するため
+（Analysis Editorの編集操作はChart Mode内、等）。
+
+対応方針として、UIボタンを各overlay内に複製するのではなく、
+Global keyboard shortcut（`Alt+R`）を採用した。`document`に登録された
+`keydown`ハンドラはCSSの重なり順（z-index）に影響されず発火するため、
+overlay側（chartmode.js/perform.js/tapmode.js等）に一切手を入れずに
+済む。これはRecorderのAuthorityをapp.js/debugSessionRecorder.jsのみに
+限定するという既存方針とも一致する。
+
+視覚的フィードバック（`#debug-rec-indicator`）を追加する場合も、
+各overlayの外側（DOM上は独立した要素）に配置し、`z-index`のみで
+最前面表示を保証する。ただし、overlay側が突出した`z-index`を持つ
+場合（例: `#perform-overlay`の`z-index:9999`）、確実に上回る値を
+明示的に設定する必要がある。将来Recorder関連の視覚要素を追加する際は、
+既存overlayの`z-index`を事前に確認すること。
+
 ---
 
 ## 6. Remaining Issues（残課題）
@@ -135,6 +212,22 @@ Command Layer関数そのものではなく、app.js側の「ユーザー操作�
   引き継ぎ）。
 - `splitChord()`が未使用のデッドコードである可能性が高い
   （Phase121のスコープ外。将来の棚卸し候補）。
+- **[新規]** TAPモード（`#tap-overlay`）のz-indexは未確認のまま。
+  演奏モードで実際に起きた「z-index:9999によりインジケータが隠れる」
+  問題と同種の事象が、TAPモードでも発生する可能性がある。次回TAPモード
+  表示中に`Alt+R`の動作を確認すること。
+- **[新規・スコープ外]** ブルーテーマの演奏モード「✕ 閉じる」ボタンが
+  視認できないバグを発見した（実機テスト中の報告）。`perform.css`の
+  `#btn-perform-close`が`--surface-btn-close`という専用トークンを
+  使用しており、`theme.css`側のブルーテーマ定義で背景色と文字色
+  （`--text-secondary`）が近い色になっている可能性が高い（`theme.css`
+  未確認のため推測）。Phase121（Debug Recorder）とは無関係の既存バグ
+  のため、別フェーズで`theme.css`を確認の上対応する。
+- **[新規・要実機確認]** macOSで`Option+R`が特殊文字（®）を生成する
+  キーボード配列が存在し、その場合`e.key`が`'r'`ではなく`'®'`として
+  渡ってくる可能性がある（`Alt+N`が抱える既知の制約と同種）。開発環境
+  がWindows中心のため今回は確定させず、Mac実機での確認が取れ次第
+  `keybindings.md`へ反映する。
 
 ---
 
@@ -167,6 +260,14 @@ Phase121のMutation Recording基盤の上に、Semantic Interaction Event
   Debug Reportをコピー → クリップボードに正しいテキストが入る → OK
 □ ドラッグによる境界移動が1イベントとして記録される → OK
 □ splitChord()の発火経路 → 存在しないことを実コードで確認（未使用）
+□ Alt+R（通常画面）→ 右上に「● REC」が表示される → OK
+□ Alt+R（Chart Mode表示中）→ 同様に表示される → OK
+□ Alt+R（演奏モード表示中）→ 当初NG（z-index:9999問題）→
+  z-index:10000へ修正後 → OK
+□ もう一度Alt+R → インジケータが消える → OK
+□ デバッグメニューの「Recording開始」ボタンとAlt+Rで状態が同期する → OK
+□ テキスト入力中にAlt+Rを押しても誤発火しない → OK
+△ TAPモード表示中のAlt+R動作 → 未確認（6. Remaining Issues参照）
 ```
 
 ---
@@ -174,7 +275,10 @@ Phase121のMutation Recording基盤の上に、Semantic Interaction Event
 ## current-issues.md更新（該当issueがある場合）
 - 今回closeしたissue: なし
 - 今回新規に積み残したissue:
-  - splitChord()が未使用のデッドコードである可能性（6. Remaining Issues参照）
+  - splitChord()が未使用のデッドコードである可能性
+  - TAPモードのz-index未確認
+  - ブルーテーマの演奏モード閉じるボタン視認性バグ
+  - macOSでOption+Rが特殊文字を生成する可能性（Alt+Nと同種の制約）
 
 ---
 
@@ -191,6 +295,30 @@ Phase121のMutation Recording基盤の上に、Semantic Interaction Event
   カーソル位置分割を追加する場合もsplitChord()自体は変更不要」との
   記載があり、意図的に残されている可能性もある）。
 
+- 見出し: TAPモード（#tap-overlay）のz-index未確認
+  状態: 未確認・優先度低
+  内容: Phase121でDebug Recorderのインジケータ（#debug-rec-indicator）
+  を実装する過程で、演奏モード（z-index:9999）表示中にインジケータが
+  隠れる問題を発見・修正した。同種の問題がTAPモードでも起きないか、
+  次回TAPモード表示中にAlt+Rの動作を確認すること。
+
+- 見出し: ブルーテーマの演奏モード「✕ 閉じる」ボタンが視認できない
+  状態: 未確認・原因推測のみ（perform.css確認済み・theme.css未確認）
+  内容: Phase121の実機テスト中に発見（Recorderとは無関係の既存バグ）。
+  `#btn-perform-close`が`--surface-btn-close`という専用トークンを
+  使用しており、ブルーテーマでは背景色と`--text-secondary`（文字色）
+  が近い色になっている可能性が高い。theme.cssを確認の上、別フェーズで
+  対応する。
+
+- 見出し: macOSで Alt+R（Option+R）が特殊文字を生成する可能性
+  状態: 未確認・要Mac実機確認
+  内容: Phase121でRecording Start/Stopのショートカットとして`Alt+R`を
+  採用したが、macOSのキーボード配列によっては`Option+R`が`®`という
+  特殊文字を生成し、`e.key`が`'r'`ではなく`'®'`として渡ってくる
+  可能性がある（既存の`Alt+N`が抱える制約と同種。keybindings.md参照）。
+  開発環境がWindows中心のため今回は確定させず、Mac実機での確認が取れ
+  次第keybindings.mdへ反映する。
+
 #### MODIFY
 - No changes.
 
@@ -201,10 +329,21 @@ Phase121のMutation Recording基盤の上に、Semantic Interaction Event
 
 - Current Status（完了済みリスト）に追加:
   ✓ Debug Session Recorder — Mutation Recording基盤（Phase121・
-    Command Layer起点の18種類のイベントを記録するMVPを実装。
+    Command Layer起点の21種類のイベントを記録するMVPを実装。
+    Alt+RによるGlobal shortcut・Recording中インジケータを追加し、
+    Chart/Perform/TAP等の全画面overlay表示中でも操作可能にした。
     最終目的（操作の再現可能な診断セッション）はPhase122で継続。
     実機テストにより、Mutation記録のみでは操作再現に情報不足があると
     判明し、Phase122をSemantic Interaction Recordingとして計画）
+
+- Major Milestones（Analysis Editorテーブル）に追加:
+  | 121 | Debug Session Recorder — Mutation Recording基盤（
+    debugSessionRecorder.js新設。Command Layer起点21種類のイベントを
+    記録。実機テストでChart/Perform等の全画面overlayがヘッダーメニューを
+    覆い操作不能になる問題を発見し、Alt+R Global shortcut化＋
+    Recording中インジケータ（z-index調整含む）で対応。最終目的は
+    Phase122（Semantic Interaction Recording）へ継続）
+    | app.js / debugSessionRecorder.js / index.html / state.css |
 
 - Future Candidates: 次候補を更新
   ```
