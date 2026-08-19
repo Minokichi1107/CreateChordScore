@@ -649,6 +649,10 @@ function deleteChord(id) {
   const r = deleteChordCommand(analysisEditor, id);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
+    // [Phase123] Mutation Attempt Recording: 拒否分岐はCommand Layer側の
+    // pushHistory()より前で確定するため副作用が発生しない（全Command共通の
+    // 検証済み事実）。after=beforeは省略ではなく正確な表現。
+    _recRecord('deleteChord', r, before, before);
     return null;
   }
 
@@ -675,6 +679,7 @@ function deleteSelection() {
   const r = deleteSelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
+    _recRecord('deleteSelection', r, before, before); // [Phase123] after=before根拠はdeleteChord同様
     return null;
   }
 
@@ -721,6 +726,7 @@ function copySelection() {
   const r = copySelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
+    _recRecord('copySelection', r, before, before); // [Phase123]
     return false;
   }
 
@@ -768,6 +774,7 @@ function cutSelection() {
 
   if (!r.ok) {
     if (r.reason) toast(r.reason);
+    _recRecord('cutSelection', r, before, before); // [Phase123]
     return null;
   }
 
@@ -808,6 +815,7 @@ function pasteSelection() {
   const r = pasteSelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
+    _recRecord('pasteSelection', r, before, before); // [Phase123]
     return null;
   }
 
@@ -940,6 +948,7 @@ function _runMerge() {
   const r = mergeSelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
+    _recRecord('mergeSelection', r, before, before); // [Phase123]
     return null;
   }
 
@@ -1118,9 +1127,16 @@ function replaceCurrentAndAdvance(direction) {
  */
 function replaceAllMatches(newName) {
   if (!isAnalysisEditing()) return 0;
-  if (!String(newName ?? '').trim()) return 0; // 空文字での置換は行わない
+  if (!String(newName ?? '').trim()) {
+    // [Phase123] Command Layerを経由しないapp.js側の事前バリデーション拒否。
+    if (_recIsRecording()) { const s = _recSnapshot(); _recRecord('replaceAll', { ok: false, reason: 'empty-input' }, s, s); }
+    return 0; // 空文字での置換は行わない
+  }
   const { matches } = analysisEditor.search;
-  if (!matches.length) return 0;
+  if (!matches.length) {
+    if (_recIsRecording()) { const s = _recSnapshot(); _recRecord('replaceAll', { ok: false, reason: 'no-matches' }, s, s); }
+    return 0;
+  }
   const targetIds = new Set(matches);
   const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _pushHistory();
@@ -1273,7 +1289,10 @@ function splitChord(chordId, splitTime) {
   if (!isAnalysisEditing()) return null;
   const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   const r = splitChordCommand(analysisEditor, chordId, splitTime);
-  if (!r.ok) return null;
+  if (!r.ok) {
+    _recRecord('splitChord', r, before, before); // [Phase123]
+    return null;
+  }
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('splitChord', r, before, after);
 
@@ -1299,7 +1318,10 @@ function addChord(chordId, splitTime, newChordName) {
   if (!isAnalysisEditing()) return null;
   const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   const r = addChordCommand(analysisEditor, chordId, splitTime, newChordName);
-  if (!r.ok) return null;
+  if (!r.ok) {
+    _recRecord('addChord', r, before, before); // [Phase123]
+    return null;
+  }
   setSelectedChordIds([r.newId]);  // Chart Mode側ハイライト表示用の選択情報
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('addChord', r, before, after);
@@ -1355,10 +1377,23 @@ function shiftSelectedBoundary(deltaSec) {
   // 範囲シフト（shiftSelectionRange）へ誘導する。
   if (analysisEditor.selection.chordIds.length > 1) {
     toast('複数選択中は範囲シフトをご利用ください');
+    // [Phase123] Command Layerを経由しないapp.js側の事前バリデーション拒否。
+    // Result Protocolが存在しないため、呼び出し側で{ok:false,reason}相当を組み立てる。
+    if (_recIsRecording()) {
+      const s = _recSnapshot();
+      _recRecord('moveBoundary', { ok: false, reason: 'multi-selection' }, s, s);
+    }
     return;
   }
   const boundaryIndex = analysisEditor.selection.boundaryIndex;
-  if (boundaryIndex === null) { toast('コードを選択してください'); return; }
+  if (boundaryIndex === null) {
+    toast('コードを選択してください');
+    if (_recIsRecording()) {
+      const s = _recSnapshot();
+      _recRecord('moveBoundary', { ok: false, reason: 'no-selection' }, s, s);
+    }
+    return;
+  }
 
   const left  = analysisEditor.buffer[boundaryIndex];
   const right = analysisEditor.buffer[boundaryIndex + 1];
@@ -1366,6 +1401,10 @@ function shiftSelectedBoundary(deltaSec) {
 
   if (proposed <= left.start || proposed >= right.end) {
     toast('選択したコードの長さが0以下になるため移動できません');
+    if (_recIsRecording()) {
+      const s = _recSnapshot();
+      _recRecord('moveBoundary', { ok: false, reason: 'zero-length' }, s, s);
+    }
     return;
   }
 
@@ -1521,7 +1560,11 @@ function _handleBoundaryDragMove(newTime) {
 
   const clamped = Math.min(Math.max(newTime, minTime), maxTime);
 
-  moveBoundary(boundaryIndex, clamped);
+  // [Phase123] moveBoundaryCommand()の戻り値（number|null）をdrag終了時の
+  // Recorder用diagnostic resultへ変換するため、最後の呼び出し結果を保持する。
+  // Command Layer（moveBoundaryCommand）自体のResult Protocolは変更しない。
+  const result = moveBoundary(boundaryIndex, clamped);
+  _boundaryDragState.lastMoveOk = (result !== null);
   _refreshEditorView();
 }
 
@@ -1553,7 +1596,12 @@ function _handleBoundaryDragEnd() {
   //   という一貫した挙動であり、Phase121 MVPでは許容する。
   if (_boundaryDragState && _boundaryDragState._recBefore) {
     const after = _recIsRecording() ? _recSnapshot() : null;
-    _recRecord('moveBoundary', { ok: true }, _boundaryDragState._recBefore, after);
+    // [Phase123] lastMoveOkが未設定（moveが一度も呼ばれなかった＝クリックのみ）
+    // の場合は既存動作を維持しok:true扱いとする（境界自体は動いていないが、
+    // Command拒否があったわけでもないため）。moveBoundaryCommandが実際に
+    // nullを返した場合のみok:falseとして記録する。
+    const ok = _boundaryDragState.lastMoveOk !== false;
+    _recRecord('moveBoundary', { ok }, _boundaryDragState._recBefore, after);
   }
   _boundaryDragState = null;
 }
@@ -1626,10 +1674,20 @@ function _getMinSlotDuration(atTime) {
 function shiftSelectionRange(deltaSec) {
   if (!isAnalysisEditing()) return;
   const ids = analysisEditor.selection.chordIds;
-  if (ids.length === 0) { toast('コードを選択してください'); return; }
+  // [Phase123] Command Layerを経由しないapp.js側の事前バリデーション拒否。
+  // Result Protocolが存在しないため、呼び出し側で{ok:false,reason}相当を組み立てる。
+  if (ids.length === 0) {
+    toast('コードを選択してください');
+    if (_recIsRecording()) { const s = _recSnapshot(); _recRecord('shiftSelectionRange', { ok: false, reason: 'no-selection' }, s, s); }
+    return;
+  }
   // [Phase77後半・確定] 範囲シフトは複数選択専用（UIも複数選択時のみ表示）。
   // 単一コードの伸縮は個別移動（shiftSelectedBoundary）でカバーする。
-  if (ids.length === 1) { toast('単一選択中は個別移動をご利用ください'); return; }
+  if (ids.length === 1) {
+    toast('単一選択中は個別移動をご利用ください');
+    if (_recIsRecording()) { const s = _recSnapshot(); _recRecord('shiftSelectionRange', { ok: false, reason: 'single-selection' }, s, s); }
+    return;
+  }
 
   const buffer = analysisEditor.buffer;
   // [INVARIANT] chordIdsはbuffer上の時系列順に正規化済み（_refreshSelection参照）
@@ -1638,6 +1696,7 @@ function shiftSelectionRange(deltaSec) {
 
   if (firstIdx <= 0 || lastIdx >= buffer.length - 1) {
     toast('曲の端のコードを含むため、これ以上移動できません');
+    if (_recIsRecording()) { const s = _recSnapshot(); _recRecord('shiftSelectionRange', { ok: false, reason: 'edge-of-song' }, s, s); }
     return;
   }
 
@@ -1656,7 +1715,12 @@ function shiftSelectionRange(deltaSec) {
     ? Math.min(deltaSec, Math.max(0, limitLen - minRemaining))
     : Math.max(deltaSec, -Math.max(0, limitLen - minRemaining));
 
-  if (actualDelta === 0) return; // 壁に到達済み・トーストなしで静かに無視
+  if (actualDelta === 0) {
+    // [Phase123] 壁に到達済み・トーストなしで静かに無視（既存UX維持）。
+    // ただしMutation Attemptとしては拒否に該当するため記録する。
+    if (_recIsRecording()) { const s = _recSnapshot(); _recRecord('shiftSelectionRange', { ok: false, reason: 'wall-reached' }, s, s); }
+    return;
+  }
 
   const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _pushHistory();
@@ -1795,7 +1859,12 @@ function undoEdit() {
   // history/future stack semanticsは変更していない（past/future stack方式のまま）。
   const prevBuffer = analysisEditor.buffer; // swap前の参照（Phase118・diff用）
   const recBefore = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
-  if (!undoBuffer(analysisEditor)) return;
+  if (!undoBuffer(analysisEditor)) {
+    // [Phase123] undoBuffer()はhistoryが空の場合、いかなる副作用も発生させず
+    // falseを返す（analysisSession.js実装で確認済み）ため after=before で正確。
+    _recRecord('undo', { ok: false, reason: 'history-empty' }, recBefore, recBefore);
+    return;
+  }
   const focusChordId = computeMutationFocusChordId(prevBuffer, analysisEditor.buffer);
   // [Phase119改訂] Undo/Redo後はSelectionを明示的に解除する（VSCode風の
   // 挙動へ変更）。従来は_refreshSelection()を引数なしで呼んでおり、これは
@@ -1826,7 +1895,12 @@ function redoEdit() {
   if (!isAnalysisEditing()) return;
   const prevBuffer = analysisEditor.buffer; // swap前の参照（Phase118・diff用）
   const recBefore = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
-  if (!redoBuffer(analysisEditor)) return;
+  if (!redoBuffer(analysisEditor)) {
+    // [Phase123] redoBuffer()はfutureが空の場合、いかなる副作用も発生させず
+    // falseを返す（analysisSession.js実装で確認済み）ため after=before で正確。
+    _recRecord('redo', { ok: false, reason: 'future-empty' }, recBefore, recBefore);
+    return;
+  }
   const focusChordId = computeMutationFocusChordId(prevBuffer, analysisEditor.buffer);
   // [Phase119改訂] undoEdit()と同じ理由でSelectionを明示的に解除する
   // （詳細コメントはundoEdit()側参照）。
@@ -2061,6 +2135,7 @@ function openSectionModal() {
         const result = createSectionCommand(analysisEditor, { type, name, startChordId, endChordId });
         if (!result.ok) {
           toast(`⚠ Section作成に失敗しました: ${result.reason}`);
+          _recRecord('createSection', result, before, before); // [Phase123]
           return; // [ORDER] 失敗時はcloseしない・入力内容を保持する
         }
         close();
@@ -2483,6 +2558,7 @@ function _moveSectionBoundary(section, side, dir) {
   const result = updateSectionBoundaryCommand(analysisEditor, section.id, patch);
   if (!result.ok) {
     toast(`⚠ 境界の移動に失敗しました: ${result.reason}`);
+    _recRecord('updateSectionBoundary', result, before, before); // [Phase123]
     return;
   }
   const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
@@ -2566,6 +2642,7 @@ function openSectionRenameModal(section) {
         const result = renameSectionCommand(analysisEditor, section.id, { type, name });
         if (!result.ok) {
           toast(`⚠ Section変更に失敗しました: ${result.reason}`);
+          _recRecord('renameSection', result, before, before); // [Phase123]
           return; // [ORDER] 失敗時はcloseしない・入力内容を保持する
         }
         close();
@@ -2604,6 +2681,7 @@ function openSectionDeleteConfirm(section) {
         const result = deleteSectionCommand(analysisEditor, section.id);
         if (!result.ok) {
           toast(`⚠ Section削除に失敗しました: ${result.reason}`);
+          _recRecord('deleteSection', result, before, before); // [Phase123]
           return;
         }
         close();
