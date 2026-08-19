@@ -3,7 +3,7 @@
 ## 作業状態
 - ブランチ: phase123-c1-reconcile-diagnostics
 - 直前作業: Phase123-B完了（history/future の before→after 記録）
-- コミット構成: A補正 + C1 を1コミットにまとめる（下記[Git補足]参照）
+- コミット: `cb8b3b4` "Phase123-A補正 + Phase123-C1: pasteAbsolute記録漏れ補正 + reconcile診断情報"
 
 ### [Git補足] A補正とC1を1コミットにまとめた理由
 
