@@ -114,7 +114,14 @@ export function record(event, result, stateBefore, stateAfter) {
  * snapshotState — MVPで観測する軽量state snapshotを組み立てるヘルパー。
  *
  * [SNAPSHOT FIELDS]（設計確定事項）
- *   共通:            editorMode, selectedChordIds, selectedSectionId, dirty
+ *   共通:            editorMode, selectedChordIds, selectedSectionId, dirty,
+ *                    historyLength, futureLength（Phase123-B・
+ *                    debug-recorder-design.md §6 [STATE TRANSITION OVER
+ *                    STATE VALUE]。Undo/Redoスタックの深さの変化を
+ *                    追跡するための共通フィールド。history/futureを
+ *                    変化させないイベント（copySelection等）ではbefore=after
+ *                    となり、_formatDiffLine()が自動的に非表示にするため、
+ *                    opts経由のopt-inにする必要がない）
  *   buffer mutation: bufferLength を追加
  *   section mutation: sectionsCount を追加
  *
@@ -132,6 +139,11 @@ export function snapshotState(analysisEditor, opts = {}) {
     selectedChordIds: [...(analysisEditor?.selection?.chordIds ?? [])],
     selectedSectionId: opts.selectedSectionId ?? null,
     dirty: analysisEditor?.dirty ?? null,
+    // [Phase123-B] Undo/Redoスタックの深さ。opt-inにせず常時含める
+    // （変化しないイベントではbefore=afterとなり_formatDiffLine()が
+    // 自動的に非表示にするため。§6 [STATE TRANSITION OVER STATE VALUE]）。
+    historyLength: analysisEditor?.history?.length ?? null,
+    futureLength: analysisEditor?.future?.length ?? null,
   };
   if (opts.includeBuffer) {
     snap.bufferLength = analysisEditor?.buffer?.length ?? null;
