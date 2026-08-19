@@ -98,8 +98,11 @@ export function hasReport() {
  *   Result Protocolを持たない操作（undo/redo/project switch等）はnull可。
  * @param {object} [stateBefore] - 操作前のstate snapshot（軽量オブジェクト）
  * @param {object} [stateAfter] - 操作後のstate snapshot（軽量オブジェクト）
+ * @param {object} [reconcile] - diffSections()の戻り値（Phase123-C1）。
+ *   reconcile()を実Factsで呼ぶ経路でのみ渡す。変化なし（null）の場合は
+ *   渡さない（呼び出し側でnullチェック済みの前提。省略時はundefined）。
  */
-export function record(event, result, stateBefore, stateAfter) {
+export function record(event, result, stateBefore, stateAfter, reconcile) {
   if (!_recording) return;
   _events.push({
     timestamp: new Date(),
@@ -107,6 +110,7 @@ export function record(event, result, stateBefore, stateAfter) {
     result: result ?? null,
     stateBefore: stateBefore ?? null,
     stateAfter: stateAfter ?? null,
+    reconcile: reconcile ?? null,
   });
 }
 
@@ -154,6 +158,81 @@ export function snapshotState(analysisEditor, opts = {}) {
   return snap;
 }
 
+/**
+ * snapshotSections — reconcile()診断専用のSection局所スナップショットを取得する。
+ *
+ * [Phase123-C1] snapshotState()の共通フィールド（historyLength等）とは
+ * 別枠の専用ヘルパー。reconcile()を実Factsで呼ぶ経路（deleteChord /
+ * deleteSelection / pasteSelection / pasteAbsolute / mergeSelection）
+ * でのみ使用する。共通フィールド化しない理由は debug-recorder-design.md
+ * §9 [RECORDING ADOPTION CRITERIA] の議論を参照（reconcile()を呼ばない
+ * 大多数のイベントにとって、この情報は常に空になるだけで意味を持たない）。
+ *
+ * @param {object} analysisEditor - app.js の analysisEditor（読み取り専用）
+ * @returns {Array<{id, startChordId, endChordId}>}
+ */
+export function snapshotSections(analysisEditor) {
+  return (analysisEditor?.sections ?? []).map(s => ({
+    id: s.id,
+    startChordId: s.startChordId,
+    endChordId: s.endChordId,
+  }));
+}
+
+/**
+ * diffSections — reconcile()前後のSectionスナップショットを比較し、
+ * removed / remapped を分類する純粋関数（Phase123-C1）。
+ *
+ * [設計方針]
+ *   ・removed:   idがbeforeに存在しafterに存在しない（Section削除）
+ *   ・remapped:  idは存在するがstartChordId/endChordIdが変化
+ *                （変化した側のみ from/to を含める。片側だけ変化した
+ *                 場合、変化していない側のフィールドは省略する）
+ *   ・変化なしの場合は null を返す（呼び出し側はreconcileフィールド
+ *     自体をrecord()へ渡さないことで、Diagnostic Timelineに
+ *     ノイズを残さない。§6 [STATE TRANSITION OVER STATE VALUE]と
+ *     同じ「変化そのものだけを残す」思想）
+ *
+ * [SCOPE] 個数のみのsectionsCountでは検知できないremap
+ *   （例: updateSectionBoundaryによる境界移動）を診断可能にすることが
+ *   目的（Phase123-A Findings参照）。作成（新規Section）はこの関数の
+ *   対象外（reconcile()自体がSectionを新規作成することはないため）。
+ *
+ * @param {Array|null} before - snapshotSections()の戻り値（変更前）
+ * @param {Array|null} after  - snapshotSections()の戻り値（変更後）
+ * @returns {{removed?: string[], remapped?: object[]}|null}
+ */
+export function diffSections(before, after) {
+  if (!before || !after) return null;
+
+  const afterMap = new Map(after.map(s => [s.id, s]));
+  const removed = [];
+  const remapped = [];
+
+  for (const b of before) {
+    const a = afterMap.get(b.id);
+    if (!a) {
+      removed.push(b.id);
+      continue;
+    }
+    const startChanged = a.startChordId !== b.startChordId;
+    const endChanged = a.endChordId !== b.endChordId;
+    if (startChanged || endChanged) {
+      const entry = { sectionId: b.id };
+      if (startChanged) entry.startChordId = { from: b.startChordId, to: a.startChordId };
+      if (endChanged) entry.endChordId = { from: b.endChordId, to: a.endChordId };
+      remapped.push(entry);
+    }
+  }
+
+  if (removed.length === 0 && remapped.length === 0) return null;
+
+  const result = {};
+  if (removed.length) result.removed = removed;
+  if (remapped.length) result.remapped = remapped;
+  return result;
+}
+
 function _formatTime(date) {
   const pad = (n, len = 2) => String(n).padStart(len, '0');
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
@@ -164,6 +243,26 @@ function _formatDiffLine(label, before, after) {
   const a = JSON.stringify(after);
   if (b === a) return null;
   return `    ${label}: ${b} → ${a}`;
+}
+
+/**
+ * _formatReconcile — reconcileフィールドの人間可読フォーマット（Phase123-C1）。
+ * resultと同じく汎用diffループの外で特別扱いする（§6参照）。
+ */
+function _formatReconcile(r) {
+  const lines = ['    reconcile:'];
+  if (r.removed && r.removed.length) {
+    lines.push(`      removed: [${r.removed.join(', ')}]`);
+  }
+  if (r.remapped && r.remapped.length) {
+    lines.push('      remapped:');
+    for (const m of r.remapped) {
+      lines.push(`        - sectionId: ${m.sectionId}`);
+      if (m.startChordId) lines.push(`          startChordId: ${m.startChordId.from} → ${m.startChordId.to}`);
+      if (m.endChordId) lines.push(`          endChordId: ${m.endChordId.from} → ${m.endChordId.to}`);
+    }
+  }
+  return lines.join('\n');
 }
 
 function _formatEvent(e) {
@@ -177,6 +276,9 @@ function _formatEvent(e) {
       const line = _formatDiffLine(key, e.stateBefore[key], e.stateAfter[key]);
       if (line) lines.push(line);
     }
+  }
+  if (e.reconcile) {
+    lines.push(_formatReconcile(e.reconcile));
   }
   return lines.join('\n');
 }

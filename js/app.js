@@ -226,6 +226,8 @@ import {
   record as _recRecord,
   snapshotState as _recSnapshotState,
   buildReport as _recBuildReport,
+  snapshotSections as _recSnapshotSections,
+  diffSections as _recDiffSections,
 } from './debugSessionRecorder.js'; // Phase121: Debug Session Recorder（既存Debug Layerとは独立したAuthority）
 
 import {
@@ -646,6 +648,10 @@ function deleteChord(id) {
   if (!isAnalysisEditing()) return null;
 
   const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  // [Phase123-C1] deleteChordCommand()はreconcile()を実Factsで呼ぶ経路の1つ。
+  // Section差分（removed/remapped）を診断するため、Command呼び出し前に
+  // 局所スナップショットを取る（sectionsCountとは別枠。debugSessionRecorder.js参照）。
+  const sectionsBefore = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
   const r = deleteChordCommand(analysisEditor, id);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
@@ -658,7 +664,8 @@ function deleteChord(id) {
 
   setSelectedChordIds(r.selectedChordIds);
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
-  _recRecord('deleteChord', r, before, after);
+  const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
+  _recRecord('deleteChord', r, before, after, _recDiffSections(sectionsBefore, sectionsAfter));
 
   _refreshEditorView();
   return r.selectedChordIds[0];
@@ -676,6 +683,8 @@ function deleteSelection() {
   if (!isAnalysisEditing()) return null;
 
   const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  // [Phase123-C1] deleteSelectionCommand()もreconcile()を実Factsで呼ぶ経路。
+  const sectionsBefore = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
   const r = deleteSelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
@@ -685,7 +694,8 @@ function deleteSelection() {
 
   setSelectedChordIds(r.selectedChordIds);
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
-  _recRecord('deleteSelection', r, before, after);
+  const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
+  _recRecord('deleteSelection', r, before, after, _recDiffSections(sectionsBefore, sectionsAfter));
 
   _refreshEditorView();
   return r.selectedChordIds[0];
@@ -812,6 +822,8 @@ function pasteSelection() {
 
   // [Phase87] 実体は analysisCommands.js の pasteSelectionCommand() へ移管。
   const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  // [Phase123-C1] pasteSelectionCommand()もreconcile()を実Factsで呼ぶ経路。
+  const sectionsBefore = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
   const r = pasteSelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
@@ -821,7 +833,8 @@ function pasteSelection() {
 
   setSelectedChordIds(r.selectedChordIds);
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
-  _recRecord('pasteSelection', r, before, after);
+  const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
+  _recRecord('pasteSelection', r, before, after, _recDiffSections(sectionsBefore, sectionsAfter));
 
   _refreshEditorView();
   return r.selectedChordIds;
@@ -877,15 +890,28 @@ function pasteAbsolute() {
     return null;
   }
 
+  // [Phase123-A補正] pasteAbsolute()はreconcile()を実Factsで呼ぶ5経路の1つ
+  // だが、Phase123-A時点ではMutation Attempt Recordingの対象から漏れていた
+  // （deleteChord/deleteSelection/mergeSelection/pasteSelectionのみ対応済み
+  // だった）。他の経路と同じ記録パターンへ揃える。
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  // [Phase123-C1] commitPastePlan()もreconcile()を実Factsで呼ぶ経路。
+  const sectionsBefore = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
+
   const origin = getPasteOrigin();
   const plan = buildPastePlan(analysisEditor, origin, clipboard);
   if (!plan.ok) {
     toast(plan.reason);
+    _recRecord('pasteAbsolute', { ok: false, reason: plan.reason }, before, before);
     return null;
   }
 
   const r = commitPastePlan(analysisEditor, plan);
   setSelectedChordIds(r.selectedChordIds);
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
+  _recRecord('pasteAbsolute', { ok: true, count: r.count }, before, after, _recDiffSections(sectionsBefore, sectionsAfter));
+
   _refreshEditorView();
   toast(`${r.count}件貼り付けました`);
   return r.selectedChordIds;
@@ -945,6 +971,11 @@ function _runMerge() {
   // 呼ばれるが、実際のmutationはこの関数1箇所に集約されているため、
   // ここで記録すればユーザー操作単位として過不足なく1イベントになる。
   const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true, includeSections: true }) : null;
+  // [Phase123-C1] mergeSelectionCommand()もreconcile()を実Factsで呼ぶ経路。
+  // includeSections（sectionsCount）はSection「個数」の増減のみを見る既存フィールドで、
+  // remap（個数不変の境界移動）は捉えられない（Phase123-A Findings）。
+  // reconcile専用のsnapshotSections()で個別に取得し、両方を併用する。
+  const sectionsBefore = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
   const r = mergeSelectionCommand(analysisEditor);
   if (!r.ok) {
     if (r.reason) toast(r.reason);
@@ -954,7 +985,8 @@ function _runMerge() {
 
   setSelectedChordIds(r.selectedChordIds);
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true, includeSections: true }) : null;
-  _recRecord('mergeSelection', r, before, after);
+  const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
+  _recRecord('mergeSelection', r, before, after, _recDiffSections(sectionsBefore, sectionsAfter));
 
   _refreshEditorView();
   return r.selectedChordIds[0];
