@@ -228,6 +228,7 @@ import {
   buildReport as _recBuildReport,
   snapshotSections as _recSnapshotSections,
   diffSections as _recDiffSections,
+  recordRender as _recRecordRender, // Phase123-C2
 } from './debugSessionRecorder.js'; // Phase121: Debug Session Recorder（既存Debug Layerとは独立したAuthority）
 
 import {
@@ -627,12 +628,16 @@ function _pushHistory() {
  *
  * @param {string} id - chord._id
  * @param {{ chord?: string, start?: number, end?: number }} patch
+ * @param {string|null} [mutationEvent] - Phase123-C2。呼び出し元のMutation
+ *   Event名（例: 'replace'/'renameChord'）をそのまま_refreshEditorView()へ
+ *   スルーする。updateChord()自身はどの呼び出し元かを判定しない
+ *   （[RECORDER CALL SITE RULES]の「共有Command」パターンと同じ考え方）。
  */
-function updateChord(id, patch) {
+function updateChord(id, patch, mutationEvent = null) {
   if (!isAnalysisEditing()) return;
   const r = updateChordCommand(analysisEditor, id, patch);
   if (!r.ok) return;
-  _refreshEditorView();
+  _refreshEditorView(mutationEvent);
 }
 
 /**
@@ -667,7 +672,7 @@ function deleteChord(id) {
   const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
   _recRecord('deleteChord', r, before, after, _recDiffSections(sectionsBefore, sectionsAfter));
 
-  _refreshEditorView();
+  _refreshEditorView('deleteChord');
   return r.selectedChordIds[0];
 }
 
@@ -697,7 +702,7 @@ function deleteSelection() {
   const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
   _recRecord('deleteSelection', r, before, after, _recDiffSections(sectionsBefore, sectionsAfter));
 
-  _refreshEditorView();
+  _refreshEditorView('deleteSelection');
   return r.selectedChordIds[0];
 }
 
@@ -792,7 +797,7 @@ function cutSelection() {
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('cutSelection', r, before, after);
 
-  _refreshEditorView();
+  _refreshEditorView('cutSelection');
   return r.selectedChordIds[0];
 }
 
@@ -836,7 +841,7 @@ function pasteSelection() {
   const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
   _recRecord('pasteSelection', r, before, after, _recDiffSections(sectionsBefore, sectionsAfter));
 
-  _refreshEditorView();
+  _refreshEditorView('pasteSelection');
   return r.selectedChordIds;
 }
 
@@ -912,7 +917,7 @@ function pasteAbsolute() {
   const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
   _recRecord('pasteAbsolute', { ok: true, count: r.count }, before, after, _recDiffSections(sectionsBefore, sectionsAfter));
 
-  _refreshEditorView();
+  _refreshEditorView('pasteAbsolute');
   toast(`${r.count}件貼り付けました`);
   return r.selectedChordIds;
 }
@@ -988,7 +993,7 @@ function _runMerge() {
   const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
   _recRecord('mergeSelection', r, before, after, _recDiffSections(sectionsBefore, sectionsAfter));
 
-  _refreshEditorView();
+  _refreshEditorView('mergeSelection');
   return r.selectedChordIds[0];
 }
 
@@ -1100,7 +1105,7 @@ function replaceCurrentMatch(newName) {
   // 'replace'として行う。replaceCurrentAndAdvance()経由の呼び出しも
   // この1箇所に集約されるため二重記録は発生しない。
   const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
-  updateChord(matches[activeIndex], { chord: newName });
+  updateChord(matches[activeIndex], { chord: newName }, 'replace');
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('replace', { ok: true }, before, after);
 
@@ -1177,7 +1182,7 @@ function replaceAllMatches(newName) {
   }
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('replaceAll', { ok: true, count: targetIds.size }, before, after);
-  _refreshEditorView();
+  _refreshEditorView('replaceAll');
   return targetIds.size;
 }
 
@@ -1204,7 +1209,7 @@ function shiftAll(deltaSec) {
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('shiftAll', { ok: true }, before, after);
 
-  _refreshEditorView();
+  _refreshEditorView('shiftAll');
 }
 
 /**
@@ -1328,7 +1333,7 @@ function splitChord(chordId, splitTime) {
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('splitChord', r, before, after);
 
-  _refreshEditorView();
+  _refreshEditorView('splitChord');
   return r.newId;
 }
 
@@ -1358,7 +1363,7 @@ function addChord(chordId, splitTime, newChordName) {
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('addChord', r, before, after);
 
-  _refreshEditorView();
+  _refreshEditorView('addChord');
   return r.newId;
 }
 
@@ -1381,7 +1386,7 @@ function openChordRenameSelector(chord) {
       // [Phase121] updateChord()は複数の呼び出し元から共有されるため、
       // ここ（呼び出し元）で'renameChord'として記録する（replaceとの区別）。
       const before = _recIsRecording() ? _recSnapshot() : null;
-      updateChord(chord._id, { chord: toCanonicalChord(selected.name, capo) });
+      updateChord(chord._id, { chord: toCanonicalChord(selected.name, capo) }, 'renameChord');
       const after = _recIsRecording() ? _recSnapshot() : null;
       _recRecord('renameChord', { ok: true }, before, after);
 
@@ -1446,7 +1451,7 @@ function shiftSelectedBoundary(deltaSec) {
   const after = _recIsRecording() ? _recSnapshot() : null;
   _recRecord('moveBoundary', { ok: true }, before, after);
 
-  _refreshEditorView();
+  _refreshEditorView('moveBoundary');
 }
 
 /**
@@ -1634,6 +1639,15 @@ function _handleBoundaryDragEnd() {
     // nullを返した場合のみok:falseとして記録する。
     const ok = _boundaryDragState.lastMoveOk !== false;
     _recRecord('moveBoundary', { ok }, _boundaryDragState._recBefore, after);
+    // [Phase123-C2] ドラッグ中は_handleBoundaryDragMove()から_refreshEditorView()が
+    // 連続的に呼ばれるが、それら個別のrenderをすべて記録するとノイズになるため、
+    // 既存の「1ジェスチャー=1イベント」方針（[RECORDER CALL SITE RULES]パターン3）を
+    // Render Eventにも適用し、ここで1回だけ記録する。moveBoundaryはEditing中のみ
+    // 到達可能なため、getCurrentChordSource()と同じ判定式で明示的にsourceを評価する
+    // （'buffer'固定を推測で書かない）。
+    if (ok && _recIsRecording()) {
+      _recRecordRender('main', isAnalysisEditing() ? 'buffer' : 'raw', 'moveBoundary');
+    }
   }
   _boundaryDragState = null;
 }
@@ -1775,7 +1789,7 @@ function shiftSelectionRange(deltaSec) {
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('shiftSelectionRange', { ok: true }, before, after);
 
-  _refreshEditorView();
+  _refreshEditorView('shiftSelectionRange');
 }
 
 /**
@@ -1914,7 +1928,7 @@ function undoEdit() {
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('undo', { ok: true }, recBefore, after);
 
-  _refreshEditorView();
+  _refreshEditorView('undo');
   if (focusChordId) scrollToChord(focusChordId);
 }
 
@@ -1942,7 +1956,7 @@ function redoEdit() {
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('redo', { ok: true }, recBefore, after);
 
-  _refreshEditorView();
+  _refreshEditorView('redo');
   if (focusChordId) scrollToChord(focusChordId);
 }
 
@@ -1999,8 +2013,16 @@ async function saveAnalysisEdit() {
  * [RESPONSIBILITY] DOM更新・Chart再描画のみを行う。
  * history / dirty / selection / buffer の変更はここでは行わない
  * （編集API側の責務）。
+ *
+ * @param {string|null} [mutationEvent] - Phase123-C2。このrenderがどの
+ *   Mutation Event（例: 'deleteSelection'）に起因するかを、呼び出し元が
+ *   明示的に渡す。この関数自身は「どのMutationの結果か」を推測しない
+ *   （呼び出し元＝app.jsのオーケストレーション責務を維持するため）。
+ *   省略時（非Mutation起因の呼び出し）はRender Eventを記録しない
+ *   （Selection変更・検索・Section Preview等はdesign doc §4 Level3の
+ *   対象であり、記録対象外という既存方針を維持する）。
  */
-function _refreshEditorView() {
+function _refreshEditorView(mutationEvent = null) {
   if (!chartState.active) return;
   if (!project.analysis) return;
   // [Phase77後半] editPointマーカー（表示用）を同期。
@@ -2045,7 +2067,11 @@ function _refreshEditorView() {
   // Section Bar UI自身の同期のため残置し、ここでの呼び出しと重複しても
   // 実害はない（冪等）。
   _syncSectionPreviewVisibility();
+  // [Phase123-C2] renderSourceはgetCurrentChordSource()と同じ分岐（isAnalysisEditing()）
+  // をこの1箇所で確定させる。「内容が一致しているか」ではなく「実際にどちらを
+  // 参照したか」をそのまま記録するため、別途推測・比較はしない。
   const currentChords = getCurrentChordSource();
+  const renderSource = isAnalysisEditing() ? 'buffer' : 'raw';
   const liveAnalysis = {
     ...project.analysis,
     chords: sanitizeChords(currentChords),
@@ -2056,6 +2082,13 @@ function _refreshEditorView() {
   };
   rebuildChartViewModel(liveAnalysis);
   renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
+  // [Phase123-C2] renderChartMode()の呼び出しが（例外を投げずに）完了した
+  // 直後にのみ記録する。renderChartMode()は同期関数で早期return
+  // （!chartState.active）以外の分岐を持たないため、ここに到達した時点で
+  // 実際に描画が行われたことが保証される。
+  if (mutationEvent && _recIsRecording()) {
+    _recRecordRender('main', renderSource, mutationEvent);
+  }
   renderAnalysisEditorPanel();
   renderSectionBar(); // Phase101-1
 }
@@ -2174,7 +2207,7 @@ function openSectionModal() {
         const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
         _recRecord('createSection', result, before, after);
 
-        _refreshEditorView();
+        _refreshEditorView('createSection');
         toast(`✅ Section「${name}」を作成しました`);
       }),
     ],
@@ -2605,7 +2638,7 @@ function _moveSectionBoundary(section, side, dir) {
     setSectionPreview(resolveSectionChordIds(buffer, section));
   }
 
-  _refreshEditorView();
+  _refreshEditorView('updateSectionBoundary');
 
   // [Phase106] scrollToChord()は呼ばない。境界編集はNavigationではなく
   // 「その場の微調整」であり、画面は動かないのが正しい挙動（実測で確認済み。
@@ -2681,7 +2714,7 @@ function openSectionRenameModal(section) {
         const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
         _recRecord('renameSection', result, before, after);
 
-        _refreshEditorView();
+        _refreshEditorView('renameSection');
         toast(`✅ Section「${name}」を変更しました`);
       }),
     ],
@@ -2720,7 +2753,7 @@ function openSectionDeleteConfirm(section) {
         const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
         _recRecord('deleteSection', result, before, after);
 
-        _refreshEditorView();
+        _refreshEditorView('deleteSection');
         toast(`🗑 Section「${section.name}」を削除しました`);
       }),
     ],

@@ -233,6 +233,40 @@ export function diffSections(before, after) {
   return result;
 }
 
+/**
+ * recordRender — Render Event（描画イベント）を記録する（Phase123-C2）。
+ *
+ * [DIAGNOSTIC TIMELINE AUTHORITY] Mutation Attempt（result/reconcile）とは
+ * 独立したイベント種別として、同一の_events配列（単一時系列）へ積む
+ * （debug-recorder-design.md §3。別配列・別Authorityにはしない）。
+ *
+ * [MUTATION-TRIGGERED ONLY] 記録対象はMutationに起因するrenderのみ
+ * （trigger引数が呼び出し元から明示的に渡された場合のみ呼ばれる想定）。
+ * Selection変更・検索・Section Preview等、Mutationを伴わないrenderは
+ * 対象外（design doc §4 Level3の趣旨を維持するため）。
+ *
+ * [呼び出し規約] このモジュール自身はrenderが実際に成功したかどうかを
+ * 判定しない。呼び出し元（app.js側の_refreshEditorView()等）が、実際の
+ * render呼び出し（renderChartMode()等）が完了した後にのみ呼ぶことで、
+ * 「記録された＝実際に描画された」という対応を保証する。
+ *
+ * @param {string} path - render経路のラベル（例: 'main'）
+ * @param {string} source - 参照元（'buffer' | 'raw'）
+ * @param {string} trigger - このrenderを引き起こしたMutation Event名
+ */
+export function recordRender(path, source, trigger) {
+  if (!_recording) return;
+  _events.push({
+    timestamp: new Date(),
+    event: 'render',
+    result: null,
+    stateBefore: null,
+    stateAfter: null,
+    reconcile: null,
+    render: { path, source, trigger },
+  });
+}
+
 function _formatTime(date) {
   const pad = (n, len = 2) => String(n).padStart(len, '0');
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
@@ -279,6 +313,11 @@ function _formatEvent(e) {
   }
   if (e.reconcile) {
     lines.push(_formatReconcile(e.reconcile));
+  }
+  if (e.render) {
+    lines.push(`    path: ${e.render.path}`);
+    lines.push(`    source: ${e.render.source}`);
+    if (e.render.trigger) lines.push(`    trigger: ${e.render.trigger}`);
   }
   return lines.join('\n');
 }
