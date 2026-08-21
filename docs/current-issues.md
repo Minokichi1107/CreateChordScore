@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase118完了時点（Phase114〜118を反映）
+> 最終更新: Phase123-C2完了時点（Phase119〜123-C2を反映）
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -43,20 +43,34 @@
 
 ---
 
+## 1.5 Debug Session Recorder — Diagnostic Timeline v1 凍結後の保留事項
+
+> Phase123-C2をもってDiagnostic Timelineを「v1」として一区切りとし、凍結した。
+> 以下は通常のOpen issueとは区別し、「実運用でバグ調査に使ってみて不足が
+> 判明した場合にのみ」着手する。机上の追加はしない
+> （`debug-recorder-design.md` [RECORDING ADOPTION CRITERIA]参照）。
+> 理由: デバッグ機能自体の開発が目的化することを避け、Phase124以降は
+> アプリ本体の機能・UX改善へ復帰するため。
+
+### render経路・参照元の識別の拡張（残スコープ）
+状態: 保留（Mutation-triggered rangeのみPhase123-C2で実装済み）
+内容: Section Preview等の非Mutation renderへの拡張、
+`[RENDER PATH VISIBILITY]`の完全な適用。
+
+### repairRule / capo変更の記録
+状態: 保留
+根拠: repairRule変更→render巻き戻り（Phase120）／capo変更→検索異常
+（Phase97）。それぞれ独立した実バグ根拠を持つ。
+
+### セッションlifecycle（begin/end/save/cancel）の記録
+状態: 保留
+根拠: dirty/reset漏れ（Phase103・Section Preview残留バグ）。
+
+---
+
 ## 2. Current Issues（未解決の問題・バグ・既知の設計ギャップ）
 
 ### Chart Mode 系
-
-#### 編集中に小節頭補正を変更すると表示が編集前の状態に戻る（要調査）
-状態: 観察中・原因未特定（Phase103棚卸し時に報告）
-内容: Analysis Editorで解析編集モード中に小節頭補正（repairRule・Correction
-Authority）を変更すると、Chart Modeの表示が編集の修正前の状態に戻って
-しまう。Undoを行うと表示が戻る。データ（analysisEditor.buffer）自体が
-失われているのか、表示（Chart Mode projection）のみの問題かは未切り分け。
-次回発生時、`window.__CS_DEBUG__.timing`（repairRule/normalized）と、
-Analysis Editorの現行debug/observability手段で取得できるbuffer状態を
-突き合わせて、事実ベースで原因を特定する方針（[FEATURE REGRESSION
-POLICY]・実装漏れと断定しない）。
 
 #### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
 状態: Type B対応済み・Type A/C/D未対応
@@ -116,6 +130,75 @@ hiddenCountはnormal pathのslot projection時のみ付与される（pickup mea
 のみ実施済み。`pointercancel`（ウィンドウ外へのドラッグ・OSジェスチャ介入等での発火）は
 実機で一度も踏んでいない経路。`_endGridBoundaryDrag()`は`pointerup`と共通処理のため
 理論上は問題ないはずだが、未検証である旨を明記しておく。
+
+#### Chart Modeで画面に何も表示されなくなる事象
+状態: 未確認・原因未特定（Phase123-A実機検証中に発見）
+内容: Analysis Editor編集中、bufferLengthは残っていたはずだがChart Mode上に
+コードが一切表示されない状態が発生した（スクリーンショットあり）。Phase123-A
+の変更（Recorder記録の追加のみ）が直接の原因である可能性は低いと考えられるが
+未調査。次回発生時、`window.__CS_DEBUG__.chart`等で状況を確認する方針
+（既存の「原因未特定の緑の棒バグ」と同様の扱い）。
+
+#### `[RENDER CONTEXT INVARIANT]`違反4箇所（未修正）
+状態: 未確認・原因未特定（Phase123-C2調査中に発見）
+内容: `renderChartMode()`呼び出し元のうち、`saveAnalysisEdit()`・capo変更
+ハンドラ・Chart Modeを開くボタン・列数切替ボタンの4箇所が`editing`引数を
+渡していない。Phase106で確立した`[RENDER CONTEXT INVARIANT]`（`measuresPerRow`
+と`editing`を両方明示すること）への違反状態が現存している。実害の有無は
+未検証。Phase123-C2のRender Event実装とは独立した既存コードの問題であり、
+別途調査・修正が必要。
+
+### Debug Session Recorder 系
+
+#### splitChord()が未使用のデッドコードである可能性
+状態: 未確認・優先度低（Phase121で発見）
+内容: app.js・chartmode.jsのどちらからも呼び出し箇所が見つからない。
+Debug Recorder実装時に発見。削除するか、将来のカーソル位置分割機能で
+使う予定があるか確認が必要（コード内コメントには「将来カーソル位置分割を
+追加する場合もsplitChord()自体は変更不要」との記載があり、意図的に
+残されている可能性もある）。
+
+#### TAPモード（#tap-overlay）のz-index未確認
+状態: 未確認・優先度低（Phase121で発見）
+内容: Debug Recorderのインジケータ（#debug-rec-indicator）実装過程で、
+演奏モード（z-index:9999）表示中にインジケータが隠れる問題を発見・修正した。
+同種の問題がTAPモードでも起きないか、次回TAPモード表示中にAlt+Rの動作を
+確認すること。
+
+#### macOSでAlt+R（Option+R）が特殊文字を生成する可能性
+状態: 未確認・要Mac実機確認（Phase121で発見）
+内容: Recording Start/Stopのショートカットとして`Alt+R`を採用したが、
+macOSのキーボード配列によっては`Option+R`が`®`という特殊文字を生成し、
+`e.key`が`'r'`ではなく`'®'`として渡ってくる可能性がある（既存の`Alt+N`が
+抱える制約と同種。keybindings.md参照）。開発環境がWindows中心のため
+今回は確定させず、Mac実機での確認が取れ次第keybindings.mdへ反映する。
+
+#### `deleteChord`/`updateSectionBoundary`のCommand拒否記録が実機未検証
+状態: 検証保留（優先度低・Phase123-Aで発見）
+内容: Mutation Attempt Recordingのうち、`deleteChordCommand`の「最後の1つ」
+拒否・`updateSectionBoundaryCommand`の`start-after-end`拒否は、実機で拒否
+イベントの発生そのものを確認できていない。前者はPuppeteer/人間実機とも
+未検証（同一パターンの`deleteSelection`は動作確認済み）。後者はUI側の事前
+ガード（境界ステッパーのdisabled制御）により通常操作では到達しないことが
+判明済み。実用上のリスクは低いと判断し、優先度低として記録のみ行う。
+
+#### Drag無移動時、既存`ok:true`仕様によりRender Eventが記録される
+状態: 既知事項・低優先度（Phase123-C2で発見）
+内容: 境界ハンドルを押してすぐ離した場合（実際には一度も`renderChartMode()`
+が実行されない）でも、`_boundaryDragState.lastMoveOk`が未設定のため`ok:true`
+と判定され、Render Eventが1件記録される。Phase123-A（Mutation Attempt
+Recording）で確立された既存の`moveBoundary`判定仕様（クリックのみもok:true
+扱い）を踏襲した結果であり、Phase123-C2では変更しない。修正する場合は
+Phase123-Aの判定条件自体の見直しが必要（C2のスコープを超える）。
+
+### Perform Mode 系
+
+#### ブルーテーマの演奏モード「✕ 閉じる」ボタンが視認できない
+状態: 未確認・原因推測のみ（Phase121実機テストで発見。perform.css確認済み・
+theme.css未確認）
+内容: `#btn-perform-close`が`--surface-btn-close`という専用トークンを
+使用しており、ブルーテーマでは背景色と`--text-secondary`（文字色）が
+近い色になっている可能性が高い。theme.cssを確認の上、別フェーズで対応する。
 
 ### Analysis Editor 系
 
@@ -201,6 +284,15 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
   固定値1で置き換える実装（先頭コードのUUIDを引き継いでいるわけでは
   ない）。先頭コードのUUID維持へ変更するかどうかは、Compound Mutation
   とは独立した設計判断として保留。
+- `debug-recorder-design.md`内の`[MUTATION RECORDING SCOPE]`（Phase121で
+  確立）が、Phase122の`[MUTATION ATTEMPT RECORDING]`確立後も明示的な
+  supersession（上書き）記述なく残置されている（Phase123棚卸しで発見）。
+  意味的には`[MUTATION RECORDING SCOPE]`（成功時のみ記録）と
+  `[MUTATION ATTEMPT RECORDING]`（拒否・キャンセルも記録）は矛盾するため、
+  後者が前者を実質的に置き換えたと考えられるが、`debug-recorder-design.md`
+  自体にその経緯を明記する一文がない。設計文書の整合性問題として記録し、
+  今回は推測で書き換えない（architecture.mdのNamed Invariant一覧にも
+  `[MUTATION RECORDING SCOPE]`は含めていない）。
 
 ---
 
@@ -243,18 +335,6 @@ boundaryはまだ新しく、着手前に設計フェーズを必ず挟むこと
 #### Boundary Handle / Playhead の表示条件見直し
 内容: 検索モード中のBoundary Handle非表示/減光、再生停止中のPlayhead淡色化などの案。
 現時点では「改善アイデア」の段階。
-
-#### Undo/Redo Navigation Feedback（変更箇所の一時ハイライト・Phase118発見）
-状態: 未着手・設計方向は決定済み
-内容: Phase118でUndo/Redo後にscrollToChord()が発火するようになったが、
-瞬間移動のため「どこから どこへ 移動したか」が分かりにくいという
-実機フィードバックがあった。smooth scroll復活は不採用（Phase106の
-[RENDER CONTEXT INVARIANT]発見の原因となったscrollTop競合を再発させる
-リスクがあるため。scrollToChord()はSection Navigationとも共有している）。
-第一候補案: scrollToChord()自体は変更せず、移動後の対象chordを
-300〜500ms程度の一時ハイライト（pulse等）で強調しフェードアウトさせる、
-独立したNavigation Feedback Decoratorとして実装する
-（[DECORATOR ADDITION RULE]に沿う）。
 
 #### 実音（canonical）そのものでの検索モード（Phase97発見）
 状態: 未着手・優先度低

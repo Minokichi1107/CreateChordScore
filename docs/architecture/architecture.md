@@ -441,6 +441,39 @@ Phase116で撤去した。DevTools経由でCommand Layerを直接操作する経
 「debug layerがstateを所有しない」ことであり、「返り値経由の間接mutationを防ぐ」ことまでは
 保証しない。この前提は崩していない。
 
+### Debug Session Recorder / Diagnostic Timeline（Phase121〜123で確立）
+
+ユーザー操作を起点とした内部イベント・状態遷移を時系列で記録し、
+バグ発生時の因果関係追跡を支援するサブシステム。既存の`__CS_DEBUG__`
+（観測専用のgetter projection layer）とは別Authorityであり、
+`debugSessionRecorder.js`がイベント履歴を保持する。詳細設計は
+`debug-recorder-design.md`（[DOCUMENT AUTHORITY]・Recorderの設計判断を
+集約する設計ドキュメント）を参照する。
+
+**実装の対応関係**
+
+| 段階 | 内容 | Phase | 実装箇所 |
+|---|---|---|---|
+| Mutation Recording基盤 | Command Layer起点21種イベント記録・Alt+R Global shortcut | 121 | debugSessionRecorder.js / app.js |
+| Diagnostic Timeline設計固定 | Design Freeze（コード変更なし） | 122 | debug-recorder-design.md |
+| Mutation Attempt Recording | 拒否・キャンセルも記録対象に拡張 | 123-A | app.js |
+| State Transition記録 | historyLength/futureLengthの共通フィールド化 | 123-B | debugSessionRecorder.js |
+| reconcile診断情報 | Section変化（removed/remapped）の記録 | 123-C1 | app.js / debugSessionRecorder.js |
+| Render Event記録 | Mutation-triggered render範囲のpath/source/trigger記録 | 123-C2 | app.js / debugSessionRecorder.js |
+
+**[Diagnostic Timeline v1 Freeze]** Phase123-C2をもって一区切りとし、
+残りのスコープ（render経路識別の残スコープ・repairRule/capo変更の記録・
+セッションlifecycle記録）は実運用で必要性が確認されるまで着手しない
+（current-issues.md §1.5参照）。
+
+**Named Invariants**（詳細は`debug-recorder-design.md`参照）
+
+`[DEBUG SESSION RECORDER AUTHORITY]` `[RECORDER PRIVACY BOUNDARY]`
+`[RECORDER CALL SITE RULES]` `[RECORDER GLOBAL ACCESSIBILITY]`
+（以上Phase121）／`[DIAGNOSTIC TIMELINE AUTHORITY]` `[TIMELINE NOT REPLAY]`
+`[STATE TRANSITION OVER STATE VALUE]` `[MUTATION ATTEMPT RECORDING]`
+`[RENDER PATH VISIBILITY]` `[RECORDING ADOPTION CRITERIA]`（以上Phase122）
+
 ---
 
 ## 6. token stream 設計

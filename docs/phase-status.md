@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase118完了時点（Phase114〜118を反映）
+> 最終更新: Phase123-C2完了時点（Phase119〜123-C2を反映）
 
 ---
 
@@ -77,17 +77,70 @@ Completed（完了済み）
   computeMutationFocusChordId()新設。Undo/Redo実行前後のbuffer比較
   のみからNavigation対象を導出するMutation Region方式を採用。History
   snapshotの形状は無変更。Section系コマンドは自動的に対象外）
+✓ Undo/Redo Mutation Feedback（Phase119・Undo/Redo実行時にSelectionを
+  明示解除したうえで、対象コードのセルを400ms程度パステル背景で
+  フェード表示。computeMutationFocusChordId()（Phase118）は無変更で
+  再利用。新規token--color-mutation-feedback-bgを3テーマへ追加）
+✓ 小節頭補正変更後のChart表示巻き戻りバグ修正（Phase120・
+  onSetRepairRule/onClearRepairRuleがgetCurrentChordSource()を
+  経由しない再描画を呼んでいたことが原因。正規経路_refreshEditorView()
+  への統一で解消。副次的にediting引数欠落（[RENDER CONTEXT
+  INVARIANT]）も解消）
+✓ Debug Session Recorder — Mutation Recording基盤（Phase121・
+  Command Layer起点の21種類のイベントを記録するMVPを実装。
+  Alt+RによるGlobal shortcut・Recording中インジケータを追加し、
+  Chart/Perform/TAP等の全画面overlay表示中でも操作可能にした。
+  実機テストにより、Mutation記録のみでは操作再現に情報不足があると
+  判明し、Phase122をSemantic Interaction Recordingとして計画）
+✓ Debug Session Recorder — Diagnostic Timeline設計固定（Phase122・
+  コード変更なし。Recorderの最終目的を「操作記録」から「ユーザー操作
+  起点の内部イベント・状態遷移の因果関係追跡」として再定義し、
+  docs/debug-recorder-design.mdへ設計を確定。Named Invariant6件を
+  確立。実装はPhase123へ）
+  ※Phase122 handoverには通常のDeferred Documentation定型文が
+  存在しなかったため、この項目は今回の棚卸しで補完した。
+✓ Mutation Attempt Recording（Phase123-A・Command Layer拒否（12箇所）・
+  moveBoundaryCommandのnumber|null変換（1箇所）・app.js側独自ガード
+  拒否（11箇所）をDiagnostic Timelineへ記録するよう拡張。全Command
+  Layer関数で拒否分岐がpushHistory()より前にあることを検証した上で
+  after=beforeを採用。history/future記録はPhase123-Bへ分離）
+✓ history/future の before→after 記録（Phase123-B・
+  snapshotState()の共通フィールドとしてhistoryLength/futureLengthを
+  追加。opts経由のopt-in指定は不要（差分フォーマッタが変化なしを
+  自動抑制するため）。app.js側は無改修）
+✓ Debug Session Recorder — Phase123-A補正（Phase123-C1・pasteAbsolute()
+  へMutation Attempt Recordingを追加。reconcile()を実Factsで呼ぶ5経路の
+  記録漏れを解消）
+✓ Debug Session Recorder — reconcile診断情報の記録（Phase123-C1・
+  snapshotSections()/diffSections()新設。reconcile()を実Factsで呼ぶ
+  5経路でSectionのremoved/remappedを記録。sectionsCount（個数のみ）
+  では検知できなかった境界remapを、変更前→変更後の具体値付きで
+  診断可能にした。共通snapshot fieldにはせず、該当5経路専用の
+  別枠として実装）
+✓ Debug Session Recorder — Render Event（描画イベント）の記録
+  （Phase123-C2・[RENDER PATH VISIBILITY]のうちMutation-triggered
+  render範囲を実装。recordRender()（debugSessionRecorder.js）を
+  新設し、_refreshEditorView(mutationEvent)の明示的パラメータ渡し
+  により、18箇所のMutation-triggered呼び出し＋updateChord経由2箇所＋
+  ドラッグ特殊系1箇所でRender Event（path/source/trigger）を記録
+  可能にした。Section Preview等の非Mutation renderはLevel3の原則に
+  従い対象外のまま維持）
 
 Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」参照）
 ------------------------------------------------------------
-Phase114〜118が完了し、5フェーズ棚卸し（本更新）を実施済み。
-Phase114ではmerge実行時のSection削除確認UXを実装し、Phase115〜117では
-UX改善（置換直後のCtrl+Z）・技術的負債整理（__analysisEditorDebug正式化・
-isChordLikeInput末尾検証強化）を行った。Phase118ではUndo/Redo後に
-変更箇所へ自動スクロールするNavigation機能を実装し、Mutation Region方式
-（swap前後のbuffer比較のみで対象を導出・History snapshotは無変更）を
-確立した。次候補は構想段階のUndo/Redo Navigation Feedback（変更箇所の
-一時ハイライト。Future Candidates参照）。
+Phase119〜123-C2が完了し、5フェーズ棚卸し（本更新）を実施済み。
+Phase119はUndo/Redo着地点への一時ハイライトを実装し、Phase120は
+repairRule変更後のChart表示巻き戻りバグを解消した。Phase121〜123では
+Debug Session Recorder（Diagnostic Timeline）を実装した
+（Mutation Recording基盤 → 設計固定 → Mutation Attempt Recording →
+history/future記録 → reconcile診断 → Render Event記録）。
+
+[決定事項] Debug Session Recorder（Diagnostic Timeline）は
+Phase123-C2（Render Event記録）をもって「v1」として区切り、凍結する。
+render経路識別の残スコープ・repairRule/capo変更の記録・セッション
+lifecycle記録は、実運用のバグ調査で情報不足が判明した場合にのみ着手する
+（current-issues.md §1.5参照）。理由: デバッグ機能自体の開発が目的化
+することを避け、Phase124以降はアプリ本体の機能・UX改善へ復帰するため。
 ```
 
 ---
@@ -166,6 +219,14 @@ isChordLikeInput末尾検証強化）を行った。Phase118ではUndo/Redo後�
 | 116 | `__analysisEditorDebug`の正式化整理（Phase74-Cから残置されていたmutation系35関数の直接公開を撤去。観測専用のstate/editorModeのみ__CS_DEBUG__.analysisEditorへ統合。timing.raw/normalizedの既存live reference方針に揃え、cloneはしない設計判断。app.js） |
 | 117 | `isChordLikeInput()` 末尾検証強化（先頭ルートのみ検証していた正規表現に末尾までの文字クラス検証を追加。CHORD_DB全サフィックス列挙ではなくホワイトリスト方式を採用し、将来のCHORD_DB拡張との同期保守を回避。chordEntry.js） |
 | 118 | Undo/Redo後の変更箇所ナビゲーション（computeMutationFocusChordId()新設。swap前後のbufferを`_id`基準で比較し、変更区間の和集合（Mutation Region）の中心に最も近いコードへscrollToChord()する方式。History snapshot（{buffer, sections}）・scrollToChord()本体は無変更。個別コマンドの知識を持たない汎用diff方式のため、Section系コマンドは自動的に対象外となる。analysisSession.js/app.js） |
+| 119 | Undo/Redo Mutation Feedback（Undo/Redo実行時にSelectionを明示的に解除し、対象コードのセルを400ms程度パステル背景でフェード表示する方式（VSCode風）で実装。初版（輪郭box-shadowパルス・Selectionと共存させる設計）から実機検証を経て設計変更。computeMutationFocusChordId()・History・Mutation semantics自体は無変更） | app.js / chartmode.js / chart.css / theme.css |
+| 120 | 小節頭補正変更後のChart表示巻き戻りバグ修正（原因: repairRule変更ハンドラがgetCurrentChordSource()という Single Switch Point を経由しない再描画を呼んでいたため、編集中のbuffer変更が無視されていた。修正: 正規再描画経路_refreshEditorView()への統一。buffer自体は無事でChart Mode Projection層のみの不具合だった） | app.js |
+| 121 | Debug Session Recorder — Mutation Recording基盤（debugSessionRecorder.js新設。Command Layer起点21種類のイベントを記録。実機テストでChart/Perform等の全画面overlayがヘッダーメニューを覆い操作不能になる問題を発見し、Alt+R Global shortcut化＋Recording中インジケータ（z-index調整含む）で対応） | app.js / debugSessionRecorder.js / index.html / state.css |
+| 122 | Debug Session Recorder — Diagnostic Timeline設計固定（debug-recorder-design.md新設。Design Freezeのみでコード変更なし。Timeline Eventの粒度等、複数の実装論点はPhase123へ持ち越し） | debug-recorder-design.md（新規ドキュメントのみ） |
+| 123-A | Mutation Attempt Recording（debug-recorder-design.md [MUTATION ATTEMPT RECORDING]の実装。Command拒否・app.js側事前バリデーション拒否をTimelineへ記録。Timeline Event粒度は「1 Mutation Attempt = 1 Event + diagnostic fields」に確定。updateChord()内部拒否・replaceAllMatches一部拒否・updateSectionBoundary拒否はUI側到達困難と判明） | app.js |
+| 123-B | history/future の before→after 記録（debug-recorder-design.md [STATE TRANSITION OVER STATE VALUE]の実装。snapshotState()の共通フィールド化により、Mutation Attempt Recording（Phase123-A）の呼び出し箇所を一切変更せずにUndo/Redoスタック深さの遷移を記録可能にした） | debugSessionRecorder.js |
+| 123-C1 | Debug Session Recorder — reconcile診断情報の記録（debug-recorder-design.md [MUTATION ATTEMPT RECORDING]続編。snapshotSections()/diffSections()新設。reconcile()を実Factsで呼ぶ5経路（deleteChord/deleteSelection/pasteSelection/pasteAbsolute/mergeSelection）でSection変化を診断。pasteAbsolute()のMutation Attempt Recording記録漏れも同時に補正） | app.js / debugSessionRecorder.js |
+| 123-C2 | Debug Session Recorder — Render Event（描画イベント）の記録（debug-recorder-design.md [RENDER PATH VISIBILITY]の実装。Mutation-triggered renderのみを対象とし、独立イベント種別（event:'render'）として単一Timelineへ記録。recordRender()の1箇所に生成ロジックを集約。調査過程で[RENDER CONTEXT INVARIANT]違反4箇所を発見（current-issues.md参照）） | app.js / debugSessionRecorder.js |
 
 ### 基盤・アーキテクチャ整理
 
@@ -237,15 +298,18 @@ P2  Section UX Epic
   整理で再確認）
   小節補正バッジは解析アルゴリズム調整時のみ有用。デフォルト非表示化を
   将来検討する
+```
 
-・Undo/Redo Navigation Feedback（変更箇所の一時ハイライト。Phase118発見・
-  設計方向は決定済み）
-  Phase118でUndo/Redo後にscrollToChord()が発火するようになったが、
-  瞬間移動のため移動元と移動先の空間的関係が分かりにくいという実機
-  フィードバックがあった。smooth scroll復活は不採用（Phase106の
-  scrollTop競合再発リスクのため）。第一候補案は移動後の対象chordを
-  一時的にハイライト・フェードアウトさせる独立Decorator
-  （current-issues.md参照）
+### Debug Session Recorder — Diagnostic Timeline v1 凍結後の保留事項
+
+```
+Phase123-C2をもってDiagnostic Timelineを「v1」として一区切りとし凍結した。
+残りのスコープ（render経路識別の残スコープ・repairRule/capo変更の記録・
+セッションlifecycle記録）は、実運用のバグ調査で情報不足が判明した場合に
+のみ着手する（current-issues.md §1.5参照。机上の追加はしない）。
+
+Phase124以降は次候補を新規の要望・発見事項ベースで選定する
+（「Debug Recorderの次を作る」こと自体をPhase124の目的にしない）。
 ```
 
 ### Technical Debt（技術的負債・既存挙動の見直し）
