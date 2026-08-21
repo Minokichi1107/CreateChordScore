@@ -2001,7 +2001,7 @@ async function saveAnalysisEdit() {
   rebuildChartViewModel();
   resetAnalysisEditor();
   setSelectedChordIds([]);
-  renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+  renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
   renderAnalysisEditorPanel();
   renderSectionBar(); // Phase101-1
   toast('✅ 解析データを保存しました');
@@ -4936,7 +4936,7 @@ function setupEventHandlers() {
     // TODO: future optimization: separate chord label refresh from full chart rerender
     //       現在は DOM フル再構築。chart interaction が増えた段階で
     //       chord textContent の差分更新に切り替えることを検討する。
-    if (chartState.active) renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+    if (chartState.active) renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
   });
 
   // ============================================
@@ -5361,7 +5361,7 @@ function setupEventHandlers() {
       document.querySelectorAll('.chart-col-btn').forEach(b => {
         b.classList.toggle('active', Number(b.dataset.cols) === chartMeasuresPerRow);
       });
-      renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+      renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
     });
 
   document.getElementById('btn-chart-close')
@@ -5397,7 +5397,7 @@ function setupEventHandlers() {
         b.classList.toggle('active', Number(b.dataset.cols) === cols);
       });
 
-      renderChartMode({ measuresPerRow: chartMeasuresPerRow });
+      renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
     });
   
   // ============================================
