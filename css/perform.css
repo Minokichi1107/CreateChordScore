@@ -36,7 +36,7 @@
   background: var(--surface-btn-close);
   border: 1px solid var(--border-ui);
   border-radius: var(--r-md);
-  color: var(--text-secondary);
+  color: var(--text-btn-close);  /* Phase125: --surface-btn-closeとの対ペアforeground */
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 11px;
@@ -44,6 +44,10 @@
 }
 #btn-perform-close:hover {
   background: var(--surface-raised);
+  /* Phase125追加: hover時は背景が明るいsurface-raisedに切り替わるため、
+     明背景想定のtext-secondaryに戻す。blueテーマは
+     text-btn-close（明色）のままだとhover時に明色×明色で埋もれる。 */
+  color: var(--text-secondary);
 }
 
 

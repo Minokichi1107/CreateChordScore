@@ -140,6 +140,7 @@
   /* --- text --- */
   --text-primary:   #e2e6f0;
   --text-secondary: #8890a8;
+  --text-btn-close: #8890a8;  /* Phase125: --surface-btn-closeの対foreground。既存text-secondaryと同値（見た目維持） */
   --text-muted:     #555e7a;
   --text-chord:     #7eb8ff;
   --text-accent:    #4f9eff;
@@ -376,6 +377,7 @@ body[data-theme="silver"] {
   /* --- text --- */
   --text-primary:   #18202e;
   --text-secondary: #28304a;
+  --text-btn-close: #28304a;  /* Phase125: --surface-btn-closeの対foreground。既存text-secondaryと同値（見た目維持） */
   --text-muted:     #485870;
   --text-chord:     #c8e0ff;
   --text-accent:    #1a55c8;
@@ -627,6 +629,10 @@ body[data-theme="blue"] {
      silver（primary→secondary→mutedの順に明るくなる階調）と同じ考え方で
      text-primaryとtext-mutedの中間の濃さに修正した。 */
   --text-secondary: #1c3854;
+  /* [Phase125] --surface-btn-close（#03386c・暗背景）はtext-secondary（暗背景想定外）
+     との組み合わせでコントラスト比1.02:1（実質同色）だったため、--text-chordと
+     同値の専用foreground tokenを新設して閉じるボタン上でのみ使用する。 */
+  --text-btn-close: #c8e0ff;
   --text-muted:     #2a4a6a;
   --text-chord:     #c8e0ff;
   --text-accent:    #0a3080;
