@@ -125,6 +125,11 @@ Completed（完了済み）
   ドラッグ特殊系1箇所でRender Event（path/source/trigger）を記録
   可能にした。Section Preview等の非Mutation renderはLevel3の原則に
   従い対象外のまま維持）
+✓ Render Context Invariant Compliance（Phase124・Phase123-C2で発見
+  された`renderChartMode()`呼び出し元4箇所のediting欠落を解消。
+  影響範囲をヘッダーUI（編集中バッジ・編集ボタンactive表示）に
+  限定できることをコード追跡で確認し、render経路自体の整理は
+  行わなかった）
 
 Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」参照）
 ------------------------------------------------------------
@@ -134,6 +139,9 @@ repairRule変更後のChart表示巻き戻りバグを解消した。Phase121〜
 Debug Session Recorder（Diagnostic Timeline）を実装した
 （Mutation Recording基盤 → 設計固定 → Mutation Attempt Recording →
 history/future記録 → reconcile診断 → Render Event記録）。
+Phase124ではPhase123-C2で発見された[RENDER CONTEXT INVARIANT]違反
+4箇所を解消し、Diagnostic Timeline v1完成後の最初の「本体復帰」
+フェーズとして完了した（次の5フェーズ棚卸しはPhase124〜128予定）。
 
 [決定事項] Debug Session Recorder（Diagnostic Timeline）は
 Phase123-C2（Render Event記録）をもって「v1」として区切り、凍結する。
@@ -227,6 +235,7 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 123-B | history/future の before→after 記録（debug-recorder-design.md [STATE TRANSITION OVER STATE VALUE]の実装。snapshotState()の共通フィールド化により、Mutation Attempt Recording（Phase123-A）の呼び出し箇所を一切変更せずにUndo/Redoスタック深さの遷移を記録可能にした） | debugSessionRecorder.js |
 | 123-C1 | Debug Session Recorder — reconcile診断情報の記録（debug-recorder-design.md [MUTATION ATTEMPT RECORDING]続編。snapshotSections()/diffSections()新設。reconcile()を実Factsで呼ぶ5経路（deleteChord/deleteSelection/pasteSelection/pasteAbsolute/mergeSelection）でSection変化を診断。pasteAbsolute()のMutation Attempt Recording記録漏れも同時に補正） | app.js / debugSessionRecorder.js |
 | 123-C2 | Debug Session Recorder — Render Event（描画イベント）の記録（debug-recorder-design.md [RENDER PATH VISIBILITY]の実装。Mutation-triggered renderのみを対象とし、独立イベント種別（event:'render'）として単一Timelineへ記録。recordRender()の1箇所に生成ロジックを集約。調査過程で[RENDER CONTEXT INVARIANT]違反4箇所を発見（current-issues.md参照）） | app.js / debugSessionRecorder.js |
+| 124 | Render Context Invariant Compliance（[RENDER CONTEXT INVARIANT]（Phase106）への準拠を完了。renderChartMode()全8呼び出し元を再監査し、saveAnalysisEdit()／capo変更ハンドラ／Chart Modeを開くボタン／列数切替ボタンの4箇所へediting: isAnalysisEditing()を追加。editingは_renderChartHeader()内でのみ使用され、GridViewModelの描画データには無関係であることを確認） | app.js |
 
 ### 基盤・アーキテクチャ整理
 

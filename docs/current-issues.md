@@ -1,6 +1,7 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase123-C2完了時点（Phase119〜123-C2を反映）
+> 最終更新: Phase124完了時点（[RENDER CONTEXT INVARIANT]違反4箇所のCLOSEのみ反映。
+> 他は引き続きPhase119〜123-C2棚卸し時点のまま）
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -138,15 +139,6 @@ hiddenCountはnormal pathのslot projection時のみ付与される（pickup mea
 の変更（Recorder記録の追加のみ）が直接の原因である可能性は低いと考えられるが
 未調査。次回発生時、`window.__CS_DEBUG__.chart`等で状況を確認する方針
 （既存の「原因未特定の緑の棒バグ」と同様の扱い）。
-
-#### `[RENDER CONTEXT INVARIANT]`違反4箇所（未修正）
-状態: 未確認・原因未特定（Phase123-C2調査中に発見）
-内容: `renderChartMode()`呼び出し元のうち、`saveAnalysisEdit()`・capo変更
-ハンドラ・Chart Modeを開くボタン・列数切替ボタンの4箇所が`editing`引数を
-渡していない。Phase106で確立した`[RENDER CONTEXT INVARIANT]`（`measuresPerRow`
-と`editing`を両方明示すること）への違反状態が現存している。実害の有無は
-未検証。Phase123-C2のRender Event実装とは独立した既存コードの問題であり、
-別途調査・修正が必要。
 
 ### Debug Session Recorder 系
 
