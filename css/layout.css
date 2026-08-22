@@ -531,6 +531,42 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
   color: var(--text-accent);
 }
 
+/* Phase126: ドロップダウン内にselectを持つ項目（復帰秒数設定等）。
+   .library-toolbar selectと同じパターンをここでも踏襲・新規token追加なし */
+.dd-item--select {
+  cursor: default;
+}
+
+.dd-item--select select {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  padding: 2px 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Phase126: 演奏モード専用設定であることを示す小さなラベル。
+   現時点で用途が演奏モード設定のみのため、汎用クラス化はせず
+   perform-プレフィックスで所有を明示する（ChatGPTレビュー反映）。
+   色は--text-secondary（明背景面の上で読める前提のtoken）を使用。
+   当初--text-perform-titleを検討したが、演奏モードの暗いヘッダー
+   背景専用に設計された色であり、明背景（ドロップダウン内）へ
+   持ち込むとsilverテーマでコントラストが崩壊するため不採用とした
+   （Phase125の--surface-btn-close/--text-secondary問題と同種）。 */
+.perform-mode-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  margin-right: 6px;
+}
+
 .shortcut {
   color: var(--text-muted);
   font-size: 10px;

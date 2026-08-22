@@ -74,6 +74,15 @@
       <button class="dd-item" id="btn-toggle-right">◨ 右パネル</button>
       <button id="btn-toggle-chart-diag" class="dd-item">✔ ♬ Chart コード図</button>
       <button class="dd-item" disabled>⛶ 全画面編集</button>
+      <div class="dd-item dd-item--select" title="演奏モード中に手動でスクロールすると自動追従が一時停止します。指定した時間が経過すると、演奏位置へ自動的に戻ります。">
+        <span><span class="perform-mode-badge">演奏モード</span>手動スクロール後、演奏位置に戻るまで</span>
+        <select id="perform-scroll-grace">
+          <option value="2000">2秒</option>
+          <option value="3000">3秒</option>
+          <option value="5000" selected>5秒</option>
+          <option value="8000">8秒</option>
+        </select>
+      </div>
     </div>
   </div>
 
@@ -366,15 +375,6 @@
         文字
         <input type="range" id="perform-font-scale" min="0.7" max="1.5" step="0.1" value="1.0"
          >
-      </label>
-      <label class="control-inline">
-        復帰
-        <select id="perform-scroll-grace">
-          <option value="2000">2秒</option>
-          <option value="3000">3秒</option>
-          <option value="5000" selected>5秒</option>
-          <option value="8000">8秒</option>
-        </select>
       </label>
     </div>
   <button id="btn-perform-close">✕ 閉じる</button>

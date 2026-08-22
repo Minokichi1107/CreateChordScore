@@ -5282,8 +5282,18 @@ function setupEventHandlers() {
   if (performScrollGraceSelect) {
     const savedGrace = localStorage.getItem('cs.perform.autoScrollGraceMs') || '5000';
     performScrollGraceSelect.value = savedGrace;
+    // Phase126: 表示メニュー（.dropdown）内クリックは一律closeAllMenus()を
+    // 発火する既存仕様（Phase29）のため、select自体のクリックが
+    // オプション一覧を開く前にメニューごと閉じてしまう。
+    // clickはstopPropagationで素通しし、値確定（change）時にのみ
+    // メニューを閉じる（他の.dd-item＝1クリック即確定、と体感を揃える）。
+    performScrollGraceSelect.addEventListener('click', e => {
+      e.stopPropagation();
+    });
     performScrollGraceSelect.addEventListener('change', e => {
       localStorage.setItem('cs.perform.autoScrollGraceMs', e.target.value);
+      document.querySelectorAll('.menu-group.open')
+        .forEach(g => g.classList.remove('open'));
     });
   }
 
