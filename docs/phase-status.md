@@ -141,7 +141,9 @@ Debug Session Recorder（Diagnostic Timeline）を実装した
 history/future記録 → reconcile診断 → Render Event記録）。
 Phase124ではPhase123-C2で発見された[RENDER CONTEXT INVARIANT]違反
 4箇所を解消し、Diagnostic Timeline v1完成後の最初の「本体復帰」
-フェーズとして完了した（次の5フェーズ棚卸しはPhase124〜128予定）。
+フェーズとして完了した。Phase124以降のドキュメント棚卸しは、固定
+周期ではなくDocumentation Checkpoint方式（強制Checkpoint／計画
+Checkpoint。docs/handover/README.md参照。Phase126改訂）へ移行した。
 
 [決定事項] Debug Session Recorder（Diagnostic Timeline）は
 Phase123-C2（Render Event記録）をもって「v1」として区切り、凍結する。

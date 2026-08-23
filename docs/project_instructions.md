@@ -14,18 +14,31 @@ GitHub: github.com/Minokichi1107/CreateChordScore
 - 機能追加を依頼された場合、すぐに実装しない
 - 仕様確認 → 提案 → 「実装してください」の明示後に実装
 - 改善提案は後出し・小出し禁止。設計段階でまとめて提示
+- 新機能・UX変更を伴う開発は、Product Intent → UX / Behavior
+  Specification → Rough Phase Estimate → Product Freeze →
+  Technical Design の順で進める（詳細は docs/handover/README.md の
+  「Development Process」参照）。見た目の微調整・軽微なバグ修正は
+  上記の簡易フロー（仕様確認→提案→実装指示）のままでよい
 
 ### コード制約
 - 1回の回答で500行以上のコードを書かない
 - 既存コードを破壊するリファクタリング禁止。段階的変更のみ
 - リファクタリングと機能追加の混在禁止
-- 1フィーチャー1コミット
+- 1 commit = 1 logical concern（1つの論理的な変更目的）を原則とする
+- 1フィーチャーが複数Phaseにまたがる場合、Phaseごとに必要な
+  logical concern単位でコミットしてよい
+- 機能追加と無関係なリファクタリングを同一コミットに混在させない
 
 ### 禁止事項
 - utils.js / helpers.js を作らない
 - uiモジュール間の直接依存禁止（app.js経由のみ）
 - CHORD_DB への直接参照（read）禁止。findChord() を使う
-- フェーズ外の先回り提案禁止
+- フェーズ外の実装・設計変更を勝手に開始しない。現在のProduct
+  Intent / Product Freezeの範囲外にある改善案・機能案は、実装せず
+  「Out of Scope / Future Candidate」として別途提示する。ただし、
+  現在の設計判断に直接影響する重大な将来リスクや既存Invariant
+  違反を発見した場合は、警告として提示してよい（「先回り実装の
+  禁止」と「リスク報告の禁止」は別物として扱う）
 
 ---
 
@@ -156,17 +169,12 @@ modals.js
 
 ---
 
-## 現在地（Phase33進行中）
+## 現在地
 
-- CSS責務分離完了（base / theme / layout / components / state / perform）
-- IndexedDB基盤導入済み（idb.js）
-- docs/architecture/ にドキュメント整備済み
-- Phase33-1: modals.js 切り出し進行中
-  - 33-1: openTimeModal / openRepeatModal / openCopyModal
-  - 33-2: openAddDiagramModal / openEditDiagramModal
-  - 33-3: openAddChord / openChordEdit
-
-詳細は添付ナレッジを参照。
+最新の開発状況・完了フェーズ一覧は `phase-status.md` を参照する。
+本ファイル（project_instructions.md）には進行中の経過（「PhaseXX
+進行中」等）を書かない。architecture.mdと同じ方針であり、書いた
+時点の状態が読んだ時点では古びてしまうことを避けるための判断。
 
 ---
 
