@@ -228,3 +228,40 @@
 #panel-diagram[hidden] {
   display: none !important;
 }
+
+/* ── Data Provenance Indicator（Phase127-D） ──────────────
+   [SCOPE] Library一覧（library.css所有DOM）・Chart Modeヘッダー
+   （chart.css所有DOM）の両方から使われる共有コンポーネントのため、
+   所有権未確定の扱いとしてcomponents.cssに置く（ui-rules.md §1準拠。
+   .speed-cluster等と同じ「複数モジュール共有」区分）。
+
+   [表示ロジック] 3種類の●を固定順（黄→青→緑）で、達成した項目の分だけ
+   表示する。何も達成していない場合のみ灰●1個を表示する
+   （architecture.md §12 Decorator設計とは別カテゴリ・編集内容ではなく
+   データの来歴を示すsummary indicatorのため、Decorator Inventoryの
+   対象外）。
+   [DECORATOR LEGIBILITY PRINCIPLE]と同じ考え方で、色は3テーマ共通
+   （既存の--color-amber-rgb/--color-green-rgb/--color-blue-rgb primitiveを
+   そのまま流用・新規token追加なし）。 */
+.provenance-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  flex-shrink: 0; /* [Phase127-D] Library一覧でtitleが省略されてもdotsは常に表示する */
+}
+.provenance-dot {
+  /* [Phase127-D] 実機確認でネイティブtitle Tooltipが出づらいと判明したため、
+     7px→9pxへ拡大しホバー当たり判定を広げた（gap+負margin方式は
+     flexboxのgap計算と競合しうるため単純な拡大に変更）。 */
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  cursor: default;
+}
+.provenance-dot--none    { background: var(--text-muted); }
+.provenance-dot--content { background: rgba(var(--color-amber-rgb), .95); }
+.provenance-dot--structure { background: rgba(var(--color-blue-rgb), .95); }
+.provenance-dot--external  { background: rgba(var(--color-green-rgb), .95); }

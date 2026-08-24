@@ -921,6 +921,7 @@ export function scrollToChord(chordId) {
 // ────────────────────────────────────────
 
 let _getAnalysis      = null;  // () => project.analysis（header/fallback 表示用）
+let _renderProvenanceDots = null;  // [Phase127-D] (provenance) => string（app.js側HTML生成関数）
 let _getNormalized    = null;  // () => project.analysis?.normalized（timing pipeline 用）
 let _getAudioEl       = null;  // () => aEl
 let _getAudioDuration = null;  // () => aEl.duration
@@ -1126,7 +1127,7 @@ function _rafLoop() {
  *                                             右クリック「補正を解除」選択時に呼ぶ。
  *                                             app.js が null保存・再描画を担う。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots }) {
   _getAnalysis       = getAnalysis;
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
@@ -1139,6 +1140,9 @@ export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudio
   _tooltipEnabled    = tooltipEnabled ?? true;
   _onSetRepairRule   = onSetRepairRule  ?? null;
   _onClearRepairRule = onClearRepairRule ?? null;
+  // [PROVENANCE][Phase127-D] HTML生成ロジックの正本はapp.js側に置く
+  // （表示文言・色クラス名の意味付けをapp.js 1箇所に集約するため）。
+  _renderProvenanceDots = renderProvenanceDots ?? (() => '');
 
   // Phase74-C: 解析編集モード連携
   // [OWNERSHIP] 編集state（analysisEditor）はapp.jsが持つ。
@@ -2111,7 +2115,14 @@ const repairBadge = analysis.repairRule
     ? `<span class="chart-header-edit-badge"><span class="chart-header-edit-icon">✎</span> 編集中</span>`
     : '';
 
-  el.innerHTML = [bpm, ts, capoInfo, repairBadge, editingBadge, modeWarning].filter(Boolean).join(' &nbsp;|&nbsp; ');
+  // [PROVENANCE][Phase127-D] analysis.raw.provenance（正本）を直接読む。
+  // Chart Modeは既にプロジェクトを開いている状態でのみ表示されるため、
+  // Libraryのような要約複製（provenanceSummary）は不要（[OWNERSHIP INVARIANT]
+  // に従い、project.analysisはapp.js経由で注入されたものをそのまま使うだけ）。
+  const provenanceHtml = _renderProvenanceDots(analysis.raw?.provenance);
+
+  el.innerHTML = [bpm, ts, capoInfo, repairBadge, editingBadge, modeWarning].filter(Boolean).join(' &nbsp;|&nbsp; ')
+    + provenanceHtml;
 
   // [Phase74-C] 編集ボタンのamber色切り替え
   // ヘッダーに関する表示はすべてこの関数が担当する（責務の一本化）

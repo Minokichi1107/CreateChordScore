@@ -533,6 +533,10 @@ function beginAnalysisEdit() {
   analysisEditor.history = [];
   analysisEditor.future  = [];
   analysisEditor.sections = structuredClone(project.analysis.raw.sections ?? []);
+  // [PROVENANCE][Phase127] raw.provenanceはloadAnalysis()で必ず正規化済み
+  // （normalizeProvenance()）のため、ここでは素直にコピーするだけでよい。
+  analysisEditor.hasContentEdit   = project.analysis.raw.provenance.hasContentEdit;
+  analysisEditor.hasStructureEdit = project.analysis.raw.provenance.hasStructureEdit;
   analysisEditor.dirty = false;
   analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false, replaceUndoPending: false };
   setSearchMatches([]);
@@ -1182,6 +1186,7 @@ function replaceAllMatches(newName) {
   }
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('replaceAll', { ok: true, count: targetIds.size }, before, after);
+  analysisEditor.hasContentEdit = true;  // [PROVENANCE][Phase127] matches.length>0保証済み・常に実置換
   _refreshEditorView('replaceAll');
   return targetIds.size;
 }
@@ -1208,6 +1213,7 @@ function shiftAll(deltaSec) {
   });
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('shiftAll', { ok: true }, before, after);
+  analysisEditor.hasContentEdit = true;  // [PROVENANCE][Phase127] Ctrl+Shift+矢印は常に非ゼロdelta
 
   _refreshEditorView('shiftAll');
 }
@@ -1223,7 +1229,15 @@ function shiftAll(deltaSec) {
  */
 function moveBoundary(boundaryIndex, newTime) {
   if (!isAnalysisEditing()) return null;
-  return moveBoundaryCommand(analysisEditor, boundaryIndex, newTime);
+  // [PROVENANCE][Phase127] 実際に境界の時刻が変わる場合のみhasContentEditを
+  // trueにする。境界ドラッグのクリックのみ操作（8pxは超えたが移動量ゼロ）では
+  // newTimeが現在値と一致するため、ここで弾かれる（矢印キー/ボタンは常に
+  // 非ゼロdeltaのため、この判定でも常にtrueになる＝既存挙動への影響なし）。
+  const left = analysisEditor.buffer[boundaryIndex];
+  const changed = !!left && left.end !== newTime;
+  const result = moveBoundaryCommand(analysisEditor, boundaryIndex, newTime);
+  if (result !== null && changed) analysisEditor.hasContentEdit = true;
+  return result;
 }
 
 /**
@@ -1788,6 +1802,10 @@ function shiftSelectionRange(deltaSec) {
 
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('shiftSelectionRange', { ok: true }, before, after);
+  // [PROVENANCE][Phase127] actualDelta===0は既にreturn済みのため、ここに
+  // 到達した時点で常に実移動が成立している（moveBoundary()経由の入口分だけでなく
+  // 内部コードの直接書き換えもあるため、ここで明示的に立てる）。
+  analysisEditor.hasContentEdit = true;
 
   _refreshEditorView('shiftSelectionRange');
 }
@@ -1961,6 +1979,67 @@ function redoEdit() {
 }
 
 /**
+ * renderProvenanceDots — データ来歴（Provenance）インジケーターのHTML片を生成する
+ * （Phase127-D）。
+ *
+ * [SHARED] Library一覧（provenanceSummary形状）とChart Modeヘッダー
+ * （provenance形状）の両方から呼ばれる共通ヘルパー。両者はフィールド名が
+ * 同一（hasContentEdit / hasStructureEdit / externalCheck.checked）のため
+ * 同じ関数で扱える。
+ *
+ * [表示ロジック] 3種類の●を固定順（黄→青→緑）で、達成した項目のみ表示する。
+ * 何も達成していなければ灰●1個のみ（Product Freeze・Phase127-A確定仕様）。
+ *
+ * @param {{ hasContentEdit?: boolean, hasStructureEdit?: boolean,
+ *   externalCheck?: { checked?: boolean } }|null|undefined} p
+ * @returns {string} HTML文字列（`.provenance-dots`要素そのもの）
+ */
+function renderProvenanceDots(p) {
+  const hasContent   = p?.hasContentEdit === true;
+  const hasStructure = p?.hasStructureEdit === true;
+  const hasExternal  = p?.externalCheck?.checked === true;
+
+  if (!hasContent && !hasStructure && !hasExternal) {
+    return `<span class="provenance-dots" title="未記録：手動修正や外部資料との照合が記録されていません">`
+      + `<span class="provenance-dot provenance-dot--none"></span></span>`;
+  }
+
+  const dots = [];
+  if (hasContent) {
+    dots.push('<span class="provenance-dot provenance-dot--content" title="コード進行・タイミングが手動で修正されています"></span>');
+  }
+  if (hasStructure) {
+    dots.push('<span class="provenance-dot provenance-dot--structure" title="セクション構成が手動で設定・編集されています"></span>');
+  }
+  if (hasExternal) {
+    dots.push('<span class="provenance-dot provenance-dot--external" title="外部資料と照合して確認済みです"></span>');
+  }
+  return `<span class="provenance-dots">${dots.join('')}</span>`;
+}
+
+/**
+ * syncProvenanceSummary — analysis.raw.provenance から project.provenanceSummary
+ * へ要約をコピーする（Phase127）。
+ *
+ * [PERSISTENCE OWNERSHIP PRINCIPLE] 正本はanalysis.raw.provenance。
+ * project.provenanceSummaryはLibrary一覧を高速表示するための派生データ
+ * （複製）に過ぎない。この関数はメモリ上のコピーのみを行い、
+ * IndexedDBへの実書き込みは呼び出し側がautoSaveLocal()を呼ぶことで行う
+ * （hasAnalysisフラグと同じ既存の同期パターンを踏襲。新しい仕組みは作らない）。
+ *
+ * @param {object} proj - project
+ */
+function syncProvenanceSummary(proj) {
+  const p = proj.analysis?.raw?.provenance;
+  if (!p) return;
+  proj.provenanceSummary = {
+    hasContentEdit:   p.hasContentEdit === true,
+    hasStructureEdit: p.hasStructureEdit === true,
+    externalCheck: { checked: p.externalCheck?.checked === true },
+  };
+}
+
+/**
  * saveAnalysisEdit — 解析編集モードの内容を保存する
  *
  * 保存フロー:
@@ -1988,11 +2067,23 @@ async function saveAnalysisEdit() {
   project.analysis.raw.chords = structuredClone(analysisEditor.buffer);
   project.analysis.chords = sanitizeChords(project.analysis.raw.chords);
   project.analysis.raw.sections = structuredClone(getSections(analysisEditor));
+  // [PROVENANCE][Phase127] 一方向フラグの書き戻し（false→trueのみを想定。
+  // セッション側で既にfalse→true以外の変化は起きない設計のため単純代入でよい）。
+  project.analysis.raw.provenance.hasContentEdit   = analysisEditor.hasContentEdit;
+  project.analysis.raw.provenance.hasStructureEdit = analysisEditor.hasStructureEdit;
   const ok = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
   if (!ok) {
     toast('⚠ 保存に失敗しました。編集内容は失われていません');
     return;
   }
+
+  // [PROVENANCE][Phase127] Library一覧の高速表示用に要約をproject側へ複製する。
+  // 正本はanalysis.raw.provenanceのまま（[PERSISTENCE OWNERSHIP PRINCIPLE]と
+  // 同じ考え方）。project.jsonへの実書き込みは既存のautoSaveLocal()
+  // （1秒デバウンス）に乗せる。新しい同期の仕組みは作らない。
+  syncProvenanceSummary(project);
+  autoSaveLocal();  // [PROVENANCE][Phase127] hasAnalysisと同じ既存パターン
+                     // （refreshEditor()相当の呼び出しをここでは行わないため明示）
 
   // [ORDER] 確定済み project.analysis.raw.chords を使って先に再描画してから
   // モードを終了する。getCurrentChordSource() は raw.chords を見るため、
@@ -5830,6 +5921,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   initChartMode({
     getAnalysis:      () => project.analysis,
 
+    // [PROVENANCE][Phase127-D] Chart Modeヘッダーの●表示用。
+    // HTML生成の正本はapp.js側（renderProvenanceDots）に置き、
+    // chartmode.jsは受け取った関数を呼ぶだけ（[DECORATOR ADDITION RULE]と
+    // 同じ「正本の導出はapp.js・描画側は渡された値を使うだけ」の原則）。
+    renderProvenanceDots: renderProvenanceDots,
+
     // [OWNERSHIP INVARIANT] chartmode.js は project tree を直接読まない。
     // normalized は app.js が project.analysis から取り出して注入する。
     // [TIMING INVARIANT] normalized は capo 非依存。
@@ -6073,11 +6170,19 @@ async function renderLibrary() {
       ? `<span class="library-item-artist">${p.artist}</span>`
       : '';
 
+    // [PROVENANCE][Phase127-D] 派生データ（provenanceSummary）から表示。
+    // 正本（analysis.raw.provenance）を都度フェッチしない（architecture.md
+    // §11 Persistence Ownership Principleと同じ理由・Library高速表示のため）。
+    const provenanceHtml = renderProvenanceDots(p.provenanceSummary);
+
     item.innerHTML = `
       <div class="library-item-main">
         <span class="library-item-current-mark">${isCurrent ? '▶' : '\u00a0'}</span>
         <div class="library-item-info">
-          <div class="library-item-title">${p.title || '無題'}</div>
+          <div class="library-item-title-row">
+            <span class="library-item-title">${p.title || '無題'}</span>
+            ${provenanceHtml}
+          </div>
           ${artistHtml ? `<div class="library-item-meta">${artistHtml}</div>` : ''}
         </div>
       </div>

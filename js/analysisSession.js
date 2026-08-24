@@ -32,6 +32,12 @@ export function createAnalysisSession() {
     search: { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false },
     sections:  [],     // Section[]（Phase100-A・section-model.md §4.1）。
                         // Authority Scopeは Analysis Editor Session限定（永続化しない・section-model.md §5）
+    hasContentEdit:   false,  // [PROVENANCE][Phase127] コード進行・タイミングの
+                               // 手動修正が過去に一度でも成立したか（一方向フラグ・
+                               // false→trueのみ。app.js beginAnalysisEdit()が
+                               // raw.provenanceから読み込み、saveAnalysisEdit()が書き戻す）
+    hasStructureEdit: false,  // [PROVENANCE][Phase127] Section構成の手動編集が
+                               // 過去に一度でも成立したか（同上・一方向フラグ）
   };
 }
 
@@ -51,6 +57,8 @@ export function resetSessionFields(session) {
   session.dirty     = false;
   session.search    = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
   session.sections  = [];
+  session.hasContentEdit   = false;  // [PROVENANCE][Phase127] 次回beginAnalysisEdit()で
+  session.hasStructureEdit = false;  // raw.provenanceから改めて読み込まれるため、ここでのリセットは防御的措置
 }
 
 /**

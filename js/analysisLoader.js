@@ -210,6 +210,44 @@ function normalizeMeta(raw) {
   };
 }
 
+/**
+ * normalizeProvenance — raw.provenance を normalize する（Phase127）
+ *
+ * [SCOPE] データ来歴（Data Provenance）: このanalysisデータが
+ *   ①自動解析のままか ②人間がコード・タイミングを手動修正したか
+ *   ③人間がSection構成を手動編集したか ④外部資料（譜面サイト等）と
+ *   照合済みか、を保持する。
+ *
+ * [PROVENANCE FACT INVARIANT] hasContentEdit / hasStructureEdit は
+ *   「Commandがok:trueを返したか」ではなく「実際に値が変わったか」を
+ *   記録する事実ベースのフラグである（Phase127設計議論で確定）。
+ *   一度trueになったら、Undoを含めfalseへは戻さない（一方向フラグ）。
+ *
+ * [DEFAULT] 既存の analysis（provenance未記録）は「未記録状態」として
+ *   扱う。「chordmini解析そのまま」と断定しない（過去に記録機構が
+ *   無かった時代の手動修正が存在した可能性を否定しないため）。
+ *
+ * @param {*} raw
+ * @returns {{ source: string, hasContentEdit: boolean, hasStructureEdit: boolean,
+ *   externalCheck: { checked: boolean, reference: string, url: string, checkedAt: string|null, memo: string } }}
+ */
+function normalizeProvenance(raw) {
+  const r = (raw && typeof raw === 'object') ? raw : {};
+  const ec = (r.externalCheck && typeof r.externalCheck === 'object') ? r.externalCheck : {};
+  return {
+    source: typeof r.source === 'string' ? r.source : 'chordmini',
+    hasContentEdit:   r.hasContentEdit   === true,
+    hasStructureEdit: r.hasStructureEdit === true,
+    externalCheck: {
+      checked:   ec.checked === true,
+      reference: typeof ec.reference === 'string' ? ec.reference : '',
+      url:       typeof ec.url       === 'string' ? ec.url       : '',
+      checkedAt: typeof ec.checkedAt === 'string' ? ec.checkedAt : null,
+      memo:      typeof ec.memo      === 'string' ? ec.memo      : '',
+    },
+  };
+}
+
 // ────────────────────────────────────────
 // メインエントリ
 // ────────────────────────────────────────
@@ -300,6 +338,11 @@ export async function loadAnalysis(analysis) {
   // [ID PERSISTENCE INVARIANT] 旧形式（_id無し）のanalysisファイルは
   // ここで一度だけ自動付与する（以後の保存で _id が永続化される）。
   raw.chords = _ensureChordIds(Array.isArray(raw.chords) ? raw.chords : []);
+
+  // [PROVENANCE][Phase127] 既存analysisにprovenanceが無い場合はここで
+  // 「未記録状態」のデフォルト値を1度だけ付与する（_ensureChordIdsと同じ
+  // 後付けマイグレーションパターン）。以後の保存でprovenanceが永続化される。
+  raw.provenance = normalizeProvenance(raw.provenance);
 
   // ── normalized timing cache ───────────
   // [RUNTIME CACHE] deterministic derived cache。

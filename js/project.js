@@ -66,6 +66,25 @@ export function normalizeProject(raw = {}) {
 
     hasAnalysis:
       raw.hasAnalysis === true,
+
+    // [PROVENANCE][Phase127] Library一覧を高速表示するための要約
+    // （派生データ・正本はanalysis.raw.provenance）。
+    // [PERSISTENCE OWNERSHIP PRINCIPLE]と同じ考え方でproject.json側に
+    // 複製する。実体・同期方法はsyncProvenanceSummary()（app.js）参照。
+    provenanceSummary:
+      (raw.provenanceSummary && typeof raw.provenanceSummary === 'object')
+        ? {
+            hasContentEdit:   raw.provenanceSummary.hasContentEdit   === true,
+            hasStructureEdit: raw.provenanceSummary.hasStructureEdit === true,
+            externalCheck: {
+              checked: raw.provenanceSummary.externalCheck?.checked === true,
+            },
+          }
+        : {
+            hasContentEdit: false,
+            hasStructureEdit: false,
+            externalCheck: { checked: false },
+          },
   };
 }
 
@@ -117,6 +136,14 @@ export function serializeProject(project, uiState) {
     chord_source: project.chord_source,
     // [RAW-READONLY] raw のみ保存。derived は保存禁止（Phase40設計）
     hasAnalysis:  project.hasAnalysis === true,
+    // [PROVENANCE][Phase127] Library表示用の要約（派生データ）。
+    // 正本はanalysis.raw.provenance側。hasAnalysisと同じ「フラグのみ
+    // project.json側に持つ」パターン（architecture.md §9参照）。
+    provenanceSummary: {
+      hasContentEdit:   project.provenanceSummary?.hasContentEdit   === true,
+      hasStructureEdit: project.provenanceSummary?.hasStructureEdit === true,
+      externalCheck: { checked: project.provenanceSummary?.externalCheck?.checked === true },
+    },
   };
 }
 
