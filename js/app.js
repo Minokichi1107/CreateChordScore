@@ -179,6 +179,8 @@ import {
 
 import { isSepToken, isNoChordToken } from './tokens.js';
 
+import * as textTooltip from './textTooltip.js';
+
 import { initChordEntry, openAddChord, showChordSelector } from './chordEntry.js';
 
 import { loadAnalysis, saveAnalysisFile, loadAnalysisFile, sanitizeChords } from './analysisLoader.js';
@@ -313,6 +315,7 @@ let leftCollapsedManual = false;
 let leftCollapsedAuto = false;
 let leftExpandedOverride = false;
 let rightHidden = false;  // 右パネル非表示フラグ（localStorage永続）
+let provenanceVisible = true;  // [Phase127-D'] 編集状況(●)表示フラグ（UI preference・localStorage永続）
 
 // ファイル保存
 let _fileHandle = null;
@@ -1999,20 +2002,28 @@ function renderProvenanceDots(p) {
   const hasStructure = p?.hasStructureEdit === true;
   const hasExternal  = p?.externalCheck?.checked === true;
 
+  // [Phase127-D'] title属性は削除済み（ChatGPT Review Required change #4：
+  // textTooltip.jsの実機確認完了を受けて表示責務をdata-tooltip一本化。
+  // ネイティブtitle tooltipとの二重表示・タイミング差異を解消するため）。
+  const NONE_TEXT      = '編集・確認：記録なし';
+  const CONTENT_TEXT   = 'コード進行：確認・修正あり';
+  const STRUCTURE_TEXT = '曲の構成：確認・設定あり';
+  const EXTERNAL_TEXT  = '外部資料：照合済み';
+
   if (!hasContent && !hasStructure && !hasExternal) {
-    return `<span class="provenance-dots" title="未記録：手動修正や外部資料との照合が記録されていません">`
-      + `<span class="provenance-dot provenance-dot--none"></span></span>`;
+    return `<span class="provenance-dots">`
+      + `<span class="provenance-dot provenance-dot--none" data-tooltip="${NONE_TEXT}"></span></span>`;
   }
 
   const dots = [];
   if (hasContent) {
-    dots.push('<span class="provenance-dot provenance-dot--content" title="コード進行・タイミングが手動で修正されています"></span>');
+    dots.push(`<span class="provenance-dot provenance-dot--content" data-tooltip="${CONTENT_TEXT}"></span>`);
   }
   if (hasStructure) {
-    dots.push('<span class="provenance-dot provenance-dot--structure" title="セクション構成が手動で設定・編集されています"></span>');
+    dots.push(`<span class="provenance-dot provenance-dot--structure" data-tooltip="${STRUCTURE_TEXT}"></span>`);
   }
   if (hasExternal) {
-    dots.push('<span class="provenance-dot provenance-dot--external" title="外部資料と照合して確認済みです"></span>');
+    dots.push(`<span class="provenance-dot provenance-dot--external" data-tooltip="${EXTERNAL_TEXT}"></span>`);
   }
   return `<span class="provenance-dots">${dots.join('')}</span>`;
 }
@@ -3379,6 +3390,52 @@ function applyRightHidden() {
   document.body.classList.toggle('right-hidden', rightHidden);
 }
 
+// ── 編集状況(●)表示/非表示 API ─────────────────
+// [Phase127-D'] UI preference（Provenanceデータ自体のAuthorityとは無関係）。
+// body classのみ切り替える。Library/Chart Mode側の描画ロジックは無変更。
+function applyProvenanceVisible() {
+  document.body.classList.toggle('provenance-hidden', !provenanceVisible);
+}
+
+// ── textTooltip: Library一覧への委譲登録（Phase127-D'） ────────
+// hover（デスクトップ）用。#library-listは常時DOM存在のため、
+// Chart Modeのようなopen/closeライフサイクルと無関係に一度だけ登録する。
+// textTooltip.js自体はProvenanceの意味を知らない（[ChatGPT Review #2]）。
+// ここ（app.js側）が「どの属性から文字列を取り出すか」を決める。
+function _setupLibraryProvenanceTooltipEvents() {
+  const list = document.getElementById('library-list');
+  if (!list) return;
+
+  list.addEventListener('pointerover', e => {
+    const to = e.target.closest('.provenance-dot[data-tooltip]');
+    if (!to) { textTooltip.hide(); return; }
+    const from = e.relatedTarget?.closest?.('.provenance-dot[data-tooltip]');
+    if (from === to) return;
+    textTooltip.show(to.dataset.tooltip, to.getBoundingClientRect());
+  });
+
+  list.addEventListener('pointerout', e => {
+    const from = e.target.closest('.provenance-dot[data-tooltip]');
+    if (!from) return;
+    const to = e.relatedTarget?.closest?.('.provenance-dot[data-tooltip]');
+    if (to === from) return;
+    textTooltip.hide();
+  });
+}
+
+// ── textTooltip: タップ表示 / 外タップで閉じる（Phase127-D'） ──────
+// 既存の「外クリックで閉じる」パターン（Section▼メニュー等・app.js内）
+// と同型。Library・Chart Modeどちらの.provenance-dotも document委譲
+// 1箇所でまとめて扱える（要素がどちらのモジュール所有DOMかを問わない）。
+document.addEventListener('click', e => {
+  const dot = e.target.closest('.provenance-dot[data-tooltip]');
+  if (dot) {
+    textTooltip.show(dot.dataset.tooltip, dot.getBoundingClientRect());
+    return;
+  }
+  textTooltip.hide();
+});
+
 // ── 表示メニューのチェックマーク更新 ─────────────
 // メニューを開くたびに現在の状態を反映する。
 // 表示中 → ✔付き、非表示 → ✔なし
@@ -3392,6 +3449,11 @@ function updateViewMenuChecks() {
   const leftVisible = !document.body.classList.contains('left-collapsed');
   btnLeft.textContent  = (leftVisible  ? '✔ ' : '　') + '◧ 左パネル';
   btnRight.textContent = (!rightHidden ? '✔ ' : '　') + '◨ 右パネル';
+
+  // [Phase127-D'] 編集状況表示の✔も、メニューを開くたびに同期する
+  // （既存のChart コード図メニューにはこの同期が無い、という見落としを
+  // 今回は繰り返さない）
+  _updateProvenanceMenu(provenanceVisible);
 }
 
 // Chart Mode コード図ホバーのチェックマーク更新
@@ -3399,6 +3461,13 @@ function _updateChartDiagMenu(enabled) {
   const btn = document.getElementById('btn-toggle-chart-diag');
   if (!btn) return;
   btn.textContent = (enabled ? '✔ ' : '　') + '♬ Chart コード図';
+}
+
+// 編集状況(●)表示のチェックマーク更新（Phase127-D'）
+function _updateProvenanceMenu(visible) {
+  const btn = document.getElementById('btn-toggle-provenance');
+  if (!btn) return;
+  btn.textContent = (visible ? '✔ ' : '　') + '編集状況を表示';
 }
 
 // Debug Menuのラベル更新（Phase121）
@@ -5599,6 +5668,15 @@ function setupEventHandlers() {
     toast(next ? '🎸 コード図ホバー ON' : '🎸 コード図ホバー OFF');
   });
 
+  // 編集状況(●)表示 トグル（表示メニュー・Phase127-D'）
+  document.getElementById('btn-toggle-provenance')?.addEventListener('click', () => {
+    provenanceVisible = !provenanceVisible;
+    localStorage.setItem('cs.provenanceVisible', provenanceVisible ? 'true' : 'false');
+    applyProvenanceVisible();
+    _updateProvenanceMenu(provenanceVisible);
+    toast(provenanceVisible ? '● 編集状況 表示ON' : '● 編集状況 表示OFF');
+  });
+
   // ============================================
   // Debug Menu Events（Phase121: Debug Session Recorder）
   // ============================================
@@ -5739,6 +5817,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 右パネル初期化（localStorage復元）
   rightHidden = localStorage.getItem('rightHidden') === '1';
   applyRightHidden();
+
+  // [Phase127-D'] 編集状況(●)表示の初期化（localStorage復元）
+  // 未設定時は表示ON（後方互換）。body class・メニュー✔の両方をここで明示的に同期する。
+  provenanceVisible = localStorage.getItem('cs.provenanceVisible') !== 'false';
+  applyProvenanceVisible();
+  _updateProvenanceMenu(provenanceVisible);
+
+  // [Phase127-D'] textTooltip初期化（アプリ起動時に1回だけ・Chart Modeのlifecycleとは無関係）
+  textTooltip.init();
+  _setupLibraryProvenanceTooltipEvents();
 
   if (btnCollapse) {
     btnCollapse.addEventListener('click', () => {
@@ -5926,6 +6014,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     // chartmode.jsは受け取った関数を呼ぶだけ（[DECORATOR ADDITION RULE]と
     // 同じ「正本の導出はapp.js・描画側は渡された値を使うだけ」の原則）。
     renderProvenanceDots: renderProvenanceDots,
+
+    // [Phase127-D'] 編集状況(●)のhover/tap tooltip用。textTooltip.js
+    // （Provenanceの意味を知らない汎用モジュール）のAPIをそのまま注入する。
+    // chartmode.js側は「このテキストをここに表示して」と呼ぶだけで、
+    // Provenanceドメイン知識・DOM生成・画面端clamp計算は一切持たない。
+    showTextTooltip: textTooltip.show,
+    hideTextTooltip: textTooltip.hide,
 
     // [OWNERSHIP INVARIANT] chartmode.js は project tree を直接読まない。
     // normalized は app.js が project.analysis から取り出して注入する。

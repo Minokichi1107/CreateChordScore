@@ -265,3 +265,31 @@
 .provenance-dot--content { background: rgba(var(--color-amber-rgb), .95); }
 .provenance-dot--structure { background: rgba(var(--color-blue-rgb), .95); }
 .provenance-dot--external  { background: rgba(var(--color-green-rgb), .95); }
+
+/* [表示ON/OFF設定] UI preference（cs.provenanceVisible）による表示制御。
+   Provenanceデータ自体（analysis.raw.provenance）には一切影響しない。
+   Library一覧・Chart Modeヘッダー両方の.provenance-dotsに共通で効く
+   （個別モジュールの描画ロジックへ分岐を持ち込まない・単一セレクタで両対応）。 */
+body.provenance-hidden .provenance-dots {
+  display: none;
+}
+
+/* ── textTooltip.js 用スタイル（Phase127-D'） ─────────────
+   .chart-diag-tooltip（chart.css・Phase67）と同じtoken構成で統一感を持たせるが、
+   textTooltip.jsはProvenanceを含む「1行テキストの汎用tooltip」であり
+   Chart Mode専用ではないため、Library/Chart Mode共有のcomponents.cssに置く
+   （.provenance-dotと同じ「所有権未確定・複数モジュール共有」区分）。 */
+.text-tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  max-width: 240px;
+  font-size: 12px;
+  line-height: 1.4;
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  padding: 6px 10px;
+  box-shadow: var(--shadow-md);
+}
