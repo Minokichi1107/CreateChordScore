@@ -228,3 +228,68 @@
 #panel-diagram[hidden] {
   display: none !important;
 }
+
+/* ── Data Provenance Indicator（Phase127-D） ──────────────
+   [SCOPE] Library一覧（library.css所有DOM）・Chart Modeヘッダー
+   （chart.css所有DOM）の両方から使われる共有コンポーネントのため、
+   所有権未確定の扱いとしてcomponents.cssに置く（ui-rules.md §1準拠。
+   .speed-cluster等と同じ「複数モジュール共有」区分）。
+
+   [表示ロジック] 3種類の●を固定順（黄→青→緑）で、達成した項目の分だけ
+   表示する。何も達成していない場合のみ灰●1個を表示する
+   （architecture.md §12 Decorator設計とは別カテゴリ・編集内容ではなく
+   データの来歴を示すsummary indicatorのため、Decorator Inventoryの
+   対象外）。
+   [DECORATOR LEGIBILITY PRINCIPLE]と同じ考え方で、色は3テーマ共通
+   （既存の--color-amber-rgb/--color-green-rgb/--color-blue-rgb primitiveを
+   そのまま流用・新規token追加なし）。 */
+.provenance-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  flex-shrink: 0; /* [Phase127-D] Library一覧でtitleが省略されてもdotsは常に表示する */
+}
+.provenance-dot {
+  /* [Phase127-D] 実機確認でネイティブtitle Tooltipが出づらいと判明したため、
+     7px→9pxへ拡大しホバー当たり判定を広げた（gap+負margin方式は
+     flexboxのgap計算と競合しうるため単純な拡大に変更）。 */
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  cursor: default;
+}
+.provenance-dot--none    { background: var(--text-muted); }
+.provenance-dot--content { background: rgba(var(--color-amber-rgb), .95); }
+.provenance-dot--structure { background: rgba(var(--color-blue-rgb), .95); }
+.provenance-dot--external  { background: rgba(var(--color-green-rgb), .95); }
+
+/* [表示ON/OFF設定] UI preference（cs.provenanceVisible）による表示制御。
+   Provenanceデータ自体（analysis.raw.provenance）には一切影響しない。
+   Library一覧・Chart Modeヘッダー両方の.provenance-dotsに共通で効く
+   （個別モジュールの描画ロジックへ分岐を持ち込まない・単一セレクタで両対応）。 */
+body.provenance-hidden .provenance-dots {
+  display: none;
+}
+
+/* ── textTooltip.js 用スタイル（Phase127-D'） ─────────────
+   .chart-diag-tooltip（chart.css・Phase67）と同じtoken構成で統一感を持たせるが、
+   textTooltip.jsはProvenanceを含む「1行テキストの汎用tooltip」であり
+   Chart Mode専用ではないため、Library/Chart Mode共有のcomponents.cssに置く
+   （.provenance-dotと同じ「所有権未確定・複数モジュール共有」区分）。 */
+.text-tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  max-width: 240px;
+  font-size: 12px;
+  line-height: 1.4;
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  padding: 6px 10px;
+  box-shadow: var(--shadow-md);
+}

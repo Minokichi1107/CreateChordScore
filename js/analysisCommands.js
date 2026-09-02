@@ -92,6 +92,7 @@ export function deleteChordCommand(state, id) {
 
   refreshSelection(state, [absorbing._id]);
 
+  state.hasContentEdit = true;  // [PROVENANCE] 常に実削除が成立する（Phase127）
   return { ok: true, selectedChordIds: [absorbing._id] };
 }
 
@@ -155,6 +156,7 @@ export function deleteSelectionCommand(state) {
 
   refreshSelection(state, [absorbing._id], absorbing._id);
 
+  state.hasContentEdit = true;  // [PROVENANCE] 常に実削除が成立する（Phase127）
   return { ok: true, selectedChordIds: [absorbing._id] };
 }
 
@@ -300,6 +302,7 @@ export function pasteSelectionCommand(state) {
 
   refreshSelection(state, newIds, newIds[newIds.length - 1]);
 
+  state.hasContentEdit = true;  // [PROVENANCE] 常に実置換が成立する（Phase127）
   return { ok: true, selectedChordIds: newIds };
 }
 
@@ -436,6 +439,7 @@ export function commitPastePlan(state, plan) {
   }
 
   refreshSelection(state, plan.newIds, plan.newIds[plan.newIds.length - 1]);
+  state.hasContentEdit = true;  // [PROVENANCE] 常に実変更が成立する（Phase127）
   return { ok: true, selectedChordIds: plan.newIds, count: plan.newIds.length };
 }
 
@@ -449,8 +453,14 @@ export function updateChordCommand(state, id, patch) {
   const c = state.buffer.find(c => c._id === id);
   if (!c) return { ok: false, reason: null };  // 存在しないIDなら何もしない（無駄なUndo履歴を防ぐ）
 
+  // [PROVENANCE] pushHistory()より前に値の実差分を判定する。
+  // 同名リネーム確定等、patchが既存値と完全一致するケースでは
+  // hasContentEditをtrueにしない（Phase127 [PROVENANCE FACT INVARIANT]）。
+  const changed = Object.keys(patch).some(k => patch[k] !== c[k]);
+
   pushHistory(state);
   Object.assign(c, patch);
+  if (changed) state.hasContentEdit = true;
 
   return { ok: true };
 }
@@ -493,6 +503,7 @@ export function splitChordCommand(state, chordId, splitTime) {
 
   refreshSelection(state);  // [INVARIANT 7・AE-4] buffer長が変わったため選択キャッシュを再同期
 
+  state.hasContentEdit = true;  // [PROVENANCE] 常に実分割が成立する（Phase127）
   return { ok: true, newId: rightChord._id };
 }
 
@@ -537,6 +548,7 @@ export function addChordCommand(state, chordId, splitTime, newChordName) {
   // 新規コードを単独選択（[AE-7]によりeditPointは自動クリア）
   refreshSelection(state, [rightChord._id], rightChord._id);
 
+  state.hasContentEdit = true;  // [PROVENANCE] 常に実分割+リネームが成立する（Phase127）
   return { ok: true, newId: rightChord._id, selectedChordIds: [rightChord._id] };
 }
 
@@ -646,6 +658,7 @@ export function mergeSelectionCommand(state) {
 
   refreshSelection(state, [merged._id], merged._id);
 
+  state.hasContentEdit = true;  // [PROVENANCE] 常に実結合が成立する（Phase127）
   return { ok: true, selectedChordIds: [merged._id] };
 }
 
@@ -747,6 +760,10 @@ export function createSectionCommand(state, { type, name, startChordId, endChord
   pushHistory(state); // [Phase104] 既存コマンドと同じ位置（バリデーション通過後・反映直前）
 
   state.sections.push(candidate);
+  // [PROVENANCE][Phase127-F] hasStructureEdit はここでは書かない。
+  // 「作成した実績」ではなく「今Sectionが存在するか」をsaveAnalysisEdit()側で
+  // getSections(state).length > 0 として都度導出する方式へ変更したため
+  // （create→即delete等でも実態と一致させるため。architecture.md参照）。
   return { ok: true, sectionId: candidate.id };
 }
 
@@ -768,6 +785,9 @@ export function renameSectionCommand(state, sectionId, patch = {}) {
 
   if (patch.name !== undefined) section.name = patch.name;
   if (patch.type !== undefined) section.type = patch.type;
+  // [PROVENANCE][Phase127-F] hasStructureEditはSection件数から都度導出する方式へ
+  // 変更したため、名前・種類の変更（件数は変わらない）はここでは扱わない
+  // （値の実差分判定も不要になったため撤去）。
 
   return { ok: true, sectionId };
 }
@@ -804,6 +824,9 @@ export function updateSectionBoundaryCommand(state, sectionId, patch = {}) {
 
   section.startChordId = candidate.startChordId;
   section.endChordId   = candidate.endChordId;
+  // [PROVENANCE][Phase127-F] hasStructureEditはSection件数から都度導出する方式へ
+  // 変更したため、境界移動（件数は変わらない）はここでは扱わない
+  // （値の実差分判定も不要になったため撤去）。
 
   return { ok: true, sectionId };
 }
@@ -824,6 +847,9 @@ export function deleteSectionCommand(state, sectionId) {
   pushHistory(state); // [Phase104] 既存コマンドと同じ位置（バリデーション通過後・反映直前）
 
   sections.splice(idx, 1);
+  // [PROVENANCE][Phase127-F] hasStructureEditはここでは書かない。
+  // saveAnalysisEdit()側で getSections(state).length > 0 として都度導出する
+  // （削除の結果0件になれば、次回保存時に自動的に非表示側へ倒れる）。
 
   return { ok: true, sectionId };
 }

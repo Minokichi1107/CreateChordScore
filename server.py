@@ -50,8 +50,56 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             analysis_dir = os.path.join(DIR, 'analysis')
             os.makedirs(analysis_dir, exist_ok=True)
 
-            # 書き込み
             path = os.path.join(analysis_dir, f'{project_id}.json')
+
+            # ★ 追加: 読み込んだ後に他の保存が入っていないか確認する。
+            #
+            #   [BACKFILL NON-DESTRUCTIVE INVARIANT] を守るための仕組み
+            #   （楽観的並行性制御・Optimistic Concurrency Control）。
+            #
+            #   このチェックは baseVersion が送られてきた場合のみ働く。
+            #
+            #   通常の編集保存（ユーザーが今この曲を開いて行う正規の変更）は
+            #   baseVersion を送らない。編集セッション中は常に自分が最新の
+            #   状態を保持しているため、無条件で保存してよい（従来通り）。
+            #
+            #   一方、既存曲の編集状況を確認する処理（バックフィル）は、
+            #   ユーザーが今操作していない曲を「観測」するだけの処理であり、
+            #   自分が読んだ後に本物の変更（ユーザーによる保存）が入っていた
+            #   場合、それを古いデータで上書きすることは絶対に許されない。
+            #   そのため baseVersion を送り、この安全策の対象になる。
+            if 'baseVersion' in data:
+                base_version = data.get('baseVersion')  # None または文字列
+
+                if base_version is None:
+                    # クライアントが読み込んだファイルに generatedAt が
+                    # 存在しなかった（バージョン不明の古いファイル）。
+                    # 「変更されていないこと」を証明する手段が無いため、
+                    # 安全側に倒して常に書き込みを拒否する。
+                    print(f'[analysis] conflict (no version marker, refused): {project_id}')
+                    self.send_response(409)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(b'{"ok":false,"reason":"no-version"}')
+                    return
+
+                existing_version = None
+                if os.path.exists(path):
+                    try:
+                        with open(path, 'r', encoding='utf-8') as f:
+                            existing_version = json.load(f).get('generatedAt')
+                    except Exception:
+                        existing_version = None  # 壊れたファイル等 → 不一致扱いにする
+
+                if existing_version != base_version:
+                    # 読み込んだ後に他の保存が入っていた（最終保存時刻が変わっていた）
+                    # → 安全側に倒して書き込みを拒否する。古いデータは絶対に書かない。
+                    print(f'[analysis] conflict (write refused): {project_id}')
+                    self.send_response(409)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(b'{"ok":false,"reason":"conflict"}')
+                    return
 
             # ★ 追加: 上書き検出log
             if os.path.exists(path):

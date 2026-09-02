@@ -32,6 +32,14 @@ export function createAnalysisSession() {
     search: { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false },
     sections:  [],     // Section[]（Phase100-A・section-model.md §4.1）。
                         // Authority Scopeは Analysis Editor Session限定（永続化しない・section-model.md §5）
+    hasContentEdit:   false,  // [PROVENANCE][Phase127] コード進行・タイミングの
+                               // 手動修正が過去に一度でも成立したか（一方向フラグ・
+                               // false→trueのみ。app.js beginAnalysisEdit()が
+                               // raw.provenanceから読み込み、saveAnalysisEdit()が書き戻す）
+    // [PROVENANCE][Phase127-F] hasStructureEditはセッション側で状態を持たない。
+    // 「今Sectionが存在するか」は getSections(session).length > 0 として
+    // saveAnalysisEdit()側で都度導出するため、ここでは保持しない
+    // （sections配列そのものが既に唯一の判定材料であり、二重管理を避ける）。
   };
 }
 
@@ -51,6 +59,10 @@ export function resetSessionFields(session) {
   session.dirty     = false;
   session.search    = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false };
   session.sections  = [];
+  session.hasContentEdit   = false;  // [PROVENANCE][Phase127] 次回beginAnalysisEdit()で
+                                      // raw.provenanceから改めて読み込まれるため、ここでのリセットは防御的措置
+  // hasStructureEditはセッションが保持しないため、ここでのリセットは不要
+  // （Phase127-F・sections配列自体が唯一の判定材料）。
 }
 
 /**

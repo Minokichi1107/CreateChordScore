@@ -66,6 +66,45 @@ export function normalizeProject(raw = {}) {
 
     hasAnalysis:
       raw.hasAnalysis === true,
+
+    // [PROVENANCE][Phase127] Library一覧を高速表示するための要約
+    // （派生データ・正本はanalysis.raw.provenance）。
+    // [PERSISTENCE OWNERSHIP PRINCIPLE]と同じ考え方でproject.json側に
+    // 複製する。実体・同期方法はsyncProvenanceSummary()（app.js）参照。
+    provenanceSummary:
+      (raw.provenanceSummary && typeof raw.provenanceSummary === 'object')
+        ? {
+            hasContentEdit:   raw.provenanceSummary.hasContentEdit   === true,
+            hasStructureEdit: raw.provenanceSummary.hasStructureEdit === true,
+            externalCheck: {
+              checked: raw.provenanceSummary.externalCheck?.checked === true,
+            },
+          }
+        : {
+            hasContentEdit: false,
+            hasStructureEdit: false,
+            externalCheck: { checked: false },
+          },
+
+    // [PROVENANCE][Phase127-F] Content Edit Backfillの移行状態
+    // （Migration State）。Provenanceそのもの（「今どうか」を示す
+    // hasContentEdit等）とは別物で、「このプロジェクトについて
+    // バックフィル処理を実行済みか」という内部の処理管理情報。
+    //
+    // [IMPORTANT] 未設定（undefined）のまま保つことに意味がある。
+    // 「バックフィル未実行」を表す既定値オブジェクトを与えてしまうと、
+    // 「Phase127以前からある未処理の曲」と「意図的にリセットされた曲」
+    // を区別できなくなる。バックフィル対象の判定は常に
+    // 「contentEditBackfillがundefinedかどうか」だけで行う
+    // （Phase番号や作成日時からの推測はしない）。
+    contentEditBackfill:
+      (raw.contentEditBackfill && typeof raw.contentEditBackfill === 'object')
+        ? {
+            version:   typeof raw.contentEditBackfill.version === 'number' ? raw.contentEditBackfill.version : 0,
+            status:    typeof raw.contentEditBackfill.status === 'string' ? raw.contentEditBackfill.status : 'not_run',
+            checkedAt: typeof raw.contentEditBackfill.checkedAt === 'string' ? raw.contentEditBackfill.checkedAt : null,
+          }
+        : undefined,
   };
 }
 
@@ -117,6 +156,19 @@ export function serializeProject(project, uiState) {
     chord_source: project.chord_source,
     // [RAW-READONLY] raw のみ保存。derived は保存禁止（Phase40設計）
     hasAnalysis:  project.hasAnalysis === true,
+    // [PROVENANCE][Phase127] Library表示用の要約（派生データ）。
+    // 正本はanalysis.raw.provenance側。hasAnalysisと同じ「フラグのみ
+    // project.json側に持つ」パターン（architecture.md §9参照）。
+    provenanceSummary: {
+      hasContentEdit:   project.provenanceSummary?.hasContentEdit   === true,
+      hasStructureEdit: project.provenanceSummary?.hasStructureEdit === true,
+      externalCheck: { checked: project.provenanceSummary?.externalCheck?.checked === true },
+    },
+    // [PROVENANCE][Phase127-F] undefinedのままなら保存もundefinedのまま
+    // （JSON.stringify相当の扱いでキー自体が省略される・IndexedDB構造化
+    // クローンでもundefinedは保持されずキーごと消える）。これにより
+    // 「バックフィル未実行の古い曲」との区別が保たれる。
+    contentEditBackfill: project.contentEditBackfill,
   };
 }
 
@@ -340,6 +392,24 @@ export async function saveProjectToDB(project, uiState) {
       schemaVersion: _SCHEMA_VERSION,
       createdAt:     existing?.createdAt ?? now,
       updatedAt:     now,
+      // [Phase127-F] contentEditBackfill の優先順位:
+      //   メモリ上（project.contentEditBackfill）に明示的な値がある場合
+      //     → それを尊重する（例: 再インポート時の {status:'reset'} リセット。
+      //        loadChordData() が意図的にセットしてから保存する正当な経路）
+      //   メモリ上が未設定（undefined）の場合
+      //     → DBの現在値をそのまま引き継ぐ（バックフィルが別途書き込んだ
+      //        判定結果を、古いメモリ内容で巻き戻さないため）
+      //
+      // [なぜこれで安全か] contentEditBackfillは一度でも値が設定されたら
+      // （matched/edited/unavailable/resetのいずれでも）バックフィルの
+      // 対象から外れる（対象条件は「未設定」のみ）。つまり「メモリが
+      // undefinedなのにDBには値がある」という状況は、まだ一度もこの
+      // セッションで triggered されていない値をバックフィルが後から
+      // 書き込んだ場合にのみ起こる。その場合はDBの値を優先してよい。
+      contentEditBackfill:
+        base.contentEditBackfill !== undefined
+          ? base.contentEditBackfill
+          : existing?.contentEditBackfill,
     };
 
     const db = await initDB();
@@ -354,6 +424,37 @@ export async function saveProjectToDB(project, uiState) {
     console.error('[saveProjectToDB] failed:', e);
     return false;
   }
+}
+
+// ────────────────────────────────────────
+// patchProjectFields
+//
+// [Phase127-F] 既存レコードの一部フィールドだけを安全に書き換える。
+// 呼び出し側は古いレコードを保持せず、書き込む瞬間にDBから最新の
+// レコードを読み、patchFn が返す差分だけを反映する。
+// get→put を同一トランザクション内で行うため、IndexedDBの排他制御
+// （同一objectStoreへのreadwriteトランザクションは直列に実行される）
+// により、この間に他の書き込みが割り込むことはない。
+//
+// @param {string} id
+// @param {(current: object) => object} patchFn
+// @returns {Promise<boolean>}
+// ────────────────────────────────────────
+export async function patchProjectFields(id, patchFn) {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx     = db.transaction(_STORE_PROJECTS, 'readwrite');
+    const store  = tx.objectStore(_STORE_PROJECTS);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const current = getReq.result;
+      if (!current) { resolve(false); return; }
+      const putReq = store.put(patchFn(current));
+      putReq.onsuccess = () => resolve(true);
+      putReq.onerror   = e => reject(e.target.error);
+    };
+    getReq.onerror = e => reject(e.target.error);
+  });
 }
 
 // ────────────────────────────────────────

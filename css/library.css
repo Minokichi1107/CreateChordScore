@@ -83,6 +83,13 @@
   flex: 1;
   min-width: 0;
 }
+.library-item-title-row {
+  /* [Phase127-D] provenance-dotsが常に見えるよう、titleのellipsis対象を
+     このrow内のtitle要素だけに限定する（dots自体はflex-shrink:0で保護） */
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
 .library-item-title {
   font-size: 12px;
   font-family: var(--font-mono);
@@ -90,6 +97,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 .library-item--current .library-item-title {
   color: var(--text-accent);

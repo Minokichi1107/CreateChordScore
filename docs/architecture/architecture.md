@@ -1969,7 +1969,56 @@ Project切替 / Chart Mode終了のすべてがここを経由する）に集約
 ハイライトが残留するバグとしてPhase103の実機検証で発見された
 （詳細はhandover_phase103.md参照）。
 ```
+Provenance Backfill（Phase127）
+既存プロジェクトのraw.provenance（hasContentEdit / hasStructureEdit）を
+遡及的に補完する仕組み。手動実行（「ファイル▼」→「編集状況を再判定」）。
 
+責務分離（Phase127-F②で確立）:
+  Content Migration（🟡 hasContentEdit）
+    「オリジナルインポート内容から変化したか」の1回限りの判定。
+    contentEditBackfill（Migration State）で管理し、一度判定した
+    プロジェクトは再評価しない。
+
+  Structure Sync（🔵 hasStructureEdit）
+    「今この瞬間、raw.sectionsが存在するか」という現在状態からの
+    導出値。Migration Stateとは独立に、実行のたびに現在状態との
+    一致を検査する（検査する＝毎回保存する、ではない。既に一致
+    していれば書き込みは発生しない）。
+
+    hasStructureEditは「ユーザーがSectionを手動編集した」という
+    操作履歴の証明ではなく、「現在Section構造が存在する」という
+    現在状態から導出されるProvenance表示である。
+
+両者の判定結果は、変更がある場合に限り1つのraw.provenanceへ
+マージした上で、saveAnalysisFile()を1回だけ呼んで書き込む
+（Single Writerの原則を保つため、2回に分けて書き込まない）。
+[BACKFILL NON-DESTRUCTIVE INVARIANT]（Phase127-Fで確立・Phase127-F②で拡張）
+バックフィルは既存プロジェクトのProvenance関連状態
+（raw.provenance / contentEditBackfill / provenanceSummary）
+を観察・補完する処理であり、それ以外のデータを一切変更しない。
+
+  ・Section / chords / beats / downbeats / capo / key / tempo /
+    lines / title / audio 等、provenance以外のデータには
+    一切書き込まない
+
+  ・raw（analysis/{id}.json）への書き込みは、読み込んだ時点の
+    バージョン（generatedAt）をbaseVersionとしてサーバーへ送り、
+    その後に他の保存が入っていないかを確認した上でのみ行う
+    （saveAnalysisFile()のbaseVersion引数・server.py側の
+    楽観的並行性制御）
+
+  ・conflict（読み込み後に他の保存が入っていた）が検出された場合、
+    🟡🔵両方の判定結果を破棄し、次回のバックフィル実行時に
+    自然に再評価する（一部だけ確定させない）
+
+  ・analysisFile自体の読み込みに失敗した場合（loadAnalysisFile()は
+    ファイル不在・JSON破損・fetch失敗を区別せず一律nullを返す）も、
+    恒久的な'unavailable'として確定せず、次回に再試行する
+    （一時的な通信エラーの可能性を否定できないため）
+
+バックフィルという「まとめて多数のプロジェクトを処理する」性質の
+操作が、ユーザーの通常編集フローと衝突して既存データを壊さないための
+安全設計である。
 ---
 
 ## 13. Authority Index

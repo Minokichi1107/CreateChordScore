@@ -116,6 +116,7 @@ import {
   clearLocalStorage,
   PICKER_IDS,
   saveProjectToDB,
+  patchProjectFields,             // Phase127-F追加
   getProject,
   listProjects,
   deleteProject,
@@ -179,9 +180,11 @@ import {
 
 import { isSepToken, isNoChordToken } from './tokens.js';
 
+import * as textTooltip from './textTooltip.js';
+
 import { initChordEntry, openAddChord, showChordSelector } from './chordEntry.js';
 
-import { loadAnalysis, saveAnalysisFile, loadAnalysisFile, sanitizeChords } from './analysisLoader.js';
+import { loadAnalysis, saveAnalysisFile, loadAnalysisFile, sanitizeChords, compareContentEditSnapshot } from './analysisLoader.js';
 
 import {
   createAnalysisSession,
@@ -273,6 +276,10 @@ import {
 
 // プロジェクトデータ
 let project = createEmptyProject();
+// [PROVENANCE][Phase127-F] Content Edit Backfillの版数。比較ロジックを
+// 将来改善した場合、この定数を上げることで「versionが古い曲」を
+// 再度バックフィル対象にできる（詳細はloadChordData()内コメント参照）。
+const CONTENT_EDIT_BACKFILL_VERSION = 1;
 let palette = [];
 let paletteTranspose = 0; // session only、-6〜+6、循環
 let focLine = -1;
@@ -313,6 +320,7 @@ let leftCollapsedManual = false;
 let leftCollapsedAuto = false;
 let leftExpandedOverride = false;
 let rightHidden = false;  // 右パネル非表示フラグ（localStorage永続）
+let provenanceVisible = true;  // [Phase127-D'] 編集状況(●)表示フラグ（UI preference・localStorage永続）
 
 // ファイル保存
 let _fileHandle = null;
@@ -533,6 +541,11 @@ function beginAnalysisEdit() {
   analysisEditor.history = [];
   analysisEditor.future  = [];
   analysisEditor.sections = structuredClone(project.analysis.raw.sections ?? []);
+  // [PROVENANCE][Phase127] raw.provenanceはloadAnalysis()で必ず正規化済み
+  // （normalizeProvenance()）のため、ここでは素直にコピーするだけでよい。
+  // hasStructureEditはコピーしない（Phase127-F・セッション側で状態を持たず、
+  // getSections()から都度導出する設計へ変更したため）。
+  analysisEditor.hasContentEdit   = project.analysis.raw.provenance.hasContentEdit;
   analysisEditor.dirty = false;
   analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false, replaceUndoPending: false };
   setSearchMatches([]);
@@ -1182,6 +1195,7 @@ function replaceAllMatches(newName) {
   }
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('replaceAll', { ok: true, count: targetIds.size }, before, after);
+  analysisEditor.hasContentEdit = true;  // [PROVENANCE][Phase127] matches.length>0保証済み・常に実置換
   _refreshEditorView('replaceAll');
   return targetIds.size;
 }
@@ -1208,6 +1222,7 @@ function shiftAll(deltaSec) {
   });
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('shiftAll', { ok: true }, before, after);
+  analysisEditor.hasContentEdit = true;  // [PROVENANCE][Phase127] Ctrl+Shift+矢印は常に非ゼロdelta
 
   _refreshEditorView('shiftAll');
 }
@@ -1223,7 +1238,15 @@ function shiftAll(deltaSec) {
  */
 function moveBoundary(boundaryIndex, newTime) {
   if (!isAnalysisEditing()) return null;
-  return moveBoundaryCommand(analysisEditor, boundaryIndex, newTime);
+  // [PROVENANCE][Phase127] 実際に境界の時刻が変わる場合のみhasContentEditを
+  // trueにする。境界ドラッグのクリックのみ操作（8pxは超えたが移動量ゼロ）では
+  // newTimeが現在値と一致するため、ここで弾かれる（矢印キー/ボタンは常に
+  // 非ゼロdeltaのため、この判定でも常にtrueになる＝既存挙動への影響なし）。
+  const left = analysisEditor.buffer[boundaryIndex];
+  const changed = !!left && left.end !== newTime;
+  const result = moveBoundaryCommand(analysisEditor, boundaryIndex, newTime);
+  if (result !== null && changed) analysisEditor.hasContentEdit = true;
+  return result;
 }
 
 /**
@@ -1788,6 +1811,10 @@ function shiftSelectionRange(deltaSec) {
 
   const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
   _recRecord('shiftSelectionRange', { ok: true }, before, after);
+  // [PROVENANCE][Phase127] actualDelta===0は既にreturn済みのため、ここに
+  // 到達した時点で常に実移動が成立している（moveBoundary()経由の入口分だけでなく
+  // 内部コードの直接書き換えもあるため、ここで明示的に立てる）。
+  analysisEditor.hasContentEdit = true;
 
   _refreshEditorView('shiftSelectionRange');
 }
@@ -1961,6 +1988,337 @@ function redoEdit() {
 }
 
 /**
+ * renderProvenanceDots — データ来歴（Provenance）インジケーターのHTML片を生成する
+ * （Phase127-D）。
+ *
+ * [SHARED] Library一覧（provenanceSummary形状）とChart Modeヘッダー
+ * （provenance形状）の両方から呼ばれる共通ヘルパー。両者はフィールド名が
+ * 同一（hasContentEdit / hasStructureEdit / externalCheck.checked）のため
+ * 同じ関数で扱える。
+ *
+ * [表示ロジック] 3種類の●を固定順（黄→青→緑）で、達成した項目のみ表示する。
+ * 何も達成していなければ灰●1個のみ（Product Freeze・Phase127-A確定仕様）。
+ *
+ * @param {{ hasContentEdit?: boolean, hasStructureEdit?: boolean,
+ *   externalCheck?: { checked?: boolean } }|null|undefined} p
+ * @returns {string} HTML文字列（`.provenance-dots`要素そのもの）
+ */
+function renderProvenanceDots(p) {
+  const hasContent   = p?.hasContentEdit === true;
+  const hasStructure = p?.hasStructureEdit === true;
+  const hasExternal  = p?.externalCheck?.checked === true;
+
+  // [Phase127-D'] title属性は削除済み（ChatGPT Review Required change #4：
+  // textTooltip.jsの実機確認完了を受けて表示責務をdata-tooltip一本化。
+  // ネイティブtitle tooltipとの二重表示・タイミング差異を解消するため）。
+  const NONE_TEXT      = '編集・確認：記録なし';
+  const CONTENT_TEXT   = 'コード進行：確認・修正あり';
+  const STRUCTURE_TEXT = '曲の構成：確認・設定あり';
+  const EXTERNAL_TEXT  = '外部資料：照合済み';
+
+  if (!hasContent && !hasStructure && !hasExternal) {
+    return `<span class="provenance-dots">`
+      + `<span class="provenance-dot provenance-dot--none" data-tooltip="${NONE_TEXT}"></span></span>`;
+  }
+
+  const dots = [];
+  if (hasContent) {
+    dots.push(`<span class="provenance-dot provenance-dot--content" data-tooltip="${CONTENT_TEXT}"></span>`);
+  }
+  if (hasStructure) {
+    dots.push(`<span class="provenance-dot provenance-dot--structure" data-tooltip="${STRUCTURE_TEXT}"></span>`);
+  }
+  if (hasExternal) {
+    dots.push(`<span class="provenance-dot provenance-dot--external" data-tooltip="${EXTERNAL_TEXT}"></span>`);
+  }
+  return `<span class="provenance-dots">${dots.join('')}</span>`;
+}
+
+/**
+ * syncProvenanceSummary — analysis.raw.provenance から project.provenanceSummary
+ * へ要約をコピーする（Phase127）。
+ *
+ * [PERSISTENCE OWNERSHIP PRINCIPLE] 正本はanalysis.raw.provenance。
+ * project.provenanceSummaryはLibrary一覧を高速表示するための派生データ
+ * （複製）に過ぎない。この関数はメモリ上のコピーのみを行い、
+ * IndexedDBへの実書き込みは呼び出し側がautoSaveLocal()を呼ぶことで行う
+ * （hasAnalysisフラグと同じ既存の同期パターンを踏襲。新しい仕組みは作らない）。
+ *
+ * @param {object} proj - project
+ */
+function syncProvenanceSummary(proj) {
+  const p = proj.analysis?.raw?.provenance;
+  if (!p) return;
+  proj.provenanceSummary = {
+    hasContentEdit:   p.hasContentEdit === true,
+    hasStructureEdit: p.hasStructureEdit === true,
+    externalCheck: { checked: p.externalCheck?.checked === true },
+  };
+}
+
+/**
+ * _persistContentEditBackfillResult — Migration State（contentEditBackfill）
+ * とprovenanceSummaryを、指定したプロジェクトへ安全に書き戻す。
+ *
+ * [Phase127-F改訂] 以前はlistProjects()で読んだ古いレコード全体を
+ * 丸ごと保存していたが、patchProjectFields()経由へ変更した。
+ * 書き込む瞬間にDBから最新レコードを読み、差分だけを反映するため、
+ * ループ実行中にユーザーが他のフィールド（lines/capo/title等）を
+ * 変更・保存していても、それを古い値へ巻き戻すことがない
+ * （[BACKFILL NON-DESTRUCTIVE INVARIANT]）。
+ *
+ * @param {string} projectId
+ * @param {'matched'|'edited'|'unavailable'} status
+ * @param {object|null} [provenance] - 更新後のraw.provenance（あれば
+ *   provenanceSummaryも同時に同期する。無ければprovenanceSummaryは
+ *   変更しない＝既存のLibrary表示を壊さない）
+ */
+async function _persistContentEditBackfillResult(projectId, status, provenance) {
+  await patchProjectFields(projectId, current => {
+    const updated = {
+      ...current,
+      contentEditBackfill: {
+        version: CONTENT_EDIT_BACKFILL_VERSION,
+        status,
+        checkedAt: new Date().toISOString(),
+      },
+    };
+    if (provenance) {
+      updated.provenanceSummary = {
+        hasContentEdit:   provenance.hasContentEdit   === true,
+        hasStructureEdit: provenance.hasStructureEdit === true,
+        externalCheck: { checked: provenance.externalCheck?.checked === true },
+      };
+    }
+    return updated;
+  });
+}
+
+/**
+ * _syncProvenanceSummaryOnly — Migration State（contentEditBackfill）には
+ * 触れず、provenanceSummaryだけを同期する。
+ *
+ * [Phase127-F②] 🔵（hasStructureEdit）のみが変化した場合に使う。
+ * _persistContentEditBackfillResult()との違いは、こちらは
+ * contentEditBackfillを一切更新しない点のみ（🟡のMigration Stateと
+ * 🔵のライブ同期は別の意味論であるため、書き込み先を関数レベルで分離する）。
+ *
+ * @param {string} projectId
+ * @param {object} provenance - 今回analysis.jsonへ実際に書き込んだ
+ *   （または既に一致していた）raw.provenance。バックフィルが正本へ
+ *   書き込んだ値を、そのまま派生キャッシュへ反映する。
+ */
+async function _syncProvenanceSummaryOnly(projectId, provenance) {
+  await patchProjectFields(projectId, current => ({
+    ...current,
+    provenanceSummary: {
+      hasContentEdit:   provenance.hasContentEdit   === true,
+      hasStructureEdit: provenance.hasStructureEdit === true,
+      externalCheck: { checked: provenance.externalCheck?.checked === true },
+    },
+  }));
+}
+
+/**
+ * _evaluateContentMigration — 🟡（hasContentEdit）の1回限りの判定。
+ *
+ * [対象] p.contentEditBackfill === undefined のプロジェクトのみ
+ * （Migration Stateとしての「未確定」を表す）。
+ *
+ * [注意] analysisFileが正常に読めていることを前提に呼ばれる
+ * （読み込み失敗時の扱いは呼び出し元 backfillContentEditProvenance()
+ * が🟡🔵共通の入口で一括して行うため、この関数の責務ではない）。
+ *
+ * [注意] loadAsset()（IndexedDB非同期API）を呼ぶため async。
+ * 呼び出し側は必ず await すること。
+ *
+ * @returns {Promise<{
+ *   applicable: boolean,
+ *   outcome: 'edited'|'matched'|'unavailable'|null,
+ *   hasContentEditChange: boolean,
+ * }>}
+ */
+async function _evaluateContentMigration(p, analysisFile) {
+  if (p.contentEditBackfill !== undefined) {
+    return { applicable: false, outcome: null, hasContentEditChange: false };
+  }
+
+  const chordAsset = await loadAsset(p.id, 'chord').catch(() => null);
+  let snapshotRaw = null;
+  if (chordAsset && typeof chordAsset.data === 'string') {
+    try {
+      const parsed = JSON.parse(chordAsset.data);
+      snapshotRaw = parsed?.analysis?.raw ?? null;
+    } catch {
+      snapshotRaw = null; // 破損データは判定不能として扱う
+    }
+  }
+
+  // [補足] compareContentEditSnapshot()が返す'unavailable'
+  // （chordAsset自体が存在しない）は将来再判定しても変わらない
+  // 構造的事実のため確定してよい。読み込み失敗時の「保留」とは
+  // 意味が異なるので混同しないこと。
+  const result = compareContentEditSnapshot(snapshotRaw, analysisFile.raw);
+  const provenance = analysisFile.raw.provenance ?? {};
+  const hasContentEditChange = (result === 'edited' && provenance.hasContentEdit !== true);
+
+  return { applicable: true, outcome: result, hasContentEditChange };
+}
+
+/**
+ * _evaluateStructureSync — 🔵（hasStructureEdit）の現在状態同期。
+ *
+ * [意味論] hasStructureEditは「Sectionを人間が編集した」という
+ * 操作履歴の証明ではない。「現在この曲にSection構造（raw.sections）が
+ * 存在するか」という“現在状態”から導出されるProvenance表示である。
+ * 🟡（hasContentEdit・イベントベースの差分検出）とは意味論のレイヤーが
+ * 異なる点に注意。
+ *
+ * [毎回検査・毎回保存ではない] この関数は呼ばれるたびに現在状態との
+ * 一致を検査するが、既に一致していれば changed:false を返すだけで
+ * 呼び出し元は書き込みを行わない。
+ *
+ * @returns {{ changed: boolean, newValue: boolean|null }}
+ */
+function _evaluateStructureSync(raw) {
+  if (!Array.isArray(raw.sections)) {
+    // 読み込み不能・不正形式 → 安全側に倒して変更しない
+    return { changed: false, newValue: null };
+  }
+  const desired = raw.sections.length > 0;
+  const current = raw.provenance?.hasStructureEdit === true;
+  if (desired === current) return { changed: false, newValue: null };
+  return { changed: true, newValue: desired };
+}
+
+/**
+ * backfillContentEditProvenance — Content Edit Backfill（Phase127-F）の
+ * 実行本体。「ファイル▼」→「編集状況を再判定（既存プロジェクト）」から
+ * 手動実行される。
+ *
+ * [Phase127-F②] 🟡（Content Migration・1回限りの判定）と
+ * 🔵（Structure Sync・現在状態からの毎回導出）を責務分離した上で、
+ * 書き込みだけを1回のsaveAnalysisFile()呼び出しに統合する
+ * （詳細は phase127-technical-design-structure-sync.md 参照）。
+ *
+ * [対象] hasAnalysis な全プロジェクト（Migration状態を問わない）。
+ * targetsは「処理対象」であって「🟡 Migration対象」ではない。
+ * 🟡の1回限り判定は _evaluateContentMigration() 内部の applicable が
+ * 個別に決める。
+ * [除外] 現在アクティブに開いているプロジェクト（project.id）は対象外。
+ *
+ * [BACKFILL NON-DESTRUCTIVE INVARIANT]
+ * raw（analysis/{id}.json）への書き込みは、読み込んだ時点のバージョン
+ * （generatedAt）をサーバーへ送り、その後に他の保存が入っていないか
+ * 確認した上でのみ行う（saveAnalysisFile()のbaseVersion引数）。
+ * 確認処理の実行中にユーザーがその曲を開いて編集・保存していた場合、
+ * サーバーは書き込みを拒否する（'conflict'）。その場合は🟡🔵両方の
+ * 判定結果を保存せず、次回の実行で自然に再判定する。
+ * この原則は「analysisFileの読み込み自体に失敗した場合」にも適用する
+ * （loadAnalysisFile()はファイル不在・JSON破損・fetch失敗を区別せず
+ * 一律nullを返すため、一時的な通信エラーの可能性を否定できない。
+ * よって恒久的な'unavailable'確定はせず、保留として次回に委ねる）。
+ *
+ * [一方向フラグの維持] hasContentEditへは 'edited' の場合のみ、かつ
+ * 現在falseの場合のみ true を書く。matched/unavailable では一切
+ * hasContentEditに触れない。
+ */
+async function backfillContentEditProvenance() {
+  const projects = await listProjects();
+  const targets = projects.filter(p => p.hasAnalysis && p.id !== project.id);
+
+  if (targets.length === 0) {
+    toast('対象のプロジェクトはありません');
+    return;
+  }
+
+  if (!confirm(`${targets.length}件の既存プロジェクトについて確認します。\n（現在開いているプロジェクトは対象外です）\n実行しますか？`)) return;
+
+  toast(`${targets.length}件を確認しています…`);
+
+  let editedCount = 0, matchedCount = 0, unavailableCount = 0;
+  let structureOnlyCount = 0, skippedCount = 0, retryLaterCount = 0;
+
+  for (const p of targets) {
+    try {
+      const analysisFile = await loadAnalysisFile(p.id);
+
+      if (!analysisFile || !analysisFile.raw) {
+        // hasAnalysis===true なのに読めない。ファイル不在／JSON破損／
+        // fetch失敗のいずれかだが区別できないため、安全側に倒して
+        // 「今回は保留」とする。🟡🔵どちらのMigration Stateも確定しない。
+        retryLaterCount++;
+        continue;
+      }
+
+      const content   = await _evaluateContentMigration(p, analysisFile); // await必須
+      const structure = _evaluateStructureSync(analysisFile.raw);
+      const provenance = analysisFile.raw.provenance ?? {};
+      const needsWrite = content.hasContentEditChange || structure.changed;
+
+      let persistedProvenance = provenance;
+
+      if (needsWrite) {
+        // [BACKFILL NON-DESTRUCTIVE INVARIANT]
+        // 読み込んだrawを直接書き換えず、provenanceだけ差し替えた
+        // 新しいオブジェクトを作って保存する。baseVersionに読み込み
+        // 時点のgeneratedAtを渡し、読んだ後に他の保存が入っていたら
+        // サーバー側で書き込みを拒否させる。
+        const patchedProvenance = { ...provenance };
+        if (content.hasContentEditChange) patchedProvenance.hasContentEdit = true;
+        if (structure.changed)            patchedProvenance.hasStructureEdit = structure.newValue;
+
+        const patchedRaw = { ...analysisFile.raw, provenance: patchedProvenance };
+        const saveResult = await saveAnalysisFile(
+          p.id, patchedRaw, analysisFile.repairRule, analysisFile.generatedAt
+        );
+
+        if (saveResult === 'ok') {
+          persistedProvenance = patchedProvenance;
+        } else {
+          // 'conflict': 読み込んだ後に他の保存が入っていた（安全のため中止）
+          // 'error'   : 通信エラー等
+          // → 判定結果は保存しない。次回のバックフィル実行時に
+          //   自然に再判定される（contentEditBackfillはundefinedのまま）。
+          skippedCount++;
+          continue;
+        }
+      }
+
+      if (content.applicable) {
+        if (content.outcome === 'edited') editedCount++;
+        else if (content.outcome === 'matched') matchedCount++;
+        else unavailableCount++; // compareContentEditSnapshot自身のunavailable（確定してよい）
+        await _persistContentEditBackfillResult(p.id, content.outcome, persistedProvenance);
+      } else if (structure.changed) {
+        // 🔵のみ変化。Migration Stateには触れずprovenanceSummaryだけ同期
+        await _syncProvenanceSummaryOnly(p.id, persistedProvenance);
+        structureOnlyCount++;
+      }
+      // content非対象 かつ structure変化なし → 何もしない（既に正しい状態）
+
+    } catch (e) {
+      console.error(`[backfill] failed for project ${p.id}:`, e);
+    }
+  }
+
+  const skippedNote = skippedCount > 0
+    ? `／確認中に編集された曲: ${skippedCount}件（次回に再判定します）`
+    : '';
+  const retryNote = retryLaterCount > 0
+    ? `／読み込み失敗: ${retryLaterCount}件（次回に再試行します）`
+    : '';
+  const structureNote = structureOnlyCount > 0
+    ? `／セクション構成のみ検出: ${structureOnlyCount}件`
+    : '';
+  toast(`${targets.length}件を確認しました（コード編集検出: ${editedCount}件 / 一致: ${matchedCount}件 / 判定不能: ${unavailableCount}件${structureNote}${skippedNote}${retryNote}）`);
+
+  if (typeof renderLibrary === 'function') {
+    try { await renderLibrary(); } catch { /* Library未表示時は無視 */ }
+  }
+}
+
+/**
  * saveAnalysisEdit — 解析編集モードの内容を保存する
  *
  * 保存フロー:
@@ -1987,12 +2345,27 @@ async function saveAnalysisEdit() {
 
   project.analysis.raw.chords = structuredClone(analysisEditor.buffer);
   project.analysis.chords = sanitizeChords(project.analysis.raw.chords);
-  project.analysis.raw.sections = structuredClone(getSections(analysisEditor));
-  const ok = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
-  if (!ok) {
+  const savedSections = structuredClone(getSections(analysisEditor));
+  project.analysis.raw.sections = savedSections;
+  // [PROVENANCE][Phase127-F] hasContentEditは一方向フラグの書き戻し（false→trueのみ。
+  // セッション側で既にfalse→true以外の変化は起きない設計のため単純代入でよい）。
+  project.analysis.raw.provenance.hasContentEdit   = analysisEditor.hasContentEdit;
+  // hasStructureEditは「今Sectionが存在するか」を保存の都度導出する
+  // （一方向フラグではない。作成→削除で0件に戻れば自動的にfalseへ戻る）。
+  project.analysis.raw.provenance.hasStructureEdit = savedSections.length > 0;
+  const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
+  if (saveResult !== 'ok') {
     toast('⚠ 保存に失敗しました。編集内容は失われていません');
     return;
   }
+
+  // [PROVENANCE][Phase127] Library一覧の高速表示用に要約をproject側へ複製する。
+  // 正本はanalysis.raw.provenanceのまま（[PERSISTENCE OWNERSHIP PRINCIPLE]と
+  // 同じ考え方）。project.jsonへの実書き込みは既存のautoSaveLocal()
+  // （1秒デバウンス）に乗せる。新しい同期の仕組みは作らない。
+  syncProvenanceSummary(project);
+  autoSaveLocal();  // [PROVENANCE][Phase127] hasAnalysisと同じ既存パターン
+                     // （refreshEditor()相当の呼び出しをここでは行わないため明示）
 
   // [ORDER] 確定済み project.analysis.raw.chords を使って先に再描画してから
   // モードを終了する。getCurrentChordSource() は raw.chords を見るため、
@@ -3288,6 +3661,52 @@ function applyRightHidden() {
   document.body.classList.toggle('right-hidden', rightHidden);
 }
 
+// ── 編集状況(●)表示/非表示 API ─────────────────
+// [Phase127-D'] UI preference（Provenanceデータ自体のAuthorityとは無関係）。
+// body classのみ切り替える。Library/Chart Mode側の描画ロジックは無変更。
+function applyProvenanceVisible() {
+  document.body.classList.toggle('provenance-hidden', !provenanceVisible);
+}
+
+// ── textTooltip: Library一覧への委譲登録（Phase127-D'） ────────
+// hover（デスクトップ）用。#library-listは常時DOM存在のため、
+// Chart Modeのようなopen/closeライフサイクルと無関係に一度だけ登録する。
+// textTooltip.js自体はProvenanceの意味を知らない（[ChatGPT Review #2]）。
+// ここ（app.js側）が「どの属性から文字列を取り出すか」を決める。
+function _setupLibraryProvenanceTooltipEvents() {
+  const list = document.getElementById('library-list');
+  if (!list) return;
+
+  list.addEventListener('pointerover', e => {
+    const to = e.target.closest('.provenance-dot[data-tooltip]');
+    if (!to) { textTooltip.hide(); return; }
+    const from = e.relatedTarget?.closest?.('.provenance-dot[data-tooltip]');
+    if (from === to) return;
+    textTooltip.show(to.dataset.tooltip, to.getBoundingClientRect());
+  });
+
+  list.addEventListener('pointerout', e => {
+    const from = e.target.closest('.provenance-dot[data-tooltip]');
+    if (!from) return;
+    const to = e.relatedTarget?.closest?.('.provenance-dot[data-tooltip]');
+    if (to === from) return;
+    textTooltip.hide();
+  });
+}
+
+// ── textTooltip: タップ表示 / 外タップで閉じる（Phase127-D'） ──────
+// 既存の「外クリックで閉じる」パターン（Section▼メニュー等・app.js内）
+// と同型。Library・Chart Modeどちらの.provenance-dotも document委譲
+// 1箇所でまとめて扱える（要素がどちらのモジュール所有DOMかを問わない）。
+document.addEventListener('click', e => {
+  const dot = e.target.closest('.provenance-dot[data-tooltip]');
+  if (dot) {
+    textTooltip.show(dot.dataset.tooltip, dot.getBoundingClientRect());
+    return;
+  }
+  textTooltip.hide();
+});
+
 // ── 表示メニューのチェックマーク更新 ─────────────
 // メニューを開くたびに現在の状態を反映する。
 // 表示中 → ✔付き、非表示 → ✔なし
@@ -3301,6 +3720,11 @@ function updateViewMenuChecks() {
   const leftVisible = !document.body.classList.contains('left-collapsed');
   btnLeft.textContent  = (leftVisible  ? '✔ ' : '　') + '◧ 左パネル';
   btnRight.textContent = (!rightHidden ? '✔ ' : '　') + '◨ 右パネル';
+
+  // [Phase127-D'] 編集状況表示の✔も、メニューを開くたびに同期する
+  // （既存のChart コード図メニューにはこの同期が無い、という見落としを
+  // 今回は繰り返さない）
+  _updateProvenanceMenu(provenanceVisible);
 }
 
 // Chart Mode コード図ホバーのチェックマーク更新
@@ -3308,6 +3732,13 @@ function _updateChartDiagMenu(enabled) {
   const btn = document.getElementById('btn-toggle-chart-diag');
   if (!btn) return;
   btn.textContent = (enabled ? '✔ ' : '　') + '♬ Chart コード図';
+}
+
+// 編集状況(●)表示のチェックマーク更新（Phase127-D'）
+function _updateProvenanceMenu(visible) {
+  const btn = document.getElementById('btn-toggle-provenance');
+  if (!btn) return;
+  btn.textContent = (visible ? '✔ ' : '　') + '編集状況を表示';
 }
 
 // Debug Menuのラベル更新（Phase121）
@@ -3522,9 +3953,40 @@ async function loadChordData(data, filename, isRestore = false) {
     // 新しい raw.beats に存在しない可能性が高く、repair を引き継ぐ方が
     // 危険なため、再インポート時は repairRule を破棄する方針（確定）。
     if (data.analysis?.raw) {
-      const ok = await saveAnalysisFile(project.id, data.analysis.raw);
-      if (ok) {
+      // [PROVENANCE][Phase127-F] 世代交代（Generation Boundary）。
+      //
+      // ここは「初回インポート」「再インポート」のどちらでも通る唯一の
+      // 経路である。両者を区別する特別な分岐は作らない（区別すると
+      // 「これは初回か再インポートか」という判定自体が別の脆い問題に
+      // なるため）。
+      //
+      // repairRuleを意図的に破棄する（上記コメント）のと全く同じ理由で、
+      // hasContentEditも新しい解析データに対して false から再出発する。
+      // これは[PROVENANCE FACT INVARIANT]（一方向フラグ）の例外ではなく、
+      // 「Provenanceが対象とする解析データ自体が別のものに切り替わる」
+      // というライフサイクル境界として扱う（analysisLoader.js参照）。
+      //
+      // contentEditBackfillも同時にリセットする。status:'reset'は
+      // 「比較して一致した(matched)」ではなく「そもそも比較の対象外に
+      // なった」ことを区別するための値。これにより、既存曲の一度きりの
+      // バックフィルツール（②）は contentEditBackfill が未設定の
+      // プロジェクトだけを対象にすればよくなる（Phase番号や作成日時から
+      // 「これはPhase127以前の曲か」を推測する必要がない）。
+      data.analysis.raw.provenance = data.analysis.raw.provenance ?? {};
+      data.analysis.raw.provenance.hasContentEdit = false;
+      project.contentEditBackfill = {
+        version: CONTENT_EDIT_BACKFILL_VERSION,
+        status: 'reset',
+        checkedAt: new Date().toISOString(),
+      };
+
+      const saveResult = await saveAnalysisFile(project.id, data.analysis.raw);
+      if (saveResult === 'ok') {
         project.hasAnalysis = true;
+        // [確認済み] loadAnalysis()はraw引数をclone せず同一参照のまま
+        // 返り値へ含めるため、上で書き換えたdata.analysis.raw.provenance は
+        // project.analysis.raw.provenance と同一オブジェクトである
+        // （analysisLoader.js loadAnalysis()の `const raw = analysis.raw;` 参照）。
       } else {
         console.warn('[analysis] failed to persist analysis file. Chart Mode will not survive reload.');
       }
@@ -5508,6 +5970,15 @@ function setupEventHandlers() {
     toast(next ? '🎸 コード図ホバー ON' : '🎸 コード図ホバー OFF');
   });
 
+  // 編集状況(●)表示 トグル（表示メニュー・Phase127-D'）
+  document.getElementById('btn-toggle-provenance')?.addEventListener('click', () => {
+    provenanceVisible = !provenanceVisible;
+    localStorage.setItem('cs.provenanceVisible', provenanceVisible ? 'true' : 'false');
+    applyProvenanceVisible();
+    _updateProvenanceMenu(provenanceVisible);
+    toast(provenanceVisible ? '● 編集状況 表示ON' : '● 編集状況 表示OFF');
+  });
+
   // ============================================
   // Debug Menu Events（Phase121: Debug Session Recorder）
   // ============================================
@@ -5563,6 +6034,11 @@ function setupEventHandlers() {
   // Phase73-D: Legacy Project Import
   // ============================================
   // UIラベル: 「ライブラリにプロジェクトファイルをインポート…」
+  // [PROVENANCE][Phase127-F] Content Edit Backfill 実行ボタン
+  document.getElementById('btn-backfill-content-edit').addEventListener('click', async () => {
+    await backfillContentEditProvenance();
+  });
+
   // 内部機能名: Legacy Project Import
   // [PICKER_IDS] projectImport を使用（Phase60.5 の方針に準拠）
   // [AbortError] キャンセルは正常系として return
@@ -5648,6 +6124,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 右パネル初期化（localStorage復元）
   rightHidden = localStorage.getItem('rightHidden') === '1';
   applyRightHidden();
+
+  // [Phase127-D'] 編集状況(●)表示の初期化（localStorage復元）
+  // 未設定時は表示ON（後方互換）。body class・メニュー✔の両方をここで明示的に同期する。
+  provenanceVisible = localStorage.getItem('cs.provenanceVisible') !== 'false';
+  applyProvenanceVisible();
+  _updateProvenanceMenu(provenanceVisible);
+
+  // [Phase127-D'] textTooltip初期化（アプリ起動時に1回だけ・Chart Modeのlifecycleとは無関係）
+  textTooltip.init();
+  _setupLibraryProvenanceTooltipEvents();
 
   if (btnCollapse) {
     btnCollapse.addEventListener('click', () => {
@@ -5830,6 +6316,19 @@ window.addEventListener('DOMContentLoaded', async () => {
   initChartMode({
     getAnalysis:      () => project.analysis,
 
+    // [PROVENANCE][Phase127-D] Chart Modeヘッダーの●表示用。
+    // HTML生成の正本はapp.js側（renderProvenanceDots）に置き、
+    // chartmode.jsは受け取った関数を呼ぶだけ（[DECORATOR ADDITION RULE]と
+    // 同じ「正本の導出はapp.js・描画側は渡された値を使うだけ」の原則）。
+    renderProvenanceDots: renderProvenanceDots,
+
+    // [Phase127-D'] 編集状況(●)のhover/tap tooltip用。textTooltip.js
+    // （Provenanceの意味を知らない汎用モジュール）のAPIをそのまま注入する。
+    // chartmode.js側は「このテキストをここに表示して」と呼ぶだけで、
+    // Provenanceドメイン知識・DOM生成・画面端clamp計算は一切持たない。
+    showTextTooltip: textTooltip.show,
+    hideTextTooltip: textTooltip.hide,
+
     // [OWNERSHIP INVARIANT] chartmode.js は project tree を直接読まない。
     // normalized は app.js が project.analysis から取り出して注入する。
     // [TIMING INVARIANT] normalized は capo 非依存。
@@ -5884,8 +6383,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       // 先に保存し、成功を確認してから project.analysis に反映する。
       // 保存失敗時に「画面だけ補正済みに見えて再読込で消える」という
       // 不整合（永続化されていないのにメモリ上だけ変わる）を防ぐ。
-      const ok = await saveAnalysisFile(project.id, project.analysis.raw, newRepairRule);
-      if (!ok) {
+      const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, newRepairRule);
+      if (saveResult !== 'ok') {
         toast('⚠ 保存に失敗しました。補正は反映されていません');
         return;
       }
@@ -5910,8 +6409,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
       // [Phase72-B 修正: ChatGPTレビュー指摘対応]
       // 先に保存し、成功を確認してから project.analysis に反映する。
-      const ok = await saveAnalysisFile(project.id, project.analysis.raw, null);
-      if (!ok) {
+      const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, null);
+      if (saveResult !== 'ok') {
         toast('⚠ 保存に失敗しました。補正は解除されていません');
         return;
       }
@@ -6073,11 +6572,19 @@ async function renderLibrary() {
       ? `<span class="library-item-artist">${p.artist}</span>`
       : '';
 
+    // [PROVENANCE][Phase127-D] 派生データ（provenanceSummary）から表示。
+    // 正本（analysis.raw.provenance）を都度フェッチしない（architecture.md
+    // §11 Persistence Ownership Principleと同じ理由・Library高速表示のため）。
+    const provenanceHtml = renderProvenanceDots(p.provenanceSummary);
+
     item.innerHTML = `
       <div class="library-item-main">
         <span class="library-item-current-mark">${isCurrent ? '▶' : '\u00a0'}</span>
         <div class="library-item-info">
-          <div class="library-item-title">${p.title || '無題'}</div>
+          <div class="library-item-title-row">
+            <span class="library-item-title">${p.title || '無題'}</span>
+            ${provenanceHtml}
+          </div>
           ${artistHtml ? `<div class="library-item-meta">${artistHtml}</div>` : ''}
         </div>
       </div>

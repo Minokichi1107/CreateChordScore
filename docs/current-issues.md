@@ -1,7 +1,13 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase124完了時点（[RENDER CONTEXT INVARIANT]違反4箇所のCLOSEのみ反映。
-> 他は引き続きPhase119〜123-C2棚卸し時点のまま）
+> 最終更新: Phase127-D'完了時点＋GitHub Issue監査反映
+> （Provenance/表示メニュー系issue 2件＋UI改善1件をADD。加えてGitHub Issue監査
+> により、Chart Mode系/Analysis Editor系/技術的負債へ5件を追加、既に解消済みの
+> 陳腐化した記載2件を削除）
+> 本フェーズはDeferred Documentation運用最後の記録として、棚卸しを待たず
+> handover作成時に直接current-issues.mdへ反映した。この運用（フェーズ完了時の
+> 直接反映）を今後の正式ルールとするかどうかは、Phase127完了時点であらためて
+> 確定する（本ファイルでは先取りして確定事項とはしない）。
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -140,6 +146,34 @@ hiddenCountはnormal pathのslot projection時のみ付与される（pickup mea
 未調査。次回発生時、`window.__CS_DEBUG__.chart`等で状況を確認する方針
 （既存の「原因未特定の緑の棒バグ」と同様の扱い）。
 
+#### 分割表示時にSectionメニューがヘッダーメニューより背面に表示される（GitHub #88）
+状態: 未対応・原因未特定
+内容: ブラウザをタブの分割表示（左右分割）にした状態でSectionメニューを開くと、
+ヘッダー付近のUIと重なる位置でメニューがヘッダーメニューの背面に回る。備考として
+「ブラウザの分割表示時に発生するUIレイヤー（z-index/stacking context）関連の問題」
+と推測されている。Phase113で対応した`.sec-chip--previewing`のtransform起因
+stacking context問題（アーキテクチャ§12「Phase113 Finding」参照）とは**別の
+再現条件**であり、同一原因と決めつけずに別途調査する。
+
+#### 小節頭補正変更後にChart表示が編集前の状態へ戻る（GitHub #80・要確認）
+状態: 観察中・原因未特定（2026-08-14報告）
+内容: Analysis Editorで解析編集モード中に小節頭補正（repairRule）を変更すると、
+Chart Modeの表示が編集前の状態に戻ることがある。Undoすると表示が戻る。
+`analysisEditor.buffer`自体が失われているのか、Chart Mode projectionのみが
+古いのか未切り分け。
+
+**要確認**: 症状の文面がPhase120で対応した「小節頭補正変更後のChart表示巻き戻り
+バグ修正」（`getCurrentChordSource()`を経由しない再描画が原因・修正済み）と
+酷似している。本Issueの報告日はPhase120完了より後のため、(a) Phase120修正の
+リグレッション、(b) Phase120では対応しきれなかった別経路、のいずれかの可能性が
+ある。次回再現時、`window.__CS_DEBUG__.timing`とAnalysis Editor debug情報から
+事実ベースで切り分ける（Issue本文にも同方針の記載あり）。
+
+#### capo change 無効化（intermittent・GitHub #59）
+状態: 再現待ち
+内容: 条件は「長時間使用後 / ChartMode経由 / ended近辺」。state/chain系の原因は
+否定済み。再現条件が絞り切れておらず、次回発生時の状況記録が必要。
+
 ### Debug Session Recorder 系
 
 #### splitChord()が未使用のデッドコードである可能性
@@ -183,16 +217,20 @@ Recording）で確立された既存の`moveBoundary`判定仕様（クリック
 扱い）を踏襲した結果であり、Phase123-C2では変更しない。修正する場合は
 Phase123-Aの判定条件自体の見直しが必要（C2のスコープを超える）。
 
-### Perform Mode 系
-
-#### ブルーテーマの演奏モード「✕ 閉じる」ボタンが視認できない
-状態: 未確認・原因推測のみ（Phase121実機テストで発見。perform.css確認済み・
-theme.css未確認）
-内容: `#btn-perform-close`が`--surface-btn-close`という専用トークンを
-使用しており、ブルーテーマでは背景色と`--text-secondary`（文字色）が
-近い色になっている可能性が高い。theme.cssを確認の上、別フェーズで対応する。
-
 ### Analysis Editor 系
+
+#### AddChord / transpose / undo state contamination（GitHub #44）
+状態: 未着手・原因未特定（2026-05-22報告・Phase39 chordEntry subsystem分離後に発生）
+内容: コード置換・挿入・Undo操作の組み合わせ時に、transpose/session stateが
+actual token mutationへ漏れている疑い。症状: (1)自動登録されたコードが消える
+場合がある (2)コード置換開始→AddChordでコード挿入→カポ移調がズレた状態で
+挿入→Undo実行→カポ表示だけ戻りtoken state/palette stateが不整合になる場合がある。
+疑われる責務境界: preview transpose state ／ palette transpose state ／
+actual inserted chord token ／ undo snapshot stateの4者が分離されるべきところ、
+どこかでownership leak/transient state contaminationが起きている可能性。
+懸念: 今後予定されているkeyboard-first chord entry・insertion cursor・
+simile token・bars[]移行の導入時にstate explosionを起こすリスクがあるため、
+早期のownership整理が望ましいとIssue本文に記載あり。
 
 #### [Known Limitation] replaceCurrentAndAdvance()のbackward方向の簡略化
 状態: 意図的な仕様（バグではない）
@@ -223,6 +261,29 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 状態: 再現性確認中
 内容: 読み込みを中止して再度読み込むと比較的早く開く。再現条件の特定が必要
 
+### Provenance / 表示メニュー 系（Phase127-D'で発見）
+
+#### Provenance tooltip（textTooltip.js）のtap挙動が実機未検証
+状態: 検証保留
+内容: Library一覧・Chart Modeヘッダーの●tooltipについて、hover表示はPC実機で
+確認済み。tap→表示→外部tap→非表示という挙動は、PC環境ではhoverが先に発火する
+ため単体で検証できなかった。実装は既存の「外クリックで閉じる」パターン
+（Section▼メニュー等・app.js）を踏襲しているためリスクは低いと考えられるが、
+「ロジックのリスクが低い」ことと「動作を実機確認した」ことは別の主張であり、
+未検証は未検証のまま記録する。タッチデバイス入手時、またはChrome DevTools
+のタッチエミュレートで正式に検証する。
+
+#### Chart コード図メニューの✔初期同期漏れ（潜在的不整合）
+状態: 未確認・実害未確認
+内容: 表示メニューの「✔ Chart コード図」項目は、`_updateChartDiagMenu()`が
+起動時（DOMContentLoaded）およびメニューを開く際の`updateViewMenuChecks()`
+どちらからも呼ばれておらず、トグルボタンをクリックした直後にのみ更新される。
+HTML側に`✔`がハードコードされておりデフォルト値（true）とたまたま一致して
+いるため、現状ユーザー影響は確認されていない。「見落としの発見」であり
+「修正すべきバグと確定したもの」ではない、という表現の区別を維持する
+（Phase127-D' Design A実装中に発見。同種の見落としを繰り返さないよう、
+新規追加した編集状況表示トグルには初期同期処理を明示的に実装済み）。
+
 ---
 
 ## 3. UI改善
@@ -231,15 +292,33 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 状態: 未対応
 内容: 繰り返しが行の下に表示されて見づらく、「×N回」表記も削除操作との視覚的衝突がある。Simile記号（𝄋）の使用を検討
 
-### 演奏モード復帰のプルダウンメニューのデザイン改善
+### Library一覧の長い曲名ellipsis位置の固定（Phase127-D'で発見）
 状態: 未対応
-内容: 演奏モードからの復帰（曲選択等）に使うプルダウンメニューの見た目が
-簡素なため、もう少しスタイリッシュなデザインへ修正する。具体的な方向性
-（既存token活用か新規デザインか）は着手時に検討する。
+内容: 長い曲名は現状、入りきる分だけ表示→はみ出たら自動でellipsis(...)、
+という自動レイアウト任せになっている。パネル幅の2/3付近で固定的に折りたたむ
+表示にしたいという要望あり。Provenance機能（●表示）の有無に関わらず必要な
+改善であり、独立したUI改善として扱う。
 
 ---
 
 ## 4. 既知の技術的負債
+
+### ⚠️ Public Release Blocker: public repository に実曲データが含まれていたリスク（GitHub #52）
+状態: 対応中（repo をprivate化済み・緊急性は下がったが公開前には必須対応）
+内容: リポジトリが一時的にpublic状態になっており、`resource/projects/`・
+`resource/chords/`内の実曲由来データ（実曲名・chord progression・project.json・
+chord JSON・analysis persistence data等）が公開状態になっていた可能性がある。
+対応済み: repoのprivate化・`analysis/`の`.gitignore`化・resourceディレクトリ
+構造整理のbacklog化。
+公開前の必須対応（未着手）:
+  1. 実データ除去（実曲project・chord progression・analysis artifact）
+  2. fixture最小化（公開用サンプルは最小再現データ・オリジナルテストデータ・
+     著作権上問題ないデータのみ残す）
+  3. 履歴rewrite検討（`git filter-repo`等で過去commitから実データ除去）
+resource構造分離案: `resource/projects/samples/`（repo管理可）／
+`resource/projects/private/`（.gitignore対象）という形に分離する方針。
+本プロジェクトは将来的な一般公開も視野に入れているため、公開判断時には
+本Issueの3点対応が前提条件となる。
 
 - `chord-entry.css`（Phase86でcomponents.cssから分離）の `.mac-insert-btn.active` 系（`--color-accent` 未定義問題と紐付き・意図的保留）
 - `idb.js` は最低構成（GC・schema migration・compression なし）。asset種類追加時は
