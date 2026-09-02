@@ -760,7 +760,10 @@ export function createSectionCommand(state, { type, name, startChordId, endChord
   pushHistory(state); // [Phase104] 既存コマンドと同じ位置（バリデーション通過後・反映直前）
 
   state.sections.push(candidate);
-  state.hasStructureEdit = true;  // [PROVENANCE] 常に実追加が成立する（Phase127）
+  // [PROVENANCE][Phase127-F] hasStructureEdit はここでは書かない。
+  // 「作成した実績」ではなく「今Sectionが存在するか」をsaveAnalysisEdit()側で
+  // getSections(state).length > 0 として都度導出する方式へ変更したため
+  // （create→即delete等でも実態と一致させるため。architecture.md参照）。
   return { ok: true, sectionId: candidate.id };
 }
 
@@ -778,16 +781,13 @@ export function renameSectionCommand(state, sectionId, patch = {}) {
   const section = sections.find(s => s.id === sectionId);
   if (!section) return { ok: false, reason: 'section-not-found' };
 
-  // [PROVENANCE] pushHistory()より前に値の実差分を判定する（updateChordCommand
-  // と同じ理由。名前・種類とも変更前と同一のまま確定するケースを除外する）。
-  const changed = (patch.name !== undefined && patch.name !== section.name)
-    || (patch.type !== undefined && patch.type !== section.type);
-
   pushHistory(state); // [Phase104] 既存コマンドと同じ位置（バリデーション通過後・反映直前）
 
   if (patch.name !== undefined) section.name = patch.name;
   if (patch.type !== undefined) section.type = patch.type;
-  if (changed) state.hasStructureEdit = true;
+  // [PROVENANCE][Phase127-F] hasStructureEditはSection件数から都度導出する方式へ
+  // 変更したため、名前・種類の変更（件数は変わらない）はここでは扱わない
+  // （値の実差分判定も不要になったため撤去）。
 
   return { ok: true, sectionId };
 }
@@ -820,17 +820,13 @@ export function updateSectionBoundaryCommand(state, sectionId, patch = {}) {
   const check = validateSectionInvariants(candidate, state.buffer);
   if (!check.valid) return { ok: false, reason: check.reason };
 
-  // [PROVENANCE] updateChordCommandと同じ理由で値の実差分を判定する
-  // （境界ステッパーは通常必ず隣接コードへ動くため実運用上は常にtrueになる想定だが、
-  // 呼び出し側の前提に依存させず、ここでも防御的に比較する）。
-  const changed = candidate.startChordId !== section.startChordId
-    || candidate.endChordId !== section.endChordId;
-
   pushHistory(state); // [Phase104] 既存コマンドと同じ位置（バリデーション通過後・反映直前）
 
   section.startChordId = candidate.startChordId;
   section.endChordId   = candidate.endChordId;
-  if (changed) state.hasStructureEdit = true;  // [PROVENANCE]（Phase127）
+  // [PROVENANCE][Phase127-F] hasStructureEditはSection件数から都度導出する方式へ
+  // 変更したため、境界移動（件数は変わらない）はここでは扱わない
+  // （値の実差分判定も不要になったため撤去）。
 
   return { ok: true, sectionId };
 }
@@ -851,7 +847,9 @@ export function deleteSectionCommand(state, sectionId) {
   pushHistory(state); // [Phase104] 既存コマンドと同じ位置（バリデーション通過後・反映直前）
 
   sections.splice(idx, 1);
-  state.hasStructureEdit = true;  // [PROVENANCE] 常に実削除が成立する（Phase127）
+  // [PROVENANCE][Phase127-F] hasStructureEditはここでは書かない。
+  // saveAnalysisEdit()側で getSections(state).length > 0 として都度導出する
+  // （削除の結果0件になれば、次回保存時に自動的に非表示側へ倒れる）。
 
   return { ok: true, sectionId };
 }

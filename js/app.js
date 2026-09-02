@@ -116,6 +116,7 @@ import {
   clearLocalStorage,
   PICKER_IDS,
   saveProjectToDB,
+  patchProjectFields,             // Phase127-F追加
   getProject,
   listProjects,
   deleteProject,
@@ -183,7 +184,7 @@ import * as textTooltip from './textTooltip.js';
 
 import { initChordEntry, openAddChord, showChordSelector } from './chordEntry.js';
 
-import { loadAnalysis, saveAnalysisFile, loadAnalysisFile, sanitizeChords } from './analysisLoader.js';
+import { loadAnalysis, saveAnalysisFile, loadAnalysisFile, sanitizeChords, compareContentEditSnapshot } from './analysisLoader.js';
 
 import {
   createAnalysisSession,
@@ -275,6 +276,10 @@ import {
 
 // プロジェクトデータ
 let project = createEmptyProject();
+// [PROVENANCE][Phase127-F] Content Edit Backfillの版数。比較ロジックを
+// 将来改善した場合、この定数を上げることで「versionが古い曲」を
+// 再度バックフィル対象にできる（詳細はloadChordData()内コメント参照）。
+const CONTENT_EDIT_BACKFILL_VERSION = 1;
 let palette = [];
 let paletteTranspose = 0; // session only、-6〜+6、循環
 let focLine = -1;
@@ -538,8 +543,9 @@ function beginAnalysisEdit() {
   analysisEditor.sections = structuredClone(project.analysis.raw.sections ?? []);
   // [PROVENANCE][Phase127] raw.provenanceはloadAnalysis()で必ず正規化済み
   // （normalizeProvenance()）のため、ここでは素直にコピーするだけでよい。
+  // hasStructureEditはコピーしない（Phase127-F・セッション側で状態を持たず、
+  // getSections()から都度導出する設計へ変更したため）。
   analysisEditor.hasContentEdit   = project.analysis.raw.provenance.hasContentEdit;
-  analysisEditor.hasStructureEdit = project.analysis.raw.provenance.hasStructureEdit;
   analysisEditor.dirty = false;
   analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false, replaceUndoPending: false };
   setSearchMatches([]);
@@ -2051,6 +2057,268 @@ function syncProvenanceSummary(proj) {
 }
 
 /**
+ * _persistContentEditBackfillResult — Migration State（contentEditBackfill）
+ * とprovenanceSummaryを、指定したプロジェクトへ安全に書き戻す。
+ *
+ * [Phase127-F改訂] 以前はlistProjects()で読んだ古いレコード全体を
+ * 丸ごと保存していたが、patchProjectFields()経由へ変更した。
+ * 書き込む瞬間にDBから最新レコードを読み、差分だけを反映するため、
+ * ループ実行中にユーザーが他のフィールド（lines/capo/title等）を
+ * 変更・保存していても、それを古い値へ巻き戻すことがない
+ * （[BACKFILL NON-DESTRUCTIVE INVARIANT]）。
+ *
+ * @param {string} projectId
+ * @param {'matched'|'edited'|'unavailable'} status
+ * @param {object|null} [provenance] - 更新後のraw.provenance（あれば
+ *   provenanceSummaryも同時に同期する。無ければprovenanceSummaryは
+ *   変更しない＝既存のLibrary表示を壊さない）
+ */
+async function _persistContentEditBackfillResult(projectId, status, provenance) {
+  await patchProjectFields(projectId, current => {
+    const updated = {
+      ...current,
+      contentEditBackfill: {
+        version: CONTENT_EDIT_BACKFILL_VERSION,
+        status,
+        checkedAt: new Date().toISOString(),
+      },
+    };
+    if (provenance) {
+      updated.provenanceSummary = {
+        hasContentEdit:   provenance.hasContentEdit   === true,
+        hasStructureEdit: provenance.hasStructureEdit === true,
+        externalCheck: { checked: provenance.externalCheck?.checked === true },
+      };
+    }
+    return updated;
+  });
+}
+
+/**
+ * _syncProvenanceSummaryOnly — Migration State（contentEditBackfill）には
+ * 触れず、provenanceSummaryだけを同期する。
+ *
+ * [Phase127-F②] 🔵（hasStructureEdit）のみが変化した場合に使う。
+ * _persistContentEditBackfillResult()との違いは、こちらは
+ * contentEditBackfillを一切更新しない点のみ（🟡のMigration Stateと
+ * 🔵のライブ同期は別の意味論であるため、書き込み先を関数レベルで分離する）。
+ *
+ * @param {string} projectId
+ * @param {object} provenance - 今回analysis.jsonへ実際に書き込んだ
+ *   （または既に一致していた）raw.provenance。バックフィルが正本へ
+ *   書き込んだ値を、そのまま派生キャッシュへ反映する。
+ */
+async function _syncProvenanceSummaryOnly(projectId, provenance) {
+  await patchProjectFields(projectId, current => ({
+    ...current,
+    provenanceSummary: {
+      hasContentEdit:   provenance.hasContentEdit   === true,
+      hasStructureEdit: provenance.hasStructureEdit === true,
+      externalCheck: { checked: provenance.externalCheck?.checked === true },
+    },
+  }));
+}
+
+/**
+ * _evaluateContentMigration — 🟡（hasContentEdit）の1回限りの判定。
+ *
+ * [対象] p.contentEditBackfill === undefined のプロジェクトのみ
+ * （Migration Stateとしての「未確定」を表す）。
+ *
+ * [注意] analysisFileが正常に読めていることを前提に呼ばれる
+ * （読み込み失敗時の扱いは呼び出し元 backfillContentEditProvenance()
+ * が🟡🔵共通の入口で一括して行うため、この関数の責務ではない）。
+ *
+ * [注意] loadAsset()（IndexedDB非同期API）を呼ぶため async。
+ * 呼び出し側は必ず await すること。
+ *
+ * @returns {Promise<{
+ *   applicable: boolean,
+ *   outcome: 'edited'|'matched'|'unavailable'|null,
+ *   hasContentEditChange: boolean,
+ * }>}
+ */
+async function _evaluateContentMigration(p, analysisFile) {
+  if (p.contentEditBackfill !== undefined) {
+    return { applicable: false, outcome: null, hasContentEditChange: false };
+  }
+
+  const chordAsset = await loadAsset(p.id, 'chord').catch(() => null);
+  let snapshotRaw = null;
+  if (chordAsset && typeof chordAsset.data === 'string') {
+    try {
+      const parsed = JSON.parse(chordAsset.data);
+      snapshotRaw = parsed?.analysis?.raw ?? null;
+    } catch {
+      snapshotRaw = null; // 破損データは判定不能として扱う
+    }
+  }
+
+  // [補足] compareContentEditSnapshot()が返す'unavailable'
+  // （chordAsset自体が存在しない）は将来再判定しても変わらない
+  // 構造的事実のため確定してよい。読み込み失敗時の「保留」とは
+  // 意味が異なるので混同しないこと。
+  const result = compareContentEditSnapshot(snapshotRaw, analysisFile.raw);
+  const provenance = analysisFile.raw.provenance ?? {};
+  const hasContentEditChange = (result === 'edited' && provenance.hasContentEdit !== true);
+
+  return { applicable: true, outcome: result, hasContentEditChange };
+}
+
+/**
+ * _evaluateStructureSync — 🔵（hasStructureEdit）の現在状態同期。
+ *
+ * [意味論] hasStructureEditは「Sectionを人間が編集した」という
+ * 操作履歴の証明ではない。「現在この曲にSection構造（raw.sections）が
+ * 存在するか」という“現在状態”から導出されるProvenance表示である。
+ * 🟡（hasContentEdit・イベントベースの差分検出）とは意味論のレイヤーが
+ * 異なる点に注意。
+ *
+ * [毎回検査・毎回保存ではない] この関数は呼ばれるたびに現在状態との
+ * 一致を検査するが、既に一致していれば changed:false を返すだけで
+ * 呼び出し元は書き込みを行わない。
+ *
+ * @returns {{ changed: boolean, newValue: boolean|null }}
+ */
+function _evaluateStructureSync(raw) {
+  if (!Array.isArray(raw.sections)) {
+    // 読み込み不能・不正形式 → 安全側に倒して変更しない
+    return { changed: false, newValue: null };
+  }
+  const desired = raw.sections.length > 0;
+  const current = raw.provenance?.hasStructureEdit === true;
+  if (desired === current) return { changed: false, newValue: null };
+  return { changed: true, newValue: desired };
+}
+
+/**
+ * backfillContentEditProvenance — Content Edit Backfill（Phase127-F）の
+ * 実行本体。「ファイル▼」→「編集状況を再判定（既存プロジェクト）」から
+ * 手動実行される。
+ *
+ * [Phase127-F②] 🟡（Content Migration・1回限りの判定）と
+ * 🔵（Structure Sync・現在状態からの毎回導出）を責務分離した上で、
+ * 書き込みだけを1回のsaveAnalysisFile()呼び出しに統合する
+ * （詳細は phase127-technical-design-structure-sync.md 参照）。
+ *
+ * [対象] hasAnalysis な全プロジェクト（Migration状態を問わない）。
+ * targetsは「処理対象」であって「🟡 Migration対象」ではない。
+ * 🟡の1回限り判定は _evaluateContentMigration() 内部の applicable が
+ * 個別に決める。
+ * [除外] 現在アクティブに開いているプロジェクト（project.id）は対象外。
+ *
+ * [BACKFILL NON-DESTRUCTIVE INVARIANT]
+ * raw（analysis/{id}.json）への書き込みは、読み込んだ時点のバージョン
+ * （generatedAt）をサーバーへ送り、その後に他の保存が入っていないか
+ * 確認した上でのみ行う（saveAnalysisFile()のbaseVersion引数）。
+ * 確認処理の実行中にユーザーがその曲を開いて編集・保存していた場合、
+ * サーバーは書き込みを拒否する（'conflict'）。その場合は🟡🔵両方の
+ * 判定結果を保存せず、次回の実行で自然に再判定する。
+ * この原則は「analysisFileの読み込み自体に失敗した場合」にも適用する
+ * （loadAnalysisFile()はファイル不在・JSON破損・fetch失敗を区別せず
+ * 一律nullを返すため、一時的な通信エラーの可能性を否定できない。
+ * よって恒久的な'unavailable'確定はせず、保留として次回に委ねる）。
+ *
+ * [一方向フラグの維持] hasContentEditへは 'edited' の場合のみ、かつ
+ * 現在falseの場合のみ true を書く。matched/unavailable では一切
+ * hasContentEditに触れない。
+ */
+async function backfillContentEditProvenance() {
+  const projects = await listProjects();
+  const targets = projects.filter(p => p.hasAnalysis && p.id !== project.id);
+
+  if (targets.length === 0) {
+    toast('対象のプロジェクトはありません');
+    return;
+  }
+
+  if (!confirm(`${targets.length}件の既存プロジェクトについて確認します。\n（現在開いているプロジェクトは対象外です）\n実行しますか？`)) return;
+
+  toast(`${targets.length}件を確認しています…`);
+
+  let editedCount = 0, matchedCount = 0, unavailableCount = 0;
+  let structureOnlyCount = 0, skippedCount = 0, retryLaterCount = 0;
+
+  for (const p of targets) {
+    try {
+      const analysisFile = await loadAnalysisFile(p.id);
+
+      if (!analysisFile || !analysisFile.raw) {
+        // hasAnalysis===true なのに読めない。ファイル不在／JSON破損／
+        // fetch失敗のいずれかだが区別できないため、安全側に倒して
+        // 「今回は保留」とする。🟡🔵どちらのMigration Stateも確定しない。
+        retryLaterCount++;
+        continue;
+      }
+
+      const content   = await _evaluateContentMigration(p, analysisFile); // await必須
+      const structure = _evaluateStructureSync(analysisFile.raw);
+      const provenance = analysisFile.raw.provenance ?? {};
+      const needsWrite = content.hasContentEditChange || structure.changed;
+
+      let persistedProvenance = provenance;
+
+      if (needsWrite) {
+        // [BACKFILL NON-DESTRUCTIVE INVARIANT]
+        // 読み込んだrawを直接書き換えず、provenanceだけ差し替えた
+        // 新しいオブジェクトを作って保存する。baseVersionに読み込み
+        // 時点のgeneratedAtを渡し、読んだ後に他の保存が入っていたら
+        // サーバー側で書き込みを拒否させる。
+        const patchedProvenance = { ...provenance };
+        if (content.hasContentEditChange) patchedProvenance.hasContentEdit = true;
+        if (structure.changed)            patchedProvenance.hasStructureEdit = structure.newValue;
+
+        const patchedRaw = { ...analysisFile.raw, provenance: patchedProvenance };
+        const saveResult = await saveAnalysisFile(
+          p.id, patchedRaw, analysisFile.repairRule, analysisFile.generatedAt
+        );
+
+        if (saveResult === 'ok') {
+          persistedProvenance = patchedProvenance;
+        } else {
+          // 'conflict': 読み込んだ後に他の保存が入っていた（安全のため中止）
+          // 'error'   : 通信エラー等
+          // → 判定結果は保存しない。次回のバックフィル実行時に
+          //   自然に再判定される（contentEditBackfillはundefinedのまま）。
+          skippedCount++;
+          continue;
+        }
+      }
+
+      if (content.applicable) {
+        if (content.outcome === 'edited') editedCount++;
+        else if (content.outcome === 'matched') matchedCount++;
+        else unavailableCount++; // compareContentEditSnapshot自身のunavailable（確定してよい）
+        await _persistContentEditBackfillResult(p.id, content.outcome, persistedProvenance);
+      } else if (structure.changed) {
+        // 🔵のみ変化。Migration Stateには触れずprovenanceSummaryだけ同期
+        await _syncProvenanceSummaryOnly(p.id, persistedProvenance);
+        structureOnlyCount++;
+      }
+      // content非対象 かつ structure変化なし → 何もしない（既に正しい状態）
+
+    } catch (e) {
+      console.error(`[backfill] failed for project ${p.id}:`, e);
+    }
+  }
+
+  const skippedNote = skippedCount > 0
+    ? `／確認中に編集された曲: ${skippedCount}件（次回に再判定します）`
+    : '';
+  const retryNote = retryLaterCount > 0
+    ? `／読み込み失敗: ${retryLaterCount}件（次回に再試行します）`
+    : '';
+  const structureNote = structureOnlyCount > 0
+    ? `／セクション構成のみ検出: ${structureOnlyCount}件`
+    : '';
+  toast(`${targets.length}件を確認しました（コード編集検出: ${editedCount}件 / 一致: ${matchedCount}件 / 判定不能: ${unavailableCount}件${structureNote}${skippedNote}${retryNote}）`);
+
+  if (typeof renderLibrary === 'function') {
+    try { await renderLibrary(); } catch { /* Library未表示時は無視 */ }
+  }
+}
+
+/**
  * saveAnalysisEdit — 解析編集モードの内容を保存する
  *
  * 保存フロー:
@@ -2077,13 +2345,16 @@ async function saveAnalysisEdit() {
 
   project.analysis.raw.chords = structuredClone(analysisEditor.buffer);
   project.analysis.chords = sanitizeChords(project.analysis.raw.chords);
-  project.analysis.raw.sections = structuredClone(getSections(analysisEditor));
-  // [PROVENANCE][Phase127] 一方向フラグの書き戻し（false→trueのみを想定。
+  const savedSections = structuredClone(getSections(analysisEditor));
+  project.analysis.raw.sections = savedSections;
+  // [PROVENANCE][Phase127-F] hasContentEditは一方向フラグの書き戻し（false→trueのみ。
   // セッション側で既にfalse→true以外の変化は起きない設計のため単純代入でよい）。
   project.analysis.raw.provenance.hasContentEdit   = analysisEditor.hasContentEdit;
-  project.analysis.raw.provenance.hasStructureEdit = analysisEditor.hasStructureEdit;
-  const ok = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
-  if (!ok) {
+  // hasStructureEditは「今Sectionが存在するか」を保存の都度導出する
+  // （一方向フラグではない。作成→削除で0件に戻れば自動的にfalseへ戻る）。
+  project.analysis.raw.provenance.hasStructureEdit = savedSections.length > 0;
+  const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
+  if (saveResult !== 'ok') {
     toast('⚠ 保存に失敗しました。編集内容は失われていません');
     return;
   }
@@ -3682,9 +3953,40 @@ async function loadChordData(data, filename, isRestore = false) {
     // 新しい raw.beats に存在しない可能性が高く、repair を引き継ぐ方が
     // 危険なため、再インポート時は repairRule を破棄する方針（確定）。
     if (data.analysis?.raw) {
-      const ok = await saveAnalysisFile(project.id, data.analysis.raw);
-      if (ok) {
+      // [PROVENANCE][Phase127-F] 世代交代（Generation Boundary）。
+      //
+      // ここは「初回インポート」「再インポート」のどちらでも通る唯一の
+      // 経路である。両者を区別する特別な分岐は作らない（区別すると
+      // 「これは初回か再インポートか」という判定自体が別の脆い問題に
+      // なるため）。
+      //
+      // repairRuleを意図的に破棄する（上記コメント）のと全く同じ理由で、
+      // hasContentEditも新しい解析データに対して false から再出発する。
+      // これは[PROVENANCE FACT INVARIANT]（一方向フラグ）の例外ではなく、
+      // 「Provenanceが対象とする解析データ自体が別のものに切り替わる」
+      // というライフサイクル境界として扱う（analysisLoader.js参照）。
+      //
+      // contentEditBackfillも同時にリセットする。status:'reset'は
+      // 「比較して一致した(matched)」ではなく「そもそも比較の対象外に
+      // なった」ことを区別するための値。これにより、既存曲の一度きりの
+      // バックフィルツール（②）は contentEditBackfill が未設定の
+      // プロジェクトだけを対象にすればよくなる（Phase番号や作成日時から
+      // 「これはPhase127以前の曲か」を推測する必要がない）。
+      data.analysis.raw.provenance = data.analysis.raw.provenance ?? {};
+      data.analysis.raw.provenance.hasContentEdit = false;
+      project.contentEditBackfill = {
+        version: CONTENT_EDIT_BACKFILL_VERSION,
+        status: 'reset',
+        checkedAt: new Date().toISOString(),
+      };
+
+      const saveResult = await saveAnalysisFile(project.id, data.analysis.raw);
+      if (saveResult === 'ok') {
         project.hasAnalysis = true;
+        // [確認済み] loadAnalysis()はraw引数をclone せず同一参照のまま
+        // 返り値へ含めるため、上で書き換えたdata.analysis.raw.provenance は
+        // project.analysis.raw.provenance と同一オブジェクトである
+        // （analysisLoader.js loadAnalysis()の `const raw = analysis.raw;` 参照）。
       } else {
         console.warn('[analysis] failed to persist analysis file. Chart Mode will not survive reload.');
       }
@@ -5732,6 +6034,11 @@ function setupEventHandlers() {
   // Phase73-D: Legacy Project Import
   // ============================================
   // UIラベル: 「ライブラリにプロジェクトファイルをインポート…」
+  // [PROVENANCE][Phase127-F] Content Edit Backfill 実行ボタン
+  document.getElementById('btn-backfill-content-edit').addEventListener('click', async () => {
+    await backfillContentEditProvenance();
+  });
+
   // 内部機能名: Legacy Project Import
   // [PICKER_IDS] projectImport を使用（Phase60.5 の方針に準拠）
   // [AbortError] キャンセルは正常系として return
@@ -6076,8 +6383,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       // 先に保存し、成功を確認してから project.analysis に反映する。
       // 保存失敗時に「画面だけ補正済みに見えて再読込で消える」という
       // 不整合（永続化されていないのにメモリ上だけ変わる）を防ぐ。
-      const ok = await saveAnalysisFile(project.id, project.analysis.raw, newRepairRule);
-      if (!ok) {
+      const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, newRepairRule);
+      if (saveResult !== 'ok') {
         toast('⚠ 保存に失敗しました。補正は反映されていません');
         return;
       }
@@ -6102,8 +6409,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
       // [Phase72-B 修正: ChatGPTレビュー指摘対応]
       // 先に保存し、成功を確認してから project.analysis に反映する。
-      const ok = await saveAnalysisFile(project.id, project.analysis.raw, null);
-      if (!ok) {
+      const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, null);
+      if (saveResult !== 'ok') {
         toast('⚠ 保存に失敗しました。補正は解除されていません');
         return;
       }

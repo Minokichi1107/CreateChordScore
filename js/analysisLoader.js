@@ -218,10 +218,23 @@ function normalizeMeta(raw) {
  *   ③人間がSection構成を手動編集したか ④外部資料（譜面サイト等）と
  *   照合済みか、を保持する。
  *
- * [PROVENANCE FACT INVARIANT] hasContentEdit / hasStructureEdit は
- *   「Commandがok:trueを返したか」ではなく「実際に値が変わったか」を
- *   記録する事実ベースのフラグである（Phase127設計議論で確定）。
+ * [PROVENANCE FACT INVARIANT]（Phase127-Fで適用範囲を修正）
+ *   hasContentEdit のみが対象。「Commandがok:trueを返したか」ではなく
+ *   「実際に値が変わったか」を記録する事実ベースのフラグであり、
  *   一度trueになったら、Undoを含めfalseへは戻さない（一方向フラグ）。
+ *
+ *   ただし、コードデータの再インポートは「一方向フラグの例外」ではなく、
+ *   別の話として扱う。再インポートは「同じ解析データへの追記」ではなく
+ *   「解析データそのものの世代交代」（既存のrepairRule破棄と同じ扱い。
+ *   app.js loadChordData()参照）であり、Provenanceが対象とする
+ *   「解析データ」自体が別のものに切り替わる。そのためhasContentEditは
+ *   新しい世代に対して false から再出発する（詳細はapp.js側の
+ *   contentEditBackfill関連コメント参照）。
+ *
+ *   hasStructureEditはこの原則の対象外（Phase127-Fで変更）。
+ *   一方向フラグではなく、「今Sectionが存在するか」
+ *   （raw.sections.length > 0）を保存の都度導出する値であり、
+ *   Section作成→削除で0件に戻れば自動的にfalseへ戻る。
  *
  * [DEFAULT] 既存の analysis（provenance未記録）は「未記録状態」として
  *   扱う。「chordmini解析そのまま」と断定しない（過去に記録機構が
@@ -423,9 +436,19 @@ export async function loadAnalysis(analysis) {
  * @param {string} projectId
  * @param {object} raw                 - analysis.raw（不変の生データ）
  * @param {object|null} [repairRule]   - Phase72-B: ユーザーの手動補正の意図
- * @returns {Promise<boolean>} 成功:true / 失敗:false
+ * @param {string|null} [baseVersion]
+ *   [Phase127-F] 省略時（未指定・デフォルト）は無条件保存（従来通り）。
+ *   通常の編集保存（saveAnalysisEdit等）はこの引数を渡さない。
+ *   値を渡すと、サーバー側で「今のファイルの最終保存時刻」と比較し、
+ *   一致した場合のみ保存する（既存曲の編集状況を確認する処理＝
+ *   バックフィル専用の安全策・[BACKFILL NON-DESTRUCTIVE INVARIANT]）。
+ * @returns {Promise<'ok'|'conflict'|'error'>}
+ *   'ok'       保存成功
+ *   'conflict' 読み込んだ後に他の保存が入っていたため、保存を見送った
+ *              （古いデータは書き込んでいない）
+ *   'error'    通信エラー等、本当の失敗
  */
-export async function saveAnalysisFile(projectId, raw, repairRule = null) {
+export async function saveAnalysisFile(projectId, raw, repairRule = null, baseVersion = undefined) {
   try {
     const payload = {
       version:     1,
@@ -434,14 +457,23 @@ export async function saveAnalysisFile(projectId, raw, repairRule = null) {
       raw,
       repairRule,
     };
+    // [重要] 「引数を渡さなかった（undefined）」と「値がnull（バージョン不明）」
+    // を区別する。前者は通常保存（チェック不要）、後者はバックフィルが
+    // 古いファイル（generatedAtが存在しない）を読んだ場合であり、
+    // 安全のため常に書き込みを拒否させる必要がある（サーバー側で判定）。
+    if (baseVersion !== undefined) {
+      payload.baseVersion = baseVersion; // null または文字列
+    }
     const res = await fetch('/save-analysis', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(payload),
     });
-    return res.ok;
+    if (res.ok) return 'ok';
+    if (res.status === 409) return 'conflict';
+    return 'error';
   } catch {
-    return false;
+    return 'error';
   }
 }
 
@@ -479,9 +511,113 @@ export async function loadAnalysisFile(projectId) {
     // repairRule: 旧形式ファイル（フィールド自体が無い）は null 扱い
     const repairRule = data.repairRule ?? null;
 
-    return { raw: data.raw, repairRule };
+    return { raw: data.raw, repairRule, generatedAt: data.generatedAt ?? null };
 
   } catch {
     return null;                       // 破損・parse error → null
   }
+}
+
+// ────────────────────────────────────────
+// Content Edit Backfill 比較ロジック（Phase127-F）
+// ────────────────────────────────────────
+
+/**
+ * _EPSILON_SEC — 数値（start/end/beats/downbeats）比較時の許容誤差（秒）。
+ *
+ * [背景] JS(V8)↔Python(server.py)間のJSON往復では数値が完全一致することを
+ * 実測済みだが、将来別ツール経由の丸め誤差に備えた安全マージンとして
+ * 小さな許容誤差を設ける（厳密な0一致を要求しない）。
+ */
+const _EPSILON_SEC = 1e-6;
+
+function _numbersEqual(a, b) {
+  if (typeof a !== 'number' || typeof b !== 'number') return a === b;
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return a === b;
+  return Math.abs(a - b) < _EPSILON_SEC;
+}
+
+/**
+ * _asArray — 配列でなければ空配列とみなす正規化ヘルパー。
+ *
+ * [理由] raw.beats / raw.downbeats（あるいはchords）自体が未定義
+ * （undefined・null）の場合を「差異なし（両方とも存在しない）」として
+ * 扱うため。Array.isArrayの単純なfalse早期returnだと、両者ともundefined
+ * のケースまで「不一致」と誤判定してしまう（Phase127-F単体テストで
+ * 発見・修正）。
+ */
+function _asArray(v) {
+  return Array.isArray(v) ? v : [];
+}
+
+/**
+ * _chordsEqual — chords配列の比較（Phase127-F専用）。
+ *
+ * [SCOPE] 比較対象は chord（コード名・文字列完全一致）・start・end のみ。
+ * _id / confidence / meta 等は比較しない（ユーザーが意識しない内部情報の
+ * ため。architecture.md [PROVENANCE FACT INVARIANT]周辺コメント参照）。
+ *
+ * 配列の順序はそのまま比較する（並べ替えない）。コード進行は時系列その
+ * ものであり、順序自体が意味を持つため。
+ *
+ * @param {Array|undefined} a
+ * @param {Array|undefined} b
+ * @returns {boolean}
+ */
+function _chordsEqual(a, b) {
+  const ax = _asArray(a), bx = _asArray(b);
+  if (ax.length !== bx.length) return false;
+  for (let i = 0; i < ax.length; i++) {
+    const x = ax[i], y = bx[i];
+    if (!x || !y) return false;
+    if (x.chord !== y.chord) return false;
+    if (!_numbersEqual(x.start, y.start)) return false;
+    if (!_numbersEqual(x.end,   y.end))   return false;
+  }
+  return true;
+}
+
+/**
+ * _numberArraysEqual — beats / downbeats配列の比較（Phase127-F専用）。
+ * 配列の順序はそのまま比較する（時系列データのため）。
+ * undefined/null は空配列として扱う（_asArray参照）。
+ */
+function _numberArraysEqual(a, b) {
+  const ax = _asArray(a), bx = _asArray(b);
+  if (ax.length !== bx.length) return false;
+  for (let i = 0; i < ax.length; i++) {
+    if (!_numbersEqual(ax[i], bx[i])) return false;
+  }
+  return true;
+}
+
+/**
+ * compareContentEditSnapshot — Content Edit Backfill（Phase127-F）の
+ * 比較本体。pure function（DOM/IndexedDB/fetch等の副作用を一切持たない）。
+ *
+ * [SCOPE] 「元のChordMini出力（インポート時スナップショット）」と
+ * 「現在のanalysis.raw」を比較し、手動編集の有無を判定する。
+ * 比較対象は raw.chords（chord名・start・end）/ raw.beats / raw.downbeats
+ * のみ。_id・confidence・meta・provenance等は比較しない。
+ *
+ * [呼び出し元の責務] このファイルはIndexedDBへのアクセスを持たない
+ * （analysisLoader.jsは analysis data の ingestion 専用というモジュール
+ * 境界を守るため）。IndexedDBからのchord asset読み込み・JSON.parseは
+ * 呼び出し元（app.js）が行い、パース済みの2つのrawオブジェクトを渡すこと。
+ *
+ * @param {object|null} snapshotRaw - IndexedDB ${projectId}:chord から
+ *   復元した、インポート時点のChordMini出力の raw 相当オブジェクト
+ *   （{ chords, beats, downbeats, ... }）。存在しない・破損している場合は null。
+ * @param {object} currentRaw - 現在の project.analysis.raw
+ * @returns {'matched'|'edited'|'unavailable'}
+ */
+export function compareContentEditSnapshot(snapshotRaw, currentRaw) {
+  if (!snapshotRaw || typeof snapshotRaw !== 'object') return 'unavailable';
+  if (!currentRaw  || typeof currentRaw  !== 'object') return 'unavailable';
+
+  const chordsMatch    = _chordsEqual(snapshotRaw.chords, currentRaw.chords);
+  const beatsMatch      = _numberArraysEqual(snapshotRaw.beats,     currentRaw.beats);
+  const downbeatsMatch  = _numberArraysEqual(snapshotRaw.downbeats, currentRaw.downbeats);
+
+  return (chordsMatch && beatsMatch && downbeatsMatch) ? 'matched' : 'edited';
 }
