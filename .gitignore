@@ -48,3 +48,14 @@ archive/lyric/
 
 # local archive
 docs/finished/
+
+# Node（将来的なツール利用時の誤commit防止・現状未使用）
+node_modules/
+package.json
+package-lock.json
+
+# 差分パッチ（レビュー用に一時生成するファイル）
+*.patch
+
+# 音声ファイル復旧調査の作業データ（個人作業データ・非公開）
+recovery/
