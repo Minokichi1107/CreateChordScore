@@ -940,6 +940,11 @@ let _drawDiagram      = null;  // (frets, barre, options) => SVG string（toolti
 let _onSetRepairRule   = null;  // (beatTime: number) => void
 let _onClearRepairRule = null;  // () => void
 
+// [Phase127-E①] Chart Modeヘッダーの.provenance-dots右クリックで通知する。
+// [OWNERSHIP] External Checkの読み書き・モーダル生成はapp.js側の責務。
+// chartmode.jsは「ユーザーがドットを右クリックした」ことを通知するだけ。
+let _onExternalCheckRequested = null;  // () => void
+
 // Phase74-C: 解析編集モード連携
 // Phase76-A: 第2引数にshiftKey押下有無を追加（範囲選択用）
 let _onChordSelected   = null;        // (id: string, isShiftKey: boolean) => void
@@ -1129,8 +1134,11 @@ function _rafLoop() {
  * @param {Function} [deps.onClearRepairRule]- () => void（Phase72-B）
  *                                             右クリック「補正を解除」選択時に呼ぶ。
  *                                             app.js が null保存・再描画を担う。
+ * @param {Function} [deps.onExternalCheckRequested] - () => void（Phase127-E①）
+ *                                             .provenance-dots右クリック時に呼ぶ。
+ *                                             app.js が External Checkモーダルを開く。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, showTextTooltip, hideTextTooltip }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, showTextTooltip, hideTextTooltip, onExternalCheckRequested }) {
   _getAnalysis       = getAnalysis;
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
@@ -1143,6 +1151,7 @@ export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudio
   _tooltipEnabled    = tooltipEnabled ?? true;
   _onSetRepairRule   = onSetRepairRule  ?? null;
   _onClearRepairRule = onClearRepairRule ?? null;
+  _onExternalCheckRequested = onExternalCheckRequested ?? null;
   // [PROVENANCE][Phase127-D] HTML生成ロジックの正本はapp.js側に置く
   // （表示文言・色クラス名の意味付けをapp.js 1箇所に集約するため）。
   _renderProvenanceDots = renderProvenanceDots ?? (() => '');
@@ -1952,6 +1961,17 @@ function _setupContextMenu() {
   // contextmenu イベントを document に委譲登録
   document.addEventListener('contextmenu', e => {
     if (!chartState.active) return;       // Chart Mode 非アクティブなら無視
+
+    // [Phase127-E①] ヘッダーの.provenance-dots右クリック → External Check編集を
+    // 通知する。小節頭補正メニュー（.chart-slot対象）とは対象領域が排他のため
+    // 同じdocumentリスナー内で先に判定してよい。
+    if (e.target.closest('#chart-header-info .provenance-dots')) {
+      if (!_onExternalCheckRequested) return;
+      e.preventDefault();
+      _onExternalCheckRequested();
+      return;
+    }
+
     if (!_onSetRepairRule) return;         // コールバック未注入なら無視
 
     // .chart-slot を対象とする（projectionEmpty slot は data-visual-slot-index がないため自然に除外される）

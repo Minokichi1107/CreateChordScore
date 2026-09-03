@@ -2002,6 +2002,11 @@ function redoEdit() {
  * @param {{ hasContentEdit?: boolean, hasStructureEdit?: boolean,
  *   externalCheck?: { checked?: boolean } }|null|undefined} p
  * @returns {string} HTML文字列（`.provenance-dots`要素そのもの）
+ *
+ * [Phase127-E①] Library一覧・Chart Modeヘッダーの両方で「右クリックで
+ * 外部資料確認を編集」できるようになったため、tooltip文言のヒントは
+ * コンテキストを問わず常に付記する（以前はLibrary限定だったが、
+ * Chart Modeヘッダーからも右クリックできるよう修正したため統一した）。
  */
 function renderProvenanceDots(p) {
   const hasContent   = p?.hasContentEdit === true;
@@ -2011,10 +2016,11 @@ function renderProvenanceDots(p) {
   // [Phase127-D'] title属性は削除済み（ChatGPT Review Required change #4：
   // textTooltip.jsの実機確認完了を受けて表示責務をdata-tooltip一本化。
   // ネイティブtitle tooltipとの二重表示・タイミング差異を解消するため）。
-  const NONE_TEXT      = '編集・確認：記録なし';
-  const CONTENT_TEXT   = 'コード進行：確認・修正あり';
-  const STRUCTURE_TEXT = '曲の構成：確認・設定あり';
-  const EXTERNAL_TEXT  = '外部資料：照合済み';
+  const HINT = '（右クリックで外部資料確認を編集）';
+  const NONE_TEXT      = `編集・確認：記録なし${HINT}`;
+  const CONTENT_TEXT   = `コード進行：確認・修正あり${HINT}`;
+  const STRUCTURE_TEXT = `曲の構成：確認・設定あり${HINT}`;
+  const EXTERNAL_TEXT  = `外部資料：照合済み${HINT}`;
 
   if (!hasContent && !hasStructure && !hasExternal) {
     return `<span class="provenance-dots">`
@@ -2054,6 +2060,199 @@ function syncProvenanceSummary(proj) {
     hasStructureEdit: p.hasStructureEdit === true,
     externalCheck: { checked: p.externalCheck?.checked === true },
   };
+}
+
+/**
+ * writeExternalCheck — externalCheck（🟢 外部資料確認）を更新する
+ * 唯一の書き込み窓口（Phase127-E①）。
+ *
+ * [Authority] raw.provenance.externalCheckがPersistence Authority（正本）。
+ * project.provenanceSummary.externalCheckはそこから導出されるProjection
+ * （[PERSISTENCE OWNERSHIP PRINCIPLE]・既存のhasContentEdit等と同じ扱い）。
+ * 本関数は新しいAuthorityを新設するものではなく、既存のraw.provenance構造
+ * に対する書き込み経路を追加するものである。
+ *
+ * [経路の分岐] 対象が「今開いているプロジェクト」か否かで書き込み方式を
+ * 自動的に切り替える。
+ *
+ *   今開いているプロジェクト:
+ *     project.analysis.raw（メモリ上の生きた正本）を直接書き換えて保存する。
+ *     Analysis Editorの未保存編集（analysisEditor.buffer）は別領域にあり
+ *     saveAnalysisEdit()実行時までrawへ反映されないため干渉しない
+ *     （baseVersion不要。saveAnalysisEdit()自体と同じ無条件保存パターン）。
+ *     これにより、Analysis Editor編集セッション中でも安全に呼び出せる
+ *     （メニュー項目を無効化する必要がない）。
+ *
+ *   それ以外のプロジェクト（Library上の別の曲）:
+ *     loadAnalysisFile()で現在のraw/generatedAtを取得し、baseVersionとして
+ *     渡した上でsaveAnalysisFile()する（backfillContentEditProvenance()と
+ *     同一の楽観的並行性制御・[BACKFILL NON-DESTRUCTIVE INVARIANT]と同種）。
+ *
+ * [checkedAtのルール] checkedがfalse→trueに変わった瞬間のみ現在時刻を記録する。
+ * true→trueのまま参照元/URL/メモだけを変更した場合や、falseへ戻す場合は
+ * checkedAtを変更しない（「この内容について外部資料と照合した時刻」という
+ * 意味を保つため。何度も保存しても上書きされない）。
+ *
+ * [チェック解除] checked=falseで保存しても、reference/url/memo/checkedAtは
+ * すべて保持する。全消去は呼び出し側（モーダル）の「確認情報をクリア」操作
+ * でフォーム入力を空にしてから保存した場合のみ発生する（本関数自体は
+ * 「保持」と「消去」を区別しない。渡されたpatchをそのまま反映するだけ）。
+ *
+ * @param {string} targetProjectId
+ * @param {{ checked: boolean, reference: string, url: string, memo: string }} patch
+ * @returns {Promise<'ok'|'conflict'|'error'|'no-analysis'>}
+ */
+async function writeExternalCheck(targetProjectId, patch) {
+  const isCurrent = targetProjectId === project.id && !!project.analysis?.raw?.provenance;
+
+  if (isCurrent) {
+    const prev = project.analysis.raw.provenance.externalCheck ?? {};
+    const wasChecked = prev.checked === true;
+    const checkedAt = (!wasChecked && patch.checked) ? new Date().toISOString() : (prev.checkedAt ?? null);
+
+    project.analysis.raw.provenance.externalCheck = {
+      checked: patch.checked, reference: patch.reference, url: patch.url, checkedAt, memo: patch.memo,
+    };
+
+    const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
+    if (saveResult !== 'ok') return 'error';
+
+    syncProvenanceSummary(project);
+    autoSaveLocal();
+    return 'ok';
+  }
+
+  const analysisFile = await loadAnalysisFile(targetProjectId);
+  if (!analysisFile || !analysisFile.raw) return 'no-analysis';
+
+  const raw = analysisFile.raw;
+  const prevExternal = raw.provenance?.externalCheck ?? {};
+  const wasChecked = prevExternal.checked === true;
+  const checkedAt = (!wasChecked && patch.checked) ? new Date().toISOString() : (prevExternal.checkedAt ?? null);
+
+  const patchedProvenance = {
+    ...(raw.provenance ?? {}),
+    externalCheck: { checked: patch.checked, reference: patch.reference, url: patch.url, checkedAt, memo: patch.memo },
+  };
+  const patchedRaw = { ...raw, provenance: patchedProvenance };
+
+  const saveResult = await saveAnalysisFile(targetProjectId, patchedRaw, analysisFile.repairRule, analysisFile.generatedAt);
+  if (saveResult !== 'ok') return saveResult; // 'conflict' | 'error'
+
+  await _syncProvenanceSummaryOnly(targetProjectId, patchedProvenance);
+  return 'ok';
+}
+
+/**
+ * _escapeAttrText — HTML属性値・textarea内容へ安全に埋め込むための最小エスケープ。
+ * textTooltip.jsのsafeText（&lt;/&gt;のみ）と同じ思想だが、こちらは
+ * 属性値（value="..."）にも使うため " と & も対象に含める。
+ */
+function _escapeAttrText(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * openExternalCheckModalFor — External Check（🟢）編集モーダルの起動窓口（Phase127-E①）。
+ *
+ * 対象プロジェクトの現在値（externalCheck）を取得してからモーダルを開く。
+ * 「今開いているプロジェクト」はメモリから同期的に取得、それ以外は
+ * loadAnalysisFile()で読む（writeExternalCheck()と同じ経路の使い分け）。
+ * 解析データが存在しない場合はここで打ち切る
+ * （beginAnalysisEdit()のcanBeginAnalysisEdit()ガードと同じ考え方）。
+ *
+ * @param {string} targetProjectId
+ */
+async function openExternalCheckModalFor(targetProjectId) {
+  const isCurrent = targetProjectId === project.id;
+
+  let current;
+  if (isCurrent) {
+    if (!project.analysis) { toast('解析データがありません'); return; }
+    current = project.analysis.raw.provenance.externalCheck ?? {};
+  } else {
+    const analysisFile = await loadAnalysisFile(targetProjectId);
+    if (!analysisFile || !analysisFile.raw) { toast('解析データがありません'); return; }
+    current = analysisFile.raw.provenance?.externalCheck ?? {};
+  }
+
+  _openExternalCheckModal(targetProjectId, current);
+}
+
+/**
+ * _openExternalCheckModal — External Check編集モーダルの実体（同期・DOM構築のみ）。
+ * openModal()（既存モーダル基盤）を呼ぶだけの薄いラッパー
+ * （openSectionRenameModal()と同じ方針）。
+ */
+function _openExternalCheckModal(targetProjectId, current) {
+  const checked   = current.checked === true;
+  const reference = current.reference ?? '';
+  const url       = current.url ?? '';
+  const memo      = current.memo ?? '';
+  const checkedAtLabel = current.checkedAt
+    ? `前回確認日時: ${new Date(current.checkedAt).toLocaleString()}`
+    : '未確認';
+
+  openModal({
+    title: '外部資料確認の記録',
+    body: `
+      <div class="modal-field-label">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="extchk-checked-in" ${checked ? 'checked' : ''}>
+          外部資料と照合済みにする
+        </label>
+      </div>
+      <div class="modal-field-label" style="margin-top:8px">参照元名</div>
+      <input type="text" id="extchk-reference-in" class="mi" value="${_escapeAttrText(reference)}">
+      <div class="modal-field-label" style="margin-top:8px">URL</div>
+      <input type="text" id="extchk-url-in" class="mi" value="${_escapeAttrText(url)}">
+      <div class="modal-field-label" style="margin-top:8px">メモ</div>
+      <textarea id="extchk-memo-in" class="mi" rows="3">${_escapeAttrText(memo)}</textarea>
+      <div class="modal-caption modal-section" id="extchk-checkedat-label" style="margin-top:8px">
+        ${checkedAtLabel}
+      </div>
+      <button type="button" class="dd-item" id="extchk-clear-btn" style="margin-top:8px;width:100%;text-align:center">
+        🗑 確認情報をクリア
+      </button>
+    `,
+    onOpen: () => {
+      document.getElementById('extchk-reference-in')?.focus();
+      // [確認情報をクリア] フォーム上のみ空にする。保存を押すまで実データは変更しない。
+      document.getElementById('extchk-clear-btn')?.addEventListener('click', () => {
+        document.getElementById('extchk-checked-in').checked = false;
+        document.getElementById('extchk-reference-in').value = '';
+        document.getElementById('extchk-url-in').value = '';
+        document.getElementById('extchk-memo-in').value = '';
+        document.getElementById('extchk-checkedat-label').textContent = '未確認（保存で確定）';
+      });
+    },
+    buttons: (close) => [
+      mkMBtn('キャンセル', '', close),
+      mkMBtn('保存', 'ok', async () => {
+        const patch = {
+          checked:   document.getElementById('extchk-checked-in')?.checked === true,
+          reference: document.getElementById('extchk-reference-in')?.value ?? '',
+          url:       document.getElementById('extchk-url-in')?.value ?? '',
+          memo:      document.getElementById('extchk-memo-in')?.value ?? '',
+        };
+        const result = await writeExternalCheck(targetProjectId, patch);
+
+        if (result === 'no-analysis') { toast('⚠ 解析データがありません'); return; }
+        if (result === 'conflict')     { toast('⚠ 保存中に他の変更が入りました。もう一度お試しください'); return; }
+        if (result === 'error')        { toast('⚠ 保存に失敗しました'); return; }
+
+        close();
+        toast('✅ 外部資料確認を記録しました');
+        if (typeof renderLibrary === 'function') {
+          try { await renderLibrary(); } catch { /* Library未表示時は無視 */ }
+        }
+        if (targetProjectId === project.id && chartState.active) {
+          renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
+        }
+      }),
+    ],
+  });
 }
 
 /**
@@ -3706,6 +3905,71 @@ document.addEventListener('click', e => {
   }
   textTooltip.hide();
 });
+
+// ── Library: 行の右クリックメニュー（Phase127-E①） ────────────
+// chartmode.js の _setupContextMenu()（Phase72・小節頭補正）と同じ設計
+// パターンを踏襲する（独自コンテキストメニューの新しい実装方式は
+// 発明しない）。#library-listは常時DOM存在のため、Chart Modeのような
+// open/closeライフサイクルと無関係に一度だけ登録する。
+let _libraryContextMenuEl = null;
+
+function _hideLibraryContextMenu() {
+  if (_libraryContextMenuEl) {
+    _libraryContextMenuEl.remove();
+    _libraryContextMenuEl = null;
+  }
+}
+
+function _showLibraryContextMenu(projectId, clientX, clientY) {
+  _hideLibraryContextMenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'library-context-menu';
+
+  const item = document.createElement('div');
+  item.className = 'library-context-item';
+  item.textContent = '🟢 外部資料確認を記録…';
+  item.addEventListener('click', () => {
+    _hideLibraryContextMenu();
+    openExternalCheckModalFor(projectId);
+  });
+  menu.appendChild(item);
+
+  menu.style.position = 'fixed';
+  menu.style.zIndex   = '9999';
+  menu.style.left     = clientX + 'px';
+  menu.style.top      = clientY + 'px';
+  document.body.appendChild(menu);
+  _libraryContextMenuEl = menu;
+
+  // 右端・下端 overflow 補正（chartmode.js _showContextMenu()と同じ手法）
+  const rect = menu.getBoundingClientRect();
+  const MARGIN = 8;
+  if (rect.right > window.innerWidth)  menu.style.left = (clientX - rect.width) + 'px';
+  if (rect.bottom > window.innerHeight) menu.style.top  = (clientY - rect.height) + 'px';
+}
+
+function _setupLibraryContextMenu() {
+  const list = document.getElementById('library-list');
+  if (!list) return;
+
+  list.addEventListener('contextmenu', e => {
+    const row = e.target.closest('.library-item[data-id]');
+    if (!row) return;
+    e.preventDefault(); // ブラウザ標準メニューを抑制
+    _showLibraryContextMenu(row.dataset.id, e.clientX, e.clientY);
+  });
+
+  document.addEventListener('click', e => {
+    if (_libraryContextMenuEl && !_libraryContextMenuEl.contains(e.target)) {
+      _hideLibraryContextMenu();
+    }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _libraryContextMenuEl) _hideLibraryContextMenu();
+  });
+}
 
 // ── 表示メニューのチェックマーク更新 ─────────────
 // メニューを開くたびに現在の状態を反映する。
@@ -6134,6 +6398,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   // [Phase127-D'] textTooltip初期化（アプリ起動時に1回だけ・Chart Modeのlifecycleとは無関係）
   textTooltip.init();
   _setupLibraryProvenanceTooltipEvents();
+  _setupLibraryContextMenu(); // [Phase127-E①] Library行の右クリック→External Check編集
 
   if (btnCollapse) {
     btnCollapse.addEventListener('click', () => {
@@ -6357,6 +6622,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     // [OWNERSHIP] chartmode.jsはbufferを持たないため、chordId→index の問い合わせを
     // app.js側のこの関数経由で行う（getAnalysis/getNormalizedと同じ注入パターン）。
     getChordIndex: _getChordBufferIndex,
+
+    // [Phase127-E①] ヘッダーの.provenance-dots右クリック通知。
+    // [OWNERSHIP] External Checkの読み書き・モーダル生成はapp.js側が持つ。
+    // chartmode.jsは常に「今開いているプロジェクト」しか表示しないため、
+    // Library一覧のような対象ID解決は不要（project.idを直接渡すだけでよい）。
+    onExternalCheckRequested: () => openExternalCheckModalFor(project.id),
 
     // Phase72-B: manual timing correction コールバック
     // [OWNERSHIP] repairRule の保存・project.analysis 更新・再描画は app.js が持つ。
