@@ -922,8 +922,6 @@ export function scrollToChord(chordId) {
 
 let _getAnalysis      = null;  // () => project.analysis（header/fallback 表示用）
 let _renderProvenanceDots = null;  // [Phase127-D] (provenance) => string（app.js側HTML生成関数）
-let _showTextTooltip  = null;  // [Phase127-D'] (text, anchorRect) => void（textTooltip.js経由・app.js注入）
-let _hideTextTooltip  = null;  // [Phase127-D'] () => void（同上）
 let _getNormalized    = null;  // () => project.analysis?.normalized（timing pipeline 用）
 let _getAudioEl       = null;  // () => aEl
 let _getAudioDuration = null;  // () => aEl.duration
@@ -943,7 +941,7 @@ let _onClearRepairRule = null;  // () => void
 // [Phase127-E①] Chart Modeヘッダーの.provenance-dots右クリックで通知する。
 // [OWNERSHIP] External Checkの読み書き・モーダル生成はapp.js側の責務。
 // chartmode.jsは「ユーザーがドットを右クリックした」ことを通知するだけ。
-let _onExternalCheckRequested = null;  // () => void
+let _onExternalCheckRequested = null;  // (clientX, clientY) => void（Phase127-E②で座標渡しへ拡張）
 
 // Phase74-C: 解析編集モード連携
 // Phase76-A: 第2引数にshiftKey押下有無を追加（範囲選択用）
@@ -993,7 +991,6 @@ let _boundaryHoverBound    = false;
 let _tooltipEl        = null;  // single instance tooltip DOM（body直下）
 let _tooltipBound     = false; // event delegation 登録済みフラグ（idempotent guard）
 let _tooltipEnabled   = true;  // ON/OFF（app.js が localStorage から初期化）
-let _provenanceTooltipBound = false; // [Phase127-D'] 編集状況(●) tooltip の委譲登録済みフラグ
 
 // リスナー重複登録防止フラグ（hot reload / re-init 対策）
 let _gridClickSeekBound = false;
@@ -1134,11 +1131,12 @@ function _rafLoop() {
  * @param {Function} [deps.onClearRepairRule]- () => void（Phase72-B）
  *                                             右クリック「補正を解除」選択時に呼ぶ。
  *                                             app.js が null保存・再描画を担う。
- * @param {Function} [deps.onExternalCheckRequested] - () => void（Phase127-E①）
+ * @param {Function} [deps.onExternalCheckRequested] - (clientX, clientY) => void
+ *   Provenance Popoverの表示位置に使う右クリック座標を渡す（Phase127-E①で新設・Phase127-E②で引数なし→座標渡しへ変更）。
  *                                             .provenance-dots右クリック時に呼ぶ。
  *                                             app.js が External Checkモーダルを開く。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, showTextTooltip, hideTextTooltip, onExternalCheckRequested }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, onExternalCheckRequested }) {
   _getAnalysis       = getAnalysis;
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
@@ -1155,11 +1153,8 @@ export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudio
   // [PROVENANCE][Phase127-D] HTML生成ロジックの正本はapp.js側に置く
   // （表示文言・色クラス名の意味付けをapp.js 1箇所に集約するため）。
   _renderProvenanceDots = renderProvenanceDots ?? (() => '');
-  // [Phase127-D'] textTooltip.js（Provenanceを知らない汎用モジュール）の
-  // show/hideをapp.js経由でそのまま受け取る。chartmode.js側は
-  // 「渡された関数を呼ぶだけ」に徹する（[DECORATOR ADDITION RULE]と同型）。
-  _showTextTooltip = showTextTooltip ?? null;
-  _hideTextTooltip = hideTextTooltip ?? null;
+  // [Phase127-E③] showTextTooltip/hideTextTooltipの受け取りは削除した
+  // （hover Tooltip自体を廃止したため。initChartMode()の引数からも除去済み）。
 
   // Phase74-C: 解析編集モード連携
   // [OWNERSHIP] 編集state（analysisEditor）はapp.jsが持つ。
@@ -1339,43 +1334,6 @@ function _setupTooltipEvents() {
   });
 
   _tooltipBound = true;
-}
-
-/**
- * _setupProvenanceTooltipEvents — Chart Modeヘッダーの.provenance-dotへ
- * textTooltip（Phase127-D'・app.js注入）のhoverイベントを委譲登録する（idempotent）。
- *
- * #chart-header-info自体はrenderChartMode()のたびにinnerHTMLが差し替わるが、
- * 要素自体は再生成されない（既存の_setupTooltipEvents()が#chart-gridへ
- * 委譲するのと同じ考え方）ため、openChartMode()で1回だけ登録すればよい。
- *
- * [Phase127-D'] ここはChart Modeの「どのDOMにhoverイベントを付けるか」だけを
- * 担い、textTooltip.js側の実装（DOM生成・clamp計算）には一切踏み込まない。
- */
-function _setupProvenanceTooltipEvents() {
-  if (_provenanceTooltipBound) return; // idempotent guard
-  if (!_showTextTooltip || !_hideTextTooltip) return;
-
-  const header = document.getElementById('chart-header-info');
-  if (!header) return;
-
-  header.addEventListener('pointerover', e => {
-    const to = e.target.closest('.provenance-dot[data-tooltip]');
-    if (!to) { _hideTextTooltip(); return; }
-    const from = e.relatedTarget?.closest?.('.provenance-dot[data-tooltip]');
-    if (from === to) return;
-    _showTextTooltip(to.dataset.tooltip, to.getBoundingClientRect());
-  });
-
-  header.addEventListener('pointerout', e => {
-    const from = e.target.closest('.provenance-dot[data-tooltip]');
-    if (!from) return;
-    const to = e.relatedTarget?.closest?.('.provenance-dot[data-tooltip]');
-    if (to === from) return;
-    _hideTextTooltip();
-  });
-
-  _provenanceTooltipBound = true;
 }
 
 // ────────────────────────────────────────
@@ -1962,13 +1920,13 @@ function _setupContextMenu() {
   document.addEventListener('contextmenu', e => {
     if (!chartState.active) return;       // Chart Mode 非アクティブなら無視
 
-    // [Phase127-E①] ヘッダーの.provenance-dots右クリック → External Check編集を
+    // [Phase127-E②] ヘッダーの.provenance-dots右クリック → Provenance Popoverを
     // 通知する。小節頭補正メニュー（.chart-slot対象）とは対象領域が排他のため
     // 同じdocumentリスナー内で先に判定してよい。
     if (e.target.closest('#chart-header-info .provenance-dots')) {
       if (!_onExternalCheckRequested) return;
       e.preventDefault();
-      _onExternalCheckRequested();
+      _onExternalCheckRequested(e.clientX, e.clientY);
       return;
     }
 
@@ -2069,7 +2027,6 @@ export function openChartMode() {
   _buildTransport();
   _initTooltip();
   _setupTooltipEvents();
-  _setupProvenanceTooltipEvents();
   _setupContextMenu();
   // 描画は呼び出し側（app.js）が renderChartMode を起点として渡す
 }
@@ -2105,9 +2062,7 @@ export function closeChartMode() {
   _stopRafLoop();  // rAF playback loop 停止（active=false の前に止める）
   _hideTooltip();  // tooltip 非表示
   _destroyTooltip(); // tooltip DOM 削除（orphan DOM 防止）
-  // [Phase127-D'] textTooltipはLibraryとの共有インスタンス（app.js管理）のため
-  // destroyはしない。hideのみ呼び、Chart Mode終了時の残留表示だけ防ぐ。
-  _hideTextTooltip?.();
+  // [Phase127-E③] textTooltip呼び出しは削除した（hover Tooltip自体を廃止したため）。
   _boundaryHoverEl = null; // [Phase95-A2] hover ephemeral state のクリア
   chartState.active = false;
   chartState.lastScrolledMeasure = -1;

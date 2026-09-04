@@ -144,27 +144,8 @@
   pointer-events: none;
 }
 
-/* ── 行の右クリックメニュー（Phase127-E①・External Check） ────────
-   chart.cssの.chart-context-menu（Phase72-C）と同じ視覚言語を踏襲する
-   （ephemeral UIとして body直下に浮かぶ点も同一。トークンを揃えることで
-   アプリ内での一貫性を保つ） ──────────────────────────── */
-.library-context-menu {
-  position: fixed;
-  z-index: 9999;
-  min-width: 180px;
-  background: var(--surface-overlay);
-  border: 1px solid var(--border-ui);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-.library-context-item {
-  padding: 9px 12px;
-  color: var(--text-primary);
-  cursor: pointer;
-}
-.library-context-item:hover {
-  background: var(--surface-hover);
-}
+/* [Phase127-E②] 行の右クリックメニュー（.library-context-menu）は
+   Provenance Popoverへ置き換えられ廃止した。
+   Popover本体のCSSはcomponents.cssの.provenance-popover系を参照
+   （Library/Chart Mode共有・.provenance-dotと同じ所有権区分のため）。 */
+
