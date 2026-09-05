@@ -180,7 +180,9 @@ import {
 
 import { isSepToken, isNoChordToken } from './tokens.js';
 
-import * as textTooltip from './textTooltip.js';
+// [Phase127-E③] textTooltip.jsのimportは削除した。app.js側の呼び出し元が
+// 無くなったため（[TOOLTIP CONSOLIDATION]）。js/textTooltip.js自体は
+// 将来の別用途に備えて残置している（orphaned module。current-issues.md参照）。
 
 import { initChordEntry, openAddChord, showChordSelector } from './chordEntry.js';
 
@@ -2002,34 +2004,30 @@ function redoEdit() {
  * @param {{ hasContentEdit?: boolean, hasStructureEdit?: boolean,
  *   externalCheck?: { checked?: boolean } }|null|undefined} p
  * @returns {string} HTML文字列（`.provenance-dots`要素そのもの）
+ *
+ * [Phase127-E③] hover Tooltip（textTooltip.js経由）は廃止し、右クリックの
+ * Provenance Popoverへ情報表示を一本化した（[TOOLTIP CONSOLIDATION]・
+ * 下記参照）。data-tooltip属性はもはや使われないため生成しない。
  */
 function renderProvenanceDots(p) {
   const hasContent   = p?.hasContentEdit === true;
   const hasStructure = p?.hasStructureEdit === true;
   const hasExternal  = p?.externalCheck?.checked === true;
 
-  // [Phase127-D'] title属性は削除済み（ChatGPT Review Required change #4：
-  // textTooltip.jsの実機確認完了を受けて表示責務をdata-tooltip一本化。
-  // ネイティブtitle tooltipとの二重表示・タイミング差異を解消するため）。
-  const NONE_TEXT      = '編集・確認：記録なし';
-  const CONTENT_TEXT   = 'コード進行：確認・修正あり';
-  const STRUCTURE_TEXT = '曲の構成：確認・設定あり';
-  const EXTERNAL_TEXT  = '外部資料：照合済み';
-
   if (!hasContent && !hasStructure && !hasExternal) {
     return `<span class="provenance-dots">`
-      + `<span class="provenance-dot provenance-dot--none" data-tooltip="${NONE_TEXT}"></span></span>`;
+      + `<span class="provenance-dot provenance-dot--none"></span></span>`;
   }
 
   const dots = [];
   if (hasContent) {
-    dots.push(`<span class="provenance-dot provenance-dot--content" data-tooltip="${CONTENT_TEXT}"></span>`);
+    dots.push(`<span class="provenance-dot provenance-dot--content"></span>`);
   }
   if (hasStructure) {
-    dots.push(`<span class="provenance-dot provenance-dot--structure" data-tooltip="${STRUCTURE_TEXT}"></span>`);
+    dots.push(`<span class="provenance-dot provenance-dot--structure"></span>`);
   }
   if (hasExternal) {
-    dots.push(`<span class="provenance-dot provenance-dot--external" data-tooltip="${EXTERNAL_TEXT}"></span>`);
+    dots.push(`<span class="provenance-dot provenance-dot--external"></span>`);
   }
   return `<span class="provenance-dots">${dots.join('')}</span>`;
 }
@@ -2054,6 +2052,199 @@ function syncProvenanceSummary(proj) {
     hasStructureEdit: p.hasStructureEdit === true,
     externalCheck: { checked: p.externalCheck?.checked === true },
   };
+}
+
+/**
+ * writeExternalCheck — externalCheck（🟢 外部資料確認）を更新する
+ * 唯一の書き込み窓口（Phase127-E①）。
+ *
+ * [Authority] raw.provenance.externalCheckがPersistence Authority（正本）。
+ * project.provenanceSummary.externalCheckはそこから導出されるProjection
+ * （[PERSISTENCE OWNERSHIP PRINCIPLE]・既存のhasContentEdit等と同じ扱い）。
+ * 本関数は新しいAuthorityを新設するものではなく、既存のraw.provenance構造
+ * に対する書き込み経路を追加するものである。
+ *
+ * [経路の分岐] 対象が「今開いているプロジェクト」か否かで書き込み方式を
+ * 自動的に切り替える。
+ *
+ *   今開いているプロジェクト:
+ *     project.analysis.raw（メモリ上の生きた正本）を直接書き換えて保存する。
+ *     Analysis Editorの未保存編集（analysisEditor.buffer）は別領域にあり
+ *     saveAnalysisEdit()実行時までrawへ反映されないため干渉しない
+ *     （baseVersion不要。saveAnalysisEdit()自体と同じ無条件保存パターン）。
+ *     これにより、Analysis Editor編集セッション中でも安全に呼び出せる
+ *     （メニュー項目を無効化する必要がない）。
+ *
+ *   それ以外のプロジェクト（Library上の別の曲）:
+ *     loadAnalysisFile()で現在のraw/generatedAtを取得し、baseVersionとして
+ *     渡した上でsaveAnalysisFile()する（backfillContentEditProvenance()と
+ *     同一の楽観的並行性制御・[BACKFILL NON-DESTRUCTIVE INVARIANT]と同種）。
+ *
+ * [checkedAtのルール] checkedがfalse→trueに変わった瞬間のみ現在時刻を記録する。
+ * true→trueのまま参照元/URL/メモだけを変更した場合や、falseへ戻す場合は
+ * checkedAtを変更しない（「この内容について外部資料と照合した時刻」という
+ * 意味を保つため。何度も保存しても上書きされない）。
+ *
+ * [チェック解除] checked=falseで保存しても、reference/url/memo/checkedAtは
+ * すべて保持する。全消去は呼び出し側（モーダル）の「確認情報をクリア」操作
+ * でフォーム入力を空にしてから保存した場合のみ発生する（本関数自体は
+ * 「保持」と「消去」を区別しない。渡されたpatchをそのまま反映するだけ）。
+ *
+ * @param {string} targetProjectId
+ * @param {{ checked: boolean, reference: string, url: string, memo: string }} patch
+ * @returns {Promise<'ok'|'conflict'|'error'|'no-analysis'>}
+ */
+async function writeExternalCheck(targetProjectId, patch) {
+  const isCurrent = targetProjectId === project.id && !!project.analysis?.raw?.provenance;
+
+  if (isCurrent) {
+    const prev = project.analysis.raw.provenance.externalCheck ?? {};
+    const wasChecked = prev.checked === true;
+    const checkedAt = (!wasChecked && patch.checked) ? new Date().toISOString() : (prev.checkedAt ?? null);
+
+    project.analysis.raw.provenance.externalCheck = {
+      checked: patch.checked, reference: patch.reference, url: patch.url, checkedAt, memo: patch.memo,
+    };
+
+    const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
+    if (saveResult !== 'ok') return 'error';
+
+    syncProvenanceSummary(project);
+    autoSaveLocal();
+    return 'ok';
+  }
+
+  const analysisFile = await loadAnalysisFile(targetProjectId);
+  if (!analysisFile || !analysisFile.raw) return 'no-analysis';
+
+  const raw = analysisFile.raw;
+  const prevExternal = raw.provenance?.externalCheck ?? {};
+  const wasChecked = prevExternal.checked === true;
+  const checkedAt = (!wasChecked && patch.checked) ? new Date().toISOString() : (prevExternal.checkedAt ?? null);
+
+  const patchedProvenance = {
+    ...(raw.provenance ?? {}),
+    externalCheck: { checked: patch.checked, reference: patch.reference, url: patch.url, checkedAt, memo: patch.memo },
+  };
+  const patchedRaw = { ...raw, provenance: patchedProvenance };
+
+  const saveResult = await saveAnalysisFile(targetProjectId, patchedRaw, analysisFile.repairRule, analysisFile.generatedAt);
+  if (saveResult !== 'ok') return saveResult; // 'conflict' | 'error'
+
+  await _syncProvenanceSummaryOnly(targetProjectId, patchedProvenance);
+  return 'ok';
+}
+
+/**
+ * _escapeAttrText — HTML属性値・textarea内容へ安全に埋め込むための最小エスケープ。
+ * textTooltip.jsのsafeText（&lt;/&gt;のみ）と同じ思想だが、こちらは
+ * 属性値（value="..."）にも使うため " と & も対象に含める。
+ */
+function _escapeAttrText(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * openExternalCheckModalFor — External Check（🟢）編集モーダルの起動窓口（Phase127-E①）。
+ *
+ * 対象プロジェクトの現在値（externalCheck）を取得してからモーダルを開く。
+ * 「今開いているプロジェクト」はメモリから同期的に取得、それ以外は
+ * loadAnalysisFile()で読む（writeExternalCheck()と同じ経路の使い分け）。
+ * 解析データが存在しない場合はここで打ち切る
+ * （beginAnalysisEdit()のcanBeginAnalysisEdit()ガードと同じ考え方）。
+ *
+ * @param {string} targetProjectId
+ */
+async function openExternalCheckModalFor(targetProjectId) {
+  const isCurrent = targetProjectId === project.id;
+
+  let current;
+  if (isCurrent) {
+    if (!project.analysis) { toast('解析データがありません'); return; }
+    current = project.analysis.raw.provenance.externalCheck ?? {};
+  } else {
+    const analysisFile = await loadAnalysisFile(targetProjectId);
+    if (!analysisFile || !analysisFile.raw) { toast('解析データがありません'); return; }
+    current = analysisFile.raw.provenance?.externalCheck ?? {};
+  }
+
+  _openExternalCheckModal(targetProjectId, current);
+}
+
+/**
+ * _openExternalCheckModal — External Check編集モーダルの実体（同期・DOM構築のみ）。
+ * openModal()（既存モーダル基盤）を呼ぶだけの薄いラッパー
+ * （openSectionRenameModal()と同じ方針）。
+ */
+function _openExternalCheckModal(targetProjectId, current) {
+  const checked   = current.checked === true;
+  const reference = current.reference ?? '';
+  const url       = current.url ?? '';
+  const memo      = current.memo ?? '';
+  const checkedAtLabel = current.checkedAt
+    ? `前回確認日時: ${new Date(current.checkedAt).toLocaleString()}`
+    : '未確認';
+
+  openModal({
+    title: '外部資料確認の記録',
+    body: `
+      <div class="modal-field-label">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="extchk-checked-in" ${checked ? 'checked' : ''}>
+          外部資料と照合済みにする
+        </label>
+      </div>
+      <div class="modal-field-label" style="margin-top:8px">参照元名</div>
+      <input type="text" id="extchk-reference-in" class="mi" value="${_escapeAttrText(reference)}">
+      <div class="modal-field-label" style="margin-top:8px">URL</div>
+      <input type="text" id="extchk-url-in" class="mi" value="${_escapeAttrText(url)}">
+      <div class="modal-field-label" style="margin-top:8px">メモ</div>
+      <textarea id="extchk-memo-in" class="mi" rows="3">${_escapeAttrText(memo)}</textarea>
+      <div class="modal-caption modal-section" id="extchk-checkedat-label" style="margin-top:8px">
+        ${checkedAtLabel}
+      </div>
+      <button type="button" class="dd-item" id="extchk-clear-btn" style="margin-top:8px;width:100%;text-align:center">
+        🗑 確認情報をクリア
+      </button>
+    `,
+    onOpen: () => {
+      document.getElementById('extchk-reference-in')?.focus();
+      // [確認情報をクリア] フォーム上のみ空にする。保存を押すまで実データは変更しない。
+      document.getElementById('extchk-clear-btn')?.addEventListener('click', () => {
+        document.getElementById('extchk-checked-in').checked = false;
+        document.getElementById('extchk-reference-in').value = '';
+        document.getElementById('extchk-url-in').value = '';
+        document.getElementById('extchk-memo-in').value = '';
+        document.getElementById('extchk-checkedat-label').textContent = '未確認（保存で確定）';
+      });
+    },
+    buttons: (close) => [
+      mkMBtn('キャンセル', '', close),
+      mkMBtn('保存', 'ok', async () => {
+        const patch = {
+          checked:   document.getElementById('extchk-checked-in')?.checked === true,
+          reference: document.getElementById('extchk-reference-in')?.value ?? '',
+          url:       document.getElementById('extchk-url-in')?.value ?? '',
+          memo:      document.getElementById('extchk-memo-in')?.value ?? '',
+        };
+        const result = await writeExternalCheck(targetProjectId, patch);
+
+        if (result === 'no-analysis') { toast('⚠ 解析データがありません'); return; }
+        if (result === 'conflict')     { toast('⚠ 保存中に他の変更が入りました。もう一度お試しください'); return; }
+        if (result === 'error')        { toast('⚠ 保存に失敗しました'); return; }
+
+        close();
+        toast('✅ 外部資料確認を記録しました');
+        if (typeof renderLibrary === 'function') {
+          try { await renderLibrary(); } catch { /* Library未表示時は無視 */ }
+        }
+        if (targetProjectId === project.id && chartState.active) {
+          renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
+        }
+      }),
+    ],
+  });
 }
 
 /**
@@ -3668,44 +3859,236 @@ function applyProvenanceVisible() {
   document.body.classList.toggle('provenance-hidden', !provenanceVisible);
 }
 
-// ── textTooltip: Library一覧への委譲登録（Phase127-D'） ────────
-// hover（デスクトップ）用。#library-listは常時DOM存在のため、
-// Chart Modeのようなopen/closeライフサイクルと無関係に一度だけ登録する。
-// textTooltip.js自体はProvenanceの意味を知らない（[ChatGPT Review #2]）。
-// ここ（app.js側）が「どの属性から文字列を取り出すか」を決める。
-function _setupLibraryProvenanceTooltipEvents() {
-  const list = document.getElementById('library-list');
-  if (!list) return;
+// [Phase127-E③ TOOLTIP CONSOLIDATION]
+// textTooltip.js経由のhover Tooltip（Library一覧への委譲登録・タップ表示）は
+// 廃止した。理由・経緯は showProvenancePopover() 直前のコメント参照。
+// textTooltip.js自体（モジュールファイル）は削除しない。Provenance専用実装
+// ではなく「1行テキストの汎用tooltip」として設計された独立サブシステム
+// （Phase127-D'）であり、将来的に別用途で再利用される可能性があるため。
+// 現時点でこのモジュールを呼び出す箇所はapp.js/chartmode.js内に存在しない
+// （orphaned。current-issues.mdへ記録）。
 
-  list.addEventListener('pointerover', e => {
-    const to = e.target.closest('.provenance-dot[data-tooltip]');
-    if (!to) { textTooltip.hide(); return; }
-    const from = e.relatedTarget?.closest?.('.provenance-dot[data-tooltip]');
-    if (from === to) return;
-    textTooltip.show(to.dataset.tooltip, to.getBoundingClientRect());
-  });
+// ── Provenance Popover（Phase127-E②） ──────────────────────
+//
 
-  list.addEventListener('pointerout', e => {
-    const from = e.target.closest('.provenance-dot[data-tooltip]');
-    if (!from) return;
-    const to = e.relatedTarget?.closest?.('.provenance-dot[data-tooltip]');
-    if (to === from) return;
-    textTooltip.hide();
+// [PROVENANCE POPOVER SCOPE]
+// Popoverは編集・確認の状態（🟡🔵🟢）を表示する参照UIであり、Provenanceデータを
+// 直接変更しない。編集操作は既存のExternal Check編集UI（writeExternalCheck() /
+// openExternalCheckModalFor()。Phase127-E①）へ委譲する。Popover自身は書き込み
+// ロジックを重複実装しない。
+//
+// [判断: TOOLTIP CONSOLIDATION（Phase127-E③）]
+// hover Tooltip（textTooltip.js経由・Phase127-D'）は廃止し、dotの情報表示を
+// 右クリックPopoverへ一本化する。
+//
+// 理由: Popoverが🟡🔵🟢すべての状態と詳細（参照元/URL/確認日/メモ）を
+// まとめて表示するため、Tooltipの「1行説明」はPopoverの表示内容に
+// 完全に包含される（情報として重複するだけで、Tooltip独自の価値がない）。
+// また実装調査で、dotをhoverした直後に右クリックするとTooltipを閉じる
+// 処理がどこにも無く、Tooltip残留とPopoverの座標重なりが構造的に起こる
+// ことが判明した（対症療法でhideを都度追加するより、表示経路自体を
+// 1つに絞る方が再発を防げると判断）。
+//
+// textTooltip.js（モジュール本体）は削除しない。Provenance専用実装ではなく
+// 「1行テキストの汎用tooltip」として設計された独立サブシステムであり、
+// 別用途での再利用に備えて残す（現時点では呼び出し元がなくorphanedの
+// 状態。current-issues.mdへ記録）。
+//
+
+// 右クリック→詳細Popover（一次確認UI）→「確認情報を編集する」→既存Modal
+// （二次編集UI）の一本道とする。中間のContext Menu選択肢は設けない。
+// 理由: PopoverはExternal Check編集の「前段階」ではなく、それ自体が独立した
+// 価値（現在の編集・確認状態を確認すること）を持つため。
+//
+// [判断: Library / Chart Modeで当たり判定を統一しない]
+// Library=行全体が右クリック対象、Chart Mode=.provenance-dots限定、という
+// 非対称は意図的に維持する。「操作体系（右クリック→Popover→編集）」の統一と
+// 「当たり判定の範囲」の統一は別の関心事であり、Libraryは元々「行のどこを
+// 右クリックしてもその曲に対する操作ができる」という既存の一般原則がある
+// （Provenance専用に狭める理由がない）。Chart Modeはヘッダー全体に他の
+// 右クリック機能（小節頭補正メニュー）が既に存在するため、dotグループへの
+// 限定が必然。
+//
+// [DATA SOURCE]
+//   今開いているプロジェクト: project.analysis.raw.provenance を同期参照
+//   Libraryの他の曲:          loadAnalysisFile()（openExternalCheckModalFor()と
+//                              同一経路）で非同期取得
+//
+// [LIFECYCLE] 既存の.library-context-menu/.chart-context-menu（動的生成・
+// position:fixed・外クリック/Escapeで閉じる）と同じパターンを踏襲する。
+// 新しい開閉制御の仕組みは発明しない。Library/Chart Mode共通の入口として
+// showProvenancePopover()の1関数に集約する（renderProvenanceDots()と同じ
+// 「app.js側に正本を置き、呼び出し元は薄く保つ」方針）。
+let _provenancePopoverEl = null;
+
+// [STALE RESPONSE GUARD] loadProj()の_loadGenerationと同じ考え方。
+// await前（同期区間）で採番し、await後に一致確認することで、短時間に
+// A曲→B曲とPopoverを開き直した場合でもAの取得結果がBの表示へ混入しない。
+let _provenancePopoverGeneration = 0;
+
+function _hideProvenancePopover() {
+  if (_provenancePopoverEl) {
+    _provenancePopoverEl.remove();
+    _provenancePopoverEl = null;
+  }
+}
+
+/**
+ * _positionProvenancePopover — 画面端でのoverflowを補正して配置する
+ * （chartmode.js _showContextMenu()と同じ手法。既存のLibrary/Chart Context Menuから踏襲）。
+ * 内容差し替え後の再配置にも使えるよう、appendChild込みで冪等に実装する。
+ *
+ * [PERF] appendChild()直後にgetBoundingClientRect()を呼ぶと、ブラウザは
+ * ページ全体の未処理レイアウトを同期的に強制完了させてから値を返す
+ * （forced synchronous reflow）。Library一覧のように行数が多いDOMでは
+ * これがメインスレッドを一瞬ブロックし、「枠だけ先に描画され、少し遅れて
+ * 中身が確定する」ように見える体感の詰まり（Phase127-E③実機確認で発見）を
+ * 引き起こす。requestAnimationFrame()で画面端補正を次フレームへ遅らせる
+ * ことで、appendChild直後の最初の描画を中断させない。
+ */
+function _positionProvenancePopover(el, clientX, clientY) {
+  el.style.position = 'fixed';
+  el.style.zIndex   = '9999';
+  el.style.left     = clientX + 'px';
+  el.style.top      = clientY + 'px';
+  document.body.appendChild(el); // 既にDOM上にあれば移動のみ（冪等）
+
+  requestAnimationFrame(() => {
+    // 補正前にPopoverが既に閉じられている／差し替えられている場合は何もしない
+    if (!el.isConnected) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.right  > window.innerWidth)  el.style.left = (clientX - rect.width)  + 'px';
+    if (rect.bottom > window.innerHeight) el.style.top  = (clientY - rect.height) + 'px';
   });
 }
 
-// ── textTooltip: タップ表示 / 外タップで閉じる（Phase127-D'） ──────
-// 既存の「外クリックで閉じる」パターン（Section▼メニュー等・app.js内）
-// と同型。Library・Chart Modeどちらの.provenance-dotも document委譲
-// 1箇所でまとめて扱える（要素がどちらのモジュール所有DOMかを問わない）。
-document.addEventListener('click', e => {
-  const dot = e.target.closest('.provenance-dot[data-tooltip]');
-  if (dot) {
-    textTooltip.show(dot.dataset.tooltip, dot.getBoundingClientRect());
+/**
+ * _renderProvenancePopoverBody — Popover本体のHTML片を生成する。
+ * 🟡🔵🟢すべてfalse（未記録）の場合も、Popover自体は表示する
+ * （「何もない」のではなく「まだ何も記録されていない」ことを示す。
+ * 外部資料は未確認でも編集導線を提供する価値があるため）。
+ *
+ * @param {'loading'|'ready'} state
+ * @param {object} [p] - state==='ready' 時のprovenanceオブジェクト（normalizeProvenance()形状）
+ */
+function _renderProvenancePopoverBody(state, p) {
+  if (state === 'loading') {
+    return `<div class="provenance-popover-title">編集・確認の状態</div>
+      <div class="provenance-popover-loading">読み込み中…</div>`;
+  }
+
+  const hasContent   = p?.hasContentEdit === true;
+  const hasStructure = p?.hasStructureEdit === true;
+  const ec = p?.externalCheck ?? {};
+  const hasExternal = ec.checked === true;
+
+  const contentLabel   = hasContent   ? 'コード進行：確認・修正あり' : 'コード進行：未記録';
+  const structureLabel = hasStructure ? '曲の構成：確認・設定あり'   : '曲の構成：未記録';
+  const externalLabel  = hasExternal  ? '外部資料：確認済み'         : '外部資料：未確認';
+
+  let externalDetail = '';
+  if (hasExternal) {
+    const checkedAtText = ec.checkedAt ? new Date(ec.checkedAt).toLocaleString() : '';
+    const lines = [
+      ec.reference ? `<div>参照元: ${_escapeAttrText(ec.reference)}</div>` : '',
+      ec.url        ? `<div>URL: ${_escapeAttrText(ec.url)}</div>` : '',
+      checkedAtText ? `<div>確認日: ${_escapeAttrText(checkedAtText)}</div>` : '',
+      ec.memo       ? `<div>メモ: ${_escapeAttrText(ec.memo)}</div>` : '',
+    ].filter(Boolean).join('');
+    if (lines) externalDetail = `<div class="provenance-popover-detail">${lines}</div>`;
+  }
+
+  return `
+    <div class="provenance-popover-title">編集・確認の状態</div>
+    <div class="provenance-popover-row"><span class="provenance-dot provenance-dot--content"></span>${contentLabel}</div>
+    <div class="provenance-popover-row"><span class="provenance-dot provenance-dot--structure"></span>${structureLabel}</div>
+    <div class="provenance-popover-row"><span class="provenance-dot provenance-dot--external"></span>${externalLabel}</div>
+    ${externalDetail}
+    <button type="button" class="provenance-popover-edit-btn" id="provenance-popover-edit-btn">確認情報を編集する</button>
+  `;
+}
+
+function _bindProvenancePopoverEditButton(el, targetProjectId) {
+  const btn = el.querySelector('#provenance-popover-edit-btn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    // [順序] 閉じる→開く の順で同期的に呼ぶ。openModal()は独立したオーバーレイ
+    // DOM（mOv）を使い、document全体のクリック委譲とは無関係なため競合しない。
+    _hideProvenancePopover();
+    openExternalCheckModalFor(targetProjectId);
+  });
+}
+
+/**
+ * showProvenancePopover — Provenance Popoverの唯一の入口（Phase127-E②）。
+ * Library・Chart Mode両方から、この1関数を呼ぶだけでよい。
+ *
+ * @param {string} targetProjectId
+ * @param {number} clientX
+ * @param {number} clientY
+ */
+async function showProvenancePopover(targetProjectId, clientX, clientY) {
+  const myGeneration = ++_provenancePopoverGeneration; // await前に同期的に採番
+  _hideProvenancePopover();
+
+  const el = document.createElement('div');
+  el.className = 'provenance-popover';
+  _provenancePopoverEl = el;
+
+  const isCurrent = targetProjectId === project.id;
+
+  if (isCurrent) {
+    // 同期経路: project.analysis.raw.provenance を直接参照し即座に確定表示
+    el.innerHTML = _renderProvenancePopoverBody('ready', project.analysis?.raw?.provenance);
+    _positionProvenancePopover(el, clientX, clientY);
+    _bindProvenancePopoverEditButton(el, targetProjectId);
     return;
   }
-  textTooltip.hide();
-});
+
+  // 非同期経路: 「読み込み中…」の枠を先に表示してから取得する
+  // （クリック位置に対する見た目の反応を即座に返し、「押せた」ことを伝える）
+  el.innerHTML = _renderProvenancePopoverBody('loading');
+  _positionProvenancePopover(el, clientX, clientY);
+
+  const analysisFile = await loadAnalysisFile(targetProjectId);
+
+  if (myGeneration !== _provenancePopoverGeneration) return; // stale判定
+  if (_provenancePopoverEl !== el) return; // 外クリック等で既に閉じられていた場合の保険
+
+  el.innerHTML = _renderProvenancePopoverBody('ready', analysisFile?.raw?.provenance);
+  _positionProvenancePopover(el, clientX, clientY); // サイズが変わるため再配置
+  _bindProvenancePopoverEditButton(el, targetProjectId);
+}
+
+/**
+ * _setupProvenancePopoverEvents — 外クリック/Escapeで閉じる委譲登録（一度だけ）。
+ * Library/Chart Mode共通（document委譲のためどちらのモジュール所有DOMかを問わない）。
+ */
+function _setupProvenancePopoverEvents() {
+  document.addEventListener('click', e => {
+    if (_provenancePopoverEl && !_provenancePopoverEl.contains(e.target)) {
+      _hideProvenancePopover();
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _provenancePopoverEl) _hideProvenancePopover();
+  });
+}
+
+// ── Library: 行の右クリック → Provenance Popover（Phase127-E②） ─────
+// #library-listは常時DOM存在のため、Chart Modeのようなopen/closeライフサイクル
+// と無関係に一度だけ登録する。
+function _setupLibraryContextMenu() {
+  const list = document.getElementById('library-list');
+  if (!list) return;
+
+  list.addEventListener('contextmenu', e => {
+    const row = e.target.closest('.library-item[data-id]');
+    if (!row) return;
+    e.preventDefault(); // ブラウザ標準メニューを抑制
+    showProvenancePopover(row.dataset.id, e.clientX, e.clientY);
+  });
+}
 
 // ── 表示メニューのチェックマーク更新 ─────────────
 // メニューを開くたびに現在の状態を反映する。
@@ -6131,9 +6514,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   applyProvenanceVisible();
   _updateProvenanceMenu(provenanceVisible);
 
-  // [Phase127-D'] textTooltip初期化（アプリ起動時に1回だけ・Chart Modeのlifecycleとは無関係）
-  textTooltip.init();
-  _setupLibraryProvenanceTooltipEvents();
+  // [Phase127-E③] textTooltip.init()呼び出しは削除した。Provenanceのhover
+  // Tooltipを廃止したことで、app.js側にtextTooltip.jsを呼ぶ箇所が
+  // 無くなったため（[TOOLTIP CONSOLIDATION]・showProvenancePopover()直前の
+  // コメント参照）。textTooltip.js自体は将来の別用途に備えて残す。
+  _setupProvenancePopoverEvents(); // [Phase127-E②] Provenance Popoverの外クリック/Escape
+  _setupLibraryContextMenu();      // [Phase127-E②] Library行の右クリック→Provenance Popover
 
   if (btnCollapse) {
     btnCollapse.addEventListener('click', () => {
@@ -6322,12 +6708,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     // 同じ「正本の導出はapp.js・描画側は渡された値を使うだけ」の原則）。
     renderProvenanceDots: renderProvenanceDots,
 
-    // [Phase127-D'] 編集状況(●)のhover/tap tooltip用。textTooltip.js
-    // （Provenanceの意味を知らない汎用モジュール）のAPIをそのまま注入する。
-    // chartmode.js側は「このテキストをここに表示して」と呼ぶだけで、
-    // Provenanceドメイン知識・DOM生成・画面端clamp計算は一切持たない。
-    showTextTooltip: textTooltip.show,
-    hideTextTooltip: textTooltip.hide,
+    // [Phase127-E③] showTextTooltip/hideTextTooltipの注入は廃止した。
+    // Provenance dotのhover Tooltipを廃止し右クリックPopoverへ一本化
+    // したため（[TOOLTIP CONSOLIDATION]・app.js側showProvenancePopover()
+    // 直前のコメント参照）。chartmode.js側のパラメータ自体も削除済み。
 
     // [OWNERSHIP INVARIANT] chartmode.js は project tree を直接読まない。
     // normalized は app.js が project.analysis から取り出して注入する。
@@ -6357,6 +6741,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     // [OWNERSHIP] chartmode.jsはbufferを持たないため、chordId→index の問い合わせを
     // app.js側のこの関数経由で行う（getAnalysis/getNormalizedと同じ注入パターン）。
     getChordIndex: _getChordBufferIndex,
+
+    // [Phase127-E②] ヘッダーの.provenance-dots右クリック通知。
+    // [OWNERSHIP] Provenance Popoverの表示・External Checkの読み書き・
+    // モーダル生成はapp.js側が持つ。chartmode.jsは常に「今開いている
+    // プロジェクト」しか表示しないため、Library一覧のような対象ID解決は
+    // 不要（project.idを直接渡すだけでよい）。座標(x,y)はPopoverの
+    // 表示位置に使う（Phase127-E①からの変更点。旧: 引数なしで直接編集
+    // モーダルを開いていた）。
+    onExternalCheckRequested: (x, y) => showProvenancePopover(project.id, x, y),
 
     // Phase72-B: manual timing correction コールバック
     // [OWNERSHIP] repairRule の保存・project.analysis 更新・再描画は app.js が持つ。

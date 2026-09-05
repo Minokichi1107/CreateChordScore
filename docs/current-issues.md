@@ -1,15 +1,45 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase127-D'完了時点＋GitHub Issue監査反映
-> （Provenance/表示メニュー系issue 2件＋UI改善1件をADD。加えてGitHub Issue監査
-> により、Chart Mode系/Analysis Editor系/技術的負債へ5件を追加、既に解消済みの
-> 陳腐化した記載2件を削除）
-> 本フェーズはDeferred Documentation運用最後の記録として、棚卸しを待たず
-> handover作成時に直接current-issues.mdへ反映した。この運用（フェーズ完了時の
-> 直接反映）を今後の正式ルールとするかどうかは、Phase127完了時点であらためて
-> 確定する（本ファイルでは先取りして確定事項とはしない）。
+> 最終更新: Phase127 closeout作業中（Issue台帳の棚卸し反映。
+> phase-status.md同期・phase127_snapshot.md最終確定はこの後に控えている）
+> 内部Issue番号とGitHub Issue番号が別体系であることが判明したため、
+> 番号体系ルールを新設（下記「0. Issue番号ルール」参照）。あわせて
+> GitHub Issue監査により#28の誤記訂正・#45/#91のreopen反映・#103/#104の
+> 追加・E②由来の新規課題2件の追加・Tooltip廃止に伴う陳腐化課題1件の
+> 削除を行った。
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
+
+---
+
+## 0. Issue番号ルール（Phase127 closeoutで確立）
+
+```
+[ISSUE ID AUTHORITY]（Phase127で確立）
+
+今後、新規Issueの番号はGitHub Issue番号を正式なIDとして使用する。
+
+背景: 本ファイルは長らく独自の内部採番（Issue #26, #27, #28...）を
+使ってきたが、GitHub Issues併用開始（Phase125）以降、両者が別々に
+採番される二重体系になっていた。Phase127完了時のGitHub Issue監査で、
+内部の「Issue #28」（Decorator視認性の話）とGitHub上の実際の
+「Issue #28」（別件・パネルボタン文字見切れ）が完全な別内容で
+偶然番号が衝突していることが発覚した。これは実害（誤参照）を
+伴う具体的な事例であり、番号体系の統一が必要と判断した。
+
+運用:
+  ・今後の新規Issueは、必ずGitHub Issue番号で記載する
+    （例: 「GitHub Issue #103」「GitHub #104」）
+  ・既存の内部番号（Issue #26/#27/#28等）は歴史的記録として維持し、
+    遡及的に書き換えない（過去の会話・コミットメッセージ・handoverが
+    参照する番号の対象を将来も変えないため。既存の
+    [ISSUE NUMBER GAP TOLERANCE]と同じ考え方の延長）
+  ・内部番号とGitHub番号が偶然同じ値になっても、それは無関係な
+    別Issueである可能性を常に疑うこと（#28の実例を参照）
+  ・GitHub上に対応するIssueが存在する内部項目には、判明した時点で
+    「GitHub Issue #N」を注記する（新設のみで足り、内部番号自体は
+    変更しない）
+```
 
 ---
 
@@ -32,7 +62,13 @@
 
 ---
 
-### Issue #28 — Decorator視認性優先原則の既存Decoratorへの適用確認（Phase102-Bで発見）
+### Issue #28（内部番号。GitHubの#28とは無関係な別Issue） — Decorator視認性優先原則の既存Decoratorへの適用確認（Phase102-Bで発見）
+
+> [注記・Phase127完了時の棚卸しで発見] この項目の番号「#28」は本ファイルの
+> 内部採番であり、GitHub Issue #28（「ウインドウを分割または小さくした時に
+> 上部パネルのボタンの文字が見切れる問題」・closed）とは全くの別内容。
+> 番号が偶然衝突しているだけなので混同しないこと（「0. Issue番号ルール」参照）。
+
 状態: 検討中
 目的:
 - [DECORATOR LEGIBILITY PRINCIPLE]（architecture.md §12・Phase102-Bで採用）を、
@@ -43,6 +79,9 @@
 対象候補:
 - Selection Highlight / Search Highlight（同系色の濃淡による表現）
 - EditPoint / Collision Indicator / Correction Badge
+- provenance-dot--content（🟡）が、silver/blueテーマで`--color-amber-rgb`
+  （Phase78由来の暗色定義）を継承しているため、暗めの茶色に見える
+  （Phase127-E①の実機確認で発見。実害は軽微だが確認候補とする）
 
 方向性:
 - 単独では優先度が低いため、次回のTheme Audit（README.md運用ルール参照）と
@@ -81,6 +120,14 @@
 
 #### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
 状態: Type B対応済み・Type A/C/D未対応
+
+> [注記・Phase127完了時の棚卸しで発見] この内部番号「#45」は
+> GitHub Issue #45と実際に一致する（本文内容も同一）。GitHub側は
+> 2026-06-24に一度「completed」としてcloseされていたが、Type A/C/Dが
+> 未対応であるため、現在のIssue管理上は未完了と判断し、2026-09に
+> reopenした。「Type Bのみ対応してcloseした」という意図的な区切り
+> だった可能性は排除できないが、本文に明記が無く確認できないため、
+> 安全側に倒してreopenした（たかっちさんの判断）。
 
 | Type | 原因 | 対処状況 |
 |---|---|---|
@@ -263,16 +310,6 @@ scheduling delay。現時点は現象記録フェーズ（診断には「5. Futu
 
 ### Provenance / 表示メニュー 系（Phase127-D'で発見）
 
-#### Provenance tooltip（textTooltip.js）のtap挙動が実機未検証
-状態: 検証保留
-内容: Library一覧・Chart Modeヘッダーの●tooltipについて、hover表示はPC実機で
-確認済み。tap→表示→外部tap→非表示という挙動は、PC環境ではhoverが先に発火する
-ため単体で検証できなかった。実装は既存の「外クリックで閉じる」パターン
-（Section▼メニュー等・app.js）を踏襲しているためリスクは低いと考えられるが、
-「ロジックのリスクが低い」ことと「動作を実機確認した」ことは別の主張であり、
-未検証は未検証のまま記録する。タッチデバイス入手時、またはChrome DevTools
-のタッチエミュレートで正式に検証する。
-
 #### Chart コード図メニューの✔初期同期漏れ（潜在的不整合）
 状態: 未確認・実害未確認
 内容: 表示メニューの「✔ Chart コード図」項目は、`_updateChartDiagMenu()`が
@@ -299,9 +336,37 @@ HTML側に`✔`がハードコードされておりデフォルト値（true）�
 表示にしたいという要望あり。Provenance機能（●表示）の有無に関わらず必要な
 改善であり、独立したUI改善として扱う。
 
+### ユーザー向け表記から内部モデルの用語を排除する（GitHub Issue #103）
+状態: 未対応
+内容: ユーザーインターフェース上に、内部実装の用語（Provenance・
+Authority・Session等）をそのまま出さず、一般ユーザー向けの分かりやすい
+表記へ統一する。Phase127-E②でも同種の課題が個別に発生していた
+（「Provenance」を避け「編集・確認の状態」という表記へ変更した実例。
+handover_phase127-e2.md参照）。本Issueはこれを個別対応ではなく横断的な
+方針として一般化したもの。今後UI文言を追加・変更する際は、この観点を
+都度確認する運用が望ましい（着手時期・具体的な対象範囲は未定）。
+
 ---
 
 ## 4. 既知の技術的負債
+
+### textTooltip.jsがorphaned module（呼び出し元なし）になった（Phase127-E②で発見）
+状態: 未対応・優先度低
+内容: Phase127-E②のhover Tooltip廃止（[TOOLTIP CONSOLIDATION]。Provenance
+Popoverへ情報表示を一本化したため）に伴い、app.js・chartmode.jsの
+どちらからもtextTooltip.jsの呼び出し箇所が無くなった。モジュール自体は
+「1行テキストの汎用tooltip」として設計された独立サブシステム
+（Phase127-D'）であり、Provenance専用実装ではないため削除せず残置して
+いる。splitChord()（Phase121発見のデッドコード候補）と同種の扱い。
+将来の別用途での再利用が無ければ削除を検討する。
+
+### Naming debt: `_setupLibraryContextMenu()` / `onExternalCheckRequested`（Phase127-E②で発見）
+状態: 未対応・優先度低
+内容: `_setupLibraryContextMenu()`（実装は既にProvenance Popover呼び出しへ
+変更済み）・`onExternalCheckRequested`（現在はPopover表示のための座標通知に
+使用）は、いずれも旧UI設計（Context Menu／直接編集モーダル）時代の名称の
+まま残っている。機能上の問題はないためリネームせず、将来のコード整理
+候補として記録する（ChatGPT Review・handover監査で指摘）。
 
 ### ⚠️ Public Release Blocker: public repository に実曲データが含まれていたリスク（GitHub #52）
 状態: 対応中（repo をprivate化済み・緊急性は下がったが公開前には必須対応）
@@ -389,7 +454,7 @@ insertion cursor化・行またぎnavigation・hover-only削除ボタンは対�
 内容: AddChordモーダルから simile token（`{type:'simile', bars:1|2}`）を挿入できるUIと、
 そのSVG描画（performSimileStyle='svg'対応）。Phase38-2で設計済み。
 
-#### Issue #26 — ChordMini Beat/Grid情報対応
+#### Issue #26 — ChordMini Beat/Grid情報対応（GitHub Issue #26）
 内容: 将来の `bars[]` 構造への移行・grid表示・beat alignment対応。
 `isSepToken()` access layer確立済み（Phase39-3/4）のため土台はできている。
 
@@ -429,6 +494,15 @@ Inventory整理（Phase96）で明確になった。「開発者情報を表示�
 ニーズが確認された。ただしUI・作成フロー・Boundary Editor・Preview・
 Navigationすべてに影響する規模のため、独立したEpicとして着手すること
 （Compound Mutation対応とは別スコープ）。
+
+#### Section追加メニューへ日本式の音楽構成プリセットを追加（GitHub Issue #104）
+状態: 未着手
+内容: 現在のSection作成ダイアログの種類プルダウン（verse/chorus/bridge等・
+英語圏の一般的な構成名）に加え、イントロ・Aメロ・Bメロ・サビ・間奏・
+アウトロ等、日本式J-POP構成の呼び方をプリセットとして追加する。
+本プロジェクトの主な利用曲（80〜00年代J-POP・アニソン）との親和性が
+高い改善候補。現時点では候補名称と実装方式を確定せず、着手時に
+既存Section typeとの統合方法をTechnical Designで検討する。
 
 #### Section UX Epic — Section機能をアプリ全体の楽曲構造レイヤーへ拡張（Phase106発見）
 状態: 未着手・構想段階
@@ -574,12 +648,19 @@ P8  Section Quick Actions
 内容: 編集前スナップショットの保存・ChordMini解析直後の状態へリセット・
 analysis.jsonのエクスポート／インポート等。優先度低（開発者向け機能）。
 
-#### Chart Mode → Editor（コード進行の挿入）
+#### Chart Mode → Editor（コード進行の挿入）（GitHub Issue #91で追跡）
 内容: Chart Modeで解析・編集したコード進行を、通常モード（project.lines）へ
 挿入できるようにする。単なるUI改善ではなく、Analysis Buffer → Chart ViewModel →
 project.lines という逆変換が必要な設計テーマ。
 「Editor→Chart」を含む双方向編集・システム統合の全体像は「ロードマップ」の
 「Chart Modeと通常モードのシステム統合」を参照（本項目はその最初のステップ）。
+
+> [注記・Phase127完了時の棚卸しで発見] GitHub Issue #91は2026-09-02に
+> 作成され、本文で「低優先度のバックログとして扱う」とされていたにも
+> 関わらず同日中に「completed」としてcloseされていた。実装の痕跡
+> （コミット・PR）が一切無いため、現在のIssue管理上は未完了と判断し、
+> reopenした（たかっちさんの判断）。依然として未着手のロードマップ
+> 項目のまま変わらない。
 
 #### Keyboard-first UI（キーボード操作の拡充）
 内容: ほぼ全操作をキーボードから行えるようにする、という方向性のテーマ。

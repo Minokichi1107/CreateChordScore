@@ -1,6 +1,8 @@
 # フェーズ進行状況
 
-> 最終更新: Phase123-C2完了時点（Phase119〜123-C2を反映）
+> 最終更新: Phase127完了時点（Phase124〜127-E②を反映。Phase124以降は
+> 固定周期ではなくDocumentation Checkpoint方式で棚卸しする運用のため、
+> 前回の更新（Phase123-C2）から間隔が空いている）
 
 ---
 
@@ -130,20 +132,64 @@ Completed（完了済み）
   影響範囲をヘッダーUI（編集中バッジ・編集ボタンactive表示）に
   限定できることをコード追跡で確認し、render経路自体の整理は
   行わなかった）
+✓ ブルーテーマ演奏モード「✕ 閉じる」ボタン視認性修正（Phase125・
+  `--text-btn-close`をComponent aliasとして3テーマへ新設。「Component
+  単位」ではなく「Component×state（通常/hover）単位」でforeground/
+  backgroundペアを考える必要があるという知見を獲得）
+✓ 演奏モード「復帰」プルダウンのUI改善（Phase126・GitHub Issue #86。
+  単純な見た目修正から討議を経て、表示メニューへの設定移設・ラベル
+  文言再設計・演奏モードバッジ追加・ドロップダウン内select操作対応
+  まで発展。`.dd-item--select`新設）
+✓ Provenance機能一式（Phase127・A〜F・E①〜E②の全サブフェーズ完了。
+  詳細は`docs/handover/archive/handover_phase127-*.md`・
+  `docs/handover/active/handover_phase127-e2.md`参照）:
+  - 127-A/B: データ来歴表示のUI仕様・データモデル確定
+    （`analysis.raw.provenance`・`hasContentEdit`/`hasStructureEdit`/
+    `externalCheck`。[PROVENANCE FACT INVARIANT]確立）
+  - 127-C/D: 自動検出・データ層実装／●表示UI実装（Library一覧・
+    Chart Modeヘッダー共有）
+  - 127-D': hover Tooltip機構（textTooltip.js）を新設したが、後の
+    E②でPopoverへの情報統合により廃止（textTooltip.js自体は汎用
+    モジュールとして残置。current-issues.md参照）
+  - 127-F: 既存データBackfill（🟡 Content Migration・🔵 Structure
+    Sync）・[BACKFILL NON-DESTRUCTIVE INVARIANT]確立・baseVersionに
+    よる楽観的並行性制御。Section消失問題は調査したが原因未確定の
+    まま観察継続（current-issues.md参照）
+  - 127-E①: External Check（🟢）編集UI。`writeExternalCheck()`を
+    唯一の書き込み窓口として新設
+  - 127-E②: Provenance Popover本体。右クリック→Popover（一次確認
+    UI）→「確認情報を編集する」→既存Modal（二次編集UI）の一本道を
+    確立。`[TOOLTIP CONSOLIDATION]`によりhover Tooltipを廃止
+  - 副産物: Handover Review運用（監査往復は原則最大2ラウンド）を
+    docs/handover/README.mdへ正式反映。GitHub Issue番号を今後の
+    Issue ID正本とする`[ISSUE ID AUTHORITY]`をcurrent-issues.mdへ確立
 
-Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」参照）
+Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」および
+current-issues.md参照）
 ------------------------------------------------------------
-Phase119〜123-C2が完了し、5フェーズ棚卸し（本更新）を実施済み。
-Phase119はUndo/Redo着地点への一時ハイライトを実装し、Phase120は
-repairRule変更後のChart表示巻き戻りバグを解消した。Phase121〜123では
-Debug Session Recorder（Diagnostic Timeline）を実装した
-（Mutation Recording基盤 → 設計固定 → Mutation Attempt Recording →
-history/future記録 → reconcile診断 → Render Event記録）。
-Phase124ではPhase123-C2で発見された[RENDER CONTEXT INVARIANT]違反
-4箇所を解消し、Diagnostic Timeline v1完成後の最初の「本体復帰」
-フェーズとして完了した。Phase124以降のドキュメント棚卸しは、固定
-周期ではなくDocumentation Checkpoint方式（強制Checkpoint／計画
-Checkpoint。docs/handover/README.md参照。Phase126改訂）へ移行した。
+Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
+演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
+を行い、Phase127でProvenance機能一式（127-A〜F・E①〜E②）を実装した。
+Phase124以降のドキュメント棚卸しは、固定周期ではなくDocumentation
+Checkpoint方式（強制Checkpoint／計画Checkpoint。docs/handover/README.md
+参照。Phase126改訂）へ移行している。
+Phase127は当初の連番（A→B→C→D→E→F）通りには進まず、実際の完了順は
+A→B→C→D→D'→F→E①→E②だった（Fが後続のE①より先に完了・mainへマージ
+済み）。各サブフェーズの詳細な設計判断・実機確認結果は対応する
+handover（docs/handover/archive/・active/）を正本とする。
+
+Phase127完了時のGitHub Issue棚卸しにより、内部Issue番号とGitHub Issue
+番号が別体系であることが判明した（内部の「Issue #28」とGitHub Issue #28
+が偶然番号衝突する無関係の別内容だった実例）。これを受け、GitHub Issue
+番号を今後の正式IDとする運用ルール（[ISSUE ID AUTHORITY]）を
+current-issues.mdへ確立した。既存の内部番号は遡及変更せず歴史的記録
+として維持する。
+
+また、Phase127の途中でhandoverレビュー運用の実験（ChatGPT/Claude双方が
+独立にhandoverを発行しクロス監査する試み）を行ったが、作成コストが
+増えるため通常運用には採用しないと結論づけた。一方、「Handover Review
+の監査往復は原則最大2ラウンドとする」というルールは実用価値が高いと
+判断し、docs/handover/README.mdへ正式反映した。
 
 [決定事項] Debug Session Recorder（Diagnostic Timeline）は
 Phase123-C2（Render Event記録）をもって「v1」として区切り、凍結する。
@@ -159,6 +205,13 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 
 「この機能はどのPhaseで成熟したか」を機能軸で把握するための一覧。
 各Phaseの実装詳細は「3. Phase Timeline」または `docs/handover/archive/` を参照。
+
+### Perform Mode
+
+| Phase | 内容 |
+|---|---|
+| 125 | ブルーテーマ「✕ 閉じる」ボタン視認性修正（`--text-btn-close`新設。通常時/hover時で背景の明暗が逆転するテーマに対応するため、hover時のみ`--text-secondary`へ戻す設計を採用） |
+| 126 | 「復帰」プルダウンのUI改善（GitHub Issue #86。演奏モードヘッダーから表示メニューへ設定移設・`.dd-item--select`新設） |
 
 ### Chart Mode
 
@@ -239,6 +292,22 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 123-C2 | Debug Session Recorder — Render Event（描画イベント）の記録（debug-recorder-design.md [RENDER PATH VISIBILITY]の実装。Mutation-triggered renderのみを対象とし、独立イベント種別（event:'render'）として単一Timelineへ記録。recordRender()の1箇所に生成ロジックを集約。調査過程で[RENDER CONTEXT INVARIANT]違反4箇所を発見（current-issues.md参照）） | app.js / debugSessionRecorder.js |
 | 124 | Render Context Invariant Compliance（[RENDER CONTEXT INVARIANT]（Phase106）への準拠を完了。renderChartMode()全8呼び出し元を再監査し、saveAnalysisEdit()／capo変更ハンドラ／Chart Modeを開くボタン／列数切替ボタンの4箇所へediting: isAnalysisEditing()を追加。editingは_renderChartHeader()内でのみ使用され、GridViewModelの描画データには無関係であることを確認） | app.js |
 
+### Provenance / Data Provenance
+
+Library / Chart Mode / Persistence / External Check編集 / Backfillの
+複数サブシステムにまたがる機能のため、Analysis Editorテーブルとは
+独立させた。
+
+| Phase | 内容 |
+|---|---|
+| 127-A/B | Provenance仕様確定・データモデル設計（`analysis.raw.provenance`。`hasContentEdit`/`hasStructureEdit`/`externalCheck`の3項目。[PROVENANCE FACT INVARIANT]確立：Commandのok:trueではなく実際の値変化を記録） | analysisLoader.js（設計のみ） |
+| 127-C | Provenance自動検出・データ層実装（`normalizeProvenance()`新設。各種Command（updateChord/moveBoundary/Section系）への値比較付きフラグ更新ロジックを追加） | analysisLoader.js / analysisSession.js / analysisCommands.js / app.js / project.js |
+| 127-D | Provenance ●表示UI実装（`renderProvenanceDots()`共通ヘルパー。Library一覧・Chart Modeヘッダー共有） | app.js / chartmode.js / components.css / library.css |
+| 127-D' | hover Tooltip機構実装（textTooltip.js新設。Phase67 Chart Mode hover chord diagramと同じ設計原則を踏襲）。後のPhase127-E②で`[TOOLTIP CONSOLIDATION]`によりProvenance用途としては廃止（textTooltip.js自体は汎用モジュールとして残置） | textTooltip.js（新規） |
+| 127-F | 既存データBackfill・非破壊安全化（🟡 Content Migration・🔵 Structure Sync。`[BACKFILL NON-DESTRUCTIVE INVARIANT]`確立。`baseVersion`による楽観的並行性制御でconflict時は🟡🔵両方破棄）。実機検証中に発見したSection消失問題は原因未確定のまま観察継続と結論 | analysisLoader.js / project.js / server.py |
+| 127-E① | External Check（🟢外部資料確認）編集UI。`writeExternalCheck()`を唯一の書き込み窓口として新設。Library一覧・Chart Modeヘッダー双方の右クリックから編集可能に | app.js |
+| 127-E② | Provenance Popover本体。右クリック→Popover（一次確認UI）→「確認情報を編集する」→既存Modal（二次編集UI）の一本道を確立。`[TOOLTIP CONSOLIDATION]`によりhover Tooltipを廃止しPopoverへ情報表示を一本化。Popover位置補正のforced synchronous reflowをrequestAnimationFrameで回避 | app.js / chartmode.js / components.css / library.css |
+
 ### 基盤・アーキテクチャ整理
 
 | Phase | 内容 |
@@ -262,12 +331,20 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 105 | **[NAVIGATION OWNERSHIP]確立**（Section Navigationのスクロール責務分離）・**ドキュメント更新ポリシー確定**（Named Invariant即時反映ルール。docs/handover/README.md参照） |
 | 106 | **[RENDER CONTEXT INVARIANT]確立**（renderChartMode()呼び出し規約。デフォルト引数によるレイアウト崩壊バグの発見から。architecture.md §9参照） |
 | 108 | **[BOUNDARY REMAP AUTHORITY]確立**（reconcile()はbufferから付け替え先を推測しない・呼び出し元が明示的に伝える。architecture.md §12参照） |
+| 127-F | **[BACKFILL NON-DESTRUCTIVE INVARIANT]確立**（バックフィルはProvenance関連データのみを変更し、それ以外の既存データに一切触れない。architecture.md §12参照） |
+| 127-E② | **`[TOOLTIP CONSOLIDATION]`確立**（hover TooltipをPopoverへ一本化。docs/handover/active/handover_phase127-e2.md参照）・**Handover Review運用確立**（監査往復は原則最大2ラウンド。docs/handover/README.md参照） |
+| 127完了時 | **`[ISSUE ID AUTHORITY]`確立**（GitHub Issue番号を今後の正式IDとする。既存の内部Issue番号は遡及変更せず歴史的記録として維持。current-issues.md §0参照。内部#28とGitHub#28が無関係な別内容で偶然衝突していた実例が契機） |
 
 ---
 
 ## 3. Future Candidates（次フェーズ候補）
 
 詳細は `current-issues.md` のバックログを参照。
+
+Phase127完了時点でGitHub Issue棚卸しを実施済み（current-issues.md §0
+「Issue番号ルール」参照）。次のIntentはPhase127とは切り離し、新しい
+要望・発見事項ベースで選定する（Issue先行で着手しない、という既存の
+Development Process方針を踏襲）。
 
 ### Section Subsystem Progress（Phase100-Aより継続・優先度付き）
 

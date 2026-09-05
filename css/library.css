@@ -143,3 +143,9 @@
   border-left-color: var(--border-selected);
   pointer-events: none;
 }
+
+/* [Phase127-E②] 行の右クリックメニュー（.library-context-menu）は
+   Provenance Popoverへ置き換えられ廃止した。
+   Popover本体のCSSはcomponents.cssの.provenance-popover系を参照
+   （Library/Chart Mode共有・.provenance-dotと同じ所有権区分のため）。 */
+

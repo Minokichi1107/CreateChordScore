@@ -259,7 +259,10 @@
   height: 9px;
   border-radius: 50%;
   flex: 0 0 auto;
-  cursor: default;
+  /* [Phase127-E③] hover Tooltip廃止に伴い、cursor: default → context-menu へ
+     変更した。右クリックが唯一の操作経路になったため、カーソル形状で
+     「右クリックできる」ことを示すaffordanceを補う（TOOLTIP CONSOLIDATION）。 */
+  cursor: context-menu;
 }
 .provenance-dot--none    { background: var(--text-muted); }
 .provenance-dot--content { background: rgba(var(--color-amber-rgb), .95); }
@@ -292,4 +295,65 @@ body.provenance-hidden .provenance-dots {
   border-radius: var(--r-md);
   padding: 6px 10px;
   box-shadow: var(--shadow-md);
+}
+
+/* ── Provenance Popover（Phase127-E②） ─────────────────────
+   .library-context-menu（Phase127-E①・廃止）/ .chart-context-menu（Phase72-C）
+   と同じ視覚言語（surface-overlay / border-ui / r-md / shadow-md / font-mono）
+   を踏襲する。Library・Chart Mode共有のため.provenance-dotと同じ所有権区分
+   （複数モジュール共有・components.css）に置く。 */
+.provenance-popover {
+  position: fixed;
+  z-index: 9999;
+  min-width: 220px;
+  max-width: 280px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 10px 12px;
+}
+.provenance-popover-title {
+  font-weight: bold;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.provenance-popover-loading {
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+.provenance-popover-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  padding: 3px 0;
+}
+/* 行内のdotはPopover内では単なる色分けラベルであり、hover/tap tooltip対象
+   （data-tooltip属性）は付与しない。Popover自体が既に詳細を表示しているため。 */
+.provenance-popover-row .provenance-dot {
+  cursor: default;
+}
+.provenance-popover-detail {
+  margin: 4px 0 8px 15px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  word-break: break-all; /* URL等の長い文字列がPopover幅を超えないように */
+}
+.provenance-popover-edit-btn {
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 10px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.provenance-popover-edit-btn:hover {
+  background: var(--surface-hover);
 }
