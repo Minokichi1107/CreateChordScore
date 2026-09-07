@@ -433,7 +433,7 @@ function buildDiagramForm({ prefix, frets, barre, barreStrings = null }) {
         font-family:var(--font-mono);cursor:pointer;margin-top:14px">
         <input type="checkbox" id="${prefix}-bs-toggle" ${bsChecked ? 'checked' : ''}
           data-preview="${prefix}" style="width:14px;height:14px">
-        弦範囲を指定する
+        セーハの範囲を指定する
       </label>
     </div>
     <div id="${prefix}-bs-range" style="display:${bsChecked ? 'flex' : 'none'};align-items:center;gap:6px;margin-bottom:12px">
@@ -446,7 +446,6 @@ function buildDiagramForm({ prefix, frets, barre, barreStrings = null }) {
         style="background:var(--surface-overlay);border:1px solid var(--border-ui);
           border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);
           font-size:12px;padding:5px">${optHtml(bsTo)}</select>
-      <span style="font-size:10px;color:var(--text-muted)">チェックを外すと自動算出</span>
     </div>
     <div style="text-align:center">
       <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">

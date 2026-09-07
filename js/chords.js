@@ -159,17 +159,32 @@ export function drawDiagram(frets, barre, options = {}) {
       // frets順はi=0が6弦(下)なので反転してY計算
       let ti=ST-1, bi=0;
       if(barreStrings){
-        // 明示範囲: barreStringsのインデックスをY座標系（i反転）へ変換するだけ
+        // [BARRE NEVER COVERS MUTED STRING]
+        // ミュート弦は物理的にセーハ対象になり得ない。bsで指定した範囲であっても、
+        // 範囲内の非ミュート弦だけを対象に実際の描画範囲を絞り込む。
         const lo=Math.min(barreStrings[0],barreStrings[1]);
         const hi=Math.max(barreStrings[0],barreStrings[1]);
-        ti=ST-1-hi; bi=ST-1-lo;
+        let effLo=null, effHi=null;
+        for(let i=lo;i<=hi;i++){
+          if(frets[i]!==-1){
+            if(effLo===null) effLo=i;
+            effHi=i;
+          }
+        }
+        if(effLo===null){
+          // 範囲内が全てミュート → 描画すべきセーハが存在しない
+          ti=null; bi=null;
+        } else {
+          ti=ST-1-effHi; bi=ST-1-effLo;
+        }
       } else {
         // 自動算出（従来通り）: ミュートでない弦の最初〜最後を連結
         for(let i=0;i<ST;i++){if(frets[i]!==-1){bi=ST-1-i;break;}}
         for(let i=ST-1;i>=0;i--){if(frets[i]!==-1){ti=ST-1-i;break;}}
         if(ti>bi){const tmp=ti;ti=bi;bi=tmp;}
       }
-      s+=`<rect x="${bx-barW/2}" y="${oy+ti*sS-barPad}" width="${barW}" height="${(bi-ti)*sS+barPad*2}" rx="${barRx}" fill="${BC}"/>`;
+      s+=(ti===null) ? '' :
+        `<rect x="${bx-barW/2}" y="${oy+ti*sS-barPad}" width="${barW}" height="${(bi-ti)*sS+barPad*2}" rx="${barRx}" fill="${BC}"/>`;
     }
   }
 
