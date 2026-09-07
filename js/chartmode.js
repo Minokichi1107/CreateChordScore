@@ -1234,7 +1234,7 @@ function _showTooltip(chord, anchorRect) {
   const vr = entry.data.v[0];
   if (!vr) { _hideTooltip(); return; }
 
-  const svg = _drawDiagram(vr.f, vr.b ?? 0, { scale: 0.9 });
+  const svg = _drawDiagram(vr.f, vr.b ?? 0, { scale: 0.9, barreStrings: vr.bs ?? null });
 
   // コード名 title + SVG diagram
   // title responsibility は tooltip shell 側（renderer に持たせない）

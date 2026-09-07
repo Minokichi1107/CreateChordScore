@@ -6658,7 +6658,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     mkMBtn,
     toast,
     getAudioTime: () => aEl.currentTime,
-    getPreviewSvg: ({ frets, barre }) => drawDiagram(frets, barre),
+    getPreviewSvg: ({ frets, barre, barreStrings }) => drawDiagram(frets, barre, { barreStrings: barreStrings || null }),
     getCapo: () => project.capo ?? 0,
     generateId: () => crypto.randomUUID(),
     onAddDiagram: (name, variant) => {
