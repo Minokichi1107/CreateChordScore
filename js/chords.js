@@ -330,6 +330,7 @@ export function saveCustomDiagrams() {
       n:       vr.n,
       f:       vr.f,
       ...(vr.b !== undefined && { b: vr.b }),
+      ...(vr.bs !== undefined && { bs: vr.bs }),
       _custom: true,
     }));
   }
@@ -349,7 +350,7 @@ function clearCustomFromRuntime() {
 }
 
 function _fingerprint(vr) {
-  return `${vr.n}|${(vr.f || []).map(v => String(+v || 0)).join(',')}|${String(vr.b ?? '')}`;
+  return `${vr.n}|${(vr.f || []).map(v => String(+v || 0)).join(',')}|${String(vr.b ?? '')}|${(vr.bs || []).join(',')}`;
 }
 
 export function loadCustomDiagrams() {
@@ -392,6 +393,7 @@ export function loadCustomDiagrams() {
       CHORD_DB[canonical].v.push(...variants.map(vr => {
         const runtime = { n: vr.n, f: vr.f, _custom: true, _id: vr.id };
         if (vr.b !== undefined) runtime.b = vr.b;
+        if (vr.bs !== undefined) runtime.bs = vr.bs;
         return runtime;
       }));
     }
