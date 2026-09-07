@@ -1983,7 +1983,7 @@ function _setupContextMenu() {
     const hasRepair = !!analysis.repairRule;
 
     // [Phase128-A] ダイアグラム登録対象コード名の判定（onsetセル限定・座標ベース）
-    // e.target.closest()だとonsetラベルのCSS幅拡張によゎcarry領域の空白クリックも誤ってonset扱いになるため、
+    // e.target.closest()だとonsetラベルのCSS幅拡張によりcarry領域の空白クリックも誤ってonset扱いになるため、
     // document.elementsFromPoint()で実際にその座標にある物理的な.chart-slotを特定する。
     let diagramChordName = null;
     if (_onDiagramRegisterRequested) {
