@@ -103,7 +103,7 @@ import {
   addCustomDiagram,
   removeCustomDiagram,
   updateCustomDiagram
-} from '../copypaste/chords.js';
+} from '../js/chords.js';
 
 import {
   normalizeProject,
