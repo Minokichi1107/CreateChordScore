@@ -55,8 +55,8 @@ export const CHORD_DB = {
   'C#maj7':{v:[{n:'バレー4F',f:[-1,4,6,5,6,4],b:4}]},
   'Db':   {v:[{n:'バレー4F',f:[-1,4,6,6,6,4],b:4}]},
   'D#':   {v:[{n:'バレー6F',f:[-1,6,8,8,8,6],b:6}]},
-  'D#m':  {v:[{n:'バレー6F',f:[-1,4,8,8,7,6],b:6}]},
-  'Eb':   {v:[{n:'バレー6F',f:[-1,6,8,8,8,5],b:6}]},
+  'D#m':  {v:[{n:'バレー6F',f:[-1,6,8,8,7,6],b:6}]},
+  'Eb':   {v:[{n:'バレー6F',f:[-1,6,8,8,8,6],b:6}]},
   'Ebm':  {v:[{n:'バレー6F',f:[-1,6,6,8,7,6],b:6}]},
   'Ebmaj7':{v:[{n:'バレー6F',f:[-1,6,8,7,8,5],b:6}]},
   'F#':   {v:[{n:'バレー2F',f:[2,4,4,3,2,2],b:2}]},
@@ -69,7 +69,7 @@ export const CHORD_DB = {
   'G#m7': {v:[{n:'バレー4F',f:[4,6,4,4,4,4],b:4}]},
   'Ab':   {v:[{n:'バレー4F',f:[4,6,6,5,4,4],b:4}]},
   'Abm':  {v:[{n:'バレー4F',f:[4,6,6,4,4,4],b:4}]},
-  'Abmaj7':{v:[{n:'バレー4F',f:[4,6,5,5,4,4]}]},
+  'Abmaj7':{v:[{n:'バレー4F',f:[4,6,5,5,4,4],b:4}]},
   'A#':   {v:[{n:'バレー6F',f:[6,8,8,7,6,6],b:6}]},
   'A#m':  {v:[{n:'バレー6F',f:[6,8,8,6,6,6],b:6}]},
   'Bb':   {v:[{n:'バレー1F',f:[-1,1,3,3,3,1],b:1}]},
@@ -88,6 +88,10 @@ export function drawDiagram(frets, barre, options = {}) {
   // Y軸 = 弦方向（上が6弦・下が1弦）
   // ════════════════════════════════════════
   const scale = options.scale ?? 1;
+  // barreStrings: セーハ対象弦の明示範囲 [fromIdx, toIdx]（frets配列と同じインデックス空間。
+  // 0=6弦...5=1弦）。未指定(null)の場合は従来通り「ミュートでない弦の両端」から自動算出する
+  // （後方互換。既存データ・呼び出し元は無変更で今まで通りの見た目になる）。
+  const barreStrings = options.barreStrings ?? null;
   const ST=6, FC=4;
   // sS: 弦間隔(Y), fS: フレット間隔(X)
   const sS=11*scale, fS=14*scale;
@@ -100,11 +104,14 @@ export function drawDiagram(frets, barre, options = {}) {
   const W=symW+mL+gW+mR, H=mT+gH+mB;
 
   const pressed=frets.filter(f=>f>0);
+  // [BARRE FRET IS NOT DISPLAY ORIGIN]
+  // barre はあくまで「セーハするフレット」であり、表示開始フレット(sf)そのものではない。
+  // セーハより低いフレットの単独運指があっても表示範囲に含まれるよう、
+  // barreも「押さえているフレットの一つ」として同じmin/max判定に含める。
   let sf=1;
-  if(barre&&barre>0){
-    sf=barre;
-  } else if(pressed.length){
-    const mn=Math.min(...pressed),mx=Math.max(...pressed);
+  const allFrets = (barre&&barre>0) ? [...pressed, barre] : pressed;
+  if(allFrets.length){
+    const mn=Math.min(...allFrets),mx=Math.max(...allFrets);
     if(mx>4) sf=mn;
   }
 
@@ -151,10 +158,33 @@ export function drawDiagram(frets, barre, options = {}) {
       const bx=ox+bf*fS+fS/2;
       // frets順はi=0が6弦(下)なので反転してY計算
       let ti=ST-1, bi=0;
-      for(let i=0;i<ST;i++){if(frets[i]!==-1){bi=ST-1-i;break;}}
-      for(let i=ST-1;i>=0;i--){if(frets[i]!==-1){ti=ST-1-i;break;}}
-      if(ti>bi){const tmp=ti;ti=bi;bi=tmp;}
-      s+=`<rect x="${bx-barW/2}" y="${oy+ti*sS-barPad}" width="${barW}" height="${(bi-ti)*sS+barPad*2}" rx="${barRx}" fill="${BC}"/>`;
+      if(barreStrings){
+        // [BARRE NEVER COVERS MUTED STRING]
+        // ミュート弦は物理的にセーハ対象になり得ない。bsで指定した範囲であっても、
+        // 範囲内の非ミュート弦だけを対象に実際の描画範囲を絞り込む。
+        const lo=Math.min(barreStrings[0],barreStrings[1]);
+        const hi=Math.max(barreStrings[0],barreStrings[1]);
+        let effLo=null, effHi=null;
+        for(let i=lo;i<=hi;i++){
+          if(frets[i]!==-1){
+            if(effLo===null) effLo=i;
+            effHi=i;
+          }
+        }
+        if(effLo===null){
+          // 範囲内が全てミュート → 描画すべきセーハが存在しない
+          ti=null; bi=null;
+        } else {
+          ti=ST-1-effHi; bi=ST-1-effLo;
+        }
+      } else {
+        // 自動算出（従来通り）: ミュートでない弦の最初〜最後を連結
+        for(let i=0;i<ST;i++){if(frets[i]!==-1){bi=ST-1-i;break;}}
+        for(let i=ST-1;i>=0;i--){if(frets[i]!==-1){ti=ST-1-i;break;}}
+        if(ti>bi){const tmp=ti;ti=bi;bi=tmp;}
+      }
+      s+=(ti===null) ? '' :
+        `<rect x="${bx-barW/2}" y="${oy+ti*sS-barPad}" width="${barW}" height="${(bi-ti)*sS+barPad*2}" rx="${barRx}" fill="${BC}"/>`;
     }
   }
 
@@ -171,7 +201,12 @@ export function drawDiagram(frets, barre, options = {}) {
       const fp=f-sf;
       if(fp>=0&&fp<FC){
         const dx=ox+fp*fS+fS/2;
-        const isBarreDot=(barre&&f===barre);
+        // barreStrings指定時は範囲内の弦のみバレー扱い。範囲外なら同じフレットでも
+        // 独立した指として通常のドットを描画する（F#7/A#のような形を表現するため）
+        const inBarreRange = barreStrings
+          ? (i>=Math.min(barreStrings[0],barreStrings[1]) && i<=Math.max(barreStrings[0],barreStrings[1]))
+          : true;
+        const isBarreDot=(barre&&f===barre&&inBarreRange);
         if(!isBarreDot){
           s+=`<circle cx="${dx}" cy="${y}" r="${dotR}" fill="${DC}" opacity=".95"/>`;
         }
@@ -211,7 +246,7 @@ export function showDiagramPanel(chord, capo, callbacks = {}){
 
     const svg=document.createElement('div');
     svg.className='dv-svg';
-    svg.innerHTML=drawDiagram(vr.f,vr.b||null);
+    svg.innerHTML=drawDiagram(vr.f,vr.b||null,{barreStrings:vr.bs||null});
 
     d.appendChild(label);
     d.appendChild(svg);
@@ -295,6 +330,7 @@ export function saveCustomDiagrams() {
       n:       vr.n,
       f:       vr.f,
       ...(vr.b !== undefined && { b: vr.b }),
+      ...(vr.bs !== undefined && { bs: vr.bs }),
       _custom: true,
     }));
   }
@@ -314,7 +350,7 @@ function clearCustomFromRuntime() {
 }
 
 function _fingerprint(vr) {
-  return `${vr.n}|${(vr.f || []).map(v => String(+v || 0)).join(',')}|${String(vr.b ?? '')}`;
+  return `${vr.n}|${(vr.f || []).map(v => String(+v || 0)).join(',')}|${String(vr.b ?? '')}|${(vr.bs || []).join(',')}`;
 }
 
 export function loadCustomDiagrams() {
@@ -357,6 +393,7 @@ export function loadCustomDiagrams() {
       CHORD_DB[canonical].v.push(...variants.map(vr => {
         const runtime = { n: vr.n, f: vr.f, _custom: true, _id: vr.id };
         if (vr.b !== undefined) runtime.b = vr.b;
+        if (vr.bs !== undefined) runtime.bs = vr.bs;
         return runtime;
       }));
     }

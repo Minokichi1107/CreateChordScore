@@ -1,4 +1,5 @@
-# branch → main マージ安全手順（独り立ち用）
+git status --short
+git branch --show-current# branch → main マージ安全手順（独り立ち用）
 
 > 位置づけ: `merge-to-main-checklist.md`をベースに、実際にやってみて
 > 得た知見（BOM/改行問題への対処含む）を反映した最終版。

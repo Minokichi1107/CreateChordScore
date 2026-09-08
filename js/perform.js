@@ -194,7 +194,7 @@ if (line.chords.length > 0) {
             if (result && result.data.v.length > 0) {
               const vr = result.data.v[0];
               const diagramScale = performState.fontScale * 0.9;
-              diagramHTML = drawDiagram(vr.f, vr.b || null, { scale: diagramScale });
+              diagramHTML = drawDiagram(vr.f, vr.b || null, { scale: diagramScale, barreStrings: vr.bs || null });
             } else {
               diagramHTML = '<div class="perform-chord-empty">-</div>';
             }

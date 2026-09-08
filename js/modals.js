@@ -391,18 +391,27 @@ export function openCopyModal({ fromIdx, line, lines, onCopy }) {
  *   stateとして保持しない（DOM値を直接読む方式）。
  *
  * @param {object} opts
- * @param {string}   opts.prefix   - 入力要素IDのプレフィックス（'dd' or 'de'）
- * @param {number[]} opts.frets    - 初期フレット値（6弦分）
- * @param {number}   opts.barre    - 初期セーハ値
+ * @param {string}   opts.prefix        - 入力要素IDのプレフィックス（'dd' or 'de'）
+ * @param {number[]} opts.frets         - 初期フレット値（6弦分）
+ * @param {number}   opts.barre         - 初期セーハ値
+ * @param {number[]|null} [opts.barreStrings] - セーハ対象弦の明示範囲 [fromIdx,toIdx]
+ *   （frets配列と同じインデックス空間。0=6弦...5=1弦）。未指定(null)なら「自動算出」。
  */
-function buildDiagramForm({ prefix, frets, barre }) {
+const STRING_LABELS = ['6弦','5弦','4弦','3弦','2弦','1弦'];
+
+function buildDiagramForm({ prefix, frets, barre, barreStrings = null }) {
+  const bsChecked = !!barreStrings;
+  const bsFrom = barreStrings ? Math.min(barreStrings[0], barreStrings[1]) : 0;
+  const bsTo = barreStrings ? Math.max(barreStrings[0], barreStrings[1]) : 5;
+  const optHtml = (selected) => STRING_LABELS.map((s, i) =>
+    `<option value="${i}" ${i === selected ? 'selected' : ''}>${s}</option>`).join('');
   return `
     <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px">
       各弦のフレット番号（6弦=低音側 → 1弦=高音側）<br>
       <span style="color:var(--color-amber)">−1=ミュート　0=開放　1〜22=フレット番号</span>
     </div>
     <div class="diagram-string-grid modal-section">
-      ${['6弦','5弦','4弦','3弦','2弦','1弦'].map((s, i) => `
+      ${STRING_LABELS.map((s, i) => `
         <div class="diagram-string-field">
           <div class="modal-field-label" style="margin-bottom:3px">${s}</div>
           <input type="number" id="${prefix}-f${i}"
@@ -410,7 +419,7 @@ function buildDiagramForm({ prefix, frets, barre }) {
             data-preview="${prefix}">
         </div>`).join('')}
     </div>
-    <div style="display:flex;gap:14px;align-items:start">
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
       <div>
         <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">
           セーハ（0=なし）</div>
@@ -420,12 +429,55 @@ function buildDiagramForm({ prefix, frets, barre }) {
             font-size:14px;padding:5px;text-align:center"
           data-preview="${prefix}">
       </div>
-      <div style="flex:1;text-align:center">
-        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">
-          プレビュー</div>
-        <div id="${prefix}-prev" style="display:flex;justify-content:center"></div>
-      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);
+        font-family:var(--font-mono);cursor:pointer;margin-top:14px">
+        <input type="checkbox" id="${prefix}-bs-toggle" ${bsChecked ? 'checked' : ''}
+          data-preview="${prefix}" style="width:14px;height:14px">
+        セーハの範囲を指定する
+      </label>
+    </div>
+    <div id="${prefix}-bs-range" style="display:${bsChecked ? 'flex' : 'none'};align-items:center;gap:6px;margin-bottom:12px">
+      <select id="${prefix}-bs-from" data-preview="${prefix}"
+        style="background:var(--surface-overlay);border:1px solid var(--border-ui);
+          border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);
+          font-size:12px;padding:5px">${optHtml(bsFrom)}</select>
+      <span style="color:var(--text-muted);font-size:11px">〜</span>
+      <select id="${prefix}-bs-to" data-preview="${prefix}"
+        style="background:var(--surface-overlay);border:1px solid var(--border-ui);
+          border-radius:var(--r-md);color:var(--text-primary);font-family:var(--font-mono);
+          font-size:12px;padding:5px">${optHtml(bsTo)}</select>
+    </div>
+    <div style="text-align:center">
+      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:4px">
+        プレビュー</div>
+      <div id="${prefix}-prev" style="display:flex;justify-content:center"></div>
     </div>`;
+}
+
+/**
+ * セーハ弦範囲チェックボックスの開閉配線
+ * 【責務】チェックON/OFFで${prefix}-bs-rangeの表示切替のみを行う（local UI state）
+ */
+function bindBarreRangeToggle(prefix) {
+  const toggle = document.getElementById(`${prefix}-bs-toggle`);
+  const range = document.getElementById(`${prefix}-bs-range`);
+  if (!toggle || !range) return;
+  toggle.addEventListener('change', () => {
+    range.style.display = toggle.checked ? 'flex' : 'none';
+  });
+}
+
+/**
+ * フォームの現在値からbarreStrings（[fromIdx,toIdx]）を読み取る。
+ * チェックOFFならnull（= 保存時にbsフィールドを付与しない = 自動算出のまま）。
+ */
+function readBarreStrings(prefix) {
+  const toggle = document.getElementById(`${prefix}-bs-toggle`);
+  if (!toggle || !toggle.checked) return null;
+  const from = parseInt(document.getElementById(`${prefix}-bs-from`)?.value);
+  const to = parseInt(document.getElementById(`${prefix}-bs-to`)?.value);
+  if (Number.isNaN(from) || Number.isNaN(to)) return null;
+  return [Math.min(from, to), Math.max(from, to)];
 }
 
 /**
@@ -446,8 +498,9 @@ function updatePreview(prefix) {
     parseInt(document.getElementById(`${prefix}-f${i}`)?.value) || 0
   );
   const barre = parseInt(document.getElementById(`${prefix}-b`)?.value) || 0;
+  const barreStrings = readBarreStrings(prefix);
   const el = document.getElementById(`${prefix}-prev`);
-  if (el) el.innerHTML = _getPreviewSvg({ frets, barre: barre || null });
+  if (el) el.innerHTML = _getPreviewSvg({ frets, barre: barre || null, barreStrings });
 }
 
 
@@ -493,7 +546,7 @@ export function openAddDiagramModal({ defaultChord = '' } = {}) {
             value="カスタム" placeholder="ロー/バレー等">
         </div>
       </div>
-      ${buildDiagramForm({ prefix: 'dd', frets: [0,0,0,0,0,0], barre: 0 })}
+      ${buildDiagramForm({ prefix: 'dd', frets: [0,0,0,0,0,0], barre: 0, barreStrings: null })}
       <div style="margin-top:8px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">
         ※ 登録はブラウザのサイトデータを削除するまで保持されます</div>`,
     onOpen: () => {
@@ -501,6 +554,7 @@ export function openAddDiagramModal({ defaultChord = '' } = {}) {
       document.querySelectorAll('[data-preview="dd"]').forEach(el => {
         el.addEventListener('input', () => updatePreview('dd'));
       });
+      bindBarreRangeToggle('dd');
       // 初期プレビュー
       updatePreview('dd');
       // フォーカス
@@ -517,12 +571,14 @@ export function openAddDiagramModal({ defaultChord = '' } = {}) {
           parseInt(document.getElementById(`dd-f${i}`).value) || 0
         );
         const barre = parseInt(document.getElementById('dd-b').value) || 0;
+        const barreStrings = readBarreStrings('dd');
         // variant生成・ID付与は app.js 側の generateId を使う
         // （ID policy は orchestration責務のため modal側で持たない）
         const variant = {
           n: vname,
           f: frets,
           b: barre || undefined,
+          bs: (barre && barreStrings) ? barreStrings : undefined,
           _custom: true,
           _id: _generateId(),
         };
@@ -585,11 +641,12 @@ export function openEditDiagramModal({ chord, id, variant }) {
             value="${variant.n}" placeholder="ロー/バレー等">
         </div>
       </div>
-      ${buildDiagramForm({ prefix: 'de', frets: variant.f, barre: variant.b ?? 0 })}`,
+      ${buildDiagramForm({ prefix: 'de', frets: variant.f, barre: variant.b ?? 0, barreStrings: variant.bs ?? null })}`,
     onOpen: () => {
       document.querySelectorAll('[data-preview="de"]').forEach(el => {
         el.addEventListener('input', () => updatePreview('de'));
       });
+      bindBarreRangeToggle('de');
       updatePreview('de');
     },
     buttons: (close) => [
@@ -600,7 +657,8 @@ export function openEditDiagramModal({ chord, id, variant }) {
           parseInt(document.getElementById(`de-f${i}`).value) || 0
         );
         const barre = parseInt(document.getElementById('de-b').value) || 0;
-        const patch = { n: vname, f: frets, b: barre || undefined };
+        const barreStrings = readBarreStrings('de');
+        const patch = { n: vname, f: frets, b: barre || undefined, bs: (barre && barreStrings) ? barreStrings : undefined };
         _onUpdateDiagram(chord, id, patch);  // app.js が undo + mutation + refresh を担当
         close();
         _toast('✅ 編集しました');

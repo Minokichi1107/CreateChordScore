@@ -943,6 +943,12 @@ let _onClearRepairRule = null;  // () => void
 // chartmode.jsは「ユーザーがドットを右クリックした」ことを通知するだけ。
 let _onExternalCheckRequested = null;  // (clientX, clientY) => void（Phase127-E②で座標渡しへ拡張）
 
+// [Phase128-A] Chart Modeのコードセル右クリックで「コードダイアグラムを登録／編集する」を
+// 通知する。[OWNERSHIP] 既登録／未登録の判定・モーダル生成（openAddDiagramModal/
+// openEditDiagramModal）はapp.js側の責務。chartmode.jsは「onsetセルが右クリックされ、
+// そのコード名は何か」を通知するだけで、ダイアグラムデータには一切触れない。
+let _onDiagramRegisterRequested = null;  // (chordName: string) => void
+
 // Phase74-C: 解析編集モード連携
 // Phase76-A: 第2引数にshiftKey押下有無を追加（範囲選択用）
 let _onChordSelected   = null;        // (id: string, isShiftKey: boolean) => void
@@ -1135,8 +1141,12 @@ function _rafLoop() {
  *   Provenance Popoverの表示位置に使う右クリック座標を渡す（Phase127-E①で新設・Phase127-E②で引数なし→座標渡しへ変更）。
  *                                             .provenance-dots右クリック時に呼ぶ。
  *                                             app.js が External Checkモーダルを開く。
+ * @param {Function} [deps.onDiagramRegisterRequested] - (chordName: string) => void
+ *   onsetセルの右クリックで「コードダイアグラムを登録／編集する」が選ばれた時に呼ぶ（Phase128-A新設）。
+ *                                             app.js が既登録／未登録を判定し、
+ *                                             openEditDiagramModal/openAddDiagramModalを呼び分ける。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, onExternalCheckRequested }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, onExternalCheckRequested, onDiagramRegisterRequested }) {
   _getAnalysis       = getAnalysis;
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
@@ -1150,6 +1160,7 @@ export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudio
   _onSetRepairRule   = onSetRepairRule  ?? null;
   _onClearRepairRule = onClearRepairRule ?? null;
   _onExternalCheckRequested = onExternalCheckRequested ?? null;
+  _onDiagramRegisterRequested = onDiagramRegisterRequested ?? null;  // [Phase128-A]
   // [PROVENANCE][Phase127-D] HTML生成ロジックの正本はapp.js側に置く
   // （表示文言・色クラス名の意味付けをapp.js 1箇所に集約するため）。
   _renderProvenanceDots = renderProvenanceDots ?? (() => '');
@@ -1234,7 +1245,7 @@ function _showTooltip(chord, anchorRect) {
   const vr = entry.data.v[0];
   if (!vr) { _hideTooltip(); return; }
 
-  const svg = _drawDiagram(vr.f, vr.b ?? 0, { scale: 0.9 });
+  const svg = _drawDiagram(vr.f, vr.b ?? 0, { scale: 0.9, barreStrings: vr.bs ?? null });
 
   // コード名 title + SVG diagram
   // title responsibility は tooltip shell 側（renderer に持たせない）
@@ -1835,7 +1846,7 @@ export function getTimeForGridPosition(measureIndex, visualSlotIndex) {
  * @param {number}   clientX    - クリック位置X（viewport座標）
  * @param {number}   clientY    - クリック位置Y（viewport座標）
  */
-function _showContextMenu(beatTime, hasRepair, clientX, clientY) {
+function _showContextMenu(beatTime, hasRepair, clientX, clientY, diagramChordName = null) {
   _hideContextMenu();  // 既存を閉じてから生成
 
   const menu = document.createElement('div');
@@ -1866,6 +1877,22 @@ function _showContextMenu(beatTime, hasRepair, clientX, clientY) {
       _onClearRepairRule?.();
     });
     menu.appendChild(clearItem);
+  }
+
+  // [Phase128-A] 「コードダイアグラムを登録／編集する」項目（onsetセル限定・小節頭補正メニューとは排他ではなく共存）
+  if (diagramChordName && _onDiagramRegisterRequested) {
+    const divider2 = document.createElement('div');
+    divider2.className = 'chart-context-divider';
+    menu.appendChild(divider2);
+
+    const diagItem = document.createElement('div');
+    diagItem.className = 'chart-context-item';
+    diagItem.textContent = '🎸 コードダイアグラムを登録／編集する';
+    diagItem.addEventListener('click', () => {
+      _hideContextMenu();
+      _onDiagramRegisterRequested(diagramChordName);
+    });
+    menu.appendChild(diagItem);
   }
 
   // 位置決め（viewport右端・下端からはみ出さないよう調整）
@@ -1954,7 +1981,24 @@ function _setupContextMenu() {
     if (beatTime == null) return;
 
     const hasRepair = !!analysis.repairRule;
-    _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY);
+
+    // [Phase128-A] ダイアグラム登録対象コード名の判定（onsetセル限定・座標ベース）
+    // e.target.closest()だとonsetラベルのCSS幅拡張によりcarry領域の空白クリックも誤ってonset扱いになるため、
+    // document.elementsFromPoint()で実際にその座標にある物理的な.chart-slotを特定する。
+    let diagramChordName = null;
+    if (_onDiagramRegisterRequested) {
+      const pointEls = document.elementsFromPoint(e.clientX, e.clientY);
+      const pointSlotEl = pointEls.find(el =>
+        el.classList?.contains('chart-slot') && el.dataset?.visualSlotIndex !== undefined
+      );
+      if (pointSlotEl?.classList.contains('chart-slot--onset')) {
+        diagramChordName = pointSlotEl.querySelector('.chart-chord-name')?.dataset.chord ?? null;
+      }
+    }
+
+    // [Phase128-A] hover tooltipと座標が重なり残留しないよう、右クリック時に閉じる
+    _hideTooltip();
+    _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY, diagramChordName);
   });
 
   // メニュー外クリックで閉じる
@@ -3041,4 +3085,4 @@ function _fmt(sec) {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
-}
+}

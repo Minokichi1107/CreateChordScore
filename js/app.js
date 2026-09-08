@@ -6658,7 +6658,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     mkMBtn,
     toast,
     getAudioTime: () => aEl.currentTime,
-    getPreviewSvg: ({ frets, barre }) => drawDiagram(frets, barre),
+    getPreviewSvg: ({ frets, barre, barreStrings }) => drawDiagram(frets, barre, { barreStrings: barreStrings || null }),
     getCapo: () => project.capo ?? 0,
     generateId: () => crypto.randomUUID(),
     onAddDiagram: (name, variant) => {
@@ -6750,6 +6750,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     // 表示位置に使う（Phase127-E①からの変更点。旧: 引数なしで直接編集
     // モーダルを開いていた）。
     onExternalCheckRequested: (x, y) => showProvenancePopover(project.id, x, y),
+
+    // [Phase128-A] Chart Modeのonsetセル右クリック「コードダイアグラムを登録／編集する」。
+    // [OWNERSHIP] 既登録／未登録の判定・モーダル生成はapp.js側が持つ。
+    // chartmode.jsは「onsetセルが右クリックされ、そのコード名は何か」を通知するだけ
+    // （既存のonEdit callback・getDiagCallbacks()と同じlookupパターンを踏襲）。
+    onDiagramRegisterRequested: (chordName) => {
+      const entry = getChordEntry(chordName);
+      // _idを持つカスタムvariantが既にあれば編集モーダル（既存frets/barre/bsを復元）、
+      // なければ新規登録モーダル（右パネルの✏️ボタンと同じ判定条件を踏襲）
+      const customVariant = entry?.data.v.find(v => v._id);
+      if (customVariant) {
+        openEditDiagramModal({ chord: chordName, id: customVariant._id, variant: customVariant });
+      } else {
+        openAddDiagramModal({ defaultChord: chordName });
+      }
+    },
 
     // Phase72-B: manual timing correction コールバック
     // [OWNERSHIP] repairRule の保存・project.analysis 更新・再描画は app.js が持つ。
