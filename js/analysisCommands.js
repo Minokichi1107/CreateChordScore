@@ -307,6 +307,98 @@ export function pasteSelectionCommand(state) {
 }
 
 /**
+ * pasteFitAtEditPointCommand — Add Point（editPoint）から次のバッファエントリまでの
+ * 範囲に合わせてクリップボードを貼り付ける（Phase130・Issue #102）
+ *
+ * [用語定義] 「次のコード」= Next Buffer Entry（editPointのownerの直後に位置する
+ * バッファエントリそのもの）を指す。Chart Mode上で「次に表示されているコード」
+ * ではない。'N'（N.C. / No Chordエントリ。ChordMiniが「コードなし」と判定した
+ * 区間であり、必ずしも音楽的な無音を意味しない。ボーカルやラップ等、コード
+ * 進行以外の音楽的要素が存在する場合もある）であっても、bufferの隣接
+ * エントリである限りそのまま対象とする（スキップしない）。
+ *
+ * [根拠] targetEnd = owner.end は、ownerの直後に別のBuffer Entryが存在する
+ * 場合、そのEntryのstartと一致する。これはbufferが「隙間なく連続する」
+ * という既存Invariant（splitChordCommand等、分割・挿入系Commandが一貫して
+ * 維持している前提。隣接エントリ同士でowner.end === 右隣エントリ.start）
+ * によって保証される。ownerがbuffer末尾（最後のEntry）の場合は直後の
+ * エントリが存在しないため、owner.endは曲の終端時刻そのものを指す
+ * （この場合も「次のBuffer Entryが無いので、そこまでの範囲」という
+ * 意味では一貫している）。したがってowner.endを求めるだけでNext Buffer
+ * Entryの境界（または曲の終端）を得られ、bufferを再探索する必要はない。
+ *
+ * [設計] pasteSelectionCommand()の「ratio配分で敷き詰める」ロジックと同じ考え方
+ * だが、対象がbuffer上の既存ブロック（選択範囲）の置換ではなく、ownerを
+ * splitTimeで短縮した上への挿入である点が異なる。addChordCommand（Phase89）が
+ * splitChordCommandのロジックを共通化せずローカルに複製した前例（「既存関数の
+ * シグネチャ・挙動を変えないため」）を踏襲し、ratio配分ロジックもここに
+ * ローカル複製する（pasteSelectionCommand自体は変更しない）。
+ *
+ * [Section] ownerは削除されず（endが短縮されるのみ）、新規挿入も既存のIDを
+ * 一切消滅させないため、reconcile()の呼び出しは不要（addChordCommandと同じく、
+ * section-model.md §4.3ケースA「内部にコードを追加＝自動的にSectionへ含まれる」
+ * に該当する）。
+ *
+ * @param {object} state
+ * @param {number} splitTime - Add Pointの実時刻（秒）。app.js側で
+ *   getTimeForGridPosition()により算出済みの値を渡す
+ *   （analysisCommands.jsはchartmode.jsに依存しないため、算出は呼び出し元の責務）。
+ * @returns {CommandResult}
+ *   reason: 'not-found'（editPoint未確定 or ownerが存在しない） |
+ *           'invalid-range'（splitTimeがownerの範囲外） |
+ *           その他: クリップボード関連のエラーメッセージ
+ */
+export function pasteFitAtEditPointCommand(state, splitTime) {
+  const editPoint = state.selection.editPoint;
+  if (!editPoint) return { ok: false, reason: 'not-found' };
+
+  const idx = state.buffer.findIndex(c => c._id === editPoint.ownerId);
+  if (idx === -1) return { ok: false, reason: 'not-found' };
+
+  const owner = state.buffer[idx];
+  // addChordCommandの[INVARIANT 1]と同じ範囲チェック（duration 0を防ぐ）。
+  if (!(splitTime > owner.start && splitTime < owner.end)) {
+    return { ok: false, reason: 'invalid-range' };
+  }
+
+  const clipboard = state.clipboard;
+  if (!clipboard || !clipboard.chords || clipboard.chords.length === 0) {
+    return { ok: false, reason: 'コピーされたコードがありません' };
+  }
+
+  const targetStart = splitTime;
+  const targetEnd = owner.end; // = Next Buffer Entry.start（上記コメント参照）
+  const targetDuration = targetEnd - targetStart;
+
+  pushHistory(state); // [UNDO TRANSACTION INVARIANT] 短縮＋挿入で1回のみ
+
+  owner.end = splitTime; // ownerは削除せず短縮するのみ（splitChordCommandと同じ）
+
+  let cursor = targetStart;
+  const newChords = clipboard.chords.map((entry, i) => {
+    const isLast = i === clipboard.chords.length - 1;
+    const start = cursor;
+    const end = isLast ? targetEnd : cursor + entry.ratio * targetDuration;
+    cursor = end;
+    return {
+      chord: entry.chord,
+      start,
+      end,
+      confidence: 1,
+      _id: crypto.randomUUID(),
+    };
+  });
+
+  state.buffer.splice(idx + 1, 0, ...newChords);
+
+  const newIds = newChords.map(c => c._id);
+  refreshSelection(state, newIds, newIds[newIds.length - 1]);
+
+  state.hasContentEdit = true; // [PROVENANCE] 常に実挿入が成立する（Phase127）
+  return { ok: true, selectedChordIds: newIds };
+}
+
+/**
  * buildPastePlan — 「そのまま貼り付け」の適用計画を作る（純粋関数・Phase79由来・Phase87で移設）
  * [SCOPE] state.bufferを読むだけで一切変更しない。commitPastePlan()が実際の適用を担う。
  * [DESIGN] 上書き方式（5分類）・[ID POLICY]（分断ケースは前後とも新規_id発行）は変更なし。

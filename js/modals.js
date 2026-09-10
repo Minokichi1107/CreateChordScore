@@ -201,6 +201,59 @@ export function openMergeSectionWarningModal({ sectionNames, onConfirm }) {
 
 
 // ────────────────────────────────────────
+// openPasteFitCollisionWarningModal
+// ────────────────────────────────────────
+/**
+ * pasteFitAtEditPoint実行によりChart Mode描画上でCollisionが発生する見込みの
+ * 場合の確認モーダル（Phase130・Issue #102）
+ *
+ * [Collision Indicatorとの関係] このモーダルはCollision自体を防ぐものではない。
+ * 「続行する」を選べば、これまで通りbufferには全コードが保持されたまま貼り付けが
+ * 実行され、Chart Mode上ではCollision Indicator（Phase92・Amberドット）が
+ * 該当セルに表示される。この許容設計自体は変更しない
+ * （openMergeSectionWarningModalと同じ位置づけ：実行前に見込みを伝えるだけで、
+ * 実行そのものをブロックしない）。
+ *
+ * 【ownership図】
+ *   app.js
+ *     └ predictFitPasteCollision()の結果（count）・onConfirmを渡す
+ *           ↓
+ *     modals.js（このファイル）
+ *           └ 見込み件数を表示
+ *           └ onConfirm() で app.js へ通知（実際の貼り付け実行はapp.js側）
+ *           └ closeModal() は内部で呼ぶ
+ *
+ * @param {object} opts
+ * @param {number}    opts.count     - 非表示になる見込みの件数
+ * @param {Function}  opts.onConfirm - () => void（「続行する」選択時）
+ */
+export function openPasteFitCollisionWarningModal({ count, onConfirm }) {
+  _openModal({
+    title: '一部のコードが重なって表示されない可能性があります',
+    body: `
+      <div class="modal-caption modal-section">
+        貼り付け先の範囲が狭いため、${count}件のコードがChart Mode上で
+        重なって表示されなくなる見込みです。
+      </div>
+      <div class="modal-caption modal-section" style="margin-top:8px">
+        データ自体はすべて保持されます（重なった箇所は、セルに付く
+        オレンジ色の点にカーソルを合わせると件数を確認できます）。
+      </div>
+      <div class="modal-caption modal-section" style="margin-top:12px">
+        この操作は「元に戻す」で取り消せます。
+      </div>`,
+    buttons: (close) => [
+      _mkMBtn('キャンセル', '', close),
+      _mkMBtn('続行する', 'ok', () => {
+        onConfirm();
+        close();
+      }),
+    ],
+  });
+}
+
+
+// ────────────────────────────────────────
 // openRepeatModal
 // ────────────────────────────────────────
 /**
