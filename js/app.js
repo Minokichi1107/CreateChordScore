@@ -176,6 +176,7 @@ import {
   openEditDiagramModal,
   openChordEdit,
   openMergeSectionWarningModal, // Phase114
+  openPasteFitCollisionWarningModal, // Phase130
 } from './modals.js';
 
 import { isSepToken, isNoChordToken } from './tokens.js';
@@ -209,6 +210,7 @@ import {
   copySelectionCommand,
   cutSelectionCommand,
   pasteSelectionCommand,
+  pasteFitAtEditPointCommand,
   buildPastePlan,
   commitPastePlan,
   mergeSelectionCommand,
@@ -254,6 +256,7 @@ import {
   setMutationFeedback, // Phase119
   clearMutationFeedback, // Phase119
   getTimeForGridPosition,
+  predictFitPasteCollision, // Phase130
 } from './chartmode.js';
 
 // ════════════════════════════════════════
@@ -938,6 +941,99 @@ function pasteAbsolute() {
 }
 
 /**
+ * pasteFitAtEditPoint — Add Point（editPoint）から次のバッファエントリまでの
+ * 範囲に合わせてクリップボードを貼り付ける（Phase130・Issue #102）
+ *
+ * [Phase130] 実体は analysisCommands.js の pasteFitAtEditPointCommand() へ移管。
+ * この関数はChart Mode同期・DOM再描画・Debug Recorderの記録のみを担う薄いラッパー
+ * （addChord()/pasteSelection()と同じ既存パターン）。
+ *
+ * splitTime（挿入点の実時刻）はここで getTimeForGridPosition() により算出する
+ * （analysisCommands.jsはchartmode.jsに依存しないため、算出は呼び出し元の責務。
+ * pasteAbsolute()のgetPasteOrigin()と同じ既存パターンを踏襲）。
+ *
+ * [Section] pasteFitAtEditPointCommandはreconcile()を呼ばない（ownerが削除
+ * されず短縮されるのみのため。詳細はanalysisCommands.js側のdocstring参照）。
+ * そのためsections diffの記録も行わない（addChord()と同じ扱い）。
+ *
+ * [Phase130・Issue #102] 実行前にpredictFitPasteCollision()でChart Mode描画上の
+ * Collision見込みを予測する。見込みがあれば確認モーダル（mergeSelection()と
+ * 同じ「predict→モーダル→onConfirmで実行」パターン。Phase114由来）を挟む。
+ * 「続行する」選択時のみ実際の貼り付け（_runPasteFitAtEditPoint）を実行する。
+ * Collision Indicator自体（Buffer上は有効だがGrid上では1件のみ表示される
+ * 既存の許容設計）は変更しない。「続行する」を選べばこれまで通りbufferには
+ * 全コードが保持され、Chart Mode上ではCollision Indicatorが表示される。
+ *
+ * @returns {string[]|null} 新しく生成されたコードの_id配列。失敗した場合、
+ *   またはモーダル確認待ちの場合はnull（モーダル確認後の結果は非同期のため、
+ *   戻り値では受け取れない。mergeSelection()と同じ既存の非同期パターン）。
+ */
+function pasteFitAtEditPoint() {
+  if (!isAnalysisEditing()) return null;
+
+  const editPoint = analysisEditor.selection.editPoint;
+  if (!editPoint) return null;
+
+  const ownerIdx = analysisEditor.buffer.findIndex(c => c._id === editPoint.ownerId);
+  if (ownerIdx === -1) { toast('この位置には既存データがありません'); return null; }
+  const owner = analysisEditor.buffer[ownerIdx];
+
+  const splitTime = getTimeForGridPosition(editPoint.measureIndex, editPoint.slotIndex);
+  if (splitTime == null) { toast('この位置の時刻を取得できませんでした'); return null; }
+
+  const clipboard = analysisEditor.clipboard;
+  if (!clipboard || !clipboard.chords || clipboard.chords.length === 0) {
+    toast('コピーされたコードがありません');
+    return null;
+  }
+
+  // [Phase130] 実行前予測。targetStart/targetEndはpasteFitAtEditPointCommand内の
+  // 計算と同じ値（owner.endがNext Buffer Entry.startと一致する根拠は
+  // analysisCommands.js側のdocstring参照）。
+  // hasNextEntry: ownerがbuffer末尾でなければ、targetEnd(=owner.end)の位置に
+  // 実在するNext Buffer Entryが存在する（境界衝突の判定対象・ChatGPT Review反映）。
+  const hasNextEntry = ownerIdx < analysisEditor.buffer.length - 1;
+  const prediction = predictFitPasteCollision(splitTime, owner.end, clipboard.chords, hasNextEntry);
+
+  if (prediction.collision) {
+    openPasteFitCollisionWarningModal({
+      count: prediction.count,
+      onConfirm: () => _runPasteFitAtEditPoint(splitTime),
+    });
+    return null; // モーダルは非同期。実際の結果は_runPasteFitAtEditPoint側のUI反映で確定する
+  }
+
+  return _runPasteFitAtEditPoint(splitTime);
+}
+
+/**
+ * _runPasteFitAtEditPoint — pasteFitAtEditPointCommand()を実際に呼び出す
+ * 内部ヘルパー（Phase130で分離。_runMergeと同じ構造）。
+ *
+ * pasteFitAtEditPoint()から直接（確認不要時）、またはopenPasteFitCollisionWarningModalの
+ * onConfirmから（確認後）呼ばれる。
+ *
+ * @param {number} splitTime
+ * @returns {string[]|null}
+ */
+function _runPasteFitAtEditPoint(splitTime) {
+  const before = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  const r = pasteFitAtEditPointCommand(analysisEditor, splitTime);
+  if (!r.ok) {
+    if (r.reason) toast(r.reason);
+    _recRecord('pasteFitAtEditPoint', r, before, before); // [Phase123]
+    return null;
+  }
+
+  setSelectedChordIds(r.selectedChordIds);
+  const after = _recIsRecording() ? _recSnapshot({ includeBuffer: true }) : null;
+  _recRecord('pasteFitAtEditPoint', r, before, after);
+
+  _refreshEditorView('pasteFitAtEditPoint');
+  return r.selectedChordIds;
+}
+
+/**
  * mergeSelection — 連続する複数選択コードを1つに結合する（Phase76-F・Phase76最後の機能）
  *
  * [DESIGN] 結合対象は連続選択のみ（selectChordRangeの前提と同じ）。
@@ -1265,13 +1361,35 @@ function moveBoundary(boundaryIndex, newTime) {
 function setEditPoint(ownerId, measureIndex, slotIndex) {
   if (!isAnalysisEditing()) return;
 
+  // [Phase130・Issue #100] クリック位置の実時刻は、ownerIdの有無に関わらず必ず求める。
+  // 理由: DOM由来のownerId（chartmode.js側でクリックされたセルのdata-chord-id）は、
+  // 「表示上そのセルに描かれているコード」を表すに過ぎない。Chart ModeのGridViewModelは
+  // 'N'（N.C. / No Chordエントリ。ChordMiniが「コードなし」と判定した区間であり、
+  // 必ずしも音楽的な無音を意味しない）を描画対象から除外するため（buildGridViewModel()参照）、
+  // Nの区間を跨いだセルはNの前にあった無関係な過去のコードのcarry表示として描かれることがある。
+  // この場合ownerIdをそのまま信頼すると、実際のクリック時刻とは大きくかけ離れた
+  // （数十秒前の）コードをオーナーとして誤認する（実データで確認済み・Phase130 Exploration参照）。
+  const time = getTimeForGridPosition(measureIndex, slotIndex);
+  if (time == null) { toast('この位置の時刻を取得できませんでした'); return; }
+
   let resolvedOwnerId = ownerId;
+  if (resolvedOwnerId) {
+    // DOM由来のownerIdは「実際にその時刻を含んでいるか」を検証してから採用する。
+    // 範囲外であれば無効なownerIdとして破棄し、下の時刻ベース解決へフォールバックする。
+    const claimed = analysisEditor.buffer.find(c => c._id === resolvedOwnerId);
+    const claimedInRange = !!claimed && time >= claimed.start && time < claimed.end;
+    if (!claimedInRange) resolvedOwnerId = null;
+  }
+
   if (!resolvedOwnerId) {
-    // 空セルクリック: クリック位置の実時刻を求め、その時刻を含むbufferエントリを
-    // オーナーとする（buffer上は必ずどこかのエントリに属している。
-    // 曲頭の無音区間等も'N'エントリとして実在するため）。
-    const time = getTimeForGridPosition(measureIndex, slotIndex);
-    if (time == null) { toast('この位置の時刻を取得できませんでした'); return; }
+    // 空セルクリック、またはDOM由来ownerIdが範囲外と判定された場合はここに来る。
+    // クリック位置の実時刻を含むbufferエントリをオーナーとする（buffer上は必ず
+    // どこかのエントリに属している。曲頭・曲中の無音区間も'N'エントリとして実在するため）。
+    //
+    // [Phase130・Issue #100 注記] この検索はコード種別（'N'かどうか）を一切判定しない。
+    // 'N'の区間がオーナーとして解決されるのは、「実時間に基づく正しいowner解決」の
+    // 自然な結果であり、'N'専用の特別扱いではない。Chart Mode上での'N'区間の
+    // 可視化・編集導線そのものは今回のスコープ外（GitHub Issue #92で別途検討）。
     const owner = analysisEditor.buffer.find(c => time >= c.start && time < c.end);
     if (!owner) { toast('この位置には既存データがありません'); return; }
     resolvedOwnerId = owner._id;
@@ -3421,6 +3539,11 @@ function getGroup3Actions(mode, ctx) {
           // PASTE_ABSの定義（icon/label）をそのまま流用し、id/titleのみeditPoint用に上書きする
           // （表記の唯一の定義元をPASTE_ABSに一本化し、single/multiとeditPointでラベルがズレるのを防ぐ）
           { ...PASTE_ABS, id: 'aep-paste-absolute-primary', title: 'コピーした内容をこの位置へ貼り付け（上書き）' },
+          // [Phase130・Issue #102] PASTE_FITの定義（icon/label）を流用し、id/titleのみ
+          // editPoint用に上書きする。single/multiは「その他▼」内に置いているが、
+          // Add Pointのフッターはボタン数が少ないためprimaryへ直接配置する
+          // （たかっちさんProduct Intent「既存のSelection系フッターに統一する」）。
+          { ...PASTE_FIT, id: 'aep-paste-fit-editpoint', title: '次のコードまでの範囲に合わせて貼り付け' },
         ],
         overflow: [],
       };
@@ -3711,6 +3834,10 @@ function renderAnalysisEditorPanel() {
   // 下のhandlersマップで扱う。IDを分けているのはモード間でのDOM重複を避けるため）。
   document.getElementById('aep-paste-absolute-primary')?.addEventListener('click', () => {
     pasteAbsolute();
+  });
+  // [Phase130・Issue #102]
+  document.getElementById('aep-paste-fit-editpoint')?.addEventListener('click', () => {
+    pasteFitAtEditPoint();
   });
   // その他▼メニュー内の項目（クリック後にメニューを閉じる）
   panel.querySelectorAll('.aep-overflow-item').forEach(btn => {
@@ -5980,13 +6107,21 @@ function setupEventHandlers() {
       }
       // [Phase79] Ctrl+V＝そのまま貼り付け（起点のみ必要・pasteAbsolute）
       //           Ctrl+Shift+V＝範囲に合わせて貼り付け（範囲が必要・pasteSelection）
+      // [Phase130・Issue #102] editPoint確定中のCtrl+Shift+Vは、選択範囲ではなく
+      // 「Add Pointから次のバッファエントリまでの範囲」を対象とするpasteFitAtEditPoint
+      // へ分岐する（selection.chordIdsとeditPointは既存の排他仕様[AE-7]のため、
+      // 両方が同時に有効になることはない）。
       if (!inTextInput && e.ctrlKey && !e.shiftKey && (e.key === 'v' || e.key === 'V')) {
         e.preventDefault();
         pasteAbsolute();
       }
       if (!inTextInput && e.ctrlKey && e.shiftKey && (e.key === 'v' || e.key === 'V')) {
         e.preventDefault();
-        pasteSelection();
+        if (analysisEditor.selection.editPoint) {
+          pasteFitAtEditPoint();
+        } else {
+          pasteSelection();
+        }
       }
       if (!inTextInput && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault();

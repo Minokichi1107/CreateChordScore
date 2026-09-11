@@ -1821,6 +1821,88 @@ function _getExactTimeFromSlot(measureIndex, visualSlotIndex, model) {
 }
 
 /**
+ * predictFitPasteCollision — 範囲フィット貼り付け（pasteFitAtEditPoint）を実行した場合に、
+ * Chart Mode描画上でCollision（同一slotへの複数onset量子化）が発生するかを予測する
+ * （Phase130・Issue #102）。
+ *
+ * [OWNERSHIP] TimingModelの生成・quantize()の実行はchartmode.jsの責務であり、
+ * app.js/analysisCommands.jsはchartmode.jsのTimingModelに直接アクセスしない
+ * （[BOUNDARY INVARIANT]・§12参照）。この関数はapp.js側の判断ポイント
+ * （pasteFitAtEditPoint()）から呼ばれ、予測結果だけを返す。副作用を持たない。
+ *
+ * [設計] ratio配分ロジックは analysisCommands.js の
+ * pasteFitAtEditPointCommand() 内のものと同じ計算をローカルに複製する
+ * （addChordCommand・Phase89が確立した「既存関数を壊さないためのローカル複製」の
+ * 前例を踏襲。予測と実行を1つの関数に統合しない）。
+ *
+ * [Collision Indicatorとの関係] 本関数はCollision Indicator（Phase92・
+ * resolveCollision()）の判定ロジック自体には触れない。あくまで
+ * 「貼り付けを実行したらCollision Indicatorが発生する見込みか」を
+ * 実行前に予測するだけであり、Collision Indicator自体の許容設計
+ * （Buffer上は有効だがGrid上では1件のみ表示）は変更しない。
+ *
+ * [検出範囲・Phase130 ChatGPT Review反映] 検出対象は以下の2種類：
+ *   ① 貼り付け予定コード同士の衝突
+ *   ② 貼り付け予定コードの最後の1件と、Next Buffer Entry（貼り付け範囲の
+ *      直後に実在する既存コード）との境界衝突
+ * hasNextEntry引数が必要な理由：owner.end（= targetEnd）は、ownerの直後に
+ * 別のBuffer Entryが存在する場合、そのEntryのstartと常に一致する（既存の
+ * buffer連続性Invariant。analysisCommands.js側のpasteFitAtEditPointCommand
+ * docstring参照）。したがってtargetEnd自体をNext Buffer Entryのonset時刻
+ * として量子化に含めればよく、bufferへの追加探索は不要。ただしownerが
+ * buffer末尾（次のEntryが存在しない＝targetEndは曲の終端）の場合は
+ * 実在するonsetが無いため対象外とする（hasNextEntry=falseで除外）。
+ *
+ * [当初実装からの修正・Phase130] 初版では①のみを検出しており、②の境界衝突は
+ * 検出できていなかった（ChatGPT Reviewで指摘・実データで偽陰性を確認済み）。
+ *
+ * @param {number} targetStart
+ * @param {number} targetEnd
+ * @param {object[]} clipboardChords - clipboard.chords（{ chord, ratio }の配列）
+ * @param {boolean} [hasNextEntry=false] - targetEndの位置に実在するNext Buffer
+ *   Entryが存在するか（ownerがbuffer末尾でない場合はtrue）
+ * @returns {{ collision: boolean, count: number }}
+ *   count: 衝突により非表示になる見込みの件数（①②を合わせて算出。
+ *   resolveCollision()は同一slot内で必ず1件のみを残す設計のため、
+ *   「同一slotに落ちたonset数の延べ - ユニークslot数」がそのまま
+ *   非表示件数と一致する）。
+ *   TimingModelが利用不可（Chart Mode未表示・fallbackモード等）の場合は
+ *   予測不能として collision:false を返す（安全側＝ブロックしない）。
+ */
+export function predictFitPasteCollision(targetStart, targetEnd, clipboardChords, hasNextEntry = false) {
+  const vm = chartState.viewModel;
+  if (!vm?.model || vm.model.mode === 'fallback') return { collision: false, count: 0 };
+  if (!clipboardChords || clipboardChords.length === 0) return { collision: false, count: 0 };
+
+  const targetDuration = targetEnd - targetStart;
+  if (!(targetDuration > 0)) return { collision: false, count: 0 };
+
+  let cursor = targetStart;
+  const predictedStarts = clipboardChords.map((entry, i) => {
+    const isLast = i === clipboardChords.length - 1;
+    const start = cursor;
+    const end = isLast ? targetEnd : cursor + entry.ratio * targetDuration;
+    cursor = end;
+    return start;
+  });
+
+  // hasNextEntry=trueの場合のみ、targetEnd自体をNext Buffer Entryのonset
+  // 時刻として判定対象に加える（上記docstring [検出範囲] 参照）。
+  const checkPoints = hasNextEntry ? [...predictedStarts, targetEnd] : predictedStarts;
+
+  const seenSlots = new Set();
+  let collisionCount = 0;
+  for (const t of checkPoints) {
+    const q = vm.model.quantize(t);
+    const key = `${q.measure}:${q.slot}`;
+    if (seenSlots.has(key)) collisionCount++;
+    seenSlots.add(key);
+  }
+
+  return { collision: collisionCount > 0, count: collisionCount };
+}
+
+/**
  * getTimeForGridPosition — app.js側から呼び出すための公開ラッパー。
  * [OWNERSHIP] TimingModelの生成・保持はchartmode.jsの責務（app.jsは直接触らない）。
  * editPointは{measureIndex, slotIndex}のみを保持し（[EDIT POINT AUTHORITY]）、
