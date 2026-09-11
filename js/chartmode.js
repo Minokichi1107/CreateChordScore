@@ -143,9 +143,10 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
     };
   });
 
-  // N / 空コードを除外してから quantize
+  // [Issue #92] N.C.（chord:'N'）も通常のBuffer Entryとしてquantize対象に含める。
+  // 空コード（未設定）のみを除外する。
   const validChords = (chords || []).filter(c =>
-    c.chord && c.chord !== 'N' && c.chord.length > 0
+    c.chord && c.chord.length > 0
   );
 
   for (const c of validChords) {
@@ -2537,10 +2538,14 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
             const display = (capo !== 0 && _transposeChord)
               ? _transposeChord(slot.chord, -capo)
               : slot.chord;
-            chordEl.textContent = display;
-            // data-chord: 表示済みchord名（projection済み）を格納する。
+            // [Issue #92] 画面表示テキストのみ 'N' → 'N.C.' に変換する。
+            // 表記変換は非可逆（tokens.js display projection原則と同じ）ため、
+            // 変換後の文字列はlookup/data属性には使わない。
+            chordEl.textContent = display === 'N' ? 'N.C.' : display;
+            // data-chord: 表示済み（capo projection済み）だが変換前のchord名を格納する。
             // tooltip 側は findChord(chord) のみ使用し、capo 再適用しない
             // （二重 projection 防止 / tooltip は projection authority を持たない）。
+            // findChord('N') は既存仕様として null を返すため、tooltipは自動的に何も表示しない。
             chordEl.dataset.chord = display;
             // [Phase74-C] data-chord-id: 解析エディタのクリック選択用。
             // raw.chords の _id をそのまま持たせる（projectionしない・編集対象の識別子）。
@@ -2781,7 +2786,8 @@ function _renderFallbackGrid(container, analysis) {
     return;
   }
 
-  const validChords = analysis.chords.filter(c => c.chord && c.chord !== 'N');
+  // [Issue #92] N.C.（chord:'N'）もfallback表示の対象に含める。
+  const validChords = analysis.chords.filter(c => c.chord);
   const listEl = document.createElement('div');
   listEl.className = 'chart-fallback-list';
 
@@ -2791,9 +2797,11 @@ function _renderFallbackGrid(container, analysis) {
   for (const c of validChords) {
     const el = document.createElement('div');
     el.className = 'chart-fallback-chord';
-    el.textContent = (capo !== 0 && _transposeChord)
+    const displayChord = (capo !== 0 && _transposeChord)
       ? _transposeChord(c.chord, -capo)
       : c.chord;
+    // [Issue #92] 表示ラベルのみ 'N' → 'N.C.' に変換する（保存値・Authorityは'N'のまま）。
+    el.textContent = displayChord === 'N' ? 'N.C.' : displayChord;
     listEl.appendChild(el);
   }
 

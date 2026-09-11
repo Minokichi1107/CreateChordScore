@@ -6056,6 +6056,42 @@ function setupEventHandlers() {
       }
     }
 
+    // Shift+N: N.C.（No Chord）を即挿入する（Issue #92）
+    // [設計] モーダル（showChordSelector）は開かない。挿入位置の計算は
+    // 既存の「追加」（aep-add）「挿入」（aep-add-here）ボタンと完全に同一の
+    // ロジックを再利用する（新規のUX判断は「モーダルを開かず即挿入する」点のみ）。
+    if (e.shiftKey && (e.key === 'N' || e.key === 'n')) {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (document.getElementById('modal-ov').classList.contains('open')) return;
+      if (isAnalysisEditing()) {
+        const mode = deriveEditorMode(analysisEditor.selection);
+        if (mode === 'single') {
+          const chord = analysisEditor.buffer.find(
+            c => c._id === analysisEditor.selection.chordIds[0]
+          );
+          if (chord) {
+            e.preventDefault();
+            const splitTime = (chord.start + chord.end) / 2;
+            const newId = addChord(chord._id, splitTime, 'N');
+            if (!newId) toast('この位置には追加できません（時間が足りません）');
+            return;
+          }
+        } else if (mode === 'edit-point') {
+          const editPoint = analysisEditor.selection.editPoint;
+          const owner = analysisEditor.buffer.find(c => c._id === editPoint?.ownerId);
+          if (owner) {
+            const splitTime = getTimeForGridPosition(editPoint.measureIndex, editPoint.slotIndex);
+            if (splitTime == null) { toast('この位置の時刻を取得できませんでした'); return; }
+            e.preventDefault();
+            const newId = addChord(owner._id, splitTime, 'N');
+            if (!newId) toast('この位置には追加できません（時間が足りません）');
+            return;
+          }
+        }
+      }
+    }
+
     // Shift+BracketLeft: 左パネル トグル
     // Shift+BracketRight: 右パネル トグル
     // （e.code基準でJIS/US差を吸収。INPUT/TEXTAREA中は無視）

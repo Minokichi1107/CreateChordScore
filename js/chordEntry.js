@@ -519,6 +519,8 @@ export function showChordSelector({
           style="font-size:15px;letter-spacing:1px;flex:1;ime-mode:disabled">
         <button id="cs-ok-btn" class="sm-btn green"
           style="white-space:nowrap;font-size:13px">決定</button>
+        <button id="cs-nc-btn" class="sm-btn"
+          style="white-space:nowrap;font-size:13px">N.C.</button>
       </div>
       ${palHtml}
     `,
@@ -527,6 +529,12 @@ export function showChordSelector({
 
       document.getElementById('cs-ok-btn')?.addEventListener('click', () => {
         commit(inp?.value.trim());
+      });
+
+      // [Issue #92] N.C.専用ボタン。commit('N')はisNoChordInput()経由の
+      // 既存N.C.確定パスをそのまま通る（テキスト入力によるN/NC/N.C.と同一処理）。
+      document.getElementById('cs-nc-btn')?.addEventListener('click', () => {
+        commit('N');
       });
 
       if (inp) {
