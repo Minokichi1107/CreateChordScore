@@ -3640,6 +3640,11 @@ function renderAnalysisEditorPanel() {
   const _searchFocusIds = ['aep-search-input', 'aep-search-replace-input'];
   const searchFocusedId = document.activeElement?.id;
   const searchWasFocused = _searchFocusIds.includes(searchFocusedId);
+  // [GitHub Issue #99 追加修正] 文末固定ではなく実際のカーソル位置を復元するため、
+  // DOM破棄前に selectionStart/End を記録しておく。
+  const searchFocusedSelection = searchWasFocused
+    ? [document.activeElement.selectionStart, document.activeElement.selectionEnd]
+    : null;
 
   const selection = analysisEditor.selection;
   const mode = deriveEditorMode(selection);
@@ -3871,7 +3876,16 @@ function renderAnalysisEditorPanel() {
       const elToFocus = document.getElementById(idToFocus);
       if (elToFocus) {
         elToFocus.focus();
-        elToFocus.setSelectionRange(elToFocus.value.length, elToFocus.value.length);
+        // [GitHub Issue #99 追加修正] 入力中の再描画（searchFocusedSelectionあり）は
+        // 直前のカーソル位置を復元する。開いた直後（focusRequestedのみでtrueの
+        // ケース）は記録が無いため、従来通り文末へ置く。
+        const len = elToFocus.value.length;
+        if (searchFocusedSelection && idToFocus === searchFocusedId) {
+          const [s, e] = searchFocusedSelection;
+          elToFocus.setSelectionRange(Math.min(s, len), Math.min(e, len));
+        } else {
+          elToFocus.setSelectionRange(len, len);
+        }
       }
     }
     search.focusRequested = false;
@@ -3906,6 +3920,14 @@ function renderAnalysisEditorPanel() {
         // [Phase115] 置換欄を手動編集した時点で「置換直後」の文脈ではなくなるため、
         // Ctrl+Zはブラウザ標準のテキストUndoへ戻す。
         analysisEditor.search.replaceUndoPending = false;
+        // [GitHub Issue #99] 「置換」「全置換」ボタンの有効化条件（canReplace）は
+        // search.replaceTextにも依存するため、入力のたびに再評価が必要。
+        // 従来はここで再描画しておらず、置換欄への入力だけではボタンの
+        // disabled表示が更新されない不具合があった（他の理由での再描画まで
+        // 有効化されなかったように見える）。_refreshEditorView()は
+        // search.query（変更していない）のみで検索結果を再計算するため、
+        // 検索結果・ハイライト・activeIndexへの影響はない（確認済み）。
+        _refreshEditorView();
       });
       // [キー割り当て・ChatGPTレビューで確定] 置換欄にフォーカス中のEnterは
       // 「置換して次へ」（Shift+Enterは「置換して前へ」）。

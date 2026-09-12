@@ -1,12 +1,10 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase127 closeout作業中（Issue台帳の棚卸し反映。
-> phase-status.md同期・phase127_snapshot.md最終確定はこの後に控えている）
-> 内部Issue番号とGitHub Issue番号が別体系であることが判明したため、
-> 番号体系ルールを新設（下記「0. Issue番号ルール」参照）。あわせて
-> GitHub Issue監査により#28の誤記訂正・#45/#91のreopen反映・#103/#104の
-> 追加・E②由来の新規課題2件の追加・Tooltip廃止に伴う陳腐化課題1件の
-> 削除を行った。
+> 最終更新: Phase132完了時点（Phase128〜132のDocumentation Checkpointを反映）。
+> Phase128前半・128後半の実装時発見事項をADD。`chartmode.js`のCRLF/LF往復
+> 問題はPhase128後半でADDされたがPhase129でCLOSEされたため最終状態には
+> 含めていない。Phase131でKnown Design Gapをclose。Phase129②・130・132は
+> current-issues.mdへの変更なし（各handover記載の通り）。
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -162,14 +160,6 @@ hiddenCountはnormal pathのslot projection時のみ付与される（pickup mea
 今回は意図的にスコープ外とした（architecture.md §9.5
 「PICKUP COLLISION SCOPE INVARIANT」参照）。
 
-#### Known Design Gap — N（無音プレースホルダー）の表示モデル不一致
-状態: 未着手・優先度低
-内容: Analysis Editorの正本（buffer）は無音プレースホルダー（chord:'N'）を実在する
-編集対象として扱うが、Chart Modeの表示モデル（buildGridViewModel）はNを表示前に除外する。
-この不一致により、Nの領域はクリックで選択できず、必ずeditPointへ直行する。
-個別移動ボタン経由で境界調整自体は可能なため実害は小さい。
-（architecture.md §12「Known Design Gap」に設計上の位置づけを記載）
-
 #### 原因未特定の「緑の棒」バグ
 状態: 観察中（原因未特定）
 内容: 編集終了・保存後、または編集中に別プロジェクトへ切り替えた際、画面上に緑の細い
@@ -220,6 +210,25 @@ Chart Modeの表示が編集前の状態に戻ることがある。Undoすると
 状態: 再現待ち
 内容: 条件は「長時間使用後 / ChartMode経由 / ended近辺」。state/chain系の原因は
 否定済み。再現条件が絞り切れておらず、次回発生時の状況記録が必要。
+
+#### Chart Mode hover tooltipのscrollWidth判定に理論上の不正確さがある可能性（Phase128前半で発見）
+状態: 未確認・優先度低
+内容: `.chart-chord-name`のscrollWidthが「文字の実際の幅」ではなく「要素自体の幅
+（carry-forward表示用に広げた箱の幅）」を返すケースがあることが判明した
+（短いコード名が複数スロット分の広い箱に入っている場合）。Chart Modeの
+コンテキストメニュー機能ではこの問題を座標ベース判定（`elementsFromPoint()`）に
+置き換えて解消済みだが、既存のhover tooltip（Phase67）自体は依然として
+scrollWidthを使用したままであり、理論上は同じ不正確さを持つ可能性がある。
+ただし実害の報告は無く、hoverの場合は「同じコードの継続表示領域内で同じ
+コードのtooltipが出る」だけで目立つ不具合にはなりにくいと推測される。
+
+#### Chart Modeからのダイアグラム登録は複数カスタムvariantの選択に非対応（Phase128前半で発見）
+状態: 未対応・優先度低（意図的な現状の割り切り）
+内容: 1つのコード名に複数のカスタムvariant（_idを持つ登録）が既に存在する場合、
+Chart Modeの右クリック経由では最初に見つかったものが編集対象になる。Chart Mode側には
+variantを選択するUIがないため。通常画面の右パネルでは複数variantを一覧・個別編集
+できるため、必要であれば通常画面側から編集する。将来variant選択UIが必要になれば
+別途検討する。
 
 ### Debug Session Recorder 系
 
@@ -429,6 +438,9 @@ resource構造分離案: `resource/projects/samples/`（repo管理可）／
   自体にその経緯を明記する一文がない。設計文書の整合性問題として記録し、
   今回は推測で書き換えない（architecture.mdのNamed Invariant一覧にも
   `[MUTATION RECORDING SCOPE]`は含めていない）。
+- bs範囲内の途中ミュート弦によるバレー帯の分断未対応（Phase128後半で発見）
+  セーハ範囲の中間（両端以外）に単発のミュート弦がある場合、帯が分断されず
+  連結されたまま描画される。実例なく意図的にスコープ外とした。
 
 ---
 
@@ -643,6 +655,13 @@ P8  Section Quick Actions
 
 #### カポ範囲拡張（-2 まで対応）
 内容: 現在カポは 0〜11 の範囲のみ。半音下げチューニング用途で -2 まで対応できるようにする。
+
+#### 複数バレー（Multiple Barre）対応（Phase128後半で発見・実例待ち）
+状態: 未着手・実例待ち
+内容: 1つの図に2本以上の独立したセーハがあるコードへの対応。Phase128後半で
+実装した3実例（Cmaj9・Fm7-5・F#7/A#）はいずれも単一バレーだったため見送った。
+現在のデータモデル（`{ f, b, bs? }`）は将来`barres[]`フィールド追加を想定した
+設計にしてある。実際のニーズが確認された場合、Technical Designから着手する。
 
 #### 開発者支援：解析データのテスト支援機能
 内容: 編集前スナップショットの保存・ChordMini解析直後の状態へリセット・

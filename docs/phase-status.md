@@ -1,8 +1,8 @@
 # フェーズ進行状況
 
-> 最終更新: Phase127完了時点（Phase124〜127-E②を反映。Phase124以降は
+> 最終更新: Phase132完了時点（Phase128〜132を反映。Phase124以降は
 > 固定周期ではなくDocumentation Checkpoint方式で棚卸しする運用のため、
-> 前回の更新（Phase123-C2）から間隔が空いている）
+> 前回の更新（Phase127完了時点）から間隔が空いている）
 
 ---
 
@@ -163,6 +163,50 @@ Completed（完了済み）
   - 副産物: Handover Review運用（監査往復は原則最大2ラウンド）を
     docs/handover/README.mdへ正式反映。GitHub Issue番号を今後の
     Issue ID正本とする`[ISSUE ID AUTHORITY]`をcurrent-issues.mdへ確立
+✓ Chart Modeからのコードダイアグラム登録機能（Phase128前半・
+  GitHub Issue #93のB。onsetセルの右クリックメニューへ項目を追加し、
+  既存のopenAddDiagramModal() / openEditDiagramModal()を再利用。
+  document.elementsFromPoint()による座標ベースのonset/carry判定を
+  確立。既登録／未登録の呼び分けは既存の_id判定基準をそのまま踏襲）
+✓ 部分バレー表現の拡張（Phase128後半・GitHub Issue #93-A。`bs`
+  （Barre String Range）フィールドを新設。`b`=セーハフレット／`bs`=セーハ
+  対象弦範囲という責務分離を確立。`bs`省略時は既存の自動算出のまま
+  （マイグレーション不要）。セーハより低いフレットの単独運指が表示されない
+  バグ・bs範囲内のミュート弦がセーハ描画に含まれるバグを修正。登録フォームへ
+  「セーハの範囲を指定する」チェックボックスを追加（Progressive Disclosure）。
+  Phase128前半（Chart Mode右クリック登録）の実装がGit未保存のまま消失する
+  事故が発生し、Handoverを基準に再構築した）
+✓ Phase128 PR Merge前のCRLF/LF問題解決（Phase129・`.gitattributes`
+  （`js/chartmode.js text eol=crlf`）を新設し、main側Blobを独立commitで
+  正規化。RebaseではなくMergeを採用（Phase128ブランチの開発履歴に
+  含まれるEOL往復による中間状態混入リスクを回避するため）。
+  Blob hash照合による安全なconflict解決を徹底。PR #106として
+  `main`へMerge完了（`eede348`））
+✓ Shift+click・境界ハンドルドラッグ時のテキスト選択問題修正
+  （Phase129②・GitHub Issue #97/#98。`#chart-grid`へ`user-select:none`
+  追加のみで解消。JS側イベント処理は無変更。根本原因はmousedown時点の
+  ブラウザ標準選択アンカー設定に対するガード欠如だった。CSS単独案を
+  JS preventDefault案・併用案と比較した上で採用）
+✓ Add Point Owner誤認修正・range-fit paste機能（Phase130・GitHub Issue
+  #100・#102。setEditPoint()へDOM由来ownerIdの時刻範囲検証を追加し
+  Owner誤認を解消。pasteFitAtEditPointCommand()でAdd PointからNext
+  Buffer Entryまでのratio配分貼り付けを実装。predictFitPasteCollision()
+  による事前Collision予測・確認モーダルを追加。'N'（N.C. / No Chordエントリ。
+  必ずしも無音を意味しない）は通常のBuffer Entryと同列に扱い、専用の
+  Invariantは追加していない）
+✓ N.C.（No Chord）挿入・Chart Mode表示対応（Phase131・GitHub Issue #92。
+  Add Chord Modal共通UI（showChordSelector）へN.C.ボタンを追加し、
+  追加・挿入・変更の3入口すべてに反映。Shift+Nショートカット新設
+  （既存aep-add/aep-add-hereと同一のsplitTime計算を再利用）。
+  Chart Mode側のN.C.除外フィルタを撤廃し、通常のBuffer Entryとして
+  表示・編集可能にした。新規CSS・新規Decoratorは追加せず、既存
+  Visual Designをそのまま踏襲。architecture.md §12の「Known Design
+  Gap」記述は本Checkpointで削除済み）
+✓ 検索/置換ボタンの有効化タイミング修正（Phase132・GitHub Issue #99。
+  置換欄`input`イベントへ`_refreshEditorView()`を追加し`canReplace`を
+  即時再評価。実機検証で発見された副作用（カーソルが文末へ固定される
+  問題）へ対応するため、再描画時のカーソル復元処理を「文末固定」から
+  「実際の位置を記録・復元」へ変更。検索欄・置換欄の両方に適用）
 
 Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」および
 current-issues.md参照）
@@ -170,6 +214,10 @@ current-issues.md参照）
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
 を行い、Phase127でProvenance機能一式（127-A〜F・E①〜E②）を実装した。
+その後Phase128〜132で、Chart Modeからのダイアグラム登録・部分バレー表現・
+CRLF/LF問題の恒久対策・テキスト選択問題・Add Point Owner誤認修正・
+range-fit paste機能・N.C.挿入対応・検索/置換ボタンの有効化タイミング修正を
+実施した。
 Phase124以降のドキュメント棚卸しは、固定周期ではなくDocumentation
 Checkpoint方式（強制Checkpoint／計画Checkpoint。docs/handover/README.md
 参照。Phase126改訂）へ移行している。
@@ -291,6 +339,9 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 123-C1 | Debug Session Recorder — reconcile診断情報の記録（debug-recorder-design.md [MUTATION ATTEMPT RECORDING]続編。snapshotSections()/diffSections()新設。reconcile()を実Factsで呼ぶ5経路（deleteChord/deleteSelection/pasteSelection/pasteAbsolute/mergeSelection）でSection変化を診断。pasteAbsolute()のMutation Attempt Recording記録漏れも同時に補正） | app.js / debugSessionRecorder.js |
 | 123-C2 | Debug Session Recorder — Render Event（描画イベント）の記録（debug-recorder-design.md [RENDER PATH VISIBILITY]の実装。Mutation-triggered renderのみを対象とし、独立イベント種別（event:'render'）として単一Timelineへ記録。recordRender()の1箇所に生成ロジックを集約。調査過程で[RENDER CONTEXT INVARIANT]違反4箇所を発見（current-issues.md参照）） | app.js / debugSessionRecorder.js |
 | 124 | Render Context Invariant Compliance（[RENDER CONTEXT INVARIANT]（Phase106）への準拠を完了。renderChartMode()全8呼び出し元を再監査し、saveAnalysisEdit()／capo変更ハンドラ／Chart Modeを開くボタン／列数切替ボタンの4箇所へediting: isAnalysisEditing()を追加。editingは_renderChartHeader()内でのみ使用され、GridViewModelの描画データには無関係であることを確認） | app.js |
+| 130 | Add Point Owner誤認修正・range-fit paste機能（GitHub Issue #100・#102。pasteFitAtEditPointCommand・predictFitPasteCollision新設） | app.js / analysisCommands.js / chartmode.js / modals.js |
+| 131 | N.C.（No Chord）挿入・Chart Mode表示対応（GitHub Issue #92。入力側は既に安全設計済みだったことをExplorationで確認した上で、Chart Mode側の除外フィルタ撤廃・N.C.ボタン・Shift+Nショートカットを実装。Playwrightによる自動検証と実機確認の両方でPASS） | chordEntry.js / app.js / chartmode.js |
+| 132 | 検索/置換ボタンの有効化タイミング修正（GitHub Issue #99。置換欄inputへの`_refreshEditorView()`追加・再描画時のカーソル位置保存/復元方式への変更） | app.js |
 
 ### Provenance / Data Provenance
 
@@ -334,6 +385,7 @@ Library / Chart Mode / Persistence / External Check編集 / Backfillの
 | 127-F | **[BACKFILL NON-DESTRUCTIVE INVARIANT]確立**（バックフィルはProvenance関連データのみを変更し、それ以外の既存データに一切触れない。architecture.md §12参照） |
 | 127-E② | **`[TOOLTIP CONSOLIDATION]`確立**（hover TooltipをPopoverへ一本化。docs/handover/active/handover_phase127-e2.md参照）・**Handover Review運用確立**（監査往復は原則最大2ラウンド。docs/handover/README.md参照） |
 | 127完了時 | **`[ISSUE ID AUTHORITY]`確立**（GitHub Issue番号を今後の正式IDとする。既存の内部Issue番号は遡及変更せず歴史的記録として維持。current-issues.md §0参照。内部#28とGitHub#28が無関係な別内容で偶然衝突していた実例が契機） |
+| 129 | `chartmode.js` CRLF/LF問題の恒久対策（`.gitattributes`導入。Git blob単位でのEOL不一致が巨大diffの原因だったことを実測で特定・Rebase/Mergeの意味論差異・checkout時のfilter再適用挙動など、複数のGit内部知見を確立） |
 
 ---
 
@@ -386,6 +438,11 @@ P2  Section UX Epic
   整理で再確認）
   小節補正バッジは解析アルゴリズム調整時のみ有用。デフォルト非表示化を
   将来検討する
+
+・複数バレー（Multiple Barre）対応（Phase128後半で発見・実例待ち）
+  1つの図に2本以上の独立したセーハがあるコードへの対応。データモデル
+  （`{ f, b, bs? }`）は将来`barres[]`フィールド追加を想定した設計に
+  してあるため、実例のニーズが確認された時点で着手する（current-issues.md参照）
 ```
 
 ### Debug Session Recorder — Diagnostic Timeline v1 凍結後の保留事項
@@ -403,9 +460,6 @@ Phase124以降は次候補を新規の要望・発見事項ベースで選定す
 ### Technical Debt（技術的負債・既存挙動の見直し）
 
 ```
-・Known Design Gap（Analysis EditorとChart Mode ViewModelのモデル不一致）の解消
-  buildGridViewModel()がNを表示前に除外する設計を見直す
-
 ・Boundary Handle / Playheadの表示条件見直し（検索モード中の減光等）
 
 ・CSS再構成の残タスク（Phase86でモジュール分割は完了。
@@ -427,6 +481,11 @@ Phase124以降は次候補を新規の要望・発見事項ベースで選定す
 ・Boundary Handle Dragのpointercancel経路が未検証（Phase93〜95-A2で継続）
   ウィンドウ外へのドラッグ・OSジェスチャ介入等での発火経路が実機で
   未踏のまま。理論上は問題ないはずだが検証待ち
+
+・リポジトリ全体のCRLF/LF管理方針（Phase129で発見・未検討）
+  `.gitattributes`（`js/chartmode.js text eol=crlf`）はPhase129で
+  chartmode.js限定として導入・解決済み。他ファイルへの適用要否は
+  依然として未検討のまま残っている
 ```
 
 ### Watch List（継続監視中・原因未特定）

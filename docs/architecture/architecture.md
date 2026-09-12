@@ -1544,17 +1544,6 @@ transposeRoot()の出力表記（シャープ/フラットどちらで返すか�
 （current-issues.md Future Features参照）。
 ```
 
-### Known Design Gap
-
-```
-Analysis Editorの編集モデル（buffer）は無音プレースホルダー（chord:'N'）を
-実在する編集対象として扱うが、Chart Modeの表示モデル（buildGridViewModel）は
-Nを表示前に除外する。編集モデルと表示モデルの間に、何を編集対象と見なすかに
-ついての設計上の差異が存在する。
-```
-
-詳細・対応状況は `current-issues.md` を参照。
-
 ### Section Subsystem（Phase98〜108）
 
 ```
