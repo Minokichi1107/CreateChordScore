@@ -442,6 +442,7 @@ export function createTimingModel({
       measureCount: 0,
       quantize: () => ({ measure: 0, beat: 0, slot: 0, confidence: 'low' }),
       getMeasure: () => null,
+      getContinuousMeasurePosition: () => null,
     };
   }
 
@@ -512,6 +513,61 @@ export function createTimingModel({
     return q.slot / slotsPerMeasure;
   }
 
+  /**
+   * getContinuousMeasurePosition
+   *
+   * 【Phase136-A】通常表示（editing=false）専用のPosition算出関数。
+   * 時刻 → { measureIndex, position }（position: 0.0〜1.0）に変換する。
+   *
+   * 【quantizeTime() との違い・意図的な責務分離】
+   *   quantizeTime() は「時刻を最寄りのSlot（Beat分割グリッド）へ丸める」
+   *   ための関数であり、beats / slotTimings / anticipationWindow に依存する。
+   *
+   *   本関数は Slot（Beat分割グリッド）を一切経由しない。
+   *   measures[].startTime / endTime による「その時刻がどのMeasureの
+   *   範囲に入るか」の特定のみを行う（quantizeTime() 内部の
+   *   measureIdx特定ロジックのみを、Slot依存部分を除いて再利用する）。
+   *
+   * 【[NAMED RISK] Chord全体の位置計算に使わないこと】
+   *   本関数は「時刻1点」を受け取る関数であり、Chordの start/end を
+   *   まとめて1回で処理する関数ではない。Cross-Measure Chord（小節を
+   *   またぐChord）を扱う場合、呼び出し側が start と end それぞれに
+   *   対して本関数を個別に呼び、Measureごとの表示区間（Display Segment）
+   *   を組み立てる責務を持つ（chartmode.js側の責務）。
+   *
+   * @param {number} time - 秒
+   * @returns {{ measureIndex: number, position: number } | null}
+   *          measures が空の場合（fallbackモード等）は null を返す
+   */
+  function getContinuousMeasurePosition(time) {
+    if (!measures.length) return null;
+
+    // measureIdx特定ロジックは quantizeTime() 343〜355行目相当。
+    // Slot（slotTimings/resolutionPerBeat）には一切触れない。
+    let measureIdx = measures.length - 1; // 範囲外（曲末尾超え）は末尾 measure
+    for (let mi = 0; mi < measures.length; mi++) {
+      const m = measures[mi];
+      if (time >= m.startTime && time < m.endTime) {
+        measureIdx = mi;
+        break;
+      }
+      if (time < m.startTime) {
+        // 最初の measure より前（曲頭未満）→ 先頭 measure とする
+        measureIdx = mi;
+        break;
+      }
+    }
+
+    const measure = measures[measureIdx];
+    const span = measure.endTime - measure.startTime;
+    const raw = span > 0 ? (time - measure.startTime) / span : 0;
+    // measure範囲外の time（曲頭未満・曲末尾超え）を渡された場合の
+    // 表示崩れを防ぐため 0.0〜1.0 にclampする。
+    const position = Math.max(0, Math.min(1, raw));
+
+    return { measureIndex: measureIdx, position };
+  }
+
   return {
     mode,
     // measureCount は detector quality 依存（最終小節を検出できない場合に欠ける）
@@ -520,6 +576,7 @@ export function createTimingModel({
     quantize,
     getMeasure,
     getBeatPosition,
+    getContinuousMeasurePosition,
   };
 }
 

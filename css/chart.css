@@ -392,6 +392,47 @@
   display: block;
 }
 
+/* ── Phase136-A: Continuous Chord Position（editing=false専用） ──────
+   Slot経路（.chart-slots以下）とは別のDOM構造。
+   .chart-chord-name はSlot/Continuous両方で共有しており、
+   --duration-slots が未設定（デフォルト1）の場合の挙動
+   calc(1 * 100% - 4px) をそのまま利用するため追加の上書きは不要。
+   ─────────────────────────────────────────────────────── */
+
+/* Continuous Rendererの土台。.chart-slots と同じ min-height を踏襲し、
+   Slot/Continuousどちらのモードでも小節の高さを揃える。 */
+.continuous-track {
+  position: relative;
+  min-height: 36px;
+}
+
+/* Beat Grid（Ruler）。quantizeTime()を経由しない実時間ベースの目盛り線。
+   Chordの配置基準ではなく、あくまで視認用のガイド（原則: BeatはChord
+   Placement Slotではない）。 */
+.continuous-beat-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-ui);
+  opacity: 0.35;
+  pointer-events: none;
+}
+.continuous-beat-tick--downbeat {
+  opacity: 0.7;
+}
+
+/* Continuous Chord Segment。left/widthはJS側で%指定する
+   （buildContinuousChordProjection() の leftPercent/widthPercent）。
+   top/bottomを明示することで、内部の .chart-chord-name（bottom基準の
+   絶対配置）が正しい高さを基準に位置決めできるようにする。 */
+.continuous-chord {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
 /* Phase57: carry slot は chord label を生成しないため .chart-chord--carried は不要。
    carry の視覚表現は .chart-slot--carry { opacity: 0.35 } で行う。 */
 
