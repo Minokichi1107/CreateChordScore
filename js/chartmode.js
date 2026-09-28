@@ -981,7 +981,15 @@ const PICKUP_REST_GLYPH_SVG = `<svg class="chart-rest-glyph" viewBox="0 0 24 24"
 
 export const chartState = {
   active:   false,
-  viewModel: null,  // buildGridViewModel の戻り値
+  viewModel: null,  // buildGridViewModel の戻り値（Slot経路・editing=true用）
+
+  // 【Phase136-B】buildContinuousChordProjection().model の Runtime Cache
+  // （Continuous経路・editing=false用）。viewModelと対になる存在で、
+  // updateChartPlayback()のContinuous分岐（_updateContinuousPlayback()）が
+  // 参照する。openChartMode()・_renderChartGridContinuous()の両方で
+  // 更新される（詳細は各関数のコメント参照）。
+  continuousModel: null,
+
   lastScrolledMeasure: -1,
 
   // Phase68: pickup-aware visual projection
@@ -2385,6 +2393,12 @@ export function openChartMode() {
   // chartmode.js は project tree を直接読まない。
   // analysis.normalized が runtime cache として含まれている（analysisLoader.js で生成済み）。
   chartState.viewModel = buildGridViewModel(analysis, duration);
+  // 【Phase136-B】Continuous経路のPlayback（Active Measure/Playhead）が参照する
+  // Runtime Cache。viewModelと同じタイミング（_startRafLoop()より前）で確定させる。
+  // _startRafLoop()は呼び出し直後に updateChartPlayback() を同期的に1回実行するため、
+  // その時点で既に存在している必要がある（renderChartMode()を待つと1フレーム分の
+  // 空白が生じる）。
+  chartState.continuousModel = buildContinuousChordProjection(analysis, duration)?.model ?? null;
 
   chartState.active = true;
   const overlay = document.getElementById('chart-overlay');
@@ -3015,20 +3029,23 @@ function detectPickupMeasure(measures) {
  * 【この段階でやっていること】
  *   - Measure DOM生成
  *     既存 .chart-measure クラス + data-measure-index を再利用する
- *     ため、updateChartPlayback() の Active Measure ハイライト
+ *     ため、Active Measure ハイライト
  *     （document.querySelector('.chart-measure[data-measure-index]')）
- *     は変更なしでそのまま動作する。
+ *     はSlot経路・Continuous経路（_updateContinuousPlayback()）の
+ *     どちらからも同じDOM検索で動作する。
  *   - Beat Grid（raw.beatsの実時間位置を目盛りとして表示。
  *     Chord配置の基準には使わない）
  *   - Continuous Chord Segmentの描画
  *     既存 .chart-chord-name クラス + data-chord / data-chord-id を
  *     再利用するため、既存Tooltip機構（イベント委譲）はそのまま動作する。
+ *   - Continuous Playhead（Phase136-B）
+ *     既存の .chart-playhead DOM hook（measureEl._playheadEl）を設置し、
+ *     位置は _updateContinuousPlayback() が continuousModel の
+ *     getContinuousMeasurePosition() から更新する（Active Measureと
+ *     同一のContinuous Positionを基準とする）。
+ *     continuousModel は本関数の先頭で cp.model から最新化される。
  *
  * 【この段階でやっていないこと・次段階へ持ち越し】
- *   - Continuous Playhead: 既存の .chart-playhead DOM hookのみ設置する
- *     （measureEl._playheadEl）。位置計算自体は既存のSlotベース
- *     updateChartPlayback()がそのまま動くため、離散的な動きのまま
- *     表示はされる。連続化はStep5で行う。
  *   - Search Highlight / Section Preview / Mutation Feedbackとの接続
  *     （data-chord-idはDOM上に保持済みなので、次段階で追加できる）
  *
@@ -3040,6 +3057,9 @@ function detectPickupMeasure(measures) {
 function _renderChartGridContinuous(container, analysis, { measuresPerRow = 3 } = {}) {
   const duration = _getAudioDuration?.() || null;
   const cp = buildContinuousChordProjection(analysis, duration);
+  // 【Phase136-B】Playback（updateChartPlayback）が参照するRuntime Cacheを、
+  // 描画のたびに最新化する（chartState.viewModelと同じ役割・同じ更新契機）。
+  chartState.continuousModel = cp?.model ?? null;
 
   if (!cp || cp.model.mode === 'fallback' || !cp.measures.length) {
     _renderFallbackGrid(container, analysis);
@@ -3226,7 +3246,19 @@ function _renderFallbackGrid(container, analysis) {
  * @param {number} currentTime
  */
 export function updateChartPlayback(currentTime) {
-  if (!chartState.active || !chartState.viewModel) return;
+  if (!chartState.active) return;
+
+  // 【Phase136-B】経路分岐（renderChartMode()の editing 分岐と対称）。
+  // isContinuousMode のような新規stateは持たない。既存の
+  // _isEditingAnalysis()（app.jsのAuthorityを都度問い合わせるだけの
+  // 既存injection）をそのまま使う。
+  if (!_isEditingAnalysis()) {
+    _updateContinuousPlayback(currentTime);
+    return;
+  }
+
+  // ── 以降は既存Slot経路（無変更）──
+  if (!chartState.viewModel) return;
 
   const { model } = chartState.viewModel;
   if (model.mode === 'fallback') return;
@@ -3294,6 +3326,54 @@ export function updateChartPlayback(currentTime) {
 
   _updateTransport(currentTime);
 
+}
+
+/**
+ * _updateContinuousPlayback
+ *
+ * Continuous経路（editing=false）専用のPlayback同期。
+ *
+ * [Named Invariant] Continuous経路では、Active MeasureとPlayheadは
+ * 同一のContinuous Position（getContinuousMeasurePosition()の結果）を
+ * 基準とする。quantize() / anticipationWindow には一切触れない
+ * （Slot配置の責務のまま・Phase136-B Technical Design参照）。
+ *
+ * @param {number} currentTime
+ */
+function _updateContinuousPlayback(currentTime) {
+  const model = chartState.continuousModel;
+  if (!model) return;
+
+  const pos = model.getContinuousMeasurePosition(currentTime);
+  if (!pos) return;
+
+  // 既存ハイライトを解除。.chart-slot--active はSlot専用DOM
+  // （Continuous DOMには存在しない）のため、ここでは触らない。
+  document.querySelectorAll('.chart-measure--active').forEach(el => {
+    el.classList.remove('chart-measure--active');
+  });
+
+  const measureEl = document.querySelector(
+    `.chart-measure[data-measure-index="${pos.measureIndex}"]`
+  );
+  if (measureEl) {
+    measureEl.classList.add('chart-measure--active');
+
+    if (measureEl._playheadEl) {
+      measureEl._playheadEl.style.left = `${pos.position * 100}%`;
+    }
+
+    // ★ 小節が変わった時だけ中央スクロール（Slot経路と同じ
+    //   chartState.lastScrolledMeasure を共有する。ContinuousとSlotの
+    //   measureIndexは同一のTimingModel生成条件から作られるため、
+    //   番号体系は一致する＝共有しても事故は起きない）
+    if (pos.measureIndex !== chartState.lastScrolledMeasure) {
+      chartState.lastScrolledMeasure = pos.measureIndex;
+      measureEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }
+
+  _updateTransport(currentTime);
 }
 
 // ════════════════════════════════════════
