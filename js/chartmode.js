@@ -226,9 +226,96 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
  *          segments:  [{ chordId, chord, measureIndex, leftPercent, widthPercent }]
  *          beatGrid:  [{ measureIndex, position }]（Ruler用。Chord配置には使わない）
  */
+// 【Phase136-B】Continuous表示専用の小節線スナップ許容幅。
+//
+// [Architecture Boundary] quantize() の anticipationWindow とは独立した
+// 定数である。値の由来は「小節頭と8分裏（0.5拍）の中点」という幾何的な
+// 根拠に加え、265曲・41,979境界の実データで検証済み（小節線からの距離の
+// 密度が単調に急減衰し、0.25拍付近で減衰が止まり背景レベルへ移る）。
+// anticipationWindow（0.5）と数値が一致するのは結果的なものであり、
+// 依存関係として結び付けない（そちらはSlot配置・quantize()専用の値の
+// ままにする）。
+const BAR_LINE_SNAP_BEATS = 0.25;
+
+/**
+ * snapChordBoundariesToBarLines
+ *
+ * 【Phase136-B】Continuous Chord Projection専用の表示補正（pure function）。
+ * ChordMini検出由来のコード境界時刻（実時間）が、小節線のごく近傍
+ * （BAR_LINE_SNAP_BEATS拍以内）にある場合のみ、表示上その小節線へ
+ * 吸着させた時刻を返す。raw.chords / c.start / c.end は一切書き換えない
+ * （呼び出し側が「元の時刻 → 表示用の時刻」の対応表として使う）。
+ *
+ * [許容幅の算出方法]
+ *   固定秒数ではなく、その境界に最も近い小節線の実際のBeat間隔
+ *   （raw.beats由来）× BAR_LINE_SNAP_BEATS で都度計算する。
+ *   テンポが変化する曲・1拍しかない極端に短い小節でも正しく機能する。
+ *
+ * [Order Preservation]
+ *   times は昇順・重複なしを前提とする。吸着後の値は
+ *   「直前に採用した値より大きく、次の生の境界時刻より小さい」場合のみ
+ *   採用する。これにより:
+ *     - 吸着によってコードの前後関係が入れ替わることはない
+ *     - 吸着で幅がゼロ（同一時刻）になる場合は吸着せず元の時刻を返す
+ *
+ * @param {number[]} times          - 昇順・重複なしの境界時刻（秒）
+ * @param {number[]} barStartTimes  - 小節開始時刻（Measure.startTime）
+ * @param {number[]} beats          - raw.beats 相当（昇順）
+ * @param {number} [tolBeats=BAR_LINE_SNAP_BEATS]
+ * @returns {Map<number, number>}   元の時刻 → 表示用に吸着させた時刻
+ */
+export function snapChordBoundariesToBarLines(times, barStartTimes, beats, tolBeats = BAR_LINE_SNAP_BEATS) {
+  // 時刻Bの直前・直後の実Beat間隔（秒）を二分探索で求める
+  const localBeatSpan = (B) => {
+    let lo = 0, hi = beats.length - 1, i = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (beats[mid] <= B + 1e-9) { i = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    const prevBeat = (i >= 0 && Math.abs(beats[i] - B) < 1e-9) ? beats[i - 1] : beats[i];
+    const nextBeat = beats[i + 1];
+    return {
+      before: prevBeat != null ? B - prevBeat : null,
+      after:  nextBeat != null ? nextBeat - B : null,
+    };
+  };
+
+  const nearestBarLine = (t) => {
+    let best = null;
+    for (const B of barStartTimes) {
+      if (B < t - 3) continue;   // 3秒以上離れた小節線は探索対象外（早期打ち切り）
+      if (B > t + 3) break;
+      const { before, after } = localBeatSpan(B);
+      const tolSeconds = (t < B ? before : after) ?? 0;
+      const dist = Math.abs(t - B);
+      if (dist <= tolSeconds * tolBeats + 1e-9 && (!best || dist < best.dist)) {
+        best = { B, dist };
+      }
+    }
+    return best ? best.B : t;
+  };
+
+  const snapped = new Map();
+  let lastAccepted = -Infinity;
+
+  times.forEach((t, idx) => {
+    const candidate = nearestBarLine(t);
+    const nextRaw = idx + 1 < times.length ? times[idx + 1] : Infinity;
+
+    if (candidate !== t && candidate > lastAccepted + 1e-6 && candidate < nextRaw - 1e-6) {
+      snapped.set(t, candidate);
+      lastAccepted = candidate;
+    } else {
+      snapped.set(t, t);
+      lastAccepted = Math.max(lastAccepted, t);
+    }
+  });
+
+  return snapped;
+}
+
 export function buildContinuousChordProjection(analysis, audioDuration = null) {
   if (!analysis) return null;
-
   const cachedNormalized = analysis.normalized;
   const beats         = cachedNormalized?.beats     ?? analysis.beats     ?? [];
   const downbeats      = cachedNormalized?.downbeats ?? analysis.downbeats ?? [];
@@ -284,11 +371,24 @@ export function buildContinuousChordProjection(analysis, audioDuration = null) {
     c.chord && c.chord.length > 0
   );
 
+  // 【Phase136-B】小節線スナップ（表示専用）。
+  // raw.chords（c.start/c.end）は書き換えない。「元の時刻 → 表示用の
+  // 吸着後の時刻」の対応表(Map)だけをここで作り、以降のSegment座標計算
+  // でのみ参照する（Playback Authority・quantize()には一切影響しない）。
+  const barStartTimes = measures.map(m => m.startTime);
+  const boundaryTimes = [...new Set(
+    validChords.flatMap(c => [c.start, c.end])
+  )].sort((a, b) => a - b);
+  const snappedTime = snapChordBoundariesToBarLines(boundaryTimes, barStartTimes, beats);
+
   const segments = [];
 
   for (const c of validChords) {
-    const startPos = model.getContinuousMeasurePosition(c.start);
-    const endPos   = model.getContinuousMeasurePosition(c.end);
+    const displayStart = snappedTime.get(c.start) ?? c.start;
+    const displayEnd   = snappedTime.get(c.end)   ?? c.end;
+
+    const startPos = model.getContinuousMeasurePosition(displayStart);
+    const endPos   = model.getContinuousMeasurePosition(displayEnd);
     if (!startPos || !endPos) continue;
 
     const chordId = c._id ?? null;
@@ -303,8 +403,8 @@ export function buildContinuousChordProjection(analysis, audioDuration = null) {
       const span = measure.endTime - measure.startTime;
       if (span <= 0) continue;
 
-      const visibleStart = Math.max(c.start, measure.startTime);
-      const visibleEnd   = Math.min(c.end,   measure.endTime);
+      const visibleStart = Math.max(displayStart, measure.startTime);
+      const visibleEnd   = Math.min(displayEnd,   measure.endTime);
       if (visibleEnd <= visibleStart) continue;
 
       const leftPercent  = ((visibleStart - measure.startTime) / span) * 100;
