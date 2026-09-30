@@ -5,6 +5,8 @@
  *
  * 【責務】
  *   - buildGridViewModel: analysis → GridViewModel（onset-only canonical）
+ *   - buildContinuousChordProjection: 【Phase136-A】analysis → Display
+ *     Segment[]（Slot非経由。editing=false専用の兄弟Projection）
  *   - expandToSlots: render用 slot semantic 配列生成（onset|carry|empty）
  *   - expandCarryForward: @deprecated Phase57で expandToSlots に置き換え済み
  *   - resolveCollision:   同一スロット複数 onset の解決（render時）
@@ -188,6 +190,237 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
   const repairPerMeasure    = new Map(repairPerMeasureArr.map(e => [e.index, e]));
 
   return { model, measures, repairPerMeasure };
+}
+
+// ────────────────────────────────────────
+// 【Phase136-A】Continuous Chord Projection（editing=false 専用）
+// ────────────────────────────────────────
+
+/**
+ * buildContinuousChordProjection
+ *
+ * 【Phase136-A】通常表示（editing=false）専用の Chord → 表示位置 変換。
+ * buildGridViewModel()（Slotベース。editing=true / Analysis Editor側で
+ * 引き続き使用）とは独立した「兄弟Projection」であり、Slotを一切経由しない。
+ *
+ * 【この段階（Step 2）でやらないこと】
+ *   - DOM生成・描画は行わない（Display Segmentを返すだけ）
+ *   - 既存の _renderChartGrid() / renderChartMode() には接続しない
+ *   - raw.chords / raw.beats は変更しない（読み取りのみ）
+ *
+ * 【Display Segmentの設計（Technical Design §3-2/3-3 準拠）】
+ *   1つの Chord（raw.chords の1件）は、複数の Measure にまたがる場合、
+ *   複数の Display Segment に分割される。通常（1 Measure内で完結する）
+ *   Chordは、Segmentが1個だけ生成される特殊ケースとして自然に扱われる。
+ *
+ * 【[NAMED RISK] measureで区切る際の注意】
+ *   model.getContinuousMeasurePosition(time) は「時刻1点」しか
+ *   受け取らない（timing.js側のコメント参照）。そのため本関数側が
+ *   chord.start / chord.end それぞれについて個別に呼び出し、
+ *   その間のMeasureごとに Segment を組み立てる責務を持つ。
+ *
+ * @param {object} analysis  - project.analysis（loadAnalysis 済み）
+ * @param {number} [audioDuration]
+ * @returns {{ model: TimingModel, measures: object[], segments: object[], beatGrid: object[] } | null}
+ *          measures:  [{ startTime, endTime, confidence }]（indexがmeasureIndex）
+ *          segments:  [{ chordId, chord, measureIndex, leftPercent, widthPercent }]
+ *          beatGrid:  [{ measureIndex, position }]（Ruler用。Chord配置には使わない）
+ */
+// 【Phase136-B】Continuous表示専用の小節線スナップ許容幅。
+//
+// [Architecture Boundary] quantize() の anticipationWindow とは独立した
+// 定数である。値の由来は「小節頭と8分裏（0.5拍）の中点」という幾何的な
+// 根拠に加え、265曲・41,979境界の実データで検証済み（小節線からの距離の
+// 密度が単調に急減衰し、0.25拍付近で減衰が止まり背景レベルへ移る）。
+// anticipationWindow（0.5）と数値が一致するのは結果的なものであり、
+// 依存関係として結び付けない（そちらはSlot配置・quantize()専用の値の
+// ままにする）。
+const BAR_LINE_SNAP_BEATS = 0.25;
+
+/**
+ * snapChordBoundariesToBarLines
+ *
+ * 【Phase136-B】Continuous Chord Projection専用の表示補正（pure function）。
+ * ChordMini検出由来のコード境界時刻（実時間）が、小節線のごく近傍
+ * （BAR_LINE_SNAP_BEATS拍以内）にある場合のみ、表示上その小節線へ
+ * 吸着させた時刻を返す。raw.chords / c.start / c.end は一切書き換えない
+ * （呼び出し側が「元の時刻 → 表示用の時刻」の対応表として使う）。
+ *
+ * [許容幅の算出方法]
+ *   固定秒数ではなく、その境界に最も近い小節線の実際のBeat間隔
+ *   （raw.beats由来）× BAR_LINE_SNAP_BEATS で都度計算する。
+ *   テンポが変化する曲・1拍しかない極端に短い小節でも正しく機能する。
+ *
+ * [Order Preservation]
+ *   times は昇順・重複なしを前提とする。吸着後の値は
+ *   「直前に採用した値より大きく、次の生の境界時刻より小さい」場合のみ
+ *   採用する。これにより:
+ *     - 吸着によってコードの前後関係が入れ替わることはない
+ *     - 吸着で幅がゼロ（同一時刻）になる場合は吸着せず元の時刻を返す
+ *
+ * @param {number[]} times          - 昇順・重複なしの境界時刻（秒）
+ * @param {number[]} barStartTimes  - 小節開始時刻（Measure.startTime）
+ * @param {number[]} beats          - raw.beats 相当（昇順）
+ * @param {number} [tolBeats=BAR_LINE_SNAP_BEATS]
+ * @returns {Map<number, number>}   元の時刻 → 表示用に吸着させた時刻
+ */
+export function snapChordBoundariesToBarLines(times, barStartTimes, beats, tolBeats = BAR_LINE_SNAP_BEATS) {
+  // 時刻Bの直前・直後の実Beat間隔（秒）を二分探索で求める
+  const localBeatSpan = (B) => {
+    let lo = 0, hi = beats.length - 1, i = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (beats[mid] <= B + 1e-9) { i = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    const prevBeat = (i >= 0 && Math.abs(beats[i] - B) < 1e-9) ? beats[i - 1] : beats[i];
+    const nextBeat = beats[i + 1];
+    return {
+      before: prevBeat != null ? B - prevBeat : null,
+      after:  nextBeat != null ? nextBeat - B : null,
+    };
+  };
+
+  const nearestBarLine = (t) => {
+    let best = null;
+    for (const B of barStartTimes) {
+      if (B < t - 3) continue;   // 3秒以上離れた小節線は探索対象外（早期打ち切り）
+      if (B > t + 3) break;
+      const { before, after } = localBeatSpan(B);
+      const tolSeconds = (t < B ? before : after) ?? 0;
+      const dist = Math.abs(t - B);
+      if (dist <= tolSeconds * tolBeats + 1e-9 && (!best || dist < best.dist)) {
+        best = { B, dist };
+      }
+    }
+    return best ? best.B : t;
+  };
+
+  const snapped = new Map();
+  let lastAccepted = -Infinity;
+
+  times.forEach((t, idx) => {
+    const candidate = nearestBarLine(t);
+    const nextRaw = idx + 1 < times.length ? times[idx + 1] : Infinity;
+
+    if (candidate !== t && candidate > lastAccepted + 1e-6 && candidate < nextRaw - 1e-6) {
+      snapped.set(t, candidate);
+      lastAccepted = candidate;
+    } else {
+      snapped.set(t, t);
+      lastAccepted = Math.max(lastAccepted, t);
+    }
+  });
+
+  return snapped;
+}
+
+export function buildContinuousChordProjection(analysis, audioDuration = null) {
+  if (!analysis) return null;
+  const cachedNormalized = analysis.normalized;
+  const beats         = cachedNormalized?.beats     ?? analysis.beats     ?? [];
+  const downbeats      = cachedNormalized?.downbeats ?? analysis.downbeats ?? [];
+  const timeSignature  = analysis.timeSignature;
+  const chords         = analysis.chords;
+  const repairRule      = analysis.repairRule ?? null;
+
+  // [OWNERSHIP] Timing Modelの生成条件（resolutionPerBeat等）は
+  // buildGridViewModel() と完全に同一のものを使う。Continuous側だけ
+  // 別条件のTiming Modelを作らない（同じ曲で2つの異なるMeasure境界が
+  // 生まれる事故を避けるため）。
+  const model = createTimingModel({
+    beats,
+    downbeats,
+    timeSignature,
+    resolutionPerBeat:  2,
+    quantizeMode:       'nearest',
+    anticipationWindow: 0.5,
+    audioDuration,
+    repairRule,
+  });
+
+  if (model.mode === 'fallback') {
+    return { model, measures: [], segments: [], beatGrid: [] };
+  }
+
+  // 【Phase136-A・Step4-A追加】Renderer（DOM生成）が必要とする
+  // Measure一覧・Beat Grid（Ruler）をここでまとめて計算する。
+  // Segment計算とは独立した処理（Chordの有無に関わらず成立する）。
+  const measures = [];
+  for (let mi = 0; mi < model.measureCount; mi++) {
+    const m = model.getMeasure(mi);
+    if (m) measures.push({ startTime: m.startTime, endTime: m.endTime, confidence: m.confidence });
+  }
+
+  // Beat Grid: raw.beats（実時間）をMeasure内の連続位置へ変換するのみ。
+  // [原則] quantizeTime() は使わない（Chord Segmentと同じ理由）。
+  // Beatは Chord配置の基準ではなく Ruler/Guide として扱う。
+  const beatGrid = [];
+  for (const bt of beats) {
+    const pos = model.getContinuousMeasurePosition(bt);
+    if (!pos) continue;
+    const m = measures[pos.measureIndex];
+    // clampされた結果（曲頭より前・曲末尾より後のbeat）は
+    // 実際にそのMeasure範囲内に無いため、目盛りとしては採用しない。
+    if (!m || bt < m.startTime || bt >= m.endTime) continue;
+    beatGrid.push({ measureIndex: pos.measureIndex, position: pos.position });
+  }
+
+  // [Issue #92踏襲] N.C.（chord:'N'）も通常のBuffer Entryとして含める。
+  // 空コード（未設定）のみを除外する（buildGridViewModel()と同じ判定）。
+  const validChords = (chords || []).filter(c =>
+    c.chord && c.chord.length > 0
+  );
+
+  // 【Phase136-B】小節線スナップ（表示専用）。
+  // raw.chords（c.start/c.end）は書き換えない。「元の時刻 → 表示用の
+  // 吸着後の時刻」の対応表(Map)だけをここで作り、以降のSegment座標計算
+  // でのみ参照する（Playback Authority・quantize()には一切影響しない）。
+  const barStartTimes = measures.map(m => m.startTime);
+  const boundaryTimes = [...new Set(
+    validChords.flatMap(c => [c.start, c.end])
+  )].sort((a, b) => a - b);
+  const snappedTime = snapChordBoundariesToBarLines(boundaryTimes, barStartTimes, beats);
+
+  const segments = [];
+
+  for (const c of validChords) {
+    const displayStart = snappedTime.get(c.start) ?? c.start;
+    const displayEnd   = snappedTime.get(c.end)   ?? c.end;
+
+    const startPos = model.getContinuousMeasurePosition(displayStart);
+    const endPos   = model.getContinuousMeasurePosition(displayEnd);
+    if (!startPos || !endPos) continue;
+
+    const chordId = c._id ?? null;
+
+    // 通常ケース（1 Measure内で完結）とCross-Measureケースを
+    // 分岐させず、「開始Measure〜終了Measure」の範囲を
+    // 一律に走査する（分岐を増やさない設計・Technical Design §3-3準拠）。
+    for (let mi = startPos.measureIndex; mi <= endPos.measureIndex; mi++) {
+      const measure = model.getMeasure(mi);
+      if (!measure) continue;
+
+      const span = measure.endTime - measure.startTime;
+      if (span <= 0) continue;
+
+      const visibleStart = Math.max(displayStart, measure.startTime);
+      const visibleEnd   = Math.min(displayEnd,   measure.endTime);
+      if (visibleEnd <= visibleStart) continue;
+
+      const leftPercent  = ((visibleStart - measure.startTime) / span) * 100;
+      const widthPercent = ((visibleEnd - visibleStart) / span) * 100;
+
+      segments.push({
+        chordId,
+        chord: c.chord,
+        measureIndex: mi,
+        leftPercent,
+        widthPercent,
+      });
+    }
+  }
+
+  return { model, measures, segments, beatGrid };
 }
 
 // ────────────────────────────────────────
@@ -723,6 +956,116 @@ export function expandCarryForward(measures, slotsPerMeasure) {
 // コード名 compact 表示の文字数閾値（layout heuristic）
 const COMPACT_CHORD_LENGTH = 8;
 
+// ────────────────────────────────────────
+// 【Phase136-A】Continuous Chord Label Projection
+// ────────────────────────────────────────
+// MeasureをまたぐChordについて、どのSegmentにChord名Labelを表示するか
+// を決めるための状態・関数群。Segmentの時間位置・幅（
+// buildContinuousChordProjection の戻り値）自体には一切影響しない、
+// _renderChartGridContinuous() 側の描画専用の後処理として実装する。
+//
+// 判定式（Visual Design Check・安全余白+4pxで確定）:
+//   neededPx = 実測文字幅（キャッシュ） + LABEL_SAFETY_MARGIN_PX
+//   最初のSegment  のpx幅 >= neededPx → そこに表示
+//   最大幅のSegment のpx幅 >= neededPx → そこに表示
+//   どちらも未満                     → 最大幅Segmentに表示（ellipsisに委任）
+//
+// [対象外] 単一Measureで完結するChord（Segmentが1個）はこの処理を
+// 通らず、常に従来通りそのままLabelを表示する。
+// [対象外] 既存Slot経路（_renderChartGrid()）・--compact表示・
+// Slot Model・quantizeTime() には一切触れない。
+const LABEL_SAFETY_MARGIN_PX = 4;
+
+// Chord表示文字列（capo移調・N→N.C.変換後の文字列） → 実測px幅 のキャッシュ。
+// 同じ文字列・同じフォントなら幅は変わらないため、曲・Measureをまたいで再利用する。
+const _chordLabelWidthCache = new Map();
+
+// 幅計測専用の非表示probe要素。.chart-chord-name と同じCSSクラスを
+// そのまま再利用することで、実際のLabelと同一のfont-family/size/weight/
+// letter-spacingで計測できるようにする（値をJS側に複製しない）。
+let _chordLabelProbeEl = null;
+
+function _measureChordLabelWidth(text) {
+  if (_chordLabelWidthCache.has(text)) return _chordLabelWidthCache.get(text);
+
+  if (!_chordLabelProbeEl) {
+    _chordLabelProbeEl = document.createElement('span');
+    _chordLabelProbeEl.className = 'chart-chord-name';
+    // .chart-chord-name本来の position:absolute / width:calc(...) は
+    // 「Segment内でのレイアウト」用の指定なので、計測時のみ上書きして
+    // 文字列本来の幅（intrinsic width）を取得する。
+    _chordLabelProbeEl.style.position = 'fixed';
+    _chordLabelProbeEl.style.left = '-9999px';
+    _chordLabelProbeEl.style.top = '-9999px';
+    _chordLabelProbeEl.style.width = 'auto';
+    _chordLabelProbeEl.style.visibility = 'hidden';
+    document.body.appendChild(_chordLabelProbeEl);
+  }
+  _chordLabelProbeEl.textContent = text;
+  const w = _chordLabelProbeEl.getBoundingClientRect().width;
+  _chordLabelWidthCache.set(text, w);
+  return w;
+}
+
+// Webフォント（Atkinson Hyperlegible等）の読み込み完了前に計測してしまうと、
+// フォールバックフォントの幅がキャッシュに残る可能性があるため、読み込み
+// 完了時点でキャッシュを破棄する。
+// [既知の制約・Risk Check記録] ここでは再描画までは行わない（chartmode.js
+// は描画のorchestration authorityを持たないため）。次にChart Modeが
+// 何らかの理由で再描画されるタイミングで、新しい幅が反映される。
+if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => { _chordLabelWidthCache.clear(); });
+}
+
+/**
+ * MeasureをまたぐChordについて、どのSegmentにLabelを表示するかを決め、
+ * 選ばれなかったSegmentのLabel文字列を空にする（Segment自体・色付きの帯は
+ * 消さない。textContentのみクリアする）。
+ *
+ * [仕様] 3Measure以上にまたがるChordでは、最大幅Segmentにラベルが置かれる
+ * ため、発音開始位置とラベル表示位置が一致しない場合がある。これはD案の
+ * 意図した挙動として許容する（発音開始位置の視覚化は別UX課題）。
+ *
+ * @param {Array<{chordId:string, measureIndex:number, widthPercent:number,
+ *                display:string, chordEl:HTMLElement}>} entries
+ * @param {Map<number, HTMLElement>} measureElByIndex
+ */
+function _applyContinuousChordLabelProjection(entries, measureElByIndex) {
+  const byChordId = new Map();
+  for (const e of entries) {
+    if (!e.chordId) continue;
+    if (!byChordId.has(e.chordId)) byChordId.set(e.chordId, []);
+    byChordId.get(e.chordId).push(e);
+  }
+
+  for (const group of byChordId.values()) {
+    if (group.length < 2) continue; // 単一Measureで完結するChordは対象外
+
+    group.sort((a, b) => a.measureIndex - b.measureIndex);
+
+    let widest = null;
+    for (const e of group) {
+      const measureEl = measureElByIndex.get(e.measureIndex);
+      const measurePx = measureEl ? measureEl.clientWidth : 0;
+      e._px = (e.widthPercent / 100) * measurePx - LABEL_SAFETY_MARGIN_PX;
+      if (!widest || e._px > widest._px) widest = e;
+    }
+
+    // 表示文字列(display)はSegmentをまたいでも同一Chordのため、先頭要素の
+    // 値をそのまま使う（Segmentごとに再計算しない）。
+    const needed = _measureChordLabelWidth(group[0].display) + LABEL_SAFETY_MARGIN_PX;
+
+    // 最初のSegmentで十分な幅がなければ、常に最大幅Segmentへフォールバック
+    // する（最大幅自身がneededPx未満でも、それ以上の候補は無いためそのまま
+    // 採用し、text-overflow:ellipsisに委任する。Risk Check確定事項）。
+    const target = (group[0]._px >= needed) ? group[0] : widest;
+
+    for (const e of group) {
+      if (e !== target) e.chordEl.textContent = '';
+    }
+  }
+}
+
 // [Phase93] Boundary Handleドラッグ確定に必要な最小移動距離（px）。
 // これ未満の移動で pointerup した場合は通常のclick（選択/editPoint）として扱う。
 const BOUNDARY_DRAG_THRESHOLD_PX = 8;
@@ -738,7 +1081,15 @@ const PICKUP_REST_GLYPH_SVG = `<svg class="chart-rest-glyph" viewBox="0 0 24 24"
 
 export const chartState = {
   active:   false,
-  viewModel: null,  // buildGridViewModel の戻り値
+  viewModel: null,  // buildGridViewModel の戻り値（Slot経路・editing=true用）
+
+  // 【Phase136-B】buildContinuousChordProjection().model の Runtime Cache
+  // （Continuous経路・editing=false用）。viewModelと対になる存在で、
+  // updateChartPlayback()のContinuous分岐（_updateContinuousPlayback()）が
+  // 参照する。openChartMode()・_renderChartGridContinuous()の両方で
+  // 更新される（詳細は各関数のコメント参照）。
+  continuousModel: null,
+
   lastScrolledMeasure: -1,
 
   // Phase68: pickup-aware visual projection
@@ -2142,6 +2493,12 @@ export function openChartMode() {
   // chartmode.js は project tree を直接読まない。
   // analysis.normalized が runtime cache として含まれている（analysisLoader.js で生成済み）。
   chartState.viewModel = buildGridViewModel(analysis, duration);
+  // 【Phase136-B】Continuous経路のPlayback（Active Measure/Playhead）が参照する
+  // Runtime Cache。viewModelと同じタイミング（_startRafLoop()より前）で確定させる。
+  // _startRafLoop()は呼び出し直後に updateChartPlayback() を同期的に1回実行するため、
+  // その時点で既に存在している必要がある（renderChartMode()を待つと1フレーム分の
+  // 空白が生じる）。
+  chartState.continuousModel = buildContinuousChordProjection(analysis, duration)?.model ?? null;
 
   chartState.active = true;
   const overlay = document.getElementById('chart-overlay');
@@ -2218,7 +2575,7 @@ export function renderChartMode({ measuresPerRow = 3, editing = false } = {}) {
   const analysis = _getAnalysis?.();
 
   _renderChartHeader(vm, analysis, editing);
-  _renderChartGrid(vm, analysis, { measuresPerRow });
+  _renderChartGrid(vm, analysis, { measuresPerRow, editing });
 }
 
 /**
@@ -2303,7 +2660,7 @@ const repairBadge = analysis.repairRule
  *   carry / empty は DOM label を生成しない。
  *   slot が left% 等の位置情報を持たない（CSS Grid に委譲）。
  */
-function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
+function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } = {}) {
   const container = document.getElementById('chart-grid');
   if (!container) return;
 
@@ -2323,6 +2680,15 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3 } = {}) {
 
   if (!vm || !analysis) {
     _renderFallbackGrid(container, analysis);
+    container.scrollTop = _prevScrollTop;
+    return;
+  }
+
+  // 【Phase136-A・Step4-A】editing=false: Continuous Chord Position経路へ分岐。
+  // 以降の既存Slotベース描画（vm.model.mode判定〜末尾）は
+  // editing=true専用のまま、1行も変更していない。
+  if (!editing) {
+    _renderChartGridContinuous(container, analysis, { measuresPerRow });
     container.scrollTop = _prevScrollTop;
     return;
   }
@@ -2753,6 +3119,165 @@ function detectPickupMeasure(measures) {
 }
 
 /**
+ * _renderChartGridContinuous
+ *
+ * 【Phase136-A・Step4-A】editing=false 専用のContinuous Renderer。
+ * Slotを一切経由せず、buildContinuousChordProjection() の結果を
+ * そのままDOMへ反映する（既存Slot経路 _renderChartGrid() 本体は
+ * editing=true専用のまま無変更）。
+ *
+ * 【この段階でやっていること】
+ *   - Measure DOM生成
+ *     既存 .chart-measure クラス + data-measure-index を再利用する
+ *     ため、Active Measure ハイライト
+ *     （document.querySelector('.chart-measure[data-measure-index]')）
+ *     はSlot経路・Continuous経路（_updateContinuousPlayback()）の
+ *     どちらからも同じDOM検索で動作する。
+ *   - Beat Grid（raw.beatsの実時間位置を目盛りとして表示。
+ *     Chord配置の基準には使わない）
+ *   - Continuous Chord Segmentの描画
+ *     既存 .chart-chord-name クラス + data-chord / data-chord-id を
+ *     再利用するため、既存Tooltip機構（イベント委譲）はそのまま動作する。
+ *   - Continuous Playhead（Phase136-B）
+ *     既存の .chart-playhead DOM hook（measureEl._playheadEl）を設置し、
+ *     位置は _updateContinuousPlayback() が continuousModel の
+ *     getContinuousMeasurePosition() から更新する（Active Measureと
+ *     同一のContinuous Positionを基準とする）。
+ *     continuousModel は本関数の先頭で cp.model から最新化される。
+ *
+ * 【この段階でやっていないこと・次段階へ持ち越し】
+ *   - Search Highlight / Section Preview / Mutation Feedbackとの接続
+ *     （data-chord-idはDOM上に保持済みなので、次段階で追加できる）
+ *
+ * @param {HTMLElement} container - #chart-grid（呼び出し元で innerHTML='' 済み）
+ * @param {object} analysis
+ * @param {object} opts
+ * @param {number} [opts.measuresPerRow=3]
+ */
+function _renderChartGridContinuous(container, analysis, { measuresPerRow = 3 } = {}) {
+  const duration = _getAudioDuration?.() || null;
+  const cp = buildContinuousChordProjection(analysis, duration);
+  // 【Phase136-B】Playback（updateChartPlayback）が参照するRuntime Cacheを、
+  // 描画のたびに最新化する（chartState.viewModelと同じ役割・同じ更新契機）。
+  chartState.continuousModel = cp?.model ?? null;
+
+  if (!cp || cp.model.mode === 'fallback' || !cp.measures.length) {
+    _renderFallbackGrid(container, analysis);
+    return;
+  }
+
+  const { model, measures, segments, beatGrid } = cp;
+  const capo = _getCapo?.() ?? 0;
+  const isPickup = detectPickupMeasure(measures);
+
+  const segmentsByMeasure = new Map();
+  for (const seg of segments) {
+    if (!segmentsByMeasure.has(seg.measureIndex)) segmentsByMeasure.set(seg.measureIndex, []);
+    segmentsByMeasure.get(seg.measureIndex).push(seg);
+  }
+  const beatsByMeasure = new Map();
+  for (const b of beatGrid) {
+    if (!beatsByMeasure.has(b.measureIndex)) beatsByMeasure.set(b.measureIndex, []);
+    beatsByMeasure.get(b.measureIndex).push(b);
+  }
+
+  // 【Phase136-A】Chord Label Projection用に、描画中に生成する
+  // measureEl・chordEl の参照を後段の判定（行の描画が終わりDOM上の
+  // 実幅が確定してから行う）のために集めておく。
+  const measureElByIndex = new Map();
+  const continuousLabelEntries = [];
+
+  for (let rowStart = 0; rowStart < measures.length; rowStart += measuresPerRow) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'chart-row';
+
+    for (let mi = rowStart; mi < Math.min(rowStart + measuresPerRow, measures.length); mi++) {
+      const measure = measures[mi];
+      const measureEl = document.createElement('div');
+      // 既存 .chart-measure を再利用しつつ、Continuous専用のCSSフックとして
+      // 修飾クラスを追加する（Slot経路と見た目のCSSを分離するため）。
+      measureEl.className = 'chart-measure chart-measure--continuous';
+      if (model.mode === 'beat-only') {
+        measureEl.classList.add('chart-measure--estimated');
+      }
+      measureEl.dataset.measureIndex = mi;
+      measureEl.dataset.confidence = measure.confidence ?? 'high';
+      measureElByIndex.set(mi, measureEl);
+
+      const numEl = document.createElement('div');
+      numEl.className = 'chart-measure-num';
+      numEl.textContent = String(getDisplayMeasureNumber(mi, isPickup));
+      measureEl.appendChild(numEl);
+
+      // playhead DOM hook（次段階でContinuous化するまでは、既存の
+      // Slotベース updateChartPlayback() がそのまま位置を更新する）
+      const playheadEl = document.createElement('div');
+      playheadEl.className = 'chart-playhead';
+      measureEl.appendChild(playheadEl);
+      measureEl._playheadEl = playheadEl;
+
+      // Continuous track: Beat GridとChord Segmentを重ねて描画する土台
+      const trackEl = document.createElement('div');
+      trackEl.className = 'continuous-track';
+
+      // Beat Grid（Ruler。quantizeTime()は使わない・§Beat Grid原則）
+      const beatsInMeasure = beatsByMeasure.get(mi) ?? [];
+      for (const b of beatsInMeasure) {
+        const tickEl = document.createElement('div');
+        tickEl.className = 'continuous-beat-tick';
+        if (b.position < 1e-6) {
+          tickEl.classList.add('continuous-beat-tick--downbeat');
+        }
+        tickEl.style.left = `${b.position * 100}%`;
+        trackEl.appendChild(tickEl);
+      }
+
+      // Continuous Chord Segment
+      const segs = segmentsByMeasure.get(mi) ?? [];
+      for (const seg of segs) {
+        const segEl = document.createElement('div');
+        segEl.className = 'continuous-chord';
+        segEl.style.left = `${seg.leftPercent}%`;
+        segEl.style.width = `${seg.widthPercent}%`;
+        if (seg.chordId) segEl.dataset.chordId = seg.chordId;
+
+        const chordEl = document.createElement('span');
+        chordEl.className = 'chart-chord-name';
+        // display projection: render時のみcapo移調（canonicalは変更しない）
+        const display = (capo !== 0 && _transposeChord)
+          ? _transposeChord(seg.chord, -capo)
+          : seg.chord;
+        // [Issue #92踏襲] 画面表示テキストのみ 'N' → 'N.C.' に変換
+        chordEl.textContent = display === 'N' ? 'N.C.' : display;
+        chordEl.dataset.chord = display;
+        if (seg.chordId) chordEl.dataset.chordId = seg.chordId;
+        continuousLabelEntries.push({
+          chordId: seg.chordId,
+          measureIndex: mi,
+          widthPercent: seg.widthPercent,
+          display,
+          chordEl,
+        });
+
+        segEl.appendChild(chordEl);
+        trackEl.appendChild(segEl);
+      }
+
+      measureEl.appendChild(trackEl);
+      rowEl.appendChild(measureEl);
+    }
+
+    container.appendChild(rowEl);
+  }
+
+  // 【Phase136-A】全Rowの描画が終わり、Measureの実際のpx幅が
+  // DOM上で確定した後に、Chord Label Projectionを適用する。
+  // #chart-grid は呼び出し元で既にライブDOMに接続済みのため、
+  // ここで追加の待機（rAF等）は不要。
+  _applyContinuousChordLabelProjection(continuousLabelEntries, measureElByIndex);
+}
+
+/**
  * getDisplayMeasureNumber
  *
  * measure index（identity）を表示番号（display numbering semantics）に変換する。
@@ -2821,7 +3346,19 @@ function _renderFallbackGrid(container, analysis) {
  * @param {number} currentTime
  */
 export function updateChartPlayback(currentTime) {
-  if (!chartState.active || !chartState.viewModel) return;
+  if (!chartState.active) return;
+
+  // 【Phase136-B】経路分岐（renderChartMode()の editing 分岐と対称）。
+  // isContinuousMode のような新規stateは持たない。既存の
+  // _isEditingAnalysis()（app.jsのAuthorityを都度問い合わせるだけの
+  // 既存injection）をそのまま使う。
+  if (!_isEditingAnalysis()) {
+    _updateContinuousPlayback(currentTime);
+    return;
+  }
+
+  // ── 以降は既存Slot経路（無変更）──
+  if (!chartState.viewModel) return;
 
   const { model } = chartState.viewModel;
   if (model.mode === 'fallback') return;
@@ -2889,6 +3426,54 @@ export function updateChartPlayback(currentTime) {
 
   _updateTransport(currentTime);
 
+}
+
+/**
+ * _updateContinuousPlayback
+ *
+ * Continuous経路（editing=false）専用のPlayback同期。
+ *
+ * [Named Invariant] Continuous経路では、Active MeasureとPlayheadは
+ * 同一のContinuous Position（getContinuousMeasurePosition()の結果）を
+ * 基準とする。quantize() / anticipationWindow には一切触れない
+ * （Slot配置の責務のまま・Phase136-B Technical Design参照）。
+ *
+ * @param {number} currentTime
+ */
+function _updateContinuousPlayback(currentTime) {
+  const model = chartState.continuousModel;
+  if (!model) return;
+
+  const pos = model.getContinuousMeasurePosition(currentTime);
+  if (!pos) return;
+
+  // 既存ハイライトを解除。.chart-slot--active はSlot専用DOM
+  // （Continuous DOMには存在しない）のため、ここでは触らない。
+  document.querySelectorAll('.chart-measure--active').forEach(el => {
+    el.classList.remove('chart-measure--active');
+  });
+
+  const measureEl = document.querySelector(
+    `.chart-measure[data-measure-index="${pos.measureIndex}"]`
+  );
+  if (measureEl) {
+    measureEl.classList.add('chart-measure--active');
+
+    if (measureEl._playheadEl) {
+      measureEl._playheadEl.style.left = `${pos.position * 100}%`;
+    }
+
+    // ★ 小節が変わった時だけ中央スクロール（Slot経路と同じ
+    //   chartState.lastScrolledMeasure を共有する。ContinuousとSlotの
+    //   measureIndexは同一のTimingModel生成条件から作られるため、
+    //   番号体系は一致する＝共有しても事故は起きない）
+    if (pos.measureIndex !== chartState.lastScrolledMeasure) {
+      chartState.lastScrolledMeasure = pos.measureIndex;
+      measureEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }
+
+  _updateTransport(currentTime);
 }
 
 // ════════════════════════════════════════
