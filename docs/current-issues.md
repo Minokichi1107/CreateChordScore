@@ -1,10 +1,8 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase132完了時点（Phase128〜132のDocumentation Checkpointを反映）。
-> Phase128前半・128後半の実装時発見事項をADD。`chartmode.js`のCRLF/LF往復
-> 問題はPhase128後半でADDされたがPhase129でCLOSEされたため最終状態には
-> 含めていない。Phase131でKnown Design Gapをclose。Phase129②・130・132は
-> current-issues.mdへの変更なし（各handover記載の通り）。
+> 最終更新: Phase137開始前（Phase133〜136およびPhase137/#117の検討結果を反映）。
+> Phase133〜136で確認された未解決事項をGitHub Issue正本に合わせて整理し、
+> 解決済みの実装事項はCurrent Issuesへ残さず、対応するhandover / phase-statusへ寄せる。
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
 
@@ -115,6 +113,29 @@
 ## 2. Current Issues（未解決の問題・バグ・既知の設計ギャップ）
 
 ### Chart Mode 系
+### Phase133〜136から引き継ぐGitHub Issue
+
+#### GitHub Issue #101 — 一小節8ビートの偶数拍を小節頭に設定した際の表示上の空白
+状態: 未対応・原因調査待ち
+内容: 一小節8ビートの2拍目・4拍目など、曲中の途中の拍を小節頭として設定すると、
+表示上の小節先頭に1拍分の空白が生じることがある。既存の小節頭補正ロジックとの関係を
+調査する。GitHub Issue #45（Chart Mode 小節頭ズレ問題）と関連するが、同一原因とは
+まだ確定していない。
+
+#### GitHub Issue #109 — Beat Cursorのテンポが曲途中で大きく変わって見えるケースの横断調査
+状態: 調査保留（サンプル収集中）
+内容: 「瞳をとじて」でDetected Beat密度が曲途中で約半分になる現象が再解析でも再現した。
+現時点では解析異常・Half-time / Double-time的構造・Playhead / Slot実装の関与を断定しない。
+`raw.beats`は直接変更せず、類似症例を蓄積してから横断比較する。
+
+#### GitHub Issue #120 — 右端小節でContinuous Playheadの描画が乱れて見える
+状態: 保留（原因未特定）
+内容: Chart Mode通常表示（editing=false）で、各行の右端小節のContinuous Playheadが
+一時的にぎくつく／薄く見えることがある。3列・4列表示で確認済み。
+`scrollIntoView()`無効化やPaint flashingでは原因を特定できなかった。
+Continuous Projectionの基本設計、Playheadの基本位置計算、Slot Model、`quantize()` /
+`anticipationWindow`の責務はこのIssueでは変更しない。
+
 
 #### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
 状態: Type B対応済み・Type A/C/D未対応
