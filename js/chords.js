@@ -632,6 +632,8 @@ const _SUFFIX_ALIAS = {
   // min 系
   'min': 'm', 'mi': 'm', 'minor': 'm',
   'min7': 'm7', 'mi7': 'm7', 'minor7': 'm7',
+  // half-diminished: ChordMini出力のm7b5をcanonical(m7-5)へ統一（#113）
+  'm7b5': 'm7-5',
 };
 
 function _unicodeNorm(str) {

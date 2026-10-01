@@ -152,5 +152,22 @@
   "Dbsus4(b7)": "Db7sus4",
   "Ebsus4(b7)": "Eb7sus4",
   "Absus4(b7)": "Ab7sus4",
-  "Bbsus4(b7)": "Bb7sus4"
+  "Bbsus4(b7)": "Bb7sus4",
+  "Cm7b5": "Cm7-5",
+  "C#m7b5": "C#m7-5",
+  "Dm7b5": "Dm7-5",
+  "D#m7b5": "D#m7-5",
+  "Em7b5": "Em7-5",
+  "Fm7b5": "Fm7-5",
+  "F#m7b5": "F#m7-5",
+  "Gm7b5": "Gm7-5",
+  "G#m7b5": "G#m7-5",
+  "Am7b5": "Am7-5",
+  "A#m7b5": "A#m7-5",
+  "Bm7b5": "Bm7-5",
+  "Dbm7b5": "Dbm7-5",
+  "Ebm7b5": "Ebm7-5",
+  "Gbm7b5": "Gbm7-5",
+  "Abm7b5": "Abm7-5",
+  "Bbm7b5": "Bbm7-5"
 }
