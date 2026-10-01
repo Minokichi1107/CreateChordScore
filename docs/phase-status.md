@@ -1,8 +1,7 @@
 # フェーズ進行状況
 
-> 最終更新: Phase132完了時点（Phase128〜132を反映。Phase124以降は
-> 固定周期ではなくDocumentation Checkpoint方式で棚卸しする運用のため、
-> 前回の更新（Phase127完了時点）から間隔が空いている）
+> 最終更新: Phase137開始前（Phase133〜136およびPhase137/#117の検討完了を反映）。
+> Phase124以降は固定周期ではなくDocumentation Checkpoint方式で棚卸しする運用を継続する。
 
 ---
 
@@ -207,9 +206,30 @@ Completed（完了済み）
   即時再評価。実機検証で発見された副作用（カーソルが文末へ固定される
   問題）へ対応するため、再描画時のカーソル復元処理を「文末固定」から
   「実際の位置を記録・復元」へ変更。検索欄・置換欄の両方に適用）
+✓ Phase133〜136 — Chart Mode Collision / Beat / Slot / Continuous Projection検討・実装を完了。
+  Phase133でCollision対応の現状整理、Phase134〜135でBeat / Downbeat / Measure / Slotの
+  定義・既存経路調査、Phase136-A/BでContinuous Chord Projectionを実装・実機検証した。
+  Phase136-BではCross-Measure Label Placement、Continuous Playhead、Bar-line Snap、
+  `measuresPerRow` 1〜4列を完了。Issue #109（Beat Cursor / Beat密度変化）は調査保留、
+  Issue #120（右端小節のContinuous Playhead描画乱れ）は原因未特定のまま保留。
+✓ Phase137 — 開発プロセス省力化候補の検討（GitHub Issue #117）。T0〜T2でhandoverを
+  現在状態の受け渡しに使い、必要な場合のみ過去Chat archiveから判断理由を検索する運用を
+  試行。T2追加実験・Dropbox検索方法の追加調査・handoverへのWhy強制追加・Chat archive
+  自動検索システム・新規管理台帳は採用しない。重い新工程を追加せず、最小限の運用へ移行する。
 
-Current Work（現在の作業: なし・次フェーズ候補は「3. Future Candidates」および
-current-issues.md参照）
+Current Work（現在の作業: Phase137の運用検討を完了。次はProduct Intentから新しい開発テーマを開始）
+------------------------------------------------------------
+Phase133〜136の実装・設計・検証と、Phase137/#117の開発プロセス省力化検討を完了した。
+Phase137では、handoverを現在状態の受け渡しに使い、過去の判断理由が必要な場合だけChat
+archiveを参照する方法が有効であることを確認した。一方で、これを新しい管理工程・台帳・
+強制的なWhy記録へ発展させることは、かえって運用負荷を増やすため採用しない。
+
+今後は、必要なドキュメントだけを既存の共有場所へ残し、Chat更新時は最新handoverから再開する。
+handoverにない過去判断が必要になった場合のみ、保存したChat archiveを検索する。
+新しいIssueはhandoverへ溜め込まず、発見時にGitHub Issue等の既存の適切な場所へ記録する。
+
+Phase133〜136の成果物・未解決事項は対応するhandoverおよびcurrent-issues.mdを参照する。
+Phase137/#117は運用上の検討を完了し、ここからは新しいProduct Intentへ戻る。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
@@ -342,6 +362,12 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 130 | Add Point Owner誤認修正・range-fit paste機能（GitHub Issue #100・#102。pasteFitAtEditPointCommand・predictFitPasteCollision新設） | app.js / analysisCommands.js / chartmode.js / modals.js |
 | 131 | N.C.（No Chord）挿入・Chart Mode表示対応（GitHub Issue #92。入力側は既に安全設計済みだったことをExplorationで確認した上で、Chart Mode側の除外フィルタ撤廃・N.C.ボタン・Shift+Nショートカットを実装。Playwrightによる自動検証と実機確認の両方でPASS） | chordEntry.js / app.js / chartmode.js |
 | 132 | 検索/置換ボタンの有効化タイミング修正（GitHub Issue #99。置換欄inputへの`_refreshEditorView()`追加・再描画時のカーソル位置保存/復元方式への変更） | app.js |
+| 133 | Collision対応の現状整理・最小修正方針の確定（1 Beat = 1 Chordを基本とし、意味のある複数Chordのみ保持する方向を整理） | Chart Mode / Collision設計 |
+| 134 | Beat / Downbeat / Measure / Slotの既存経路・定義論点を調査し、未確定事項を分離 | timing / Chart Mode設計 |
+| 135 | Beat Model・Measure Model・Slot Modelの定義検討。6/8等の未確定事項を残し、Collision/Slot Allocationを先行確定しない方針を維持 | Chart Mode設計 |
+| 136-A | Continuous Chord Projection（連続実時間投影）を実装。通常表示のChordを実時間位置へ配置し、既存Slot編集経路と責務を分離 | chartmode.js |
+| 136-B | Cross-Measure Label Placement、Continuous Playhead、Bar-line Snap（0.25 beat・表示専用）、`measuresPerRow` 1〜4列を実装・実機検証。Issue #120は保留 | chartmode.js / Chart Mode UI |
+| 137 | 開発プロセス省力化検討（GitHub #117）。handoverを現在状態、Chat archiveを必要時の判断理由参照として試行し、追加の管理工程・台帳は採用しない | docs / process audit |
 
 ### Provenance / Data Provenance
 
