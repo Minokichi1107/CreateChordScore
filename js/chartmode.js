@@ -2556,6 +2556,29 @@ export function closeChartMode() {
   }
 }
 
+// [Phase138 / #115] 次回描画を先頭から始める予約（resetChartScroll()が立て、_renderChartGrid()が消費）
+let _scrollResetPending = false;
+
+/**
+ * resetChartScroll — Chart Modeのスクロール位置を先頭へ戻す（Phase138 / #115）。
+ *
+ * [責務] スクロール状態のリセットのみ。「いつ呼ぶか」（Project切替の判定）は
+ * app.jsが持ち、ここはProjectを一切知らない（[NAVIGATION OWNERSHIP]と同じ分担）。
+ *
+ * [Invariant] _renderChartGrid() の _prevScrollTop 保存・復元（Phase106）は変更しない。
+ * 同一Project内の再描画では位置を保持し、本関数はProject切替時にだけ呼ばれる。
+ * 呼び出し後の描画は scrollTop=0 を「保存→復元」するので先頭のまま維持される。
+ */
+export function resetChartScroll() {
+  // overlayが hidden（display:none）の間は scrollTop への代入が無効なため、
+  // 「次の描画を先頭から始める」予約として保持し、_renderChartGrid() で消費する。
+  _scrollResetPending = true;
+  const grid = document.getElementById('chart-grid');
+  if (grid) grid.scrollTop = 0;
+  // 自動追従の「前回スクロールした小節」も旧Projectの値を引き継がない
+  chartState.lastScrolledMeasure = -1;
+}
+
 // ────────────────────────────────────────
 // Chart Mode 描画
 // ────────────────────────────────────────
@@ -2670,7 +2693,10 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
   // 描画完了後に明示的に復元することで、コード編集・Section境界編集等
   // どの再描画経路でも閲覧位置が意図せず動かないことを保証する
   // （実機で「Section境界編集後に画面が飛ぶ」不具合として発見）。
-  const _prevScrollTop = container.scrollTop;
+  // [Phase138 / #115] Project切替直後の最初の描画だけは、旧Projectの位置を
+  // 復元せず先頭(0)から始める。予約は1回で消費し、以降は通常どおり位置を保持する。
+  const _prevScrollTop = _scrollResetPending ? 0 : container.scrollTop;
+  _scrollResetPending = false;
 
   // [Phase95-A2] DOMを丸ごと再構築するため、hover中だったslotElへの参照は
   // ここで必ず破棄する（isConnectedチェックに頼らず、再描画のたびに無条件でクリア）。

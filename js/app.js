@@ -242,6 +242,7 @@ import {
   initChartMode,
   openChartMode,
   closeChartMode,
+  resetChartScroll,
   updateChartPlayback,
   chartState,
   renderChartMode,
@@ -5312,6 +5313,9 @@ async function loadProj(data){
   const recWasRecording = _recIsRecording();
   const recBeforeProjectId = recWasRecording ? (project?.id ?? null) : null;
 
+  // [Phase138 / #115] Project切替判定用。resetProject()より前に旧IDを退避する。
+  const prevProjectIdForChart = project?.id ?? null;
+
   // Reset existing state
   resetProject();
   
@@ -5333,6 +5337,10 @@ async function loadProj(data){
       mkLine(l.lyric || '', l.time ?? null, l.chords || [], l.repeat || null)
     ),
   });
+
+  // [Phase138 / #115] 別Projectへ切り替わった時だけChart Modeのスクロールを先頭へ戻す。
+  // 同一Projectの再読込・通常再描画では何もしない（_prevScrollTopの保持仕様を維持）。
+  if (prevProjectIdForChart && project.id !== prevProjectIdForChart) resetChartScroll();
 
   // title / artist input を project から復元
   document.getElementById('project-artist').value = project.artist;
