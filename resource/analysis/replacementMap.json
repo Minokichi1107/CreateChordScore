@@ -138,5 +138,19 @@
   "Bbmin/2": "Bbm/C",
   "Bbmin/b3": "Bbm/Db",
   "Bbmin/5": "Bbm/F",
-  "Bbmin/b7": "Bbm/Ab"
+  "Bbmin/b7": "Bbm/Ab",
+  "Csus4(b7)": "C7sus4",
+  "C#sus4(b7)": "C#7sus4",
+  "Dsus4(b7)": "D7sus4",
+  "D#sus4(b7)": "D#7sus4",
+  "Esus4(b7)": "E7sus4",
+  "Fsus4(b7)": "F7sus4",
+  "Gsus4(b7)": "G7sus4",
+  "G#sus4(b7)": "G#7sus4",
+  "A#sus4(b7)": "A#7sus4",
+  "Bsus4(b7)": "B7sus4",
+  "Dbsus4(b7)": "Db7sus4",
+  "Ebsus4(b7)": "Eb7sus4",
+  "Absus4(b7)": "Ab7sus4",
+  "Bbsus4(b7)": "Bb7sus4"
 }
