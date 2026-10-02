@@ -442,13 +442,17 @@ export async function loadAnalysis(analysis) {
  *   値を渡すと、サーバー側で「今のファイルの最終保存時刻」と比較し、
  *   一致した場合のみ保存する（既存曲の編集状況を確認する処理＝
  *   バックフィル専用の安全策・[BACKFILL NON-DESTRUCTIVE INVARIANT]）。
+ * @param {{artist?:string,title?:string}|undefined} [nameHint]
+ *   [Phase139 / Issue #118] 新規ファイル作成時のファイル名生成にだけ使う
+ *   ヒント。server側が使うのみで、Analysis JSONには保存されない。
+ *   既存ファイルがある場合は無視される（artist/title変更でも改名しない）。
  * @returns {Promise<'ok'|'conflict'|'error'>}
  *   'ok'       保存成功
  *   'conflict' 読み込んだ後に他の保存が入っていたため、保存を見送った
  *              （古いデータは書き込んでいない）
  *   'error'    通信エラー等、本当の失敗
  */
-export async function saveAnalysisFile(projectId, raw, repairRule = null, baseVersion = undefined) {
+export async function saveAnalysisFile(projectId, raw, repairRule = null, baseVersion = undefined, nameHint = undefined) {
   try {
     const payload = {
       version:     1,
@@ -464,6 +468,9 @@ export async function saveAnalysisFile(projectId, raw, repairRule = null, baseVe
     if (baseVersion !== undefined) {
       payload.baseVersion = baseVersion; // null または文字列
     }
+    if (nameHint && typeof nameHint === 'object') {
+      payload.nameHint = { artist: nameHint.artist ?? '', title: nameHint.title ?? '' };
+    }
     const res = await fetch('/save-analysis', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -478,9 +485,44 @@ export async function saveAnalysisFile(projectId, raw, repairRule = null, baseVe
 }
 
 /**
+ * renameAnalysisFile
+ *
+ * [ANALYSIS FILE RESOLUTION][Phase139] Analysisファイル名を、Projectの現在の
+ * artist/titleに合わせて改名する。ファイルの特定・改名はすべてserver側
+ * （resolve_analysis_file）が行い、JSONの中身・generatedAtは変更されない
+ * （baseVersionに影響しない）。
+ *
+ * @param {string} projectId
+ * @param {{artist?:string,title?:string}} nameHint
+ * @param {{dryRun?:boolean}} [options]  dryRun=true ならファイルを変更せず、
+ *   改名する場合に 'renamed' となる予測だけを返す
+ * @returns {Promise<'renamed'|'unchanged'|'skipped'|'none'|'conflict'|'error'>}
+ *   'conflict' は同一IDの実ファイルが複数存在する場合
+ */
+export async function renameAnalysisFile(projectId, nameHint, { dryRun = false } = {}) {
+  try {
+    const res = await fetch('/rename-analysis', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        projectId,
+        nameHint: { artist: nameHint?.artist ?? '', title: nameHint?.title ?? '' },
+        ...(dryRun ? { dryRun: true } : {}),
+      }),
+    });
+    if (res.status === 409) return 'conflict';
+    if (!res.ok) return 'error';
+    const body = await res.json();
+    return body.result ?? 'error';
+  } catch {
+    return 'error';
+  }
+}
+
+/**
  * loadAnalysisFile
  *
- * analysis/{projectId}.json を読み込み、
+ * analysis/{projectId}.json（論理URL。server側が実ファイルへ解決）を読み込み、
  * projectId照合・version確認の上で { raw, repairRule } を返す。
  *
  * 【Phase72-B: 戻り値の形が変わった】
@@ -507,6 +549,13 @@ export async function loadAnalysisFile(projectId) {
 
     // raw 存在確認
     if (!data.raw || typeof data.raw !== 'object') return null;
+
+    // [ANALYSIS FILE RESOLUTION][Phase139] ファイル名はAuthorityではないため、
+    // 解決されたファイルの内部projectIdが要求IDと一致することを確認する。
+    if (data.projectId !== projectId) {
+      console.warn('[analysisLoader] projectId mismatch. file ignored:', projectId);
+      return null;
+    }
 
     // repairRule: 旧形式ファイル（フィールド自体が無い）は null 扱い
     const repairRule = data.repairRule ?? null;

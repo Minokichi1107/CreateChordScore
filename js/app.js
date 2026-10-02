@@ -187,7 +187,7 @@ import { isSepToken, isNoChordToken } from './tokens.js';
 
 import { initChordEntry, openAddChord, showChordSelector } from './chordEntry.js';
 
-import { loadAnalysis, saveAnalysisFile, loadAnalysisFile, sanitizeChords, compareContentEditSnapshot } from './analysisLoader.js';
+import { loadAnalysis, saveAnalysisFile, loadAnalysisFile, renameAnalysisFile, sanitizeChords, compareContentEditSnapshot } from './analysisLoader.js';
 
 import {
   createAnalysisSession,
@@ -2174,6 +2174,15 @@ function syncProvenanceSummary(proj) {
 }
 
 /**
+ * _analysisNameHint — Analysis新規ファイル作成時のファイル名ヒント（artist/title）。
+ * [ANALYSIS FILE RESOLUTION][Phase139] serverがファイル名生成にのみ使う。
+ * Analysis JSONには保存されず、既存ファイルがある場合は無視される。
+ */
+function _analysisNameHint(p) {
+  return { artist: p?.artist ?? '', title: p?.title ?? '' };
+}
+
+/**
  * writeExternalCheck — externalCheck（🟢 外部資料確認）を更新する
  * 唯一の書き込み窓口（Phase127-E①）。
  *
@@ -2225,7 +2234,7 @@ async function writeExternalCheck(targetProjectId, patch) {
       checked: patch.checked, reference: patch.reference, url: patch.url, checkedAt, memo: patch.memo,
     };
 
-    const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
+    const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null, undefined, _analysisNameHint(project));
     if (saveResult !== 'ok') return 'error';
 
     syncProvenanceSummary(project);
@@ -2663,7 +2672,7 @@ async function saveAnalysisEdit() {
   // hasStructureEditは「今Sectionが存在するか」を保存の都度導出する
   // （一方向フラグではない。作成→削除で0件に戻れば自動的にfalseへ戻る）。
   project.analysis.raw.provenance.hasStructureEdit = savedSections.length > 0;
-  const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null);
+  const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null, undefined, _analysisNameHint(project));
   if (saveResult !== 'ok') {
     toast('⚠ 保存に失敗しました。編集内容は失われていません');
     return;
@@ -4513,7 +4522,7 @@ async function loadChordData(data, filename, isRestore = false) {
         checkedAt: new Date().toISOString(),
       };
 
-      const saveResult = await saveAnalysisFile(project.id, data.analysis.raw);
+      const saveResult = await saveAnalysisFile(project.id, data.analysis.raw, null, undefined, _analysisNameHint(project));
       if (saveResult === 'ok') {
         project.hasAnalysis = true;
         // [確認済み] loadAnalysis()はraw引数をclone せず同一参照のまま
@@ -5404,7 +5413,7 @@ async function loadProj(data){
     // [REPAIR DISCARD POLICY] 旧形式ファイルには repairRule は存在しないため、
     // saveAnalysisFile の repairRule 引数は渡さない（デフォルト null）。
     console.info('[analysis] migrating embedded analysis to external file');
-    await saveAnalysisFile(newProject.id, data.analysis.raw);
+    await saveAnalysisFile(newProject.id, data.analysis.raw, null, undefined, _analysisNameHint(newProject));
 
     if (myGeneration !== _loadGeneration) return;  // [世代チェック③]
 
@@ -6467,6 +6476,18 @@ function setupEventHandlers() {
     project.title = e.target.value;
     autoSaveLocal();
   });
+  // [ANALYSIS FILE RESOLUTION][Phase139] 曲名・アーティストの入力確定時（欄から
+  // 離れた時）に、Analysisファイル名を現在の値へ合わせる。入力順序には依存しない。
+  // 改名の判断・実行はserver側。ここは要求を送るだけ（失敗しても編集は妨げない）。
+  const _syncAnalysisFilename = async () => {
+    if (!project.hasAnalysis) return;
+    const r = await renameAnalysisFile(project.id, _analysisNameHint(project));
+    if (r === 'conflict' || r === 'error') {
+      console.warn('[analysis] rename failed:', r);
+    }
+  };
+  document.getElementById('project-artist').addEventListener('change', _syncAnalysisFilename);
+  document.getElementById('project-title').addEventListener('change', _syncAnalysisFilename);
   document.getElementById('proj-key').addEventListener('input',autoSaveLocal);
   document.getElementById('proj-bpm').addEventListener('input',autoSaveLocal);
 
@@ -6993,7 +7014,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       // 先に保存し、成功を確認してから project.analysis に反映する。
       // 保存失敗時に「画面だけ補正済みに見えて再読込で消える」という
       // 不整合（永続化されていないのにメモリ上だけ変わる）を防ぐ。
-      const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, newRepairRule);
+      const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, newRepairRule, undefined, _analysisNameHint(project));
       if (saveResult !== 'ok') {
         toast('⚠ 保存に失敗しました。補正は反映されていません');
         return;
@@ -7019,7 +7040,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
       // [Phase72-B 修正: ChatGPTレビュー指摘対応]
       // 先に保存し、成功を確認してから project.analysis に反映する。
-      const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, null);
+      const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, null, undefined, _analysisNameHint(project));
       if (saveResult !== 'ok') {
         toast('⚠ 保存に失敗しました。補正は解除されていません');
         return;

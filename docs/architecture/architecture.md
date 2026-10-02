@@ -716,6 +716,34 @@ createTimingModel()                        ← 消費者のまま（シグネチ
   （コード進行データ復元のみを責務とする）。
 ```
 
+[ANALYSIS FILE RESOLUTION]（Phase139 / Issue #118で確立）
+  projectId がAnalysisの唯一の論理キーであり、ファイル名は人間向けの
+  Projection（導出表示）であってAuthority（正本）ではない。
+  Analysis実体の特定はserverの resolve_analysis_file()（server.py）を
+  唯一の窓口とし、projectId に対して複数の実ファイルが存在する場合は
+  推測せずConflictとして扱う（GETは409・保存は409 reason:"duplicate"）。
+  load / save / baseVersion の比較は、同じ1つの実ファイルを対象とする。
+  artist/title はファイル名生成（build_analysis_filename()）にのみ使用し、
+  Analysis JSONには保存しない。
+  ・新規作成時は `{artist}-{title}_{projectId}.json`（UUID形式のIDのみ。
+    両方空なら `{projectId}.json`）。保存処理（/save-analysis）は既存
+    ファイルを改名しない。
+  ・曲名・アーティストの入力確定時（change）に、/rename-analysis で
+    現在の値に合わせて改名する（入力順序に依存しない）。改名は
+    os.replace による名前の変更のみで、JSONの中身・generatedAtは不変
+    （baseVersionに影響しない）。同名・改名先が既存・両方空・該当なしは
+    何もしない。複数一致はConflict（409）。
+  ・[DRY-RUN INVARIANT] /rename-analysis の dryRun=true は、判定のみを行い
+    ファイルを一切変更しない（改名する場合の結果 'renamed' だけを返す）。
+    dryRunの結果は実行の許可証にしない。実行時も毎回 resolve_analysis_file()
+    から再判定する。
+  ・既存ファイルの一度限りの移行（Phase139）は、tools/migrate-analysis-filenames.js
+    （開発者がConsoleから import して実行。アプリ本体にUIは持たない）で行う。
+    対象はLibrary（IndexedDB）の hasAnalysis===true の曲のみで、analysis/ は
+    走査しない（Projectに属さない孤児ファイルは触らない）。
+  ・clientは論理URL `/analysis/{id}.json` を使い続け、実ファイル名を知らない。
+  ・loadAnalysisFile() はJSON内projectIdが要求IDと一致しない場合 null を返す。
+
 ### isRestore semantics（Phase63設計・Phase64で実コード確定）
 
 ```
@@ -2026,7 +2054,7 @@ Runtime Projection・Derived Cache・Decorator状態はAuthorityではなく、
 | 対象 | Module | Authority | 種別 | Single Writer |
 |---|---|---|---|---|
 | Project core data | project.js | Project Repository | Persistence | `saveProjectToDB()` |
-| Analysis（raw/repairRule） | analysisLoader.js | analysis/{id}.json | Persistence | `saveAnalysisFile()` |
+| Analysis（raw/repairRule） | analysisLoader.js | analysis/ 内の1ファイル（論理キーはprojectId・実ファイル名はProjection。[ANALYSIS FILE RESOLUTION]） | Persistence | `saveAnalysisFile()` |
 | Section（session.sections） | analysisSession.js | Analysis Editor Session | Runtime | `createSectionCommand()` 等4コマンド（analysisCommands.js） |
 | Section永続化（raw.sections） | analysisLoader.js | analysis/{id}.json | Persistence | `saveAnalysisFile()`（Analysis本体と同一。raw丸ごとPOST時に含まれる） |
 | 境界（コード間の時刻） | app.js | Analysis Editor | Runtime | `moveBoundary()` |
