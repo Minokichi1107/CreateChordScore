@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: Phase137開始前（Phase133〜136およびPhase137/#117の検討完了を反映）。
+> 最終更新: 2026-10-03（Phase139 / Issue #118完了まで反映）。
 > Phase124以降は固定周期ではなくDocumentation Checkpoint方式で棚卸しする運用を継続する。
 
 ---
@@ -216,8 +216,21 @@ Completed（完了済み）
   現在状態の受け渡しに使い、必要な場合のみ過去Chat archiveから判断理由を検索する運用を
   試行。T2追加実験・Dropbox検索方法の追加調査・handoverへのWhy強制追加・Chat archive
   自動検索システム・新規管理台帳は採用しない。重い新工程を追加せず、最小限の運用へ移行する。
+✓ Phase138 — 軽量Issue 3件（GitHub Issue #115 / #112 / #113）を完了。#115は曲切替時の
+  Chart Modeスクロールを先頭へリセット（非表示中のscrollTop代入ではなく次回描画への
+  リセット予約方式）。#112はsus4(b7)のReadable変換不足をreplacementMapへ追加。
+  #113はm7b5をCanonical表記m7-5へ統一し、Readable Mapも追加。3件とも実機確認済み。
+✓ Phase139 — Analysis JSONファイル名の人間可読化（GitHub Issue #118）を完了。
+  Analysis JSONのschema/contentは変更せず、projectIdを論理キーとして維持したまま、
+  実ファイル名を{artist}-{title}_{projectId}.jsonへProjectionとして変更。server.pyの
+  resolve_analysis_file()を唯一の実ファイル解決窓口とし、旧UUID-only形式との後方互換、
+  複数候補時のConflict扱い、load時のprojectId整合性検証、artist/title変更時のrename、
+  developer-only migration（dryRun対応）を実装した。既存Library Analysis 231件の移行を
+  実行し、最終dryRunでrenamed=0 / unchanged=231 / conflict=0 / error=0を確認。
+  Library対象外の39 orphanファイルはanalysis_orphans/へ分離し、.gitignoreへ追加。
+  変更はcommit 84d58f8でmainへpush済み。
 
-Current Work（現在の作業: Phase137の運用検討を完了。次はProduct Intentから新しい開発テーマを開始）
+Current Work（現在の作業: Phase139 / Issue #118を完了。次は新しいProduct Intentから開発テーマを開始）
 ------------------------------------------------------------
 Phase133〜136の実装・設計・検証と、Phase137/#117の開発プロセス省力化検討を完了した。
 Phase137では、handoverを現在状態の受け渡しに使い、過去の判断理由が必要な場合だけChat
@@ -229,7 +242,7 @@ handoverにない過去判断が必要になった場合のみ、保存したCha
 新しいIssueはhandoverへ溜め込まず、発見時にGitHub Issue等の既存の適切な場所へ記録する。
 
 Phase133〜136の成果物・未解決事項は対応するhandoverおよびcurrent-issues.mdを参照する。
-Phase137/#117は運用上の検討を完了し、ここからは新しいProduct Intentへ戻る。
+Phase137/#117の運用検討、Phase138の軽量Issue 3件、Phase139/#118のAnalysisファイル名変更を完了した。ここからは新しいProduct Intentへ戻る。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
@@ -298,6 +311,8 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 95-A1 | 通常クリック全体への「選択+シーク」一般化 |
 | 95-A2 | Boundary Handle Hover + Direct Drag（selection非依存の境界編集） |
 | 96〜97 | Decorator Inventory棚卸し・Visual Hierarchy確立／Selection Hit-Test統一／Search Engine Enharmonic対応 |
+| 138 | #115 曲切替時のChart Modeスクロールリセット（予約方式。_prevScrollTop保持仕様は維持） | app.js / chartmode.js |
+| 139 | Analysis JSONファイル名の人間可読化（Issue #118。projectId論理参照を維持し、実ファイル名をProjectionとして解決・rename・migration） | server.py / analysisLoader.js / app.js / tools/migrate-analysis-filenames.js |
 
 ### Project Repository / Persistence
 
@@ -308,6 +323,7 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 62 | project identity semantics確立（UUID lifecycle） |
 | 65〜66 | assetState導入・debug observability layer確立 |
 | 73 | Project DB完成（IndexedDB Project Repository・Library UI） |
+| 139 | Analysis File Resolution（projectIdを論理キー、実ファイル名をProjectionとして解決。旧形式互換・rename・one-time migration） | server.py / analysisLoader.js / app.js |
 
 ### Analysis Editor
 
@@ -1130,4 +1146,3 @@ Phase108   Section Boundary Reassignment
 </details>
 
 ---
-
