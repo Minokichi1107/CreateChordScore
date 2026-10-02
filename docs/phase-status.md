@@ -311,8 +311,8 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 95-A1 | 通常クリック全体への「選択+シーク」一般化 |
 | 95-A2 | Boundary Handle Hover + Direct Drag（selection非依存の境界編集） |
 | 96〜97 | Decorator Inventory棚卸し・Visual Hierarchy確立／Selection Hit-Test統一／Search Engine Enharmonic対応 |
-| 138 | #115 曲切替時のChart Modeスクロールリセット（予約方式。_prevScrollTop保持仕様は維持） | app.js / chartmode.js |
-| 139 | Analysis JSONファイル名の人間可読化（Issue #118。projectId論理参照を維持し、実ファイル名をProjectionとして解決・rename・migration） | server.py / analysisLoader.js / app.js / tools/migrate-analysis-filenames.js |
+| 138 | #115 曲切替時のChart Modeスクロールリセット（予約方式。_prevScrollTop保持仕様は維持） |
+| 139 | Analysis JSONファイル名の人間可読化（Issue #118。projectId論理参照を維持し、実ファイル名をProjectionとして解決・rename・migration） |
 
 ### Project Repository / Persistence
 
@@ -384,6 +384,8 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 136-A | Continuous Chord Projection（連続実時間投影）を実装。通常表示のChordを実時間位置へ配置し、既存Slot編集経路と責務を分離 | chartmode.js |
 | 136-B | Cross-Measure Label Placement、Continuous Playhead、Bar-line Snap（0.25 beat・表示専用）、`measuresPerRow` 1〜4列を実装・実機検証。Issue #120は保留 | chartmode.js / Chart Mode UI |
 | 137 | 開発プロセス省力化検討（GitHub #117）。handoverを現在状態、Chat archiveを必要時の判断理由参照として試行し、追加の管理工程・台帳は採用しない | docs / process audit |
+| 138 | 軽量Issue 3件（GitHub #115 / #112 / #113）を完了。Chart Modeスクロールリセット、sus4(b7) Readable変換、m7b5→m7-5 Canonical統一を実装・実機確認 | app.js / chartmode.js / replacementMap.js / chordEntry.js |
+| 139 | Analysis JSONファイル名の人間可読化（GitHub #118）。resolve_analysis_file()による実ファイル解決、rename、dryRun対応migration、既存Library 231件の移行を完了 | server.py / analysisLoader.js / app.js / tools/migrate-analysis-filenames.js |
 
 ### Provenance / Data Provenance
 
