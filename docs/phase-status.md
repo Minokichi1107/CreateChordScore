@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: 2026-10-03（Phase139 / Issue #118完了まで反映）。
+> 最終更新: 2026-10-03（Phase140 / Section UX #95・#96・#104完了まで反映）。
 > Phase124以降は固定周期ではなくDocumentation Checkpoint方式で棚卸しする運用を継続する。
 
 ---
@@ -229,8 +229,16 @@ Completed（完了済み）
   実行し、最終dryRunでrenamed=0 / unchanged=231 / conflict=0 / error=0を確認。
   Library対象外の39 orphanファイルはanalysis_orphans/へ分離し、.gitignoreへ追加。
   変更はcommit 84d58f8でmainへpush済み。
+✓ Phase140 — Section UX 3件（GitHub Issue #95 / #96 / #104）を完了。
+  #104は日本式の音楽構成プリセットを追加し、日本式/Englishのグループ切替を実装。
+  #96はSection種類変更時の名前連動を実装（作成時は常に自動名を生成、変更時は
+  自動生成名のみ追従し手動名を保持）。#95はSectionチップのドラッグ並べ替えを実装し、
+  Section表示順とChart上の位置を独立させた。3件とも実機確認済み。
+  [SECTION ORDER INDEPENDENCE]（Section表示順は位置と独立）を確立し、
+  並べ替えはsession.sectionsの配列順だけを変更する。displayOrder等の別モデルは作らない。
+  実装ブランチはfeature/phase140-section-ux、最新commitは62c9174。mainへは未merge。
 
-Current Work（現在の作業: Phase139 / Issue #118を完了。次は新しいProduct Intentから開発テーマを開始）
+Current Work（現在の作業: Phase140 / Section UX 3件を完了。次は新しいProduct Intentから開発テーマを開始）
 ------------------------------------------------------------
 Phase133〜136の実装・設計・検証と、Phase137/#117の開発プロセス省力化検討を完了した。
 Phase137では、handoverを現在状態の受け渡しに使い、過去の判断理由が必要な場合だけChat
@@ -242,7 +250,7 @@ handoverにない過去判断が必要になった場合のみ、保存したCha
 新しいIssueはhandoverへ溜め込まず、発見時にGitHub Issue等の既存の適切な場所へ記録する。
 
 Phase133〜136の成果物・未解決事項は対応するhandoverおよびcurrent-issues.mdを参照する。
-Phase137/#117の運用検討、Phase138の軽量Issue 3件、Phase139/#118のAnalysisファイル名変更を完了した。ここからは新しいProduct Intentへ戻る。
+Phase137/#117の運用検討、Phase138の軽量Issue 3件、Phase139/#118のAnalysisファイル名変更、Phase140/#95・#96・#104のSection UX改善を完了した。Phase140の実装はfeature/phase140-section-uxにあり、mainへは未merge。ここからは新しいProduct Intentへ戻る。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
@@ -313,6 +321,7 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 96〜97 | Decorator Inventory棚卸し・Visual Hierarchy確立／Selection Hit-Test統一／Search Engine Enharmonic対応 |
 | 138 | #115 曲切替時のChart Modeスクロールリセット（予約方式。_prevScrollTop保持仕様は維持） |
 | 139 | Analysis JSONファイル名の人間可読化（Issue #118。projectId論理参照を維持し、実ファイル名をProjectionとして解決・rename・migration） |
+| 140 | Section UX（#104 日本式Section種類プリセット＋日本式/English切替、#96 種類変更時のSection名連動、#95 Sectionチップのドラッグ並べ替え。#95では[SECTION ORDER INDEPENDENCE]を確立） |
 
 ### Project Repository / Persistence
 
@@ -456,6 +465,10 @@ B. Editor UI（作成/Rename/Delete） — Phase101-1〜3完了
    UX Polish                — Phase107完了
    Boundary Reassignment（単一削除） — Phase108完了
    Boundary Reassignment（複数削除／Merge／Paste／Ctrl+V） — Phase109〜111完了
+   Section UX（日本式プリセット／名前連動／表示順ドラッグ） — Phase140完了
+
+Phase140でSection Editorの表示・作成UXを拡張し、Section表示順の独立性を実装レベルでも確立した。
+#95の並べ替えはsession.sectionsの配列順のみを変更し、startChordId/endChordIdやChart上の位置を変更しない。
 
 単一Mutationを対象としたSection Data Layer（基盤機能）はPhase98〜108を
 通じて実用レベルに到達し、複合Mutation対応もPhase109〜111で完結した。
