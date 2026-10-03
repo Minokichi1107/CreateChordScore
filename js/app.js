@@ -222,6 +222,7 @@ import {
   createSectionCommand, // Phase101-2
   renameSectionCommand, // Phase101-3
   deleteSectionCommand, // Phase101-3
+  reorderSectionCommand, // Phase140 #95
   updateSectionBoundaryCommand, // Phase106
 } from './analysisCommands.js';
 
@@ -449,6 +450,7 @@ function resetAnalysisEditor() {
   // リセット窓口」に揃えるため、ここで明示的にクリアする（Phase102実装時の漏れ）。
   _previewSectionId = null;
   setSectionPreview([]);
+  _teardownSectionDrag(); // [Phase140 #95] Section並べ替えドラッグ中の状態も同じ窓口でクリアする
   // [Phase119] Mutation Feedbackのtimer/Authority/Projectionをまとめて
   // クリアする。Selection/Search/Section Previewと同じ「唯一のリセット
   // 窓口」に揃える（[EDITOR RESET AUTHORITY]）。renderは呼ばない
@@ -3277,6 +3279,197 @@ function _clearSectionPreview() {
   renderSectionBar();
 }
 
+// ─────────────────────────────────────────────────────────────
+// [Phase140 #95] Sectionチップのドラッグ並べ替え（#section-barの表示順のみ）
+//
+// [INVARIANT] Section表示順は位置と独立している。並べ替えは session.sections の
+// 配列順だけを変更し、startChordId / endChordId（Chart上の範囲）・Preview対象・
+// スクロール位置には影響しない。Authorityは session.sections のまま（新しい
+// Orderモデルは作らない）。実際の変更は reorderSectionCommand()（1操作＝履歴1回）。
+//
+// 方式: Pointer Events。掴んだチップはposition:fixedで指に追従し、元の場所には
+// 破線のギャップ(.sec-chip-gap)が残って挿入位置を示す。ドラッグ中は
+// renderSectionBar()を呼ばない（DOM上で見た目だけ動かし、離したときに1回だけ確定）。
+// ─────────────────────────────────────────────────────────────
+
+/** ドラッグ開始と見なす移動量(px)。これ未満の動きは従来どおりクリック扱い */
+const SECTION_DRAG_THRESHOLD_PX = 8;
+
+/**
+ * _sectionDrag — ドラッグ中のephemeral UI state（Analysis Editor限定・保存対象外）
+ * [EDITOR RESET AUTHORITY] resetAnalysisEditor() で必ずクリアする。
+ * { sectionId, chipEl, nameEl, pointerId, startX, startY, offsetX, offsetY,
+ *   active, dragged, cancelled, gapEl }
+ */
+let _sectionDrag = null;
+let _suppressNextSectionClick = false;
+
+/** _sectionDragOthers — ドラッグ中のチップ以外のチップ（DOM順＝表示順） */
+function _sectionDragOthers() {
+  const bar = document.getElementById('section-bar');
+  if (!bar || !_sectionDrag) return [];
+  return [...bar.querySelectorAll('.sec-chip')].filter(c => c !== _sectionDrag.chipEl);
+}
+
+/** _clearSectionDragVisual — ドラッグ中の見た目(浮き・ギャップ・capture)だけを元に戻す */
+function _clearSectionDragVisual(d) {
+  d.gapEl?.remove();
+  d.gapEl = null;
+  if (d.chipEl) {
+    d.chipEl.classList.remove('sec-chip--dragging');
+    ['left', 'top', 'width'].forEach(k => d.chipEl.style.removeProperty(k));
+  }
+  document.getElementById('section-bar')?.classList.remove('sec-bar--dragging');
+  try { d.nameEl?.releasePointerCapture?.(d.pointerId); } catch { /* 既に解放済み */ }
+}
+
+/** _teardownSectionDrag — ドラッグ状態を完全に破棄する（確定・中断・Reset共通） */
+function _teardownSectionDrag() {
+  if (!_sectionDrag) return;
+  _clearSectionDragVisual(_sectionDrag);
+  _sectionDrag = null;
+}
+
+/** _beginSectionDrag — しきい値を超えた時点でドラッグを開始する（見た目を浮かせる） */
+function _beginSectionDrag(d) {
+  _closeSectionMenu(); // ▼メニューが開いていれば閉じる（開いたまま動かさない）
+  const bar = document.getElementById('section-bar');
+  const rect = d.chipEl.getBoundingClientRect();
+  d.offsetX = d.startX - rect.left;
+  d.offsetY = d.startY - rect.top;
+
+  const gap = document.createElement('span');
+  gap.className = 'sec-chip-gap';
+  gap.style.width = rect.width + 'px';
+  gap.style.height = rect.height + 'px';
+  d.chipEl.parentNode.insertBefore(gap, d.chipEl);
+  d.gapEl = gap;
+
+  d.chipEl.classList.add('sec-chip--dragging');
+  d.chipEl.style.width = rect.width + 'px';
+  d.chipEl.style.left = rect.left + 'px';
+  d.chipEl.style.top = rect.top + 'px';
+  bar?.classList.add('sec-bar--dragging');
+  try { d.nameEl.setPointerCapture(d.pointerId); } catch { /* 取得できなくても動作する */ }
+  d.active = true;
+  d.dragged = true;
+}
+
+/**
+ * _placeSectionGap — ポインタ位置からギャップの挿入位置を決めてDOM上で動かす。
+ * 行折り返し対応: 「ポインタより上の行にある」または「同じ行でポインタが
+ * チップ中心より右にある」チップの数が、挿入先のindexになる。
+ */
+function _placeSectionGap(px, py) {
+  const d = _sectionDrag;
+  const bar = document.getElementById('section-bar');
+  if (!d?.gapEl || !bar) return;
+  const others = _sectionDragOthers();
+  let k = 0;
+  for (const c of others) {
+    const r = c.getBoundingClientRect();
+    const before = py > r.bottom || (py >= r.top && px > r.left + r.width / 2);
+    if (!before) break;
+    k++;
+  }
+  const ref = others[k] ?? bar.querySelector('#sec-create-btn');
+  let next = d.gapEl.nextElementSibling;
+  if (next === d.chipEl) next = next.nextElementSibling; // 浮いているチップはDOM上の位置に意味がない
+  if (next !== ref) bar.insertBefore(d.gapEl, ref);
+}
+
+/** _sectionDragTargetIndex — ギャップの現在位置から「並べ替え後のindex」を求める */
+function _sectionDragTargetIndex() {
+  const d = _sectionDrag;
+  if (!d?.gapEl) return -1;
+  return _sectionDragOthers()
+    .filter(c => d.gapEl.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_PRECEDING)
+    .length;
+}
+
+/** _commitSectionReorder — ドロップ確定。位置が変わったときだけCommandを実行する */
+function _commitSectionReorder(sectionId, toIndex) {
+  const fromIndex = getSections(analysisEditor).findIndex(s => s.id === sectionId);
+  if (fromIndex === -1 || toIndex === fromIndex) return; // 元の位置: 履歴にも積まない
+  const before = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
+  const result = reorderSectionCommand(analysisEditor, sectionId, toIndex);
+  if (!result.ok) {
+    if (result.reason !== 'same-position') toast(`⚠ Sectionの並べ替えに失敗しました: ${result.reason}`);
+    _recRecord('reorderSection', result, before, before);
+    return;
+  }
+  const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
+  _recRecord('reorderSection', result, before, after);
+  // Preview対象・選択・スクロールは変えない（表示順だけの変更）
+  _refreshEditorView('reorderSection');
+}
+
+function _onSectionPointerDown(e) {
+  if (e.button !== 0 || e.isPrimary === false) return;
+  const nameEl = e.target?.closest?.('#section-bar .sec-chip-name');
+  if (!nameEl) return;
+  const bar = document.getElementById('section-bar');
+  if (!bar || bar.querySelectorAll('.sec-chip').length < 2) return; // 1件だけなら並べ替え不要
+  _teardownSectionDrag();
+  const chipEl = nameEl.closest('.sec-chip');
+  _sectionDrag = {
+    sectionId: chipEl.dataset.sectionId, chipEl, nameEl,
+    pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
+    offsetX: 0, offsetY: 0, active: false, dragged: false, cancelled: false, gapEl: null,
+  };
+}
+
+function _onSectionPointerMove(e) {
+  const d = _sectionDrag;
+  if (!d || e.pointerId !== d.pointerId || d.cancelled) return;
+  if (!d.active) {
+    if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < SECTION_DRAG_THRESHOLD_PX) return;
+    _beginSectionDrag(d);
+  }
+  d.chipEl.style.left = (e.clientX - d.offsetX) + 'px';
+  d.chipEl.style.top = (e.clientY - d.offsetY) + 'px';
+  _placeSectionGap(e.clientX, e.clientY);
+}
+
+function _onSectionPointerUp(e) {
+  const d = _sectionDrag;
+  if (!d || e.pointerId !== d.pointerId) return;
+  // ドラッグした場合、pointerup直後に発火するclickは誤操作（Preview選択等の巻き込み）
+  // になるため1回だけ握りつぶす（Phase93 Boundary Handleと同じ方針）。
+  if (d.dragged) {
+    _suppressNextSectionClick = true;
+    setTimeout(() => { _suppressNextSectionClick = false; }, 50);
+  }
+  const commit = d.active && !d.cancelled;
+  const toIndex = commit ? _sectionDragTargetIndex() : -1;
+  const sectionId = d.sectionId;
+  _teardownSectionDrag();
+  if (commit && toIndex >= 0) _commitSectionReorder(sectionId, toIndex);
+}
+
+/** _setupSectionDragEvents — 委譲登録（一度だけ。#section-bar自体は再描画されない） */
+function _setupSectionDragEvents() {
+  document.addEventListener('pointerdown', _onSectionPointerDown);
+  document.addEventListener('pointermove', _onSectionPointerMove);
+  document.addEventListener('pointerup', _onSectionPointerUp);
+  document.addEventListener('pointercancel', () => _teardownSectionDrag()); // 確定しない
+  // Escape: ドラッグ中だけ最優先で中断する（captureで既存のEscape連鎖より先に処理）。
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !_sectionDrag?.active) return;
+    _clearSectionDragVisual(_sectionDrag); // 見た目を戻す。ポインタを離すまで状態は保持
+    _sectionDrag.active = false;
+    _sectionDrag.cancelled = true;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+  document.addEventListener('click', (e) => {
+    if (!_suppressNextSectionClick) return;
+    _suppressNextSectionClick = false;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+}
+
 /**
  * renderSectionBar — Section一覧を表示する（Phase101-1で新設・Phase101-2で作成UI追加・
  * Phase101-3でRename/Delete用▼メニュー追加）
@@ -3292,6 +3485,7 @@ function _clearSectionPreview() {
 function renderSectionBar() {
   const bar = document.getElementById('section-bar');
   if (!bar) return;
+  _teardownSectionDrag(); // [Phase140 #95] 再描画でチップが作り直されるため、ドラッグ状態は破棄する
 
   if (!isAnalysisEditing()) {
     bar.hidden = true;
@@ -6874,6 +7068,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 無くなったため（[TOOLTIP CONSOLIDATION]・showProvenancePopover()直前の
   // コメント参照）。textTooltip.js自体は将来の別用途に備えて残す。
   _setupProvenancePopoverEvents(); // [Phase127-E②] Provenance Popoverの外クリック/Escape
+  _setupSectionDragEvents();       // [Phase140 #95] Sectionチップのドラッグ並べ替え
   _setupLibraryContextMenu();      // [Phase127-E②] Library行の右クリック→Provenance Popover
 
   if (btnCollapse) {
