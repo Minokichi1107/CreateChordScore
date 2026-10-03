@@ -924,6 +924,36 @@ export function updateSectionBoundaryCommand(state, sectionId, patch = {}) {
 }
 
 /**
+ * reorderSectionCommand — Sectionの表示順（session.sections の配列順）を変更する
+ * （Phase140 #95・#section-barのドラッグ並べ替え用）
+ *
+ * [INVARIANT] Section表示順は位置と独立している。この関数は配列内の並びだけを
+ * 変更し、startChordId / endChordId（Chart上の範囲）には一切触れない。
+ * 表示順の別データ（displayOrder等）は作らず、正本は session.sections のまま。
+ *
+ * @param {object} state - analysisEditor
+ * @param {string} sectionId
+ * @param {number} toIndex - 並べ替え後の配列内でのindex（0始まり）
+ * @returns {CommandResult & { fromIndex?: number, toIndex?: number }}
+ *   reason: 'section-not-found' | 'invalid-index' | 'same-position'
+ */
+export function reorderSectionCommand(state, sectionId, toIndex) {
+  const sections = getSections(state);
+  const fromIndex = sections.findIndex(s => s.id === sectionId);
+  if (fromIndex === -1) return { ok: false, reason: 'section-not-found' };
+  if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex >= sections.length) {
+    return { ok: false, reason: 'invalid-index' };
+  }
+  if (toIndex === fromIndex) return { ok: false, reason: 'same-position' };
+
+  pushHistory(state); // 既存コマンドと同じ位置（バリデーション通過後・反映直前）。1操作＝履歴1回
+
+  const [moved] = sections.splice(fromIndex, 1);
+  sections.splice(toIndex, 0, moved);
+  return { ok: true, sectionId, fromIndex, toIndex };
+}
+
+/**
  * deleteSectionCommand — Sectionを明示的に削除する（Phase100-A・section-model.md §6）
  *
  * @param {object} state - analysisEditor

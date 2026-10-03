@@ -128,6 +128,21 @@ Section = {
 重視している「Identity」を表す。名前を変えても、範囲（start/end）を
 動かしても、複製しても、`id`が同じであれば「同じSection」である。
 
+### 4.1.1 Section type（種類）のプリセット区分（Phase140）
+
+Phase140で日本式の音楽構成名を追加した。既存のEnglish typeを置き換えるものではなく、
+**English typeと日本式typeは別のtype identityとして扱う**。
+
+- English: `verse`, `chorus`, `bridge` など既存typeを維持
+- 日本式: `jp-intro`（イントロ）、`jp-a-melo`（Aメロ）、`jp-b-melo`（Bメロ）、`jp-sabi`（サビ）、`jp-ato-sabi`（後サビ）、`jp-kanso`（間奏）、`jp-c-melo`（Cメロ）、`jp-solo`（ソロ）、`jp-break`（ブレイク）、`jp-ochi-sabi`（落ちサビ）、`jp-dai-sabi`（大サビ）、`jp-outro`（アウトロ）
+
+`verse` と `jp-a-melo`、`chorus` と `jp-sabi` などの意味的な対応関係は、
+Phase140では自動的に同一視しない。将来、Section Identityやコード連携で
+「同種」として扱う必要が生じた場合は、別途Technical Designで定義する。
+
+作成UIでは日本式/Englishのグループ切替を使用し、初回の既定グループはEnglish。
+グループ選択は作成モーダルのUI設定として扱い、Sectionデータそのものには保存しない。
+
 ### 4.2 参照方式: IDペア方式（確定）
 
 ```

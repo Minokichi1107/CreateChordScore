@@ -222,6 +222,7 @@ import {
   createSectionCommand, // Phase101-2
   renameSectionCommand, // Phase101-3
   deleteSectionCommand, // Phase101-3
+  reorderSectionCommand, // Phase140 #95
   updateSectionBoundaryCommand, // Phase106
 } from './analysisCommands.js';
 
@@ -449,6 +450,7 @@ function resetAnalysisEditor() {
   // リセット窓口」に揃えるため、ここで明示的にクリアする（Phase102実装時の漏れ）。
   _previewSectionId = null;
   setSectionPreview([]);
+  _teardownSectionDrag(); // [Phase140 #95] Section並べ替えドラッグ中の状態も同じ窓口でクリアする
   // [Phase119] Mutation Feedbackのtimer/Authority/Projectionをまとめて
   // クリアする。Selection/Search/Section Previewと同じ「唯一のリセット
   // 窓口」に揃える（[EDITOR RESET AUTHORITY]）。renderは呼ばない
@@ -2793,18 +2795,125 @@ function _refreshEditorView(mutationEvent = null) {
  * 将来の並び替え・Localization・追加はこの配列のみで完結する。
  */
 const SECTION_TYPES = [
-  { value: 'intro',       label: 'Intro' },
-  { value: 'verse',       label: 'Verse' },
-  { value: 'pre-chorus',  label: 'Pre-Chorus' },
-  { value: 'chorus',      label: 'Chorus' },
-  { value: 'post-chorus', label: 'Post-Chorus' },
-  { value: 'bridge',      label: 'Bridge' },
-  { value: 'solo',        label: 'Solo' },
-  { value: 'interlude',   label: 'Interlude' },
-  { value: 'break',       label: 'Break' },
-  { value: 'outro',       label: 'Outro' },
-  { value: 'other',       label: 'Other' },
+  // [Phase140 #104] 日本の楽曲構成。英語の種類とは別のtypeとして扱う
+  // （Verse と Aメロ を同一視するかは将来のSection Identity設計で決める＝今回は決めない）。
+  { value: 'jp-intro',      label: 'イントロ',   group: 'jp' },
+  { value: 'jp-a-melo',     label: 'Aメロ',      group: 'jp' },
+  { value: 'jp-b-melo',     label: 'Bメロ',      group: 'jp' },
+  { value: 'jp-sabi',       label: 'サビ',       group: 'jp' },
+  { value: 'jp-ato-sabi',   label: '後サビ',     group: 'jp' },
+  { value: 'jp-kanso',      label: '間奏',       group: 'jp' },
+  { value: 'jp-c-melo',     label: 'Cメロ',      group: 'jp' },
+  { value: 'jp-solo',       label: 'ソロ',       group: 'jp' },
+  { value: 'jp-break',      label: 'ブレイク',   group: 'jp' },
+  { value: 'jp-ochi-sabi',  label: '落ちサビ',   group: 'jp' },
+  { value: 'jp-dai-sabi',   label: '大サビ',     group: 'jp' },
+  { value: 'jp-outro',      label: 'アウトロ',   group: 'jp' },
+  // 既存の英語の種類（削除・置換しない。保存済みSectionのtypeがそのまま使える）
+  { value: 'intro',       label: 'Intro',       group: 'en' },
+  { value: 'verse',       label: 'Verse',       group: 'en' },
+  { value: 'pre-chorus',  label: 'Pre-Chorus',  group: 'en' },
+  { value: 'chorus',      label: 'Chorus',      group: 'en' },
+  { value: 'post-chorus', label: 'Post-Chorus', group: 'en' },
+  { value: 'bridge',      label: 'Bridge',      group: 'en' },
+  { value: 'solo',        label: 'Solo',        group: 'en' },
+  { value: 'interlude',   label: 'Interlude',   group: 'en' },
+  { value: 'break',       label: 'Break',       group: 'en' },
+  { value: 'outro',       label: 'Outro',       group: 'en' },
+  { value: 'other',       label: 'Other',       group: 'en' },
 ];
+
+/** 新規Section作成時の既定の種類（Phase140 #104: 配列位置ではなくキーで指定する） */
+const DEFAULT_SECTION_TYPE = 'verse';
+
+/** 種類の表記グループ（トグルの並び順）。SECTION_TYPES[].group と対応する */
+const SECTION_TYPE_GROUPS = [
+  { key: 'jp', label: '日本式' },
+  { key: 'en', label: 'English' },
+];
+
+/** 最後に使った表記グループの記憶先（アプリ全体・localStorage。曲データには保存しない） */
+const SECTION_TYPE_GROUP_STORAGE_KEY = 'cs.sectionTypeGroup';
+
+/** _sectionTypeGroupOf — 種類のキーから表記グループを返す（一覧に無ければ 'en'） */
+function _sectionTypeGroupOf(type) {
+  return SECTION_TYPES.find(t => t.value === type)?.group ?? 'en';
+}
+
+/**
+ * _loadSectionTypeGroup — 最後に使った表記グループを読み出す（Phase140 #104）
+ * 未保存・読み出し失敗時は、既定の種類（DEFAULT_SECTION_TYPE）のグループを返す。
+ */
+function _loadSectionTypeGroup() {
+  try {
+    const v = localStorage.getItem(SECTION_TYPE_GROUP_STORAGE_KEY);
+    if (v === 'jp' || v === 'en') return v;
+  } catch { /* localStorage不可でも動作に影響しない */ }
+  return _sectionTypeGroupOf(DEFAULT_SECTION_TYPE);
+}
+
+/** _saveSectionTypeGroup — 表記グループを記憶する（失敗しても無視） */
+function _saveSectionTypeGroup(group) {
+  try { localStorage.setItem(SECTION_TYPE_GROUP_STORAGE_KEY, group); } catch { /* 無視 */ }
+}
+
+/**
+ * _defaultTypeForGroup — グループ切替時／作成ダイアログ表示時に選ぶ種類を返す。
+ * 既定の種類（verse）と同じグループならそれを、違うグループならその先頭を返す。
+ */
+function _defaultTypeForGroup(group) {
+  if (_sectionTypeGroupOf(DEFAULT_SECTION_TYPE) === group) return DEFAULT_SECTION_TYPE;
+  return SECTION_TYPES.find(t => t.group === group)?.value ?? DEFAULT_SECTION_TYPE;
+}
+
+/**
+ * _renderSectionTypeOptions — 指定グループの<option>群のHTMLを生成する（Phase140 #104）
+ */
+function _renderSectionTypeOptions(group, selectedValue) {
+  return SECTION_TYPES
+    .filter(t => t.group === group)
+    .map(t => `<option value="${t.value}" ${t.value === selectedValue ? 'selected' : ''}>${t.label}</option>`)
+    .join('');
+}
+
+/**
+ * _renderSectionTypePicker — 「日本式／English」トグル＋種類プルダウンのHTMLを生成する。
+ * 作成/変更の両モーダルで共用する。selectIdのselectは従来どおりchangeイベントで値を通知する。
+ */
+function _renderSectionTypePicker(selectId, group, selectedValue) {
+  const toggles = SECTION_TYPE_GROUPS.map(g =>
+    `<button type="button" class="sec-type-toggle-btn" data-group="${g.key}" aria-pressed="${g.key === group}">${g.label}</button>`
+  ).join('');
+  return `
+    <div class="sec-type-picker">
+      <div class="sec-type-toggle" role="group" aria-label="種類の表記">${toggles}</div>
+      <select id="${selectId}" class="mi">${_renderSectionTypeOptions(group, selectedValue)}</select>
+    </div>`;
+}
+
+/**
+ * _bindSectionTypePicker — トグル操作を結び付ける（モーダルのonOpenから呼ぶ）。
+ *
+ * グループを切り替えると、プルダウンをそのグループの選択肢へ入れ替え、既定の種類を選び、
+ * changeイベントを発火する（→ 名前欄の連動は各モーダル側のchangeハンドラが行う）。
+ * remember=true の場合のみ、選んだグループをアプリ全体の設定として記憶する。
+ */
+function _bindSectionTypePicker(selectId, { remember = false } = {}) {
+  const selectEl = document.getElementById(selectId);
+  const root = selectEl?.closest('.sec-type-picker');
+  if (!selectEl || !root) return;
+  root.querySelectorAll('.sec-type-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.getAttribute('aria-pressed') === 'true') return;
+      const group = btn.dataset.group;
+      root.querySelectorAll('.sec-type-toggle-btn').forEach(b =>
+        b.setAttribute('aria-pressed', String(b === btn)));
+      selectEl.innerHTML = _renderSectionTypeOptions(group, _defaultTypeForGroup(group));
+      if (remember) _saveSectionTypeGroup(group);
+      selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+}
 
 /**
  * _generateSectionName — type選択時のname初期値を自動生成する（Phase101-2）
@@ -2816,6 +2925,22 @@ function _generateSectionName(type) {
   const label = SECTION_TYPES.find(t => t.value === type)?.label ?? type;
   const count = getSections(analysisEditor).filter(s => s.type === type).length;
   return count === 0 ? label : `${label} ${count + 1}`;
+}
+
+/**
+ * _isAutoSectionName — 名前が「その種類の自動名」かどうかを判定する（Phase140 #96）
+ *
+ * 自動名 = 種類のラベルそのもの、または「ラベル 数字」（例: "Verse" / "Verse 2" / "サビ 3"）。
+ * 手で付けた名前（例: "1番サビ"）は false。「変更」ダイアログで種類を替えたときに、
+ * 名前欄を追従させてよいかの判定に使う。
+ */
+function _isAutoSectionName(name, type) {
+  const label = SECTION_TYPES.find(t => t.value === type)?.label;
+  if (!label) return false;
+  const n = String(name ?? '').trim();
+  if (n === label) return true;
+  if (!n.startsWith(label + ' ')) return false;
+  return /^\d+$/.test(n.slice(label.length + 1));
 }
 
 /**
@@ -2853,8 +2978,9 @@ function openSectionModal() {
   const endName = toDisplayChord(toReadableChord(endChord.chord), capo);
   const count = selectedIds.length;
 
-  let nameIsAutoGenerated = true;
-  const defaultType = SECTION_TYPES[1].value; // 'verse'をデフォルト表示
+  // [Phase140 #104] 最後に使った表記グループ（日本式/English）で開く。位置指定ではなくキー指定
+  const initialGroup = _loadSectionTypeGroup();
+  const defaultType = _defaultTypeForGroup(initialGroup);
 
   openModal({
     title: 'Sectionを作成',
@@ -2863,22 +2989,19 @@ function openSectionModal() {
         範囲: ${count}コード（${startName} 〜 ${endName}）
       </div>
       <div class="modal-field-label">種類</div>
-      <select id="sec-type-in" class="mi">
-        ${SECTION_TYPES.map(t =>
-          `<option value="${t.value}" ${t.value === defaultType ? 'selected' : ''}>${t.label}</option>`
-        ).join('')}
-      </select>
+      ${_renderSectionTypePicker('sec-type-in', initialGroup, defaultType)}
       <div class="modal-field-label" style="margin-top:8px">名前</div>
       <input type="text" id="sec-name-in" class="mi" value="${_generateSectionName(defaultType)}">
     `,
     onOpen: () => {
+      _bindSectionTypePicker('sec-type-in', { remember: true }); // [Phase140 #104]
       const typeEl = document.getElementById('sec-type-in');
       const nameEl = document.getElementById('sec-name-in');
-      // [type変更時のname追従ルール] nameが未編集のままなら自動生成値へ追従し、
-      // 一度でも編集されたら以後は固定する（多くのUIが採用する挙動）。
-      nameEl?.addEventListener('input', () => { nameIsAutoGenerated = false; });
+      // [type変更時のname追従ルール / Phase140 #96] 作成時の名前はまだ保存されていない入力なので、
+      // 種類を選び直したら、手で編集した後でも常にその種類の自動名で上書きする。
+      // （保存済みの名前を守る「変更」ダイアログとは意図的に異なる規則）
       typeEl?.addEventListener('change', () => {
-        if (nameIsAutoGenerated) nameEl.value = _generateSectionName(typeEl.value);
+        nameEl.value = _generateSectionName(typeEl.value);
       });
       nameEl?.focus();
       nameEl?.select();
@@ -3156,6 +3279,197 @@ function _clearSectionPreview() {
   renderSectionBar();
 }
 
+// ─────────────────────────────────────────────────────────────
+// [Phase140 #95] Sectionチップのドラッグ並べ替え（#section-barの表示順のみ）
+//
+// [INVARIANT] Section表示順は位置と独立している。並べ替えは session.sections の
+// 配列順だけを変更し、startChordId / endChordId（Chart上の範囲）・Preview対象・
+// スクロール位置には影響しない。Authorityは session.sections のまま（新しい
+// Orderモデルは作らない）。実際の変更は reorderSectionCommand()（1操作＝履歴1回）。
+//
+// 方式: Pointer Events。掴んだチップはposition:fixedで指に追従し、元の場所には
+// 破線のギャップ(.sec-chip-gap)が残って挿入位置を示す。ドラッグ中は
+// renderSectionBar()を呼ばない（DOM上で見た目だけ動かし、離したときに1回だけ確定）。
+// ─────────────────────────────────────────────────────────────
+
+/** ドラッグ開始と見なす移動量(px)。これ未満の動きは従来どおりクリック扱い */
+const SECTION_DRAG_THRESHOLD_PX = 8;
+
+/**
+ * _sectionDrag — ドラッグ中のephemeral UI state（Analysis Editor限定・保存対象外）
+ * [EDITOR RESET AUTHORITY] resetAnalysisEditor() で必ずクリアする。
+ * { sectionId, chipEl, nameEl, pointerId, startX, startY, offsetX, offsetY,
+ *   active, dragged, cancelled, gapEl }
+ */
+let _sectionDrag = null;
+let _suppressNextSectionClick = false;
+
+/** _sectionDragOthers — ドラッグ中のチップ以外のチップ（DOM順＝表示順） */
+function _sectionDragOthers() {
+  const bar = document.getElementById('section-bar');
+  if (!bar || !_sectionDrag) return [];
+  return [...bar.querySelectorAll('.sec-chip')].filter(c => c !== _sectionDrag.chipEl);
+}
+
+/** _clearSectionDragVisual — ドラッグ中の見た目(浮き・ギャップ・capture)だけを元に戻す */
+function _clearSectionDragVisual(d) {
+  d.gapEl?.remove();
+  d.gapEl = null;
+  if (d.chipEl) {
+    d.chipEl.classList.remove('sec-chip--dragging');
+    ['left', 'top', 'width'].forEach(k => d.chipEl.style.removeProperty(k));
+  }
+  document.getElementById('section-bar')?.classList.remove('sec-bar--dragging');
+  try { d.nameEl?.releasePointerCapture?.(d.pointerId); } catch { /* 既に解放済み */ }
+}
+
+/** _teardownSectionDrag — ドラッグ状態を完全に破棄する（確定・中断・Reset共通） */
+function _teardownSectionDrag() {
+  if (!_sectionDrag) return;
+  _clearSectionDragVisual(_sectionDrag);
+  _sectionDrag = null;
+}
+
+/** _beginSectionDrag — しきい値を超えた時点でドラッグを開始する（見た目を浮かせる） */
+function _beginSectionDrag(d) {
+  _closeSectionMenu(); // ▼メニューが開いていれば閉じる（開いたまま動かさない）
+  const bar = document.getElementById('section-bar');
+  const rect = d.chipEl.getBoundingClientRect();
+  d.offsetX = d.startX - rect.left;
+  d.offsetY = d.startY - rect.top;
+
+  const gap = document.createElement('span');
+  gap.className = 'sec-chip-gap';
+  gap.style.width = rect.width + 'px';
+  gap.style.height = rect.height + 'px';
+  d.chipEl.parentNode.insertBefore(gap, d.chipEl);
+  d.gapEl = gap;
+
+  d.chipEl.classList.add('sec-chip--dragging');
+  d.chipEl.style.width = rect.width + 'px';
+  d.chipEl.style.left = rect.left + 'px';
+  d.chipEl.style.top = rect.top + 'px';
+  bar?.classList.add('sec-bar--dragging');
+  try { d.nameEl.setPointerCapture(d.pointerId); } catch { /* 取得できなくても動作する */ }
+  d.active = true;
+  d.dragged = true;
+}
+
+/**
+ * _placeSectionGap — ポインタ位置からギャップの挿入位置を決めてDOM上で動かす。
+ * 行折り返し対応: 「ポインタより上の行にある」または「同じ行でポインタが
+ * チップ中心より右にある」チップの数が、挿入先のindexになる。
+ */
+function _placeSectionGap(px, py) {
+  const d = _sectionDrag;
+  const bar = document.getElementById('section-bar');
+  if (!d?.gapEl || !bar) return;
+  const others = _sectionDragOthers();
+  let k = 0;
+  for (const c of others) {
+    const r = c.getBoundingClientRect();
+    const before = py > r.bottom || (py >= r.top && px > r.left + r.width / 2);
+    if (!before) break;
+    k++;
+  }
+  const ref = others[k] ?? bar.querySelector('#sec-create-btn');
+  let next = d.gapEl.nextElementSibling;
+  if (next === d.chipEl) next = next.nextElementSibling; // 浮いているチップはDOM上の位置に意味がない
+  if (next !== ref) bar.insertBefore(d.gapEl, ref);
+}
+
+/** _sectionDragTargetIndex — ギャップの現在位置から「並べ替え後のindex」を求める */
+function _sectionDragTargetIndex() {
+  const d = _sectionDrag;
+  if (!d?.gapEl) return -1;
+  return _sectionDragOthers()
+    .filter(c => d.gapEl.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_PRECEDING)
+    .length;
+}
+
+/** _commitSectionReorder — ドロップ確定。位置が変わったときだけCommandを実行する */
+function _commitSectionReorder(sectionId, toIndex) {
+  const fromIndex = getSections(analysisEditor).findIndex(s => s.id === sectionId);
+  if (fromIndex === -1 || toIndex === fromIndex) return; // 元の位置: 履歴にも積まない
+  const before = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
+  const result = reorderSectionCommand(analysisEditor, sectionId, toIndex);
+  if (!result.ok) {
+    if (result.reason !== 'same-position') toast(`⚠ Sectionの並べ替えに失敗しました: ${result.reason}`);
+    _recRecord('reorderSection', result, before, before);
+    return;
+  }
+  const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
+  _recRecord('reorderSection', result, before, after);
+  // Preview対象・選択・スクロールは変えない（表示順だけの変更）
+  _refreshEditorView('reorderSection');
+}
+
+function _onSectionPointerDown(e) {
+  if (e.button !== 0 || e.isPrimary === false) return;
+  const nameEl = e.target?.closest?.('#section-bar .sec-chip-name');
+  if (!nameEl) return;
+  const bar = document.getElementById('section-bar');
+  if (!bar || bar.querySelectorAll('.sec-chip').length < 2) return; // 1件だけなら並べ替え不要
+  _teardownSectionDrag();
+  const chipEl = nameEl.closest('.sec-chip');
+  _sectionDrag = {
+    sectionId: chipEl.dataset.sectionId, chipEl, nameEl,
+    pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
+    offsetX: 0, offsetY: 0, active: false, dragged: false, cancelled: false, gapEl: null,
+  };
+}
+
+function _onSectionPointerMove(e) {
+  const d = _sectionDrag;
+  if (!d || e.pointerId !== d.pointerId || d.cancelled) return;
+  if (!d.active) {
+    if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < SECTION_DRAG_THRESHOLD_PX) return;
+    _beginSectionDrag(d);
+  }
+  d.chipEl.style.left = (e.clientX - d.offsetX) + 'px';
+  d.chipEl.style.top = (e.clientY - d.offsetY) + 'px';
+  _placeSectionGap(e.clientX, e.clientY);
+}
+
+function _onSectionPointerUp(e) {
+  const d = _sectionDrag;
+  if (!d || e.pointerId !== d.pointerId) return;
+  // ドラッグした場合、pointerup直後に発火するclickは誤操作（Preview選択等の巻き込み）
+  // になるため1回だけ握りつぶす（Phase93 Boundary Handleと同じ方針）。
+  if (d.dragged) {
+    _suppressNextSectionClick = true;
+    setTimeout(() => { _suppressNextSectionClick = false; }, 50);
+  }
+  const commit = d.active && !d.cancelled;
+  const toIndex = commit ? _sectionDragTargetIndex() : -1;
+  const sectionId = d.sectionId;
+  _teardownSectionDrag();
+  if (commit && toIndex >= 0) _commitSectionReorder(sectionId, toIndex);
+}
+
+/** _setupSectionDragEvents — 委譲登録（一度だけ。#section-bar自体は再描画されない） */
+function _setupSectionDragEvents() {
+  document.addEventListener('pointerdown', _onSectionPointerDown);
+  document.addEventListener('pointermove', _onSectionPointerMove);
+  document.addEventListener('pointerup', _onSectionPointerUp);
+  document.addEventListener('pointercancel', () => _teardownSectionDrag()); // 確定しない
+  // Escape: ドラッグ中だけ最優先で中断する（captureで既存のEscape連鎖より先に処理）。
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !_sectionDrag?.active) return;
+    _clearSectionDragVisual(_sectionDrag); // 見た目を戻す。ポインタを離すまで状態は保持
+    _sectionDrag.active = false;
+    _sectionDrag.cancelled = true;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+  document.addEventListener('click', (e) => {
+    if (!_suppressNextSectionClick) return;
+    _suppressNextSectionClick = false;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+}
+
 /**
  * renderSectionBar — Section一覧を表示する（Phase101-1で新設・Phase101-2で作成UI追加・
  * Phase101-3でRename/Delete用▼メニュー追加）
@@ -3171,6 +3485,7 @@ function _clearSectionPreview() {
 function renderSectionBar() {
   const bar = document.getElementById('section-bar');
   if (!bar) return;
+  _teardownSectionDrag(); // [Phase140 #95] 再描画でチップが作り直されるため、ドラッグ状態は破棄する
 
   if (!isAnalysisEditing()) {
     bar.hidden = true;
@@ -3377,16 +3692,28 @@ function openSectionRenameModal(section) {
         範囲: ${rangeLabel}（範囲の変更は未対応）
       </div>
       <div class="modal-field-label">種類</div>
-      <select id="sec-rename-type-in" class="mi">
-        ${SECTION_TYPES.map(t =>
-          `<option value="${t.value}" ${t.value === section.type ? 'selected' : ''}>${t.label}</option>`
-        ).join('')}
-      </select>
+      ${_renderSectionTypePicker('sec-rename-type-in', _sectionTypeGroupOf(section.type), section.type)}
       <div class="modal-field-label" style="margin-top:8px">名前</div>
       <input type="text" id="sec-rename-name-in" class="mi" value="${section.name}">
     `,
     onOpen: () => {
+      _bindSectionTypePicker('sec-rename-type-in'); // [Phase140 #104] 変更側は記憶しない（Sectionの現在の種類から決まる）
+      const typeEl = document.getElementById('sec-rename-type-in');
       const nameEl = document.getElementById('sec-rename-name-in');
+      // [type変更時のname追従ルール / Phase140 #96] 保存済みの名前は守る:
+      //  - 名前が「直前の種類の自動名」のままなら、新しい種類の自動名へ追従する
+      //  - 手で付けた名前、または追従後に編集した名前は、種類を替えても変えない
+      //  - 開いた時点の種類へ戻した場合は、開いた時点の名前を復元する
+      //    （現在の件数で再計算すると、自分自身が数えられて番号がずれるため）
+      // 追従はダイアログ内の入力欄だけで行い、保存ボタンを押すまでSectionは変わらない。
+      let prevType = section.type;
+      typeEl?.addEventListener('change', () => {
+        const newType = typeEl.value;
+        if (_isAutoSectionName(nameEl.value, prevType)) {
+          nameEl.value = newType === section.type ? section.name : _generateSectionName(newType);
+        }
+        prevType = newType;
+      });
       nameEl?.focus();
       nameEl?.select();
     },
@@ -6741,6 +7068,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 無くなったため（[TOOLTIP CONSOLIDATION]・showProvenancePopover()直前の
   // コメント参照）。textTooltip.js自体は将来の別用途に備えて残す。
   _setupProvenancePopoverEvents(); // [Phase127-E②] Provenance Popoverの外クリック/Escape
+  _setupSectionDragEvents();       // [Phase140 #95] Sectionチップのドラッグ並べ替え
   _setupLibraryContextMenu();      // [Phase127-E②] Library行の右クリック→Provenance Popover
 
   if (btnCollapse) {
