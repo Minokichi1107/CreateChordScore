@@ -432,3 +432,43 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* Phase140 #104: Section作成/変更モーダルの「日本式／English」切替。
+   選択中の表現は .sec-chip--previewing と同じtoken組（surface-selected / border-selected）を転用し、
+   新規tokenは追加しない。 */
+.sec-type-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sec-type-toggle {
+  display: flex;
+}
+.sec-type-toggle-btn {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-ui);
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.sec-type-toggle-btn + .sec-type-toggle-btn {
+  margin-left: -1px;
+}
+.sec-type-toggle-btn:first-child {
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+}
+.sec-type-toggle-btn:last-child {
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.sec-type-toggle-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.sec-type-toggle-btn[aria-pressed="true"] {
+  background: var(--surface-selected);
+  border-color: var(--border-selected);
+  color: var(--text-primary);
+  position: relative; /* 選択中の枠線を隣のボタンより前面に出す */
+}

@@ -2793,18 +2793,125 @@ function _refreshEditorView(mutationEvent = null) {
  * 将来の並び替え・Localization・追加はこの配列のみで完結する。
  */
 const SECTION_TYPES = [
-  { value: 'intro',       label: 'Intro' },
-  { value: 'verse',       label: 'Verse' },
-  { value: 'pre-chorus',  label: 'Pre-Chorus' },
-  { value: 'chorus',      label: 'Chorus' },
-  { value: 'post-chorus', label: 'Post-Chorus' },
-  { value: 'bridge',      label: 'Bridge' },
-  { value: 'solo',        label: 'Solo' },
-  { value: 'interlude',   label: 'Interlude' },
-  { value: 'break',       label: 'Break' },
-  { value: 'outro',       label: 'Outro' },
-  { value: 'other',       label: 'Other' },
+  // [Phase140 #104] 日本の楽曲構成。英語の種類とは別のtypeとして扱う
+  // （Verse と Aメロ を同一視するかは将来のSection Identity設計で決める＝今回は決めない）。
+  { value: 'jp-intro',      label: 'イントロ',   group: 'jp' },
+  { value: 'jp-a-melo',     label: 'Aメロ',      group: 'jp' },
+  { value: 'jp-b-melo',     label: 'Bメロ',      group: 'jp' },
+  { value: 'jp-sabi',       label: 'サビ',       group: 'jp' },
+  { value: 'jp-ato-sabi',   label: '後サビ',     group: 'jp' },
+  { value: 'jp-kanso',      label: '間奏',       group: 'jp' },
+  { value: 'jp-c-melo',     label: 'Cメロ',      group: 'jp' },
+  { value: 'jp-solo',       label: 'ソロ',       group: 'jp' },
+  { value: 'jp-break',      label: 'ブレイク',   group: 'jp' },
+  { value: 'jp-ochi-sabi',  label: '落ちサビ',   group: 'jp' },
+  { value: 'jp-dai-sabi',   label: '大サビ',     group: 'jp' },
+  { value: 'jp-outro',      label: 'アウトロ',   group: 'jp' },
+  // 既存の英語の種類（削除・置換しない。保存済みSectionのtypeがそのまま使える）
+  { value: 'intro',       label: 'Intro',       group: 'en' },
+  { value: 'verse',       label: 'Verse',       group: 'en' },
+  { value: 'pre-chorus',  label: 'Pre-Chorus',  group: 'en' },
+  { value: 'chorus',      label: 'Chorus',      group: 'en' },
+  { value: 'post-chorus', label: 'Post-Chorus', group: 'en' },
+  { value: 'bridge',      label: 'Bridge',      group: 'en' },
+  { value: 'solo',        label: 'Solo',        group: 'en' },
+  { value: 'interlude',   label: 'Interlude',   group: 'en' },
+  { value: 'break',       label: 'Break',       group: 'en' },
+  { value: 'outro',       label: 'Outro',       group: 'en' },
+  { value: 'other',       label: 'Other',       group: 'en' },
 ];
+
+/** 新規Section作成時の既定の種類（Phase140 #104: 配列位置ではなくキーで指定する） */
+const DEFAULT_SECTION_TYPE = 'verse';
+
+/** 種類の表記グループ（トグルの並び順）。SECTION_TYPES[].group と対応する */
+const SECTION_TYPE_GROUPS = [
+  { key: 'jp', label: '日本式' },
+  { key: 'en', label: 'English' },
+];
+
+/** 最後に使った表記グループの記憶先（アプリ全体・localStorage。曲データには保存しない） */
+const SECTION_TYPE_GROUP_STORAGE_KEY = 'cs.sectionTypeGroup';
+
+/** _sectionTypeGroupOf — 種類のキーから表記グループを返す（一覧に無ければ 'en'） */
+function _sectionTypeGroupOf(type) {
+  return SECTION_TYPES.find(t => t.value === type)?.group ?? 'en';
+}
+
+/**
+ * _loadSectionTypeGroup — 最後に使った表記グループを読み出す（Phase140 #104）
+ * 未保存・読み出し失敗時は、既定の種類（DEFAULT_SECTION_TYPE）のグループを返す。
+ */
+function _loadSectionTypeGroup() {
+  try {
+    const v = localStorage.getItem(SECTION_TYPE_GROUP_STORAGE_KEY);
+    if (v === 'jp' || v === 'en') return v;
+  } catch { /* localStorage不可でも動作に影響しない */ }
+  return _sectionTypeGroupOf(DEFAULT_SECTION_TYPE);
+}
+
+/** _saveSectionTypeGroup — 表記グループを記憶する（失敗しても無視） */
+function _saveSectionTypeGroup(group) {
+  try { localStorage.setItem(SECTION_TYPE_GROUP_STORAGE_KEY, group); } catch { /* 無視 */ }
+}
+
+/**
+ * _defaultTypeForGroup — グループ切替時／作成ダイアログ表示時に選ぶ種類を返す。
+ * 既定の種類（verse）と同じグループならそれを、違うグループならその先頭を返す。
+ */
+function _defaultTypeForGroup(group) {
+  if (_sectionTypeGroupOf(DEFAULT_SECTION_TYPE) === group) return DEFAULT_SECTION_TYPE;
+  return SECTION_TYPES.find(t => t.group === group)?.value ?? DEFAULT_SECTION_TYPE;
+}
+
+/**
+ * _renderSectionTypeOptions — 指定グループの<option>群のHTMLを生成する（Phase140 #104）
+ */
+function _renderSectionTypeOptions(group, selectedValue) {
+  return SECTION_TYPES
+    .filter(t => t.group === group)
+    .map(t => `<option value="${t.value}" ${t.value === selectedValue ? 'selected' : ''}>${t.label}</option>`)
+    .join('');
+}
+
+/**
+ * _renderSectionTypePicker — 「日本式／English」トグル＋種類プルダウンのHTMLを生成する。
+ * 作成/変更の両モーダルで共用する。selectIdのselectは従来どおりchangeイベントで値を通知する。
+ */
+function _renderSectionTypePicker(selectId, group, selectedValue) {
+  const toggles = SECTION_TYPE_GROUPS.map(g =>
+    `<button type="button" class="sec-type-toggle-btn" data-group="${g.key}" aria-pressed="${g.key === group}">${g.label}</button>`
+  ).join('');
+  return `
+    <div class="sec-type-picker">
+      <div class="sec-type-toggle" role="group" aria-label="種類の表記">${toggles}</div>
+      <select id="${selectId}" class="mi">${_renderSectionTypeOptions(group, selectedValue)}</select>
+    </div>`;
+}
+
+/**
+ * _bindSectionTypePicker — トグル操作を結び付ける（モーダルのonOpenから呼ぶ）。
+ *
+ * グループを切り替えると、プルダウンをそのグループの選択肢へ入れ替え、既定の種類を選び、
+ * changeイベントを発火する（→ 名前欄の連動は各モーダル側のchangeハンドラが行う）。
+ * remember=true の場合のみ、選んだグループをアプリ全体の設定として記憶する。
+ */
+function _bindSectionTypePicker(selectId, { remember = false } = {}) {
+  const selectEl = document.getElementById(selectId);
+  const root = selectEl?.closest('.sec-type-picker');
+  if (!selectEl || !root) return;
+  root.querySelectorAll('.sec-type-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.getAttribute('aria-pressed') === 'true') return;
+      const group = btn.dataset.group;
+      root.querySelectorAll('.sec-type-toggle-btn').forEach(b =>
+        b.setAttribute('aria-pressed', String(b === btn)));
+      selectEl.innerHTML = _renderSectionTypeOptions(group, _defaultTypeForGroup(group));
+      if (remember) _saveSectionTypeGroup(group);
+      selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+}
 
 /**
  * _generateSectionName — type選択時のname初期値を自動生成する（Phase101-2）
@@ -2854,7 +2961,9 @@ function openSectionModal() {
   const count = selectedIds.length;
 
   let nameIsAutoGenerated = true;
-  const defaultType = SECTION_TYPES[1].value; // 'verse'をデフォルト表示
+  // [Phase140 #104] 最後に使った表記グループ（日本式/English）で開く。位置指定ではなくキー指定
+  const initialGroup = _loadSectionTypeGroup();
+  const defaultType = _defaultTypeForGroup(initialGroup);
 
   openModal({
     title: 'Sectionを作成',
@@ -2863,15 +2972,12 @@ function openSectionModal() {
         範囲: ${count}コード（${startName} 〜 ${endName}）
       </div>
       <div class="modal-field-label">種類</div>
-      <select id="sec-type-in" class="mi">
-        ${SECTION_TYPES.map(t =>
-          `<option value="${t.value}" ${t.value === defaultType ? 'selected' : ''}>${t.label}</option>`
-        ).join('')}
-      </select>
+      ${_renderSectionTypePicker('sec-type-in', initialGroup, defaultType)}
       <div class="modal-field-label" style="margin-top:8px">名前</div>
       <input type="text" id="sec-name-in" class="mi" value="${_generateSectionName(defaultType)}">
     `,
     onOpen: () => {
+      _bindSectionTypePicker('sec-type-in', { remember: true }); // [Phase140 #104]
       const typeEl = document.getElementById('sec-type-in');
       const nameEl = document.getElementById('sec-name-in');
       // [type変更時のname追従ルール] nameが未編集のままなら自動生成値へ追従し、
@@ -3377,15 +3483,12 @@ function openSectionRenameModal(section) {
         範囲: ${rangeLabel}（範囲の変更は未対応）
       </div>
       <div class="modal-field-label">種類</div>
-      <select id="sec-rename-type-in" class="mi">
-        ${SECTION_TYPES.map(t =>
-          `<option value="${t.value}" ${t.value === section.type ? 'selected' : ''}>${t.label}</option>`
-        ).join('')}
-      </select>
+      ${_renderSectionTypePicker('sec-rename-type-in', _sectionTypeGroupOf(section.type), section.type)}
       <div class="modal-field-label" style="margin-top:8px">名前</div>
       <input type="text" id="sec-rename-name-in" class="mi" value="${section.name}">
     `,
     onOpen: () => {
+      _bindSectionTypePicker('sec-rename-type-in'); // [Phase140 #104] 変更側は記憶しない（Sectionの現在の種類から決まる）
       const nameEl = document.getElementById('sec-rename-name-in');
       nameEl?.focus();
       nameEl?.select();
