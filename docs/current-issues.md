@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: Phase137開始前（Phase133〜136およびPhase137/#117の検討結果を反映）。
+> 最終更新: 2026-10-03（Phase140 / Section UX #95・#96・#104完了まで反映）。
 > Phase133〜136で確認された未解決事項をGitHub Issue正本に合わせて整理し、
 > 解決済みの実装事項はCurrent Issuesへ残さず、対応するhandover / phase-statusへ寄せる。
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
@@ -528,14 +528,14 @@ Inventory整理（Phase96）で明確になった。「開発者情報を表示�
 Navigationすべてに影響する規模のため、独立したEpicとして着手すること
 （Compound Mutation対応とは別スコープ）。
 
-#### Section追加メニューへ日本式の音楽構成プリセットを追加（GitHub Issue #104）
-状態: 未着手
-内容: 現在のSection作成ダイアログの種類プルダウン（verse/chorus/bridge等・
-英語圏の一般的な構成名）に加え、イントロ・Aメロ・Bメロ・サビ・間奏・
-アウトロ等、日本式J-POP構成の呼び方をプリセットとして追加する。
-本プロジェクトの主な利用曲（80〜00年代J-POP・アニソン）との親和性が
-高い改善候補。現時点では候補名称と実装方式を確定せず、着手時に
-既存Section typeとの統合方法をTechnical Designで検討する。
+#### GitHub Issue #125 — Sectionプリセット管理
+状態: 未着手・Technical Design待ち
+内容: ユーザーがSectionプリセットを追加・名前変更・削除・並べ替えでき、必要に応じて
+標準プリセットへ戻せるようにする。プリセットは「候補／既定値」として管理し、
+Section作成時にコピーされる。既存Sectionとはリンクせず、既存Sectionの変更は行わない。
+アプリ全体の方向性はlocalStorageを候補とするが、保存方式・安定した内部identity・
+最終UI/data modelは未確定。初期標準プリセットはPhase140/#104のEnglish＋日本式構成を基礎とする。
+#95/#104/#96の実装そのもの、既存Sectionの更新、曲単位のプリセット管理は本Issueのスコープ外。
 
 #### Section UX Epic — Section機能をアプリ全体の楽曲構造レイヤーへ拡張（Phase106発見）
 状態: 未着手・構想段階
