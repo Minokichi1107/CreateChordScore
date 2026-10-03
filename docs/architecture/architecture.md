@@ -178,7 +178,7 @@ JSモジュール境界とCSS責務がほぼ一致していることが判明し
 | timing.js | TimingModel（beat / measure grid 構築・quantize）。外部依存ゼロ。Phase59で diagnostics / repair / normalized pipeline 追加。Phase72-Bで applyAnchorRepair() 追加 | Phase41 |
 | chartmode.js | Chart Mode UI・GridViewModel 生成・playback sync（projection renderer）。rAF playback loop ownership（Phase63〜）。解析編集モードの選択・境界移動UI（Phase74）。Collision Indicator projection（Phase92）。Boundary Handle Drag Editing（Phase93）・Hover + Direct Drag（Phase95-A2）・Decorator Inventory整理／Visual Hierarchy確立（Phase96）・Selection Hit-Test統一（Phase97） | Phase41 |
 | analysisSession.js | Analysis Editor Session Layer。state primitiveの計算のみを担う（history push/pop・selection計算・editPoint確定等）。DOM/audio/Chart runtimeには一切触れない（§12参照）。Section Session（validateSectionInvariants / reconcile / getSections。Phase100-A）を含む。History snapshotは`{ buffer, sections }`形状（Phase104でbuffer単体から拡張） | Phase86-2 |
-| analysisCommands.js | Analysis Editor Command Layer。「ユーザー操作1回」単位のbuffer mutation（copy/cut/delete/paste/merge/update/split/moveBoundary/addChord）を担う。DOM/Chart runtime/toastには触れない（[BOUNDARY INVARIANT]参照・§12）。Section Commands（create/rename/updateBoundary/deleteSectionCommand。Phase100-A）を含む | Phase87〜89 |
+| analysisCommands.js | Analysis Editor Command Layer。「ユーザー操作1回」単位のbuffer mutation（copy/cut/delete/paste/merge/update/split/moveBoundary/addChord）を担う。DOM/Chart runtime/toastには触れない（[BOUNDARY INVARIANT]参照・§12）。Section Commands（create/rename/updateBoundary/deleteSectionCommand。Phase100-A）と`reorderSectionCommand`（Section表示順のみ変更。Phase140）を含む | Phase87〜89 |
 
 ### 依存関係ルール
 
@@ -1601,6 +1601,7 @@ Boundary Editor→UX Polish→Boundary Reassignmentの各段階）
 | Compound Mutation Boundary Resolution | 複数選択削除・Mergeへ対応拡大。`reconcile()`のFactsを刷新（[COMPOUND MUTATION BOUNDARY RESOLUTION PRINCIPLE]・[SECTION EXTENT GUARD]確立。[BOUNDARY REMAP AUTHORITY]を統合・廃止） | 109 | analysisSession.js / analysisCommands.js / app.js |
 | Compound Mutation Boundary Resolution（Paste対応拡大） | pasteSelectionCommandへ対応拡大。replacement FactsをreplacementFirstChordId/replacementLastChordIdへ拡張し、delete/merge/pasteを統一的に扱えるように（Ctrl+V/buildPastePlan経路は対象外） | 110 | analysisSession.js / analysisCommands.js |
 | Compound Mutation Boundary Resolution（Ctrl+V対応拡大） | buildPastePlan()/commitPastePlan()（そのまま貼り付け）へ対応拡大。単一コード内完結ペーストという新しいMutation topologyも、既存Facts（N=1特殊系）で表現可能と確認。reconcile()自体は無変更 | 111 | analysisCommands.js |
+| Section UX | 日本式Section種類プリセット／日本式・English切替、種類変更時のSection名連動、Sectionチップのドラッグ並べ替え。[SECTION ORDER INDEPENDENCE]を確立し、`reorderSectionCommand()`を追加 | 140 | app.js / analysisCommands.js / css/analysis-editor.css |
 | Section Deletion Preview（merge限定） | merge実行前にSectionへの影響を予測し、削除される見込みがある場合のみ確認モーダルを表示。`_evaluateSectionMutation()`をreconcile()と共有し判定ロジックの二重実装を回避（[MERGE FACTS SINGLE SOURCE]・[PREDICTION SCOPE INVARIANT]確立） | 114 | analysisSession.js / analysisCommands.js / app.js / modals.js |
 
 **データモデル**（詳細は section-model.md §4）
@@ -1619,6 +1620,23 @@ Section = { id, type, name, startChordId, endChordId }
 Sectionコレクションは必ず getSections(session) 経由でのみ読む。
 呼び出し側（Command Layer / Renderer / UI）はSectionの整合性修復
 （reconcile）を行ってはならない（修復責務はreconcile()のみに集約する）。
+```
+
+**[SECTION ORDER INDEPENDENCE]（Phase140で確立）**
+
+```
+Section表示順はChart上の位置と独立している。
+
+Sectionチップの並べ替えは、Analysis Editor Sessionの
+session.sections配列の順序だけを変更する。
+startChordId / endChordId、SectionのChart上の範囲、Preview対象、
+スクロール位置は変更しない。
+
+表示順を保持するための別モデル（displayOrder等）は作らない。
+表示順のAuthorityはsession.sectionsの配列順のままとする。
+
+reorderSectionCommand()はこの変更の唯一のCommand入口であり、
+バリデーション通過後・実際の変更直前にpushHistory()を1回だけ行う。
 ```
 
 **[MUTATION SEMANTICS]（Phase109で確立・Phase110でpasteSelectionCommandへ拡張・
