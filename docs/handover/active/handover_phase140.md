@@ -4,8 +4,8 @@
 - ブランチ: `feature/phase140-section-ux`
 - Phase140: **完了**（#95 / #96 / #104 の実装・テスト・実機確認済み）
 - GitHub: **push済み**
-- Draft PR: **#126**（`feature/phase140-section-ux` → `main`）
-- `main`: **未merge**
+- PR: **#126**(merge 済み。merge commit bfcd08c)
+- main: **merge 済み**
 - GitHub上のドキュメント更新:
   - `docs/phase-status.md`
   - `docs/architecture/architecture.md`
@@ -80,7 +80,7 @@
 
 ## 8. Issue状態変更記録
 - 完了: #95 / #96 / #104（GitHub上のclose状態は別途反映）
-- Draft PR: #126（main未merge）
+- PR: #126(merge 済み。merge commit bfcd08c)
 - 次フェーズ候補: #125、今回追加したSection Identity検討Issue、#103、Section拡張（コード連動）
 
 ## 提案コミット（1コミット1目的）
@@ -94,13 +94,13 @@ docs(handover): Phase140 handover
 ---
 
 ## GitHub側のPhase140更新
-Phase140完了後、featureブランチ上で以下のドキュメントを更新済み。
+Phase140完了後、以下のドキュメントを更新済み(PR #126 で main に merge 済み)。
 - `docs/phase-status.md`: Phase140完了状態を反映
 - `docs/architecture/architecture.md`: SECTION ORDER INDEPENDENCE / `reorderSectionCommand` を反映
 - `docs/section-model.md`: `jp-*` とEnglish Section Typeの区別を反映
 - `docs/current-issues.md`: #125 Sectionプリセット管理をFuture Workとして反映
 
-これらの更新は `main` ではなく `feature/phase140-section-ux` にのみ存在する。
+これらの更新は PR #126 の merge により main に反映済み。
 
 ## 運用ルール（変わらず）
 → docs/handover/README.md 参照
