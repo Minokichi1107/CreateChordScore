@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: 2026-10-03（Phase140 / Section UX #95・#96・#104完了まで反映）。
+> 最終更新: 2026-10-05（GitHub Issue #130の大テーマ追加）。
 > Phase133〜136で確認された未解決事項をGitHub Issue正本に合わせて整理し、
 > 解決済みの実装事項はCurrent Issuesへ残さず、対応するhandover / phase-statusへ寄せる。
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
@@ -113,6 +113,60 @@
 ## 2. Current Issues（未解決の問題・バグ・既知の設計ギャップ）
 
 ### Chart Mode 系
+
+### GitHub Issue #130 — Chart ModeにおけるChord / Beat / Measure Projection（コード・拍・小節の投影）の根本的な再評価
+状態: 大テーマとして調査開始・実装未着手
+
+目的:
+- Chart Modeで、Chordの実時間位置と、Beat / Measureとして人間が読む音楽構造をどのように同時に扱うべきかを、実曲データと実画面を基に段階的に再評価する
+- これは単一機能の実装Issueではなく、Phase135〜136で進めたBeat / Measure / SlotとContinuous Projection（実時間連続投影）の考え方を含む、Chart Modeの基盤的なテーマとして扱う
+- Issue #130自体を一つのPhaseで完結させることを目標にせず、調査結果に応じて個別のSub-issue / Design / Implementationへ分解する
+
+背景:
+- Phase132〜136で、Chordを固定的にBeat / Slotへ吸着させるのではなく、ChordMiniの実時間位置を尊重して表示する方向へ進めた
+- 現在のChart Modeでは、同じ4/4小節内でもChordが拍線の途中に表示されるケースがある
+- 一方、コード譜サイトを参照して手修正すると、コード名を拍に合わせた位置へ修正することが多い
+- その修正が「音源上の実際のコードチェンジ時刻」を表しているとは限らないため、少なくとも以下を区別する必要がある
+  - Measure Boundary（小節境界）が実曲と合っていない
+  - Beatの解釈が実曲と合っていない
+  - ChordMiniのChord実時間位置が解析誤差を含んでいる
+  - Chordの実時間は正しいが、コード譜としては拍位置へ寄せるほうが自然
+  - 実時間位置と記譜上の拍位置を、同じ画面上で両立させるProjection（投影）が必要
+
+現時点の扱い:
+- Chordの実時間位置を原則保持する方向は維持する
+- Chordを機械的にBeatへ吸着させることを既定解には戻さない
+- Beat / MeasureはChordとは別の音楽構造として扱う
+- 「Chord間隔からMeasure長を決める」「Chordを必ず拍へ吸着する」などの単一ルールは、実曲調査前には採用しない
+- 上記は現時点の仮説であり、Issue #130で確定仕様とはしない
+
+まず調べること:
+1. 実曲におけるChord / Beat / Measure Boundaryの関係を複数曲で観察する
+2. Chart Modeで「コード位置がずれて見える」ケースを分類する
+3. コード譜サイトで人間が修正する位置と、音源上の実時間位置の差を確認する
+4. Measure Boundaryを修正すべきケースと、Chord位置を修正すべきケースを分離する
+5. 現在のContinuous Projection（実時間連続投影）が、どこまでこの両立を表現できているか確認する
+6. 結果をもとに、必要ならBeat / Measure / ProjectionのTechnical Design（技術設計）を再評価する
+
+未決定:
+- ChordをBeatへ吸着するか
+- Measure長をChordチェンジから導出するか
+- Measure Boundaryをどの情報から決めるか
+- コード譜上の「読みやすい位置」と音源上の「実時間」をどう両立するか
+- 自動補正をどこまで行うか
+- repairRule / TimingModel / Continuous Projectionをどう拡張するか
+
+関連:
+- #101 — 一小節8ビートの偶数拍を小節頭に設定した際の表示上の空白
+- #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
+- #109 — Beat Cursorのテンポが曲途中で大きく変わって見えるケース
+- #129 — Chart Mode：曲全体の小節頭をずらす補正を検討する
+
+#129はIssue #130から派生した具体的な仮説の一つとして扱い、現時点では実装を急がず、実曲調査の結果に応じて継続・保留を判断する。
+
+方針:
+**焦らず、大きな枠組みから整理する。**
+
 ### Phase133〜136から引き継ぐGitHub Issue
 
 #### GitHub Issue #101 — 一小節8ビートの偶数拍を小節頭に設定した際の表示上の空白
