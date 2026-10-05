@@ -3135,6 +3135,94 @@ function resolveSectionChordIds(buffer, section) {
 }
 
 /**
+ * SECTION_MARKER_COLOR_COUNT — Section Markerの色番号（sec-0〜sec-3）の数。
+ * 実際の色はtheme.cssのテーマ別トークンが決める（[Phase141]）。
+ */
+const SECTION_MARKER_COLOR_COUNT = 4;
+
+/**
+ * buildSectionMarkerProjection — 保存済みSectionを「Chart上のどこに何を描くか」
+ * のデータへ変換する（Phase141 / Chart Section Marker Projection）
+ *
+ * [PURE FUNCTION] グローバル状態に依存しない。chordsとsectionsを引数で受け取る
+ * だけで、入力を変更しない（Authority＝analysis.raw.sectionsのarray順も不変）。
+ *
+ * [責務] chartmode.jsにSection Model / Typeの意味を持ち込まないため、Sectionの
+ * 解釈（開始位置順・色番号・隣接判定）はここで済ませ、汎用アンカーだけを返す。
+ *
+ * 【表示ルール（設計書 phase141-technical-design.md §3）】
+ *   - Section開始 → startアンカー（label=Section名）
+ *   - Section終了 → endアンカー（nameなし）。ただし、どれかのSectionの開始が
+ *     終了Chordの直後（startIdx === endIdx + 1）なら「隣接」なので出さない
+ *   - 開始Chordが見つからないSectionは何も出さない（補完・推測しない）
+ *   - 終了Chordが見つからない／開始より前のSectionは、startのみ（endは補完しない）
+ *   - 共有Chord（次のstart ≦ 前のend）・隙間は、どちらも実際の位置にstart/endを出す
+ *
+ * 【色番号】Typeでは決めない。Chart上の開始位置順（同じ位置はraw.sectionsの
+ * array順）に sec-0 → sec-1 → … と循環割当する。
+ * この順序は色割当のためだけのProjection上の一時順序であり、Sectionの表示順・
+ * 管理順ではない（#95で保存順が変わっても色は変わらない）。
+ *
+ * @param {Array<{_id:string}>} chords - 描画に使うChord配列（表示順）
+ * @param {Array<{id?:string, name?:string, startChordId:string, endChordId:string}>} sections
+ *        - 保存済みのanalysis.raw.sections
+ * @returns {Array<{sectionId:(string|null), chordId:string, edge:('start'|'end'),
+ *          label?:string, colorToken:string}>}
+ *          開始位置順に、各Sectionのstart→endの順で並べたアンカー
+ */
+function buildSectionMarkerProjection(chords, sections) {
+  if (!Array.isArray(chords) || !Array.isArray(sections)) return [];
+
+  const indexById = new Map();
+  chords.forEach((c, i) => {
+    if (c && c._id != null && !indexById.has(c._id)) indexById.set(c._id, i);
+  });
+
+  // 開始Chordが見つかるSectionだけを対象にする（見つからないものは何も出さない）
+  const entries = [];
+  sections.forEach((section, arrayIndex) => {
+    if (!section) return;
+    const startIdx = indexById.get(section.startChordId);
+    if (startIdx === undefined) return;
+    const endIdx = indexById.get(section.endChordId);
+    entries.push({
+      section,
+      arrayIndex,
+      startIdx,
+      // 終了が見つからない／開始より前なら「終了は不明」として扱う
+      endIdx: (endIdx !== undefined && endIdx >= startIdx) ? endIdx : null,
+    });
+  });
+
+  // 色割当用の一時順序（開始位置順。同じ位置はarray順）
+  entries.sort((a, b) => (a.startIdx - b.startIdx) || (a.arrayIndex - b.arrayIndex));
+
+  const startIdxSet = new Set(entries.map(e => e.startIdx));
+  const anchors = [];
+  entries.forEach((e, order) => {
+    const colorToken = `sec-${order % SECTION_MARKER_COLOR_COUNT}`;
+    const sectionId = e.section.id ?? null;
+    anchors.push({
+      sectionId,
+      chordId: e.section.startChordId,
+      edge: 'start',
+      label: e.section.name ?? '',
+      colorToken,
+    });
+    // 隣接（次のSectionの開始がこの終了の直後）なら、終了線は出さない
+    if (e.endIdx !== null && !startIdxSet.has(e.endIdx + 1)) {
+      anchors.push({
+        sectionId,
+        chordId: e.section.endChordId,
+        edge: 'end',
+        colorToken,
+      });
+    }
+  });
+  return anchors;
+}
+
+/**
  * _previewSectionId — Section Navigation（現在選択中のSection）の対象。
  * 結果としてPreview（範囲閲覧表示）も兼ねる（Phase102で導入・Phase105で
  * 意味を拡張）。
