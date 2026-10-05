@@ -3200,16 +3200,19 @@ function _resolveSectionMarkers(markers, segments) {
 }
 
 /**
- * _buildSectionLayer — 1行ぶんのSection Layer（線だけ・Phase141 段階2）を作る
+ * _buildSectionLayer — 1行ぶんのSection Layerを作る（Phase141）
  *
  * 小節と同数の空セル（.chart-section-cell）を並べ、各セルの中に線を%で置く。
  * 行のgap・右余白・小節の枠の太さはCSS変数を共有しているので、ここにpx計算はない。
+ * 線の位置（left%）は段階2から変わらない。段階3で、色番号（data-color-token）・
+ * 開始線の名前・右寄りのときの名前の向き（--flip）を足した。
  * この行にMarkerが1つも無ければ null を返し、DOMを増やさない。
  *
  * @param {number} rowStart - 行の最初の measure index
  * @param {number} rowEnd   - 行の最後の measure index の次（排他）
  * @param {Map<number, Array>} markersByMeasure - _resolveSectionMarkers() の結果
- * @returns {HTMLElement|null}
+ * @returns {{el: HTMLElement, hasStart: boolean}|null}
+ *          hasStart: この行に開始線がある（＝Header段を確保する行）
  */
 function _buildSectionLayer(rowStart, rowEnd, markersByMeasure) {
   let any = false;
@@ -3218,6 +3221,8 @@ function _buildSectionLayer(rowStart, rowEnd, markersByMeasure) {
   }
   if (!any) return null;
 
+  const cellCount = rowEnd - rowStart;
+  let hasStart = false;
   const layerEl = document.createElement('div');
   layerEl.className = 'chart-section-layer';
   for (let mi = rowStart; mi < rowEnd; mi++) {
@@ -3230,11 +3235,25 @@ function _buildSectionLayer(rowStart, rowEnd, markersByMeasure) {
       lineEl.dataset.edge = mk.edge;
       lineEl.dataset.chordId = mk.chordId;
       if (mk.colorToken) lineEl.dataset.colorToken = mk.colorToken;
+      if (mk.edge === 'start') {
+        hasStart = true;
+        // 行の右寄り（約6割より右）では、名前を線の左側に出す
+        if (((mi - rowStart) + mk.percent / 100) / cellCount > 0.62) {
+          lineEl.classList.add('chart-section-marker--flip');
+        }
+        // 名前は開始線だけ。終了線には付けない（空の名前もラベルを作らない）
+        if (mk.label) {
+          const labelEl = document.createElement('span');
+          labelEl.className = 'chart-section-label';
+          labelEl.textContent = mk.label;
+          lineEl.appendChild(labelEl);
+        }
+      }
       cellEl.appendChild(lineEl);
     }
     layerEl.appendChild(cellEl);
   }
-  return layerEl;
+  return { el: layerEl, hasStart };
 }
 
 /**
@@ -3392,10 +3411,12 @@ function _renderChartGridContinuous(container, analysis, { measuresPerRow = 3 } 
     // [Phase141] この行にSection Markerがあるときだけ、小節と同数の空セルを持つ
     // Layerを重ねる（同じループ内で作るので、最後の行が短くても小節と同じ幅になる）。
     const rowEnd = Math.min(rowStart + measuresPerRow, measures.length);
-    const sectionLayerEl = _buildSectionLayer(rowStart, rowEnd, markersByMeasure);
-    if (sectionLayerEl) {
+    const sectionLayer = _buildSectionLayer(rowStart, rowEnd, markersByMeasure);
+    if (sectionLayer) {
       rowEl.classList.add('chart-row--section-layer');
-      rowEl.appendChild(sectionLayerEl);
+      // Header段（名前の段）は、開始線のある行だけ確保する
+      if (sectionLayer.hasStart) rowEl.classList.add('chart-row--section-start');
+      rowEl.appendChild(sectionLayer.el);
     }
 
     container.appendChild(rowEl);
