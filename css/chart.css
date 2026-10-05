@@ -76,10 +76,14 @@
 }
 
 /* 行（4小節） */
+/* [Phase141] gap・右余白は変数で持つ。Section Layer（.chart-section-layer）が
+   小節の並びを写すときに同じ値を参照するため（二重管理の防止）。 */
 .chart-row {
+  --chart-row-gap: 4px;
+  --chart-row-pad-right: 16px;
   display: flex;
-  gap: 4px;
-  padding-right: 16px;
+  gap: var(--chart-row-gap);
+  padding-right: var(--chart-row-pad-right);
 }
 
 /* 小節 */
