@@ -7340,6 +7340,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   initChartMode({
     getAnalysis:      () => project.analysis,
 
+    // [Phase141] Section Marker（閲覧時の開始線・終了線）。描画のたびに保存済みの
+    // analysis.raw.sections から作る（編集セッション用のgetSections()は使わない）。
+    // Chord配列は、描画側（buildContinuousChordProjection）と同じ「コード未設定を除く」
+    // 並びにそろえる（隣接判定のindexが描画と一致するように）。
+    getSectionMarkers: () => buildSectionMarkerProjection(
+      (project.analysis?.chords ?? []).filter(c => c.chord && c.chord.length > 0),
+      project.analysis?.raw?.sections ?? []
+    ),
+
     // [PROVENANCE][Phase127-D] Chart Modeヘッダーの●表示用。
     // HTML生成の正本はapp.js側（renderProvenanceDots）に置き、
     // chartmode.jsは受け取った関数を呼ぶだけ（[DECORATOR ADDITION RULE]と

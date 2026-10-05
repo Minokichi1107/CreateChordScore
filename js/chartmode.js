@@ -1273,6 +1273,11 @@ export function scrollToChord(chordId) {
 // ────────────────────────────────────────
 
 let _getAnalysis      = null;  // () => project.analysis（header/fallback 表示用）
+// [Phase141] () => Array<{chordId, edge:'start'|'end', label?, colorToken}>
+// Section Marker（閲覧時のみ）。描画のたびに呼ぶので、保存・切替直後も古い値を使わない。
+// [OWNERSHIP] chartmode.js はSection Model/Typeの意味を知らない。渡された汎用アンカー
+// （どのChordの左端/右端に線を置くか）を描くだけ。生成はapp.jsの責務。
+let _getSectionMarkers = null;
 let _renderProvenanceDots = null;  // [Phase127-D] (provenance) => string（app.js側HTML生成関数）
 let _getNormalized    = null;  // () => project.analysis?.normalized（timing pipeline 用）
 let _getAudioEl       = null;  // () => aEl
@@ -1497,9 +1502,13 @@ function _rafLoop() {
  *   onsetセルの右クリックで「コードダイアグラムを登録／編集する」が選ばれた時に呼ぶ（Phase128-A新設）。
  *                                             app.js が既登録／未登録を判定し、
  *                                             openEditDiagramModal/openAddDiagramModalを呼び分ける。
+ * @param {Function} [deps.getSectionMarkers] - () => Array<{chordId, edge, label?, colorToken}>
+ *   （Phase141新設）Section Marker（閲覧時の開始線・終了線）の汎用アンカーを返す。
+ *                                             chartmode.jsはSectionの意味を知らず、受け取った位置に線を描くだけ。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, onExternalCheckRequested, onDiagramRegisterRequested }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, onExternalCheckRequested, onDiagramRegisterRequested, getSectionMarkers }) {
   _getAnalysis       = getAnalysis;
+  _getSectionMarkers = getSectionMarkers ?? null;  // [Phase141]
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
   _getAudioDuration  = getAudioDuration;
@@ -3144,6 +3153,90 @@ function detectPickupMeasure(measures) {
   return condA && condB;
 }
 
+
+/**
+ * _resolveSectionMarkers — Section Markerの汎用アンカーを「小節番号→線の位置」へ解決する
+ * （Phase141）
+ *
+ * - start: そのChordの「最初のセグメント」の左端
+ * - end:   そのChordの「最後のセグメント」の右端
+ *   （Chordが小節をまたぐと、同じchordIdのセグメントが複数小節に作られるため）
+ * - セグメントが無いChord（コード未設定など）は何も出さない（補完・推測しない）
+ *
+ * @param {Array<{chordId:string, edge:string, label?:string, colorToken?:string}>} markers
+ * @param {Array<{chordId:string, measureIndex:number, leftPercent:number, widthPercent:number}>} segments
+ * @returns {Map<number, Array<{edge:string, percent:number, chordId:string, label:string, colorToken:string}>>}
+ */
+function _resolveSectionMarkers(markers, segments) {
+  const result = new Map();
+  if (!Array.isArray(markers) || markers.length === 0) return result;
+
+  const firstSeg = new Map();
+  const lastSeg = new Map();
+  for (const seg of segments) {
+    if (!seg.chordId) continue;
+    if (!firstSeg.has(seg.chordId)) firstSeg.set(seg.chordId, seg);
+    lastSeg.set(seg.chordId, seg);
+  }
+
+  for (const m of markers) {
+    if (!m || !m.chordId) continue;
+    const isEnd = m.edge === 'end';
+    const seg = isEnd ? lastSeg.get(m.chordId) : firstSeg.get(m.chordId);
+    if (!seg) continue;
+    const percent = isEnd
+      ? Math.min(100, seg.leftPercent + seg.widthPercent)
+      : seg.leftPercent;
+    if (!result.has(seg.measureIndex)) result.set(seg.measureIndex, []);
+    result.get(seg.measureIndex).push({
+      edge: isEnd ? 'end' : 'start',
+      percent,
+      chordId: m.chordId,
+      label: m.label ?? '',
+      colorToken: m.colorToken ?? '',
+    });
+  }
+  return result;
+}
+
+/**
+ * _buildSectionLayer — 1行ぶんのSection Layer（線だけ・Phase141 段階2）を作る
+ *
+ * 小節と同数の空セル（.chart-section-cell）を並べ、各セルの中に線を%で置く。
+ * 行のgap・右余白・小節の枠の太さはCSS変数を共有しているので、ここにpx計算はない。
+ * この行にMarkerが1つも無ければ null を返し、DOMを増やさない。
+ *
+ * @param {number} rowStart - 行の最初の measure index
+ * @param {number} rowEnd   - 行の最後の measure index の次（排他）
+ * @param {Map<number, Array>} markersByMeasure - _resolveSectionMarkers() の結果
+ * @returns {HTMLElement|null}
+ */
+function _buildSectionLayer(rowStart, rowEnd, markersByMeasure) {
+  let any = false;
+  for (let mi = rowStart; mi < rowEnd; mi++) {
+    if (markersByMeasure.has(mi)) { any = true; break; }
+  }
+  if (!any) return null;
+
+  const layerEl = document.createElement('div');
+  layerEl.className = 'chart-section-layer';
+  for (let mi = rowStart; mi < rowEnd; mi++) {
+    const cellEl = document.createElement('div');
+    cellEl.className = 'chart-section-cell';
+    for (const mk of markersByMeasure.get(mi) ?? []) {
+      const lineEl = document.createElement('div');
+      lineEl.className = `chart-section-marker chart-section-marker--${mk.edge}`;
+      lineEl.style.left = `${mk.percent}%`;
+      lineEl.dataset.edge = mk.edge;
+      lineEl.dataset.chordId = mk.chordId;
+      if (mk.colorToken) lineEl.dataset.colorToken = mk.colorToken;
+      cellEl.appendChild(lineEl);
+    }
+    layerEl.appendChild(cellEl);
+  }
+  return layerEl;
+}
+
 /**
  * _renderChartGridContinuous
  *
@@ -3212,6 +3305,9 @@ function _renderChartGridContinuous(container, analysis, { measuresPerRow = 3 } 
   // 実幅が確定してから行う）のために集めておく。
   const measureElByIndex = new Map();
   const continuousLabelEntries = [];
+
+  // [Phase141] Section Marker（汎用アンカー）を「どの小節の何%か」へ解決する。
+  const markersByMeasure = _resolveSectionMarkers(_getSectionMarkers?.() ?? [], segments);
 
   for (let rowStart = 0; rowStart < measures.length; rowStart += measuresPerRow) {
     const rowEl = document.createElement('div');
@@ -3291,6 +3387,15 @@ function _renderChartGridContinuous(container, analysis, { measuresPerRow = 3 } 
 
       measureEl.appendChild(trackEl);
       rowEl.appendChild(measureEl);
+    }
+
+    // [Phase141] この行にSection Markerがあるときだけ、小節と同数の空セルを持つ
+    // Layerを重ねる（同じループ内で作るので、最後の行が短くても小節と同じ幅になる）。
+    const rowEnd = Math.min(rowStart + measuresPerRow, measures.length);
+    const sectionLayerEl = _buildSectionLayer(rowStart, rowEnd, markersByMeasure);
+    if (sectionLayerEl) {
+      rowEl.classList.add('chart-row--section-layer');
+      rowEl.appendChild(sectionLayerEl);
     }
 
     container.appendChild(rowEl);

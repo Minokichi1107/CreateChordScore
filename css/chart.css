@@ -81,15 +81,51 @@
 .chart-row {
   --chart-row-gap: 4px;
   --chart-row-pad-right: 16px;
+  --chart-measure-border-width: 1px;
   display: flex;
   gap: var(--chart-row-gap);
   padding-right: var(--chart-row-pad-right);
 }
 
+/* [Phase141] Section Layerを持つ行だけ position:relative にする（他の行の
+   座標系は変えない）。Layerは小節と同数の空セルで小節の並びを写し、
+   線は小節内の%だけで置く（px計測なし）。 */
+.chart-row--section-layer {
+  position: relative;
+}
+.chart-section-layer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: var(--chart-row-pad-right);
+  display: flex;
+  gap: var(--chart-row-gap);
+  pointer-events: none;
+}
+/* 小節と同じ幅・同じ枠の太さ。線の%は小節内側（.continuous-track）と同じ基準になる */
+.chart-section-cell {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  border: var(--chart-measure-border-width) solid transparent;
+}
+/* 段階2では単色の線のみ。色番号（data-color-token）の色・名前は段階3で付ける */
+.chart-section-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text-secondary);
+}
+.chart-section-marker--end {
+  transform: translateX(-100%);
+}
+
 /* 小節 */
 .chart-measure {
   flex: 1;
-  border: 1px solid var(--border-ui);
+  border: var(--chart-measure-border-width) solid var(--border-ui);
   border-radius: var(--r-md);
   overflow: hidden;
   min-width: 0;
