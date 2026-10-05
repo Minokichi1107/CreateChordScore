@@ -327,6 +327,7 @@ let leftCollapsedManual = false;
 let leftCollapsedAuto = false;
 let leftExpandedOverride = false;
 let rightHidden = false;  // 右パネル非表示フラグ（localStorage永続）
+let sectionMarkersVisible = true;  // [Phase141] Chart上のSection境界線表示フラグ（表示のみ・localStorage永続）
 let provenanceVisible = true;  // [Phase127-D'] 編集状況(●)表示フラグ（UI preference・localStorage永続）
 
 // ファイル保存
@@ -4682,6 +4683,7 @@ function updateViewMenuChecks() {
   // （既存のChart コード図メニューにはこの同期が無い、という見落としを
   // 今回は繰り返さない）
   _updateProvenanceMenu(provenanceVisible);
+  _updateSectionMarkersMenu(sectionMarkersVisible);
 }
 
 // Chart Mode コード図ホバーのチェックマーク更新
@@ -4689,6 +4691,13 @@ function _updateChartDiagMenu(enabled) {
   const btn = document.getElementById('btn-toggle-chart-diag');
   if (!btn) return;
   btn.textContent = (enabled ? '✔ ' : '　') + '♬ Chart コード図';
+}
+
+// Section境界線表示のチェックマーク更新（Phase141）
+function _updateSectionMarkersMenu(visible) {
+  const btn = document.getElementById('btn-toggle-section-markers');
+  if (!btn) return;
+  btn.textContent = (visible ? '✔ ' : '　') + 'Section境界線を表示';
 }
 
 // 編集状況(●)表示のチェックマーク更新（Phase127-D'）
@@ -6990,6 +6999,16 @@ function setupEventHandlers() {
     toast(next ? '🎸 コード図ホバー ON' : '🎸 コード図ホバー OFF');
   });
 
+  // Section境界線 表示トグル（表示メニュー・Phase141）
+  // [DESIGN] 切り替えるのは「画面表示」だけ。raw.sections・Section編集・並び順は変更しない。
+  document.getElementById('btn-toggle-section-markers')?.addEventListener('click', () => {
+    sectionMarkersVisible = !sectionMarkersVisible;
+    localStorage.setItem('cs.sectionMarkers', sectionMarkersVisible ? 'true' : 'false');
+    _updateSectionMarkersMenu(sectionMarkersVisible);
+    if (chartState.active) renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
+    toast(sectionMarkersVisible ? 'Section境界線 表示ON' : 'Section境界線 表示OFF');
+  });
+
   // 編集状況(●)表示 トグル（表示メニュー・Phase127-D'）
   document.getElementById('btn-toggle-provenance')?.addEventListener('click', () => {
     provenanceVisible = !provenanceVisible;
@@ -7144,6 +7163,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 右パネル初期化（localStorage復元）
   rightHidden = localStorage.getItem('rightHidden') === '1';
   applyRightHidden();
+
+  // [Phase141] Section境界線表示の初期化。未設定・'false'以外はON。
+  sectionMarkersVisible = localStorage.getItem('cs.sectionMarkers') !== 'false';
+  _updateSectionMarkersMenu(sectionMarkersVisible);
 
   // [Phase127-D'] 編集状況(●)表示の初期化（localStorage復元）
   // 未設定時は表示ON（後方互換）。body class・メニュー✔の両方をここで明示的に同期する。
@@ -7344,7 +7367,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     // analysis.raw.sections から作る（編集セッション用のgetSections()は使わない）。
     // Chord配列は、描画側（buildContinuousChordProjection）と同じ「コード未設定を除く」
     // 並びにそろえる（隣接判定のindexが描画と一致するように）。
-    getSectionMarkers: () => buildSectionMarkerProjection(
+    // OFFのときは空配列を返す（描画側は何も描かない。Section Modelは触らない）。
+    getSectionMarkers: () => !sectionMarkersVisible ? [] : buildSectionMarkerProjection(
       (project.analysis?.chords ?? []).filter(c => c.chord && c.chord.length > 0),
       project.analysis?.raw?.sections ?? []
     ),
