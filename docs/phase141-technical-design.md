@@ -414,3 +414,7 @@ E 隙間の見分け    案1: 終了線を少し太く／濃くする（特に s
 - ブランチ `feature/phase141-section-markers`: コミット 5本（段階1・2a・2b・3・4）、土台は main の 89d708e。**PR は未作成**
 - 追加の実装・コミットなし
 - 引き継ぎ: `docs/handover/active/handover_phase141.md`
+
+### 13.6 Phase142 追記（2026-10-06）
+- B（線の位置）は Phase142 で「セグメント左端 −4px」に変更された（描画のみ・Projection 不変・終了線は従来どおり）。**§3・§5・§10・§12.5 の「左端 ±1px」は Phase141 時点の基準**であり、再検証するときは「左端 −4px ±1px」に読み替える。
+- A（名前の置き場所）・E（終了線の四角）も Phase142 で実装済み。詳細は `docs/phase142-technical-design.md`、引き継ぎは `docs/handover/active/handover_phase142.md`。
