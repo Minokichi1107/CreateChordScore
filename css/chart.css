@@ -76,16 +76,106 @@
 }
 
 /* 行（4小節） */
+/* [Phase141] gap・右余白は変数で持つ。Section Layer（.chart-section-layer）が
+   小節の並びを写すときに同じ値を参照するため（二重管理の防止）。 */
 .chart-row {
+  --chart-row-gap: 4px;
+  --chart-row-pad-right: 16px;
+  --chart-measure-border-width: 1px;
+  --chart-section-lane-height: 24px;   /* Header段（Section名の段）の高さ */
+  --chart-section-start-offset: 4px;   /* [Phase142] 開始線を左へずらす量（描画のみ。位置%は変えない） */
   display: flex;
-  gap: 4px;
-  padding-right: 16px;
+  gap: var(--chart-row-gap);
+  padding-right: var(--chart-row-pad-right);
+}
+
+/* [Phase141] Section Layerを持つ行だけ position:relative にする（他の行の
+   座標系は変えない）。Layerは小節と同数の空セルで小節の並びを写し、
+   線は小節内の%だけで置く（px計測なし）。 */
+.chart-row--section-layer {
+  position: relative;
+}
+.chart-section-layer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: var(--chart-row-pad-right);
+  display: flex;
+  gap: var(--chart-row-gap);
+  pointer-events: none;
+}
+/* 小節と同じ幅・同じ枠の太さ。線の%は小節内側（.continuous-track）と同じ基準になる */
+.chart-section-cell {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  border: var(--chart-measure-border-width) solid transparent;
+}
+/* [Phase141] Section Marker。色は data-color-token（sec-0〜3）→ テーマ別トークン。
+   線は開始・終了とも2px。位置（left%）はJS側で決まる（段階2から変更なし）。 */
+.chart-section-marker {
+  --section-marker-color: var(--text-secondary);
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--section-marker-color);
+}
+.chart-section-marker[data-color-token="sec-0"] { --section-marker-color: var(--section-color-0); }
+.chart-section-marker[data-color-token="sec-1"] { --section-marker-color: var(--section-color-1); }
+.chart-section-marker[data-color-token="sec-2"] { --section-marker-color: var(--section-color-2); }
+.chart-section-marker[data-color-token="sec-3"] { --section-marker-color: var(--section-color-3); }
+.chart-section-marker--end {
+  transform: translateX(-100%);   /* 線の右端が Chord の右端に一致する */
+}
+/* [Phase142] 終了線の上端に小さな四角（名前なし）。終了線が出る所（隙間・共有）だけ。
+   「ここでSectionが終わる」ことを目で確認するための印で、エラー表示ではない。
+   6px: 小節番号（右上）に触れない大きさ。線の中心に揃える。 */
+.chart-section-marker--end::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -2px;              /* 線2px・四角6px → 中心を揃える */
+  width: 6px;
+  height: 6px;
+  background: var(--section-marker-color);
+}
+/* 開始線だけ、Header段（行の上の段）まで伸ばして名前を載せる。
+   終了線は小節の中だけ・名前なし。 */
+.chart-section-marker--start {
+  top: calc(-1 * var(--chart-section-lane-height));
+  /* [Phase142] 線をコード左端より少し左へ（小節頭では小節の隙間に入る）。
+     left%（位置）は変えず、描画だけずらす。 */
+  transform: translateX(calc(-1 * var(--chart-section-start-offset)));
+}
+.chart-section-label {
+  position: absolute;
+  top: 3px;
+  left: 7px;
+  white-space: nowrap;
+  overflow: hidden;            /* [Phase142] 入らないときは max-width（JS）＋「…」で切る */
+  text-overflow: ellipsis;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--section-marker-color);
+}
+/* 行の右寄りでは、名前を線の左側に出す（右にはみ出さない） */
+.chart-section-marker--flip .chart-section-label {
+  left: auto;
+  right: 7px;
+}
+/* Header段は「開始を含む行」だけ。行の上に余白を足す（開始のない行の高さは変えない） */
+.chart-row--section-start {
+  margin-top: var(--chart-section-lane-height);
 }
 
 /* 小節 */
 .chart-measure {
   flex: 1;
-  border: 1px solid var(--border-ui);
+  border: var(--chart-measure-border-width) solid var(--border-ui);
   border-radius: var(--r-md);
   overflow: hidden;
   min-width: 0;

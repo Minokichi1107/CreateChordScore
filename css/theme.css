@@ -296,6 +296,12 @@
   --chart-seek-track: #2a2f45;      /* [SAFE] darkテーマ track背景 */
   --chart-seek-fill:  #4f9eff;      /* [SAFE] darkテーマ fill */
   --chart-beat-cursor: rgba(79,158,255, 0.7);  /* [SAFE] darkテーマ ビートカーソル */
+  /* [Phase141] Section Marker（開始線・終了線・名前）の識別色。Section Typeとは無関係で、
+     Chart上の開始位置順に sec-0→3 を循環して割り当てる。低彩度。dark=標準の強さ。 */
+  --section-color-0: #5FB3AB;
+  --section-color-1: #7C9BD6;
+  --section-color-2: #B592C4;
+  --section-color-3: #C9A15C;
   --capo-info-color: #ffcc66;       /* [SAFE] カポ→実音表示（dark: amber明るめ） */
 }
 
@@ -589,6 +595,11 @@ body[data-theme="silver"] {
   --chart-seek-track: #909aac;      /* [SAFE] silverテーマ track背景 */
   --chart-seek-fill:  #1a55c8;      /* [SAFE] silverテーマ fill */
   --chart-beat-cursor: rgba(26,85,200, 0.8);   /* [SAFE] silverテーマ ビートカーソル */
+  /* [Phase141] Section Marker識別色（silver=強め。明るい背景で名前が弱くならないため） */
+  --section-color-0: #00746B;
+  --section-color-1: #2F55A8;
+  --section-color-2: #8A3FA0;
+  --section-color-3: #9A5B00;
   --capo-info-color: #7a4400;       /* [SAFE] カポ→実音表示（silver: 濃い茶で背景に対比） */
 }
 
@@ -844,6 +855,11 @@ body[data-theme="blue"] {
   --chart-seek-track: rgba(0,28,58,.55);   /* [SAFE] blueテーマ track背景 */
   --chart-seek-fill:  #4f9eff;             /* [SAFE] blueテーマ fill */
   --chart-beat-cursor: rgba(255,255,255, 0.6); /* [SAFE] blueテーマ ビートカーソル */
+  /* [Phase141] Section Marker識別色（blue=標準の強さ） */
+  --section-color-0: #1F6F69;
+  --section-color-1: #3F5A9A;
+  --section-color-2: #7A5287;
+  --section-color-3: #86602A;
   --capo-info-color: #f0a030;       /* [SAFE] カポ→実音表示（blue: やや明るいオレンジ） */
 }
 
@@ -1392,6 +1408,10 @@ body[data-theme="silver"] {
    白文字の視認性は変えない）。                          */
 body[data-theme="silver"] .chart-measure {
   background: rgba(58, 62, 70, 0.55);
+}
+/* [Phase142] 終了線の四角は小節背景（灰色）に埋もれやすいので、明るい細縁を付ける */
+body[data-theme="silver"] .chart-section-marker--end::before {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
 }
 body[data-theme="silver"] .chart-chord-name {
   color: #ffffff;

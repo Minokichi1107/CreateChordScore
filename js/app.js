@@ -327,6 +327,7 @@ let leftCollapsedManual = false;
 let leftCollapsedAuto = false;
 let leftExpandedOverride = false;
 let rightHidden = false;  // 右パネル非表示フラグ（localStorage永続）
+let sectionMarkersVisible = true;  // [Phase141] Chart上のSection境界線表示フラグ（表示のみ・localStorage永続）
 let provenanceVisible = true;  // [Phase127-D'] 編集状況(●)表示フラグ（UI preference・localStorage永続）
 
 // ファイル保存
@@ -3135,6 +3136,94 @@ function resolveSectionChordIds(buffer, section) {
 }
 
 /**
+ * SECTION_MARKER_COLOR_COUNT — Section Markerの色番号（sec-0〜sec-3）の数。
+ * 実際の色はtheme.cssのテーマ別トークンが決める（[Phase141]）。
+ */
+const SECTION_MARKER_COLOR_COUNT = 4;
+
+/**
+ * buildSectionMarkerProjection — 保存済みSectionを「Chart上のどこに何を描くか」
+ * のデータへ変換する（Phase141 / Chart Section Marker Projection）
+ *
+ * [PURE FUNCTION] グローバル状態に依存しない。chordsとsectionsを引数で受け取る
+ * だけで、入力を変更しない（Authority＝analysis.raw.sectionsのarray順も不変）。
+ *
+ * [責務] chartmode.jsにSection Model / Typeの意味を持ち込まないため、Sectionの
+ * 解釈（開始位置順・色番号・隣接判定）はここで済ませ、汎用アンカーだけを返す。
+ *
+ * 【表示ルール（設計書 phase141-technical-design.md §3）】
+ *   - Section開始 → startアンカー（label=Section名）
+ *   - Section終了 → endアンカー（nameなし）。ただし、どれかのSectionの開始が
+ *     終了Chordの直後（startIdx === endIdx + 1）なら「隣接」なので出さない
+ *   - 開始Chordが見つからないSectionは何も出さない（補完・推測しない）
+ *   - 終了Chordが見つからない／開始より前のSectionは、startのみ（endは補完しない）
+ *   - 共有Chord（次のstart ≦ 前のend）・隙間は、どちらも実際の位置にstart/endを出す
+ *
+ * 【色番号】Typeでは決めない。Chart上の開始位置順（同じ位置はraw.sectionsの
+ * array順）に sec-0 → sec-1 → … と循環割当する。
+ * この順序は色割当のためだけのProjection上の一時順序であり、Sectionの表示順・
+ * 管理順ではない（#95で保存順が変わっても色は変わらない）。
+ *
+ * @param {Array<{_id:string}>} chords - 描画に使うChord配列（表示順）
+ * @param {Array<{id?:string, name?:string, startChordId:string, endChordId:string}>} sections
+ *        - 保存済みのanalysis.raw.sections
+ * @returns {Array<{sectionId:(string|null), chordId:string, edge:('start'|'end'),
+ *          label?:string, colorToken:string}>}
+ *          開始位置順に、各Sectionのstart→endの順で並べたアンカー
+ */
+function buildSectionMarkerProjection(chords, sections) {
+  if (!Array.isArray(chords) || !Array.isArray(sections)) return [];
+
+  const indexById = new Map();
+  chords.forEach((c, i) => {
+    if (c && c._id != null && !indexById.has(c._id)) indexById.set(c._id, i);
+  });
+
+  // 開始Chordが見つかるSectionだけを対象にする（見つからないものは何も出さない）
+  const entries = [];
+  sections.forEach((section, arrayIndex) => {
+    if (!section) return;
+    const startIdx = indexById.get(section.startChordId);
+    if (startIdx === undefined) return;
+    const endIdx = indexById.get(section.endChordId);
+    entries.push({
+      section,
+      arrayIndex,
+      startIdx,
+      // 終了が見つからない／開始より前なら「終了は不明」として扱う
+      endIdx: (endIdx !== undefined && endIdx >= startIdx) ? endIdx : null,
+    });
+  });
+
+  // 色割当用の一時順序（開始位置順。同じ位置はarray順）
+  entries.sort((a, b) => (a.startIdx - b.startIdx) || (a.arrayIndex - b.arrayIndex));
+
+  const startIdxSet = new Set(entries.map(e => e.startIdx));
+  const anchors = [];
+  entries.forEach((e, order) => {
+    const colorToken = `sec-${order % SECTION_MARKER_COLOR_COUNT}`;
+    const sectionId = e.section.id ?? null;
+    anchors.push({
+      sectionId,
+      chordId: e.section.startChordId,
+      edge: 'start',
+      label: e.section.name ?? '',
+      colorToken,
+    });
+    // 隣接（次のSectionの開始がこの終了の直後）なら、終了線は出さない
+    if (e.endIdx !== null && !startIdxSet.has(e.endIdx + 1)) {
+      anchors.push({
+        sectionId,
+        chordId: e.section.endChordId,
+        edge: 'end',
+        colorToken,
+      });
+    }
+  });
+  return anchors;
+}
+
+/**
  * _previewSectionId — Section Navigation（現在選択中のSection）の対象。
  * 結果としてPreview（範囲閲覧表示）も兼ねる（Phase102で導入・Phase105で
  * 意味を拡張）。
@@ -4594,6 +4683,7 @@ function updateViewMenuChecks() {
   // （既存のChart コード図メニューにはこの同期が無い、という見落としを
   // 今回は繰り返さない）
   _updateProvenanceMenu(provenanceVisible);
+  _updateSectionMarkersMenu(sectionMarkersVisible);
 }
 
 // Chart Mode コード図ホバーのチェックマーク更新
@@ -4601,6 +4691,13 @@ function _updateChartDiagMenu(enabled) {
   const btn = document.getElementById('btn-toggle-chart-diag');
   if (!btn) return;
   btn.textContent = (enabled ? '✔ ' : '　') + '♬ Chart コード図';
+}
+
+// Section境界線表示のチェックマーク更新（Phase141）
+function _updateSectionMarkersMenu(visible) {
+  const btn = document.getElementById('btn-toggle-section-markers');
+  if (!btn) return;
+  btn.textContent = (visible ? '✔ ' : '　') + 'Section境界線を表示';
 }
 
 // 編集状況(●)表示のチェックマーク更新（Phase127-D'）
@@ -6902,6 +6999,16 @@ function setupEventHandlers() {
     toast(next ? '🎸 コード図ホバー ON' : '🎸 コード図ホバー OFF');
   });
 
+  // Section境界線 表示トグル（表示メニュー・Phase141）
+  // [DESIGN] 切り替えるのは「画面表示」だけ。raw.sections・Section編集・並び順は変更しない。
+  document.getElementById('btn-toggle-section-markers')?.addEventListener('click', () => {
+    sectionMarkersVisible = !sectionMarkersVisible;
+    localStorage.setItem('cs.sectionMarkers', sectionMarkersVisible ? 'true' : 'false');
+    _updateSectionMarkersMenu(sectionMarkersVisible);
+    if (chartState.active) renderChartMode({ measuresPerRow: chartMeasuresPerRow, editing: isAnalysisEditing() });
+    toast(sectionMarkersVisible ? 'Section境界線 表示ON' : 'Section境界線 表示OFF');
+  });
+
   // 編集状況(●)表示 トグル（表示メニュー・Phase127-D'）
   document.getElementById('btn-toggle-provenance')?.addEventListener('click', () => {
     provenanceVisible = !provenanceVisible;
@@ -7056,6 +7163,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 右パネル初期化（localStorage復元）
   rightHidden = localStorage.getItem('rightHidden') === '1';
   applyRightHidden();
+
+  // [Phase141] Section境界線表示の初期化。未設定・'false'以外はON。
+  sectionMarkersVisible = localStorage.getItem('cs.sectionMarkers') !== 'false';
+  _updateSectionMarkersMenu(sectionMarkersVisible);
 
   // [Phase127-D'] 編集状況(●)表示の初期化（localStorage復元）
   // 未設定時は表示ON（後方互換）。body class・メニュー✔の両方をここで明示的に同期する。
@@ -7251,6 +7362,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   // ⑧ ChartMode 初期化
   initChartMode({
     getAnalysis:      () => project.analysis,
+
+    // [Phase141] Section Marker（閲覧時の開始線・終了線）。描画のたびに保存済みの
+    // analysis.raw.sections から作る（編集セッション用のgetSections()は使わない）。
+    // Chord配列は、描画側（buildContinuousChordProjection）と同じ「コード未設定を除く」
+    // 並びにそろえる（隣接判定のindexが描画と一致するように）。
+    // OFFのときは空配列を返す（描画側は何も描かない。Section Modelは触らない）。
+    getSectionMarkers: () => !sectionMarkersVisible ? [] : buildSectionMarkerProjection(
+      (project.analysis?.chords ?? []).filter(c => c.chord && c.chord.length > 0),
+      project.analysis?.raw?.sections ?? []
+    ),
 
     // [PROVENANCE][Phase127-D] Chart Modeヘッダーの●表示用。
     // HTML生成の正本はapp.js側（renderProvenanceDots）に置き、
