@@ -2,7 +2,7 @@
 
 ## 最重要（次のChatへ）
 - **Phase142（A/B/E）は実装・実機確認まで完了。** コミット `a522074`、ブランチ `feature/phase142-section-marker-polish`（土台は Phase141 のブランチ先頭 `dbd9305`）。push済み。
-- **PR は未作成。** Phase141 + Phase142 を1つの PR にまとめて main へ merge する予定。D を待つ必要はない。
+- **PR #131 を作成済み。** Phase141 + Phase142 を1つの PR にまとめて main へ merge する予定。現在は merge 待ち。D を待つ必要はない。
 - **D（Section 編集中の名前表示）は Phase143 へ持ち越し。** 要望は残っている。Phase141 の handover §5 の D を参照。
 - Section Model / Authority / Projection（`buildSectionMarkerProjection()`）/ 保存形式は変更していない。
 - 設計書: `docs/phase142-technical-design.md`（§10 に実装結果と実機確認）。
@@ -41,7 +41,8 @@
 - 実機確認の対象曲リスト（Phase141 の10曲）は、曲名の完全な一覧が記録されていない。必要になったら Git・検証スクリプトから特定する（推測で補完しない）。
 
 ## 4. 積み残し・次フェーズ
-- [ ] PR（Phase141 + Phase142）と main への merge
+- [x] PR #131（Phase141 + Phase142）を作成済み
+- [ ] main への merge
 - [ ] D: Section 編集中の名前表示（Phase143。見た目の確認 → Risk Check → Technical Design → 「実装してください」）
 - [ ] `docs/phase-status.md` / `architecture.md` / `section-model.md` / `current-issues.md` への反映は、README のとおり棚卸し時にまとめて行う（今回は未反映）
 
