@@ -3283,6 +3283,28 @@ function _syncSectionPreviewVisibility() {
 }
 
 /**
+ * buildSectionPreviewLabel — Preview中のSection名ラベル用の描画データを導出する（Phase143）
+ *
+ * [OWNERSHIP] 正本はSection（getSections(analysisEditor)）と_previewSectionId。
+ * ここは描画のたびに現在値から導出するだけで、何も保持しない
+ * （名前変更・Undo/Redo・境界変更・削除・編集終了に自動で追随する）。
+ * chartmode.jsはSectionの意味を知らず、渡された{name, startChordId}を描くだけ。
+ * [SECTION SESSION CONSISTENCY INVARIANT] 編集中はgetSections()から読む
+ * （Section Markerのprojectionが読む保存済みraw.sectionsは使わない）。
+ *
+ * @returns {{name: string, startChordId: string}|null}
+ *   Preview中でない／Sectionが無い／名前が空／開始Chordが無い場合はnull（ラベルを出さない）
+ */
+function buildSectionPreviewLabel() {
+  if (_previewSectionId === null || !analysisEditor) return null;
+  const section = getSections(analysisEditor).find(s => s.id === _previewSectionId);
+  if (!section) return null;
+  const name = typeof section.name === 'string' ? section.name.trim() : '';
+  if (!name || section.startChordId == null) return null;
+  return { name, startChordId: section.startChordId };
+}
+
+/**
  * _selectSection — チップ本体クリック時のSection選択（Navigation）（Phase105・
  * Phase107でトグル方式へ復帰）
  *
@@ -7372,6 +7394,9 @@ window.addEventListener('DOMContentLoaded', async () => {
       (project.analysis?.chords ?? []).filter(c => c.chord && c.chord.length > 0),
       project.analysis?.raw?.sections ?? []
     ),
+
+    // [Phase143] 編集中のSection Preview開始位置に出すSection名。描画のたびに導出する。
+    getSectionPreviewLabel: buildSectionPreviewLabel,
 
     // [PROVENANCE][Phase127-D] Chart Modeヘッダーの●表示用。
     // HTML生成の正本はapp.js側（renderProvenanceDots）に置き、

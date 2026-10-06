@@ -1278,6 +1278,9 @@ let _getAnalysis      = null;  // () => project.analysis（header/fallback 表�
 // [OWNERSHIP] chartmode.js はSection Model/Typeの意味を知らない。渡された汎用アンカー
 // （どのChordの左端/右端に線を置くか）を描くだけ。生成はapp.jsの責務。
 let _getSectionMarkers = null;
+// [Phase143] () => {name, startChordId}|null。編集中(Slot経路)のSection Preview開始位置に出す名前。
+// [OWNERSHIP] Section Modelは知らない。渡された値を開始Chordのslotに描くだけ（導出はapp.js）。
+let _getSectionPreviewLabel = null;
 let _renderProvenanceDots = null;  // [Phase127-D] (provenance) => string（app.js側HTML生成関数）
 let _getNormalized    = null;  // () => project.analysis?.normalized（timing pipeline 用）
 let _getAudioEl       = null;  // () => aEl
@@ -1505,10 +1508,13 @@ function _rafLoop() {
  * @param {Function} [deps.getSectionMarkers] - () => Array<{chordId, edge, label?, colorToken}>
  *   （Phase141新設）Section Marker（閲覧時の開始線・終了線）の汎用アンカーを返す。
  *                                             chartmode.jsはSectionの意味を知らず、受け取った位置に線を描くだけ。
+ * @param {Function} [deps.getSectionPreviewLabel] - () => {name, startChordId}|null
+ *   （Phase143新設）編集中のSection Preview開始位置に出す名前。描画のたびに呼ぶ。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, onExternalCheckRequested, onDiagramRegisterRequested, getSectionMarkers }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, onExternalCheckRequested, onDiagramRegisterRequested, getSectionMarkers, getSectionPreviewLabel }) {
   _getAnalysis       = getAnalysis;
   _getSectionMarkers = getSectionMarkers ?? null;  // [Phase141]
+  _getSectionPreviewLabel = getSectionPreviewLabel ?? null;  // [Phase143]
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
   _getAudioDuration  = getAudioDuration;
@@ -2805,6 +2811,9 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
     slotsByMeasure.get(slot.measureIndex).push(slot);
   }
 
+  // [Phase143] Section Preview開始位置のラベル（描画のたびに取得・保持しない）
+  const sectionPreviewLabel = _getSectionPreviewLabel?.() ?? null;
+
   // 行ごとに描画
   for (let rowStart = 0; rowStart < measures.length; rowStart += measuresPerRow) {
     const rowEl = document.createElement('div');
@@ -3033,6 +3042,21 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
             slotEl.classList.add('chart-slot--section-preview');
             if (prevOwner !== ownerId) slotEl.classList.add('chart-slot--section-preview-start');
             if (nextOwner !== ownerId) slotEl.classList.add('chart-slot--section-preview-end');
+
+            // [Phase143] Section名。開始Chordのonset slotにだけ1つ付ける（2行目以降は
+            // 開始Chordと一致しないので繰り返されない）。slot左端に揃い、使える幅は
+            // 「開始slotから小節終端まで」（小節の外には出さない）。
+            // 幅が足りない場合の非表示はCSS（@container）側で行う。
+            if (sectionPreviewLabel && slot.type === 'onset' && slot.id === sectionPreviewLabel.startChordId) {
+              const labelEl = document.createElement('span');
+              labelEl.className = 'chart-section-preview-label';
+              labelEl.style.setProperty('--label-span-slots', measureSlots.length - si);
+              const textEl = document.createElement('span');
+              textEl.className = 'chart-section-preview-label-text';
+              textEl.textContent = sectionPreviewLabel.name;
+              labelEl.appendChild(textEl);
+              slotEl.appendChild(labelEl);
+            }
           }
 
           // [Phase80] Search Highlight。Selectionとは独立した別state

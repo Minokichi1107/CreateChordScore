@@ -264,6 +264,42 @@
    宣言順を.chart-slot--search-matchより前に置くことで、同一slotで両方が
    立った場合にSearchの背景が優先される（CSSの後勝ちの原則。同一slotで
    Selectionも重なる場合はさらにSelectionが最後に勝つ）。 */
+/* ── Phase143: Section Preview開始位置のSection名（編集中のSlot経路のみ） ──
+   [仕様] 開始Chordのonset slotの子。slot左端に揃え、上端に置く（コード名は下側
+   bottom:4pxなので縦に重ならない）。行高は変えない（absolute）。
+   使える幅 = 開始slotから小節終端までのslot数 × 100% − 小節番号ぶんの余白。
+   小節の外は.chart-measureのoverflow:hiddenが切る。
+   [MEASURE NUMBER HIT-TEST INVARIANT] pointer-events:none（タップは下のセルへ通す）。
+   [重なり順] Boundary Handle(z:2) > このラベル(z:1・文字のみ) > Selection/Search > Preview。
+   [非表示] 最低限読める幅に満たなければラベル自体を出さない。
+   しきい値(--section-label-min-width)は実機確認で調整する（@containerの条件はvar()不可のため
+   下の@container内の値と必ず同じ値にする）。 */
+.chart-section-preview-label {
+  --section-label-min-width: 32px;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: max(0px, calc(var(--label-span-slots, 1) * 100% - 22px));
+  container-type: inline-size;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+.chart-section-preview-label-text {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@container (max-width: 31.99px) {
+  .chart-section-preview-label-text { display: none; }
+}
+
 .chart-slot--section-preview {
   background: var(--color-section-preview-bg);
 }
