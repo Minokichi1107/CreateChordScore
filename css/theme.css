@@ -1409,6 +1409,10 @@ body[data-theme="silver"] {
 body[data-theme="silver"] .chart-measure {
   background: rgba(58, 62, 70, 0.55);
 }
+/* [Phase142] 終了線の四角は小節背景（灰色）に埋もれやすいので、明るい細縁を付ける */
+body[data-theme="silver"] .chart-section-marker--end::before {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
 body[data-theme="silver"] .chart-chord-name {
   color: #ffffff;
 }

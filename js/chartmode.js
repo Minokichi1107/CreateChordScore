@@ -3221,7 +3221,6 @@ function _buildSectionLayer(rowStart, rowEnd, markersByMeasure) {
   }
   if (!any) return null;
 
-  const cellCount = rowEnd - rowStart;
   let hasStart = false;
   const layerEl = document.createElement('div');
   layerEl.className = 'chart-section-layer';
@@ -3237,10 +3236,10 @@ function _buildSectionLayer(rowStart, rowEnd, markersByMeasure) {
       if (mk.colorToken) lineEl.dataset.colorToken = mk.colorToken;
       if (mk.edge === 'start') {
         hasStart = true;
-        // 行の右寄り（約6割より右）では、名前を線の左側に出す
-        if (((mi - rowStart) + mk.percent / 100) / cellCount > 0.62) {
-          lineEl.classList.add('chart-section-marker--flip');
-        }
+        // 名前を線の右に出すか左に出すか・切り詰めるかは、全行を追加した後に
+        // _placeSectionLabels() が決める（[Phase142]。ここでは判断しない）。
+        // 後段で「行内の位置」を使うため、小節の並び順（行内index）だけ残す。
+        lineEl.dataset.cellIndex = String(mi - rowStart);
         // 名前は開始線だけ。終了線には付けない（空の名前もラベルを作らない）
         if (mk.label) {
           const labelEl = document.createElement('span');
@@ -3254,6 +3253,82 @@ function _buildSectionLayer(rowStart, rowEnd, markersByMeasure) {
     layerEl.appendChild(cellEl);
   }
   return { el: layerEl, hasStart };
+}
+
+/**
+ * _placeSectionLabels — Section名の置き場所を決める（Phase142・A）
+ *
+ * ルール: ①線の右 → ②入らなければ左 → ③どちらも入らなければ右に出して「…」で切る。
+ * 2行にはしない（Header段は24px固定）。
+ *
+ * [重要] ここでの幅の扱いは「配置判断のための近似」であり、正確な文字幅の計測ではない。
+ *   - 文字数から幅を推定する（全角/半角の係数。やや大きめに見積もる）
+ *   - 行の幅は、全行追加後に layer.clientWidth を1回だけ読む
+ *     （_applyContinuousChordLabelProjection と同じ段階・同じ方法）
+ *   - 推定に誤差があっても、max-width + text-overflow:ellipsis で必ず収まる
+ *     （表示は壊れない）
+ * [Phase141「px計測をしない」との関係] この計測は名前の配置判断だけに使う。
+ *   線の位置（left%）・Projection・Section位置・Section Modelには一切影響しない。
+ *   ResizeObserver・名前ごとの再計測・測定用要素は使わない。
+ *
+ * @param {HTMLElement} container - #chart-grid（全行追加後）
+ */
+const SECTION_LABEL_WIDE_PX = 12.5;   // 全角1文字の推定幅（12px太字・やや大きめ）
+const SECTION_LABEL_NARROW_PX = 7.5;  // 半角1文字の推定幅（同上）
+const SECTION_LABEL_GAP_PX = 3;       // 開始線（ずらし後）から右に出す名前の左端までの距離
+const SECTION_LABEL_MARGIN_PX = 6;    // 行の端に寄りすぎないための余白
+
+function _estimateSectionLabelWidth(text) {
+  let w = 0;
+  for (const ch of String(text)) {
+    w += ch.charCodeAt(0) > 0xFF ? SECTION_LABEL_WIDE_PX : SECTION_LABEL_NARROW_PX;
+  }
+  return w;
+}
+
+function _placeSectionLabels(container) {
+  const layers = container.querySelectorAll('.chart-section-layer');
+  if (layers.length === 0) return;
+
+  // 行の幅は全行で同じ。1回だけ読む。
+  const rowW = layers[0].clientWidth;
+
+  for (const layer of layers) {
+    const cellCount = layer.children.length;
+    for (const lineEl of layer.querySelectorAll('.chart-section-marker--start')) {
+      const labelEl = lineEl.querySelector('.chart-section-label');
+      if (!labelEl) continue;
+
+      // 幅が取れないときは判断せず「右＋切り詰め」に倒す（表示は壊れない）
+      if (!rowW || !cellCount) {
+        lineEl.dataset.labelPlacement = 'clip';
+        labelEl.style.maxWidth = '12em';
+        continue;
+      }
+
+      const percent = parseFloat(lineEl.style.left) || 0;
+      const cellIdx = parseInt(lineEl.dataset.cellIndex, 10) || 0;
+      const x = ((cellIdx + percent / 100) / cellCount) * rowW;   // 近似の線位置（px）
+
+      const need = _estimateSectionLabelWidth(labelEl.textContent);
+      const rightRoom = rowW - x - SECTION_LABEL_GAP_PX - SECTION_LABEL_MARGIN_PX;
+      const leftRoom = x - 9 - SECTION_LABEL_MARGIN_PX;   // 左側は線から7px離して出す
+
+      let placement;
+      let room;
+      if (need <= rightRoom) {
+        placement = 'right'; room = rightRoom;
+      } else if (need <= leftRoom) {
+        placement = 'left'; room = leftRoom;
+      } else {
+        placement = 'clip'; room = rightRoom;
+      }
+      if (placement === 'left') lineEl.classList.add('chart-section-marker--flip');
+      lineEl.dataset.labelPlacement = placement;
+      // 推定が外れても切り詰めで収める（最後の安全策）
+      labelEl.style.maxWidth = `${Math.max(0, Math.floor(room))}px`;
+    }
+  }
 }
 
 /**
@@ -3427,6 +3502,9 @@ function _renderChartGridContinuous(container, analysis, { measuresPerRow = 3 } 
   // #chart-grid は呼び出し元で既にライブDOMに接続済みのため、
   // ここで追加の待機（rAF等）は不要。
   _applyContinuousChordLabelProjection(continuousLabelEntries, measureElByIndex);
+
+  // [Phase142] Section名の置き場所（右／左／切り詰め）。名前の配置判断だけに幅を使う。
+  _placeSectionLabels(container);
 }
 
 /**

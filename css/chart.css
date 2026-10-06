@@ -83,6 +83,7 @@
   --chart-row-pad-right: 16px;
   --chart-measure-border-width: 1px;
   --chart-section-lane-height: 24px;   /* Header段（Section名の段）の高さ */
+  --chart-section-start-offset: 4px;   /* [Phase142] 開始線を左へずらす量（描画のみ。位置%は変えない） */
   display: flex;
   gap: var(--chart-row-gap);
   padding-right: var(--chart-row-pad-right);
@@ -128,16 +129,33 @@
 .chart-section-marker--end {
   transform: translateX(-100%);   /* 線の右端が Chord の右端に一致する */
 }
+/* [Phase142] 終了線の上端に小さな四角（名前なし）。終了線が出る所（隙間・共有）だけ。
+   「ここでSectionが終わる」ことを目で確認するための印で、エラー表示ではない。
+   6px: 小節番号（右上）に触れない大きさ。線の中心に揃える。 */
+.chart-section-marker--end::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -2px;              /* 線2px・四角6px → 中心を揃える */
+  width: 6px;
+  height: 6px;
+  background: var(--section-marker-color);
+}
 /* 開始線だけ、Header段（行の上の段）まで伸ばして名前を載せる。
    終了線は小節の中だけ・名前なし。 */
 .chart-section-marker--start {
   top: calc(-1 * var(--chart-section-lane-height));
+  /* [Phase142] 線をコード左端より少し左へ（小節頭では小節の隙間に入る）。
+     left%（位置）は変えず、描画だけずらす。 */
+  transform: translateX(calc(-1 * var(--chart-section-start-offset)));
 }
 .chart-section-label {
   position: absolute;
   top: 3px;
   left: 7px;
   white-space: nowrap;
+  overflow: hidden;            /* [Phase142] 入らないときは max-width（JS）＋「…」で切る */
+  text-overflow: ellipsis;
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 700;
