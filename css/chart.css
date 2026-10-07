@@ -283,6 +283,19 @@
   overflow: hidden;
   pointer-events: none;
 }
+/* [Phase143] 名前の色 = 開始線の色（既存の sec-0〜3 トークン。新しい色は作らない）。 */
+.chart-section-preview-label[data-color-token="sec-0"] .chart-section-preview-label-text { color: var(--section-color-0); }
+.chart-section-preview-label[data-color-token="sec-1"] .chart-section-preview-label-text { color: var(--section-color-1); }
+.chart-section-preview-label[data-color-token="sec-2"] .chart-section-preview-label-text { color: var(--section-color-2); }
+.chart-section-preview-label[data-color-token="sec-3"] .chart-section-preview-label-text { color: var(--section-color-3); }
+/* [Phase143] 編集中(Slot経路)の開始線。Header段は無いので top:0（行の中だけ）。
+   位置(left%)はJS、左へ4pxずらす描画はContinuousと同じ。タップは下のセルへ通す。 */
+.chart-section-marker--slot {
+  top: 0;
+  bottom: 0;
+  transform: translateX(calc(-1 * var(--chart-section-start-offset)));
+  pointer-events: none;
+}
 .chart-section-preview-label--hidden {
   display: none;
 }

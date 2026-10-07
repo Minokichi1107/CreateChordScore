@@ -3306,7 +3306,7 @@ function buildSectionNameLabels() {
   const chords = (analysisEditor.buffer ?? []).filter(c => c.chord && c.chord.length > 0);
   return buildSectionMarkerProjection(chords, getSections(analysisEditor))
     .filter(a => a.edge === 'start' && typeof a.label === 'string' && a.label.trim() !== '')
-    .map(a => ({ chordId: a.chordId, label: a.label.trim() }));
+    .map(a => ({ chordId: a.chordId, label: a.label.trim(), colorToken: a.colorToken }));
 }
 
 /**

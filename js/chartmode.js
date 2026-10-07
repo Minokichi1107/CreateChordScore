@@ -2816,7 +2816,7 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
   const sectionNameByChordId = new Map();
   for (const item of (_getSectionNameLabels?.() ?? [])) {
     if (item && item.chordId != null && item.label && !sectionNameByChordId.has(item.chordId)) {
-      sectionNameByChordId.set(item.chordId, item.label);
+      sectionNameByChordId.set(item.chordId, { label: item.label, colorToken: item.colorToken });
     }
   }
 
@@ -3093,7 +3093,8 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
           rowNameLabels.push({
             cellIndex: mi - rowStart,
             slotIndex: si,
-            text: sectionNameByChordId.get(slot.id),
+            text: sectionNameByChordId.get(slot.id).label,
+            colorToken: sectionNameByChordId.get(slot.id).colorToken,
           });
         }
 
@@ -3265,7 +3266,7 @@ function _resolveSectionMarkers(markers, segments) {
  * ここでは「開始位置」に仮置きするだけ。最終位置は _placeSectionNames() が決める。
  * - 行高は変えない（absolute・Header段なし）。pointer-events:noneでタップを通す。
  *
- * @param {Array<{cellIndex:number, slotIndex:number, text:string}>} labels - この行のSection名
+ * @param {Array<{cellIndex:number, slotIndex:number, text:string, colorToken?:string}>} labels - この行のSection名
  * @param {number} cellCount - この行の小節数
  * @param {number} slotsPerMeasure - 1小節のslot数（model.slotsPerMeasure）
  * @returns {{el: HTMLElement, items: Array}|null} 名前が無ければnull
@@ -3280,11 +3281,19 @@ function _buildSectionNameLayer(labels, cellCount, slotsPerMeasure) {
     const labelEl = document.createElement('span');
     labelEl.className = 'chart-section-preview-label';
     labelEl.style.left = `${(lb.slotIndex / slotsPerMeasure) * 100}%`;
+    if (lb.colorToken) labelEl.dataset.colorToken = lb.colorToken;
     const textEl = document.createElement('span');
     textEl.className = 'chart-section-preview-label-text';
     textEl.textContent = lb.text;
     labelEl.appendChild(textEl);
     layerEl.children[lb.cellIndex]?.appendChild(labelEl);
+    // [Phase143] Section開始線「｜」。名前が移動・非表示でも、開始位置には必ず線を置く。
+    // Continuousの Section Marker と同じ色トークン・同じ見た目（2px・左へ4px）。
+    const lineEl = document.createElement('span');
+    lineEl.className = 'chart-section-marker chart-section-marker--slot';
+    if (lb.colorToken) lineEl.dataset.colorToken = lb.colorToken;
+    lineEl.style.left = `${(lb.slotIndex / slotsPerMeasure) * 100}%`;
+    layerEl.children[lb.cellIndex]?.appendChild(lineEl);
     return { labelEl, cellIndex: lb.cellIndex, slotIndex: lb.slotIndex };
   });
   return { el: layerEl, items };
