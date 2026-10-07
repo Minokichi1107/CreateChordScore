@@ -356,6 +356,12 @@
 .sec-chip-menu[hidden] {
   display: none !important;
 }
+/* Issue #134: 右端のSectionではメニューを左向きに展開して、
+   分割表示時のSection Bar右端からはみ出さないようにする。 */
+.sec-chip-menu--align-right {
+  left: auto;
+  right: 0;
+}
 .sec-chip-menu-item {
   display: flex;
   align-items: center;
