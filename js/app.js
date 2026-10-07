@@ -3283,6 +3283,33 @@ function _syncSectionPreviewVisibility() {
 }
 
 /**
+ * buildSectionNameLabels — 編集中(Slot経路)の全Sectionの名前ラベル用データを導出する（Phase143）
+ *
+ * [OWNERSHIP] 正本はSection（getSections(analysisEditor)）と編集中のコード列
+ * （analysisEditor.buffer）。ここは描画のたびに現在値から導出するだけで何も保持しない
+ * （名前変更・Undo/Redo・境界変更・削除に自動で追随する）。
+ * chartmode.jsはSectionの意味を知らず、渡された{chordId, label}を描くだけ。
+ *
+ * [Section Previewとは別系統] _previewSectionId（金色の範囲表示）には一切依存しない。
+ * Sectionを選択していなくても、Preview終了後でも、全Sectionの名前が出る。
+ *
+ * [流用] Section Marker（閲覧時）と同じ純関数buildSectionMarkerProjection()を使い、
+ * 'start'アンカーだけを取り出す（開始Chordが見つかるSectionだけが対象になる）。
+ * [SECTION SESSION CONSISTENCY INVARIANT] 編集中なので保存済みraw.sectionsではなく
+ * getSections()から読む。コード列はContinuousと同じ「コード未設定を除く」並びにそろえる。
+ * [トグル] 「Section境界線 表示」OFFなら名前も出さない（Slot経路では線は出さない）。
+ *
+ * @returns {Array<{chordId: string, label: string}>}
+ */
+function buildSectionNameLabels() {
+  if (!sectionMarkersVisible || !analysisEditor?.active) return [];
+  const chords = (analysisEditor.buffer ?? []).filter(c => c.chord && c.chord.length > 0);
+  return buildSectionMarkerProjection(chords, getSections(analysisEditor))
+    .filter(a => a.edge === 'start' && typeof a.label === 'string' && a.label.trim() !== '')
+    .map(a => ({ chordId: a.chordId, label: a.label.trim(), colorToken: a.colorToken }));
+}
+
+/**
  * _selectSection — チップ本体クリック時のSection選択（Navigation）（Phase105・
  * Phase107でトグル方式へ復帰）
  *
@@ -7372,6 +7399,9 @@ window.addEventListener('DOMContentLoaded', async () => {
       (project.analysis?.chords ?? []).filter(c => c.chord && c.chord.length > 0),
       project.analysis?.raw?.sections ?? []
     ),
+
+    // [Phase143] 編集中(Slot経路)の全Sectionの名前。描画のたびに導出する（Previewとは別系統）。
+    getSectionNameLabels: buildSectionNameLabels,
 
     // [PROVENANCE][Phase127-D] Chart Modeヘッダーの●表示用。
     // HTML生成の正本はapp.js側（renderProvenanceDots）に置き、

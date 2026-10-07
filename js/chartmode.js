@@ -1278,6 +1278,10 @@ let _getAnalysis      = null;  // () => project.analysis（header/fallback 表�
 // [OWNERSHIP] chartmode.js はSection Model/Typeの意味を知らない。渡された汎用アンカー
 // （どのChordの左端/右端に線を置くか）を描くだけ。生成はapp.jsの責務。
 let _getSectionMarkers = null;
+// [Phase143] () => Array<{chordId, label}>。編集中(Slot経路)の全Sectionの開始位置に出す名前。
+// Section Previewとは独立（_previewSectionIdに依存しない常時表示）。
+// [OWNERSHIP] Section Modelは知らない。渡された汎用ラベルを該当Chordのslotに描くだけ（導出はapp.js）。
+let _getSectionNameLabels = null;
 let _renderProvenanceDots = null;  // [Phase127-D] (provenance) => string（app.js側HTML生成関数）
 let _getNormalized    = null;  // () => project.analysis?.normalized（timing pipeline 用）
 let _getAudioEl       = null;  // () => aEl
@@ -1505,10 +1509,13 @@ function _rafLoop() {
  * @param {Function} [deps.getSectionMarkers] - () => Array<{chordId, edge, label?, colorToken}>
  *   （Phase141新設）Section Marker（閲覧時の開始線・終了線）の汎用アンカーを返す。
  *                                             chartmode.jsはSectionの意味を知らず、受け取った位置に線を描くだけ。
+ * @param {Function} [deps.getSectionNameLabels] - () => Array<{chordId, label}>
+ *   （Phase143新設）編集中(Slot経路)の全Sectionの開始位置に出す名前。描画のたびに呼ぶ。
  */
-export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, onExternalCheckRequested, onDiagramRegisterRequested, getSectionMarkers }) {
+export function initChartMode({ getAnalysis, getNormalized, getAudioEl, getAudioDuration, getCapo, transposeChord, seekTo, findChord, drawDiagram, tooltipEnabled, onSetRepairRule, onClearRepairRule, onChordSelected, isEditingAnalysis, onEditPointRequested, onBoundaryDragStart, onBoundaryDragMove, onBoundaryDragEnd, getChordIndex, renderProvenanceDots, onExternalCheckRequested, onDiagramRegisterRequested, getSectionMarkers, getSectionNameLabels }) {
   _getAnalysis       = getAnalysis;
   _getSectionMarkers = getSectionMarkers ?? null;  // [Phase141]
+  _getSectionNameLabels = getSectionNameLabels ?? null;  // [Phase143]
   _getNormalized     = getNormalized;
   _getAudioEl        = getAudioEl;
   _getAudioDuration  = getAudioDuration;
@@ -2805,10 +2812,23 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
     slotsByMeasure.get(slot.measureIndex).push(slot);
   }
 
+  // [Phase143] 全Sectionの名前（chordId → 名前）。描画のたびに取得し、保持しない。
+  const sectionNameByChordId = new Map();
+  for (const item of (_getSectionNameLabels?.() ?? [])) {
+    if (item && item.chordId != null && item.label && !sectionNameByChordId.has(item.chordId)) {
+      sectionNameByChordId.set(item.chordId, { label: item.label, colorToken: item.colorToken });
+    }
+  }
+
+  // [Phase143] Section名の配置に使う行ごとの記録（全行を追加した後に1回だけ配置を決める）
+  const nameRows = [];
+
   // 行ごとに描画
   for (let rowStart = 0; rowStart < measures.length; rowStart += measuresPerRow) {
     const rowEl = document.createElement('div');
     rowEl.className = 'chart-row';
+    // [Phase143] この行のSection名（行内の小節番号・slot位置・名前）。行末で重ね層に変換する。
+    const rowNameLabels = [];
 
     for (let mi = rowStart; mi < Math.min(rowStart + measuresPerRow, measures.length); mi++) {
       const measureEl = document.createElement('div');
@@ -3063,6 +3083,21 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
           }
         }
 
+        // [Phase143] Section名（全Sectionの開始Chordのonset slotに1つ）。
+        // Section Preview（上の金色の面）とは別系統で、Previewの有無に依存しない。
+        // ここでは位置（行内の小節番号・slot番号）と名前を集めるだけ。DOMは行末で
+        // 重ね層（_buildSectionNameLayer）にまとめて作る（小節の外へ伸ばすため、
+        // overflow:hiddenの.chart-measureの子にはしない）。
+        // 2行目以降は開始Chordのonset slotと一致しないので繰り返されない。
+        if (slot.type === 'onset' && sectionNameByChordId.has(slot.id)) {
+          rowNameLabels.push({
+            cellIndex: mi - rowStart,
+            slotIndex: si,
+            text: sectionNameByChordId.get(slot.id).label,
+            colorToken: sectionNameByChordId.get(slot.id).colorToken,
+          });
+        }
+
         // ── EditPoint Marker（Sprint2-2で post-hoc DOM patch から統合） ──
         // [旧実装] _applyEditPointMarker() が renderChartMode() の最後に
         // document.querySelectorAll() でDOM全体から該当セルを検索していた
@@ -3083,8 +3118,32 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
       rowEl.appendChild(measureEl);
     }
 
+    // [Phase143] Section名の重ね層（名前がある行だけ。行高は変えない・absolute）。
+    // 名前の最終位置（開始位置のまま／次の小節の頭など）は全行追加後に決める。
+    const nameRow = {
+      rowEl,
+      cellCount: Math.min(rowStart + measuresPerRow, measures.length) - rowStart,
+      slotsPerMeasure: model.slotsPerMeasure,
+      layerEl: null,
+      items: [],
+      placed: [],
+    };
+    if (rowNameLabels.length) {
+      const built = _buildSectionNameLayer(rowNameLabels, nameRow.cellCount, nameRow.slotsPerMeasure);
+      if (built) {
+        nameRow.layerEl = built.el;
+        nameRow.items = built.items;
+        rowEl.classList.add('chart-row--section-layer');   // position:relativeのみ（行高は変わらない）
+        rowEl.appendChild(built.el);
+      }
+    }
+    nameRows.push(nameRow);
+
     container.appendChild(rowEl);
   }
+
+  // [Phase143] Section名の最終位置を決める（全行追加後・行ごとに1回だけ幅を読む）
+  _placeSectionNames(nameRows);
 
   // [Phase106] 通常経路（full/beat-only）の描画完了後にもスクロール位置を復元する。
   container.scrollTop = _prevScrollTop;
@@ -3197,6 +3256,176 @@ function _resolveSectionMarkers(markers, segments) {
     });
   }
   return result;
+}
+
+/**
+ * _buildSectionNameLayer — 編集中(Slot経路)の1行ぶんのSection名の重ね層を作る（Phase143）
+ *
+ * 小節の外側（行直下）に置く重ね層。Continuousと同じ .chart-section-layer /
+ * .chart-section-cell を流用し、小節と同数のセルの中に名前を置く。
+ * ここでは「開始位置」に仮置きするだけ。最終位置は _placeSectionNames() が決める。
+ * - 行高は変えない（absolute・Header段なし）。pointer-events:noneでタップを通す。
+ *
+ * @param {Array<{cellIndex:number, slotIndex:number, text:string, colorToken?:string}>} labels - この行のSection名
+ * @param {number} cellCount - この行の小節数
+ * @param {number} slotsPerMeasure - 1小節のslot数（model.slotsPerMeasure）
+ * @returns {{el: HTMLElement, items: Array}|null} 名前が無ければnull
+ */
+function _buildSectionNameLayer(labels, cellCount, slotsPerMeasure) {
+  if (!labels.length || !(slotsPerMeasure > 0)) return null;
+  const sorted = [...labels].sort(
+    (a, b) => (a.cellIndex * slotsPerMeasure + a.slotIndex) - (b.cellIndex * slotsPerMeasure + b.slotIndex)
+  );
+  const layerEl = _createNameLayerEl(cellCount);
+  const items = sorted.map(lb => {
+    const labelEl = document.createElement('span');
+    labelEl.className = 'chart-section-preview-label';
+    labelEl.style.left = `${(lb.slotIndex / slotsPerMeasure) * 100}%`;
+    if (lb.colorToken) labelEl.dataset.colorToken = lb.colorToken;
+    const textEl = document.createElement('span');
+    textEl.className = 'chart-section-preview-label-text';
+    textEl.textContent = lb.text;
+    labelEl.appendChild(textEl);
+    layerEl.children[lb.cellIndex]?.appendChild(labelEl);
+    // [Phase143] Section開始線「｜」。名前が移動・非表示でも、開始位置には必ず線を置く。
+    // Continuousの Section Marker と同じ色トークン・同じ見た目（2px・左へ4px）。
+    const lineEl = document.createElement('span');
+    lineEl.className = 'chart-section-marker chart-section-marker--slot';
+    if (lb.colorToken) lineEl.dataset.colorToken = lb.colorToken;
+    lineEl.style.left = `${(lb.slotIndex / slotsPerMeasure) * 100}%`;
+    layerEl.children[lb.cellIndex]?.appendChild(lineEl);
+    return { labelEl, cellIndex: lb.cellIndex, slotIndex: lb.slotIndex };
+  });
+  return { el: layerEl, items };
+}
+
+/** 小節と同数の空セルを持つ重ね層の要素を作る（Phase143） */
+function _createNameLayerEl(cellCount) {
+  const layerEl = document.createElement('div');
+  layerEl.className = 'chart-section-layer chart-section-layer--slot';
+  for (let c = 0; c < cellCount; c++) {
+    const cellEl = document.createElement('div');
+    cellEl.className = 'chart-section-cell';
+    layerEl.appendChild(cellEl);
+  }
+  return layerEl;
+}
+
+/**
+ * _placeSectionNames — Section名の最終位置を決める（Phase143）
+ *
+ * 優先: ①Section開始位置（小節番号を避けて名前が全部入るなら、そのまま）
+ *       ②入らなければ、同じ行の次の小節の頭
+ *       ③同じ行に適切な位置がなければ、次の行の先頭（フォールバック）
+ * 守ること:
+ *   - 別Sectionの名前と重ねない（先に置いた名前・後続Sectionの開始位置を壁にする）。
+ *   - 名前を、次のSectionの開始位置より後ろへ移動しない（別Sectionの範囲に出さない）。
+ *   - 小節番号（右上）に重ねない。名前は1つの小節の中に収める（小節をまたがない）。
+ *   - 「次にも別Sectionがある」だけを理由には隠さない。どの位置も物理的に最低幅
+ *     （SECTION_NAME_MIN_WIDTH_PX）に満たない場合だけ非表示にする（実機確認で見直す）。
+ * 「収まる」の判定は、名前の実際の幅（描画後に1回だけ読む）と、小節番号の手前までの
+ * 幅の比較。文字数の推定は使わない。位置は%、幅だけpx（行ごとに1回・ResizeObserverなし）。
+ * 位置・幅の変更は行高に影響しない（absolute）。Section Model・Projectionには触れない。
+ *
+ * @param {Array} nameRows - 行ごとの記録（_renderChartGridで作成）
+ */
+const SECTION_NAME_MIN_WIDTH_PX = 32;   // 暫定値。最低限読める幅（実機確認で決める）
+const SECTION_NAME_GAP_PX = 4;          // 名前どうし・壁との最小間隔
+const SECTION_NAME_NUMBER_RESERVE_PX = 22;  // 小節番号（右上）ぶんの余白
+const SECTION_NAME_MARGIN_LEFT_PX = 2;  // .chart-section-preview-label の margin-left と同じ
+
+function _placeSectionNames(nameRows) {
+  if (!nameRows.some(r => r.items.length)) return;
+
+  // 行の幾何を読む（セルの内側の左端・幅）。レイヤーが無い行は必要になったとき作る。
+  const readGeom = (rec) => {
+    if (!rec.layerEl) {
+      rec.layerEl = _createNameLayerEl(rec.cellCount);
+      rec.rowEl.classList.add('chart-row--section-layer');
+      rec.rowEl.appendChild(rec.layerEl);
+    }
+    const cells = [...rec.layerEl.children];
+    rec.cells = cells;
+    rec.innerLeft = cells.map(c => c.offsetLeft + c.clientLeft);
+    rec.innerW = cells.map(c => c.clientWidth);
+    return rec.innerW[0] > 0;
+  };
+  const startX = (rec, it) =>
+    rec.innerLeft[it.cellIndex] + (it.slotIndex / rec.slotsPerMeasure) * rec.innerW[it.cellIndex]
+    + SECTION_NAME_MARGIN_LEFT_PX;
+
+  // 候補位置 x に置ける最大幅。置けない（重なる）なら -Infinity。
+  const limitAt = (rec, x, selfItem) => {
+    let c = rec.innerLeft.length - 1;
+    for (let k = 0; k < rec.innerLeft.length; k++) {
+      if (x < rec.innerLeft[k] + rec.innerW[k]) { c = k; break; }
+    }
+    let lim = rec.innerLeft[c] + rec.innerW[c] - SECTION_NAME_NUMBER_RESERVE_PX - x;
+    for (const pl of rec.placed) {
+      if (pl.a <= x) { if (pl.b + SECTION_NAME_GAP_PX > x) return -Infinity; }
+      else lim = Math.min(lim, pl.a - SECTION_NAME_GAP_PX - x);
+    }
+    for (const other of rec.items) {
+      if (other === selfItem || other.done) continue;
+      if (other.x >= x) lim = Math.min(lim, other.x - SECTION_NAME_GAP_PX - x);
+    }
+    return lim;
+  };
+
+  for (let r = 0; r < nameRows.length; r++) {
+    const rec = nameRows[r];
+    if (!rec.items.length) continue;
+    if (!readGeom(rec)) continue;   // 非表示の領域などでは何もしない（開始位置のまま）
+
+    // 全項目の開始位置と名前の実幅を先に読む（読み取りをまとめて、書き込みは後）
+    for (const it of rec.items) {
+      it.x = startX(rec, it);
+      it.textW = Math.ceil(it.labelEl.getBoundingClientRect().width);
+    }
+
+    rec.items.forEach((it, idx) => {
+      const nextInRow = rec.items[idx + 1];
+      const candidates = [{ rec, cellIndex: it.cellIndex, x: it.x, rel: it.slotIndex / rec.slotsPerMeasure }];
+      for (let c = it.cellIndex + 1; c < rec.cellCount; c++) {
+        const hx = rec.innerLeft[c] + SECTION_NAME_MARGIN_LEFT_PX;
+        if (nextInRow && hx >= nextInRow.x) break;   // 次のSectionの開始より後ろには出さない
+        candidates.push({ rec, cellIndex: c, x: hx, rel: 0 });
+      }
+
+      let chosen = null;
+      let best = null;
+      const consider = (cand) => {
+        const lim = limitAt(cand.rec, cand.x, it);
+        cand.lim = lim;
+        if (lim >= it.textW && !chosen) chosen = cand;
+        if (!best || lim > best.lim) best = cand;
+      };
+      candidates.forEach(consider);
+
+      // ③ 同じ行に全部入る位置がなく、この名前が行の最後のSectionなら次の行の先頭も見る
+      if (!chosen && !nextInRow && r + 1 < nameRows.length) {
+        const nxt = nameRows[r + 1];
+        if (readGeom(nxt)) {
+          for (const o of nxt.items) o.x = startX(nxt, o);
+          consider({ rec: nxt, cellIndex: 0, x: nxt.innerLeft[0] + SECTION_NAME_MARGIN_LEFT_PX, rel: 0 });
+        }
+      }
+
+      const target = chosen ?? (best && best.lim >= SECTION_NAME_MIN_WIDTH_PX ? best : null);
+      it.done = true;
+      if (!target) {   // どの位置も最低幅に満たない（物理的に出せない）→ 実機確認の対象
+        it.labelEl.classList.add('chart-section-preview-label--hidden');
+        return;
+      }
+      const width = Math.max(0, Math.min(it.textW, Math.floor(target.lim)));
+      if (target.rec !== rec || target.cellIndex !== it.cellIndex) {
+        target.rec.cells[target.cellIndex].appendChild(it.labelEl);
+      }
+      it.labelEl.style.left = `${target.rel * 100}%`;
+      it.labelEl.style.width = `${width}px`;
+      target.rec.placed.push({ a: target.x, b: target.x + width });
+    });
+  }
 }
 
 /**

@@ -264,6 +264,63 @@
    宣言順を.chart-slot--search-matchより前に置くことで、同一slotで両方が
    立った場合にSearchの背景が優先される（CSSの後勝ちの原則。同一slotで
    Selectionも重なる場合はさらにSelectionが最後に勝つ）。 */
+/* ── Phase143: 編集中(Slot経路)のSection名（全Section常時表示） ──
+   [仕様] 行ごとの重ね層（.chart-section-layer > .chart-section-cell）の中に置く。
+   基本はSection開始位置。名前が小節番号を避けて入らないときだけ、JS（_placeSectionNames）が
+   同じ行の次の小節の頭（なければ次の行の先頭）へ移す。別Sectionの名前とは重ねない。
+   [高さ] 小節の実高さは36px。小節番号（右上・top:2px）とコード名（下側bottom:4px）の
+   間に名前を置く余地はないため、top:2px（最上段）に置く。番号との重なりは、JS側で
+   「番号の手前まで」に収まる位置を選ぶことで避ける。
+   [幅] 初期はmax-content（名前の実幅を読むため）。配置後にJSがpx幅を入れる（長いと省略記号）。
+   [MEASURE NUMBER HIT-TEST INVARIANT] pointer-events:none（タップは下のセルへ通す）。
+   [重なり順] Boundary Handle(z:2) > このラベル > Selection/Search > Preview（層は小節より後・z未指定）。
+   [非表示] 最低幅（暫定32px・JSの定数）に満たず、どこにも置けないときだけ非表示。 */
+.chart-section-preview-label {
+  position: absolute;
+  top: 2px;
+  margin-left: 2px;
+  width: max-content;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* [Phase143] 名前の色 = 開始線の色（既存の sec-0〜3 トークン。新しい色は作らない）。 */
+.chart-section-preview-label[data-color-token="sec-0"] .chart-section-preview-label-text { color: var(--section-color-0); }
+.chart-section-preview-label[data-color-token="sec-1"] .chart-section-preview-label-text { color: var(--section-color-1); }
+.chart-section-preview-label[data-color-token="sec-2"] .chart-section-preview-label-text { color: var(--section-color-2); }
+.chart-section-preview-label[data-color-token="sec-3"] .chart-section-preview-label-text { color: var(--section-color-3); }
+/* [Phase143] 編集中(Slot経路)の開始線。Header段は無いので top:0（行の中だけ）。
+   位置(left%)はJS、左へ4pxずらす描画はContinuousと同じ。タップは下のセルへ通す。 */
+.chart-section-marker--slot {
+  top: 0;
+  bottom: 0;
+  transform: translateX(calc(-1 * var(--chart-section-start-offset)));
+  pointer-events: none;
+}
+/* [Phase143] シルバーの編集モードだけ明るい色にする。セルが暗く、通常モード用の暗い色
+   （#00746B等）だと沈むため（コントラスト 1.2〜2.6 → 約4〜8）。
+   通常モード(Continuous)の色・他テーマ・--section-color-* 本体は変えない
+   （編集モード専用の重ね層 .chart-section-layer--slot の中だけ上書き）。 */
+body[data-theme="silver"] .chart-section-layer--slot {
+  --section-color-0: #5FD0C4;
+  --section-color-1: #8FB0FF;
+  --section-color-2: #D49AE8;
+  --section-color-3: #F0C060;
+}
+.chart-section-preview-label--hidden {
+  display: none;
+}
+.chart-section-preview-label-text {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .chart-slot--section-preview {
   background: var(--color-section-preview-bg);
 }
