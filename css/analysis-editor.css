@@ -314,6 +314,10 @@
   border-color: var(--border-selected);
   color: var(--text-primary);
   transform: translateY(1px);
+  /* Issue #88: メニューを開いた1段目のchip自身を2段目のchipより前面に置く。
+     transformによりこのchipはstacking contextを生成するため、
+     子の.sec-chip-menuのz-indexだけでは兄弟chipとの描画順を越えられない。 */
+  z-index: 30;
 }
 /* Phase101-3: ▼メニュートリガー。既存.aep-btn--clear（×バッジ）と同系統の
    軽量ボタン（borderなし・小さいhit target）にする。新規token追加なし。 */
