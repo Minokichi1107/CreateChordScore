@@ -10,7 +10,7 @@
 
 日々のTask（具体的な作業単位）の状態管理はGitHub Issueを基本とする。IssueがTaskのsource of truth（正本）であり、handoverはTaskごとの途中経過を逐一記録する場所ではない。
 
-Phase144の実運用では、Issueだけを読んでもTaskの目的・完了条件・最終判断を再構成できることを確認した。したがって、Task運用のために別の常設台帳やTask専用ログを新設しない。
+Phase144時点の実運用では、Issueだけを読んでもTaskの目的・完了条件・最終判断を再構成できることを確認した。この運用は現在試行中であり、Task運用のために別の常設台帳やTask専用ログを新設しない方針も、Phase144時点では試行中とする。
 
 正式ドキュメント（phase-status.md / architecture.md 等）への
 反映は、固定フェーズ数ではなく「意味のある設計変更」「大きな機能の
@@ -103,6 +103,9 @@ continuity document として機能する。
 ---
 
 ## current-issues.md の状態管理（issue open/close）方針
+
+> **Phase144時点では、この運用の継続・変更・廃止は未決定（試行中）。**
+> 以下は従来の暫定ルールを現時点では残しているものであり、Phase144で新たに確定した運用ではない。次の通常実装Taskでの試行結果を踏まえて再評価する。
 
 issue の open/close は **handover作成時に記録する**（current-issues.md
 自体の更新ではない）。実装中は current-issues.md を触らない。
@@ -815,7 +818,7 @@ Technical Design段階で、Product Freezeで確定したUXをそのまま
 
 handoverのレビューは、設計判断・責務境界・重要な残課題など、後から参照する価値が高い場合に行う。毎回フル監査を必須にはしない。
 
-レビューが必要な場合も、目的は「記録として必要な抜けを確認すること」であり、表現や体裁を整えるための無限往復は行わない。重大な問題が残る場合は開発者判断とする。
+レビューが必要な場合も、目的は「記録として必要な抜けを確認すること」であり、表現や体裁を整えるための無限往復は行わない。原則2ラウンドまでとし、それでも重大な問題が残る場合は開発者判断とする。
 
 Phase144では、Taskの途中でChatGPTが止まってもClaudeがIssueを引き継いで完了できること、さらにIssueだけからTask状態を再構成できることを確認した。これを前提に、handover自体をTask運用の必須中継地点にはしない。
 
@@ -902,7 +905,7 @@ UI設計フェーズとテーマ移植フェーズを分離することで、
 新規Decorator実装が完了したら、以下を確認する。
 
 ```
-□ Theme Audit（3テーマでの視認性・トークン欠落確認）
+□ テーマ依存の影響がある場合、必要なテーマでTheme Audit（視認性・トークン欠落確認）
 □ 既存Decoratorとの重複確認（architecture.md Decorator Inventory参照）
 □ [ONE INTENT, ONE PRIMARY DECORATOR] 準拠確認
   （同じIntentを持つ既存Decoratorが無いか／Primary/Secondaryの区分）
