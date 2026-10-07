@@ -58,7 +58,10 @@
   color: var(--text-primary);
 }
 .chart-col-btn.active {
-  background: var(--surface-active);
+  /* Issue #136: --surface-active はテーマトークンとして定義されておらず、
+     background指定が無効になっていた。既存の全テーマ共通トークン
+     --surface-overlay を使い、選択状態を背景でも明確にする。 */
+  background: var(--surface-overlay);
   color: var(--text-accent);
   border-color: var(--text-accent);
 }
