@@ -264,27 +264,27 @@
    宣言順を.chart-slot--search-matchより前に置くことで、同一slotで両方が
    立った場合にSearchの背景が優先される（CSSの後勝ちの原則。同一slotで
    Selectionも重なる場合はさらにSelectionが最後に勝つ）。 */
-/* ── Phase143: 編集中(Slot経路)のSection名（C案・全Section常時表示） ──
+/* ── Phase143: 編集中(Slot経路)のSection名（全Section常時表示） ──
    [仕様] 行ごとの重ね層（.chart-section-layer > .chart-section-cell）の中に置く。
-   開始位置（slotの左端）から、同じ行の次のSection開始（または行末）まで、小節をまたいで伸びる。
-   小節（.chart-measure）のoverflow:hiddenの外側なので、小節境界で切れない。
-   [N1] 小節番号（右上・top:2px）と重ならないよう、その少し下に置く（top:15px）。
-        コード名（下側bottom:4px）との距離は実機で確認する。
-   [幅] 使える幅 = 開始から次の開始までのslot数 ÷ 1小節のslot数 × 100%（セル幅基準）−4px。
+   基本はSection開始位置。名前が小節番号を避けて入らないときだけ、JS（_placeSectionNames）が
+   同じ行の次の小節の頭（なければ次の行の先頭）へ移す。別Sectionの名前とは重ねない。
+   [高さ] 小節の実高さは36px。小節番号（右上・top:2px）とコード名（下側bottom:4px）の
+   間に名前を置く余地はないため、top:2px（最上段）に置く。番号との重なりは、JS側で
+   「番号の手前まで」に収まる位置を選ぶことで避ける。
+   [幅] 初期はmax-content（名前の実幅を読むため）。配置後にJSがpx幅を入れる（長いと省略記号）。
    [MEASURE NUMBER HIT-TEST INVARIANT] pointer-events:none（タップは下のセルへ通す）。
    [重なり順] Boundary Handle(z:2) > このラベル > Selection/Search > Preview（層は小節より後・z未指定）。
-   [非表示] 最低限読める幅に満たなければラベル自体を出さない（暫定の安全装置・
-   行末で始まるケースは既知の未解決。値は実機確認で決める。@containerの条件はvar()不可のため
-   下の@container内の値と必ず同じ値にする）。 */
+   [非表示] 最低幅（暫定32px・JSの定数）に満たず、どこにも置けないときだけ非表示。 */
 .chart-section-preview-label {
-  --section-label-min-width: 32px;
   position: absolute;
-  top: 15px;
+  top: 2px;
   margin-left: 2px;
-  width: max(0px, calc(var(--label-span-slots, 1) * 100% / var(--label-slots-per-measure, 8) - 4px));
-  container-type: inline-size;
+  width: max-content;
   overflow: hidden;
   pointer-events: none;
+}
+.chart-section-preview-label--hidden {
+  display: none;
 }
 .chart-section-preview-label-text {
   display: block;
@@ -296,9 +296,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-@container (max-width: 31.99px) {
-  .chart-section-preview-label-text { display: none; }
 }
 
 .chart-slot--section-preview {
