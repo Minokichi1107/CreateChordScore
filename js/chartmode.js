@@ -2824,6 +2824,8 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
   for (let rowStart = 0; rowStart < measures.length; rowStart += measuresPerRow) {
     const rowEl = document.createElement('div');
     rowEl.className = 'chart-row';
+    // [Phase143] この行のSection名（行内の小節番号・slot位置・名前）。行末で重ね層に変換する。
+    const rowNameLabels = [];
 
     for (let mi = rowStart; mi < Math.min(rowStart + measuresPerRow, measures.length); mi++) {
       const measureEl = document.createElement('div');
@@ -3080,23 +3082,16 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
 
         // [Phase143] Section名（全Sectionの開始Chordのonset slotに1つ）。
         // Section Preview（上の金色の面）とは別系統で、Previewの有無に依存しない。
+        // ここでは位置（行内の小節番号・slot番号）と名前を集めるだけ。DOMは行末で
+        // 重ね層（_buildSectionNameLayer）にまとめて作る（小節の外へ伸ばすため、
+        // overflow:hiddenの.chart-measureの子にはしない）。
         // 2行目以降は開始Chordのonset slotと一致しないので繰り返されない。
-        // 使える幅は「開始slotから、同じ小節内の次のSection開始slot、または小節終端まで」
-        // （次の名前や小節の外にはみ出さない）。足りない場合の非表示はCSS（@container）で行う。
         if (slot.type === 'onset' && sectionNameByChordId.has(slot.id)) {
-          let spanSlots = measureSlots.length - si;
-          for (let j = si + 1; j < measureSlots.length; j++) {
-            const nx = measureSlots[j];
-            if (nx.type === 'onset' && sectionNameByChordId.has(nx.id)) { spanSlots = j - si; break; }
-          }
-          const labelEl = document.createElement('span');
-          labelEl.className = 'chart-section-preview-label';
-          labelEl.style.setProperty('--label-span-slots', spanSlots);
-          const textEl = document.createElement('span');
-          textEl.className = 'chart-section-preview-label-text';
-          textEl.textContent = sectionNameByChordId.get(slot.id);
-          labelEl.appendChild(textEl);
-          slotEl.appendChild(labelEl);
+          rowNameLabels.push({
+            cellIndex: mi - rowStart,
+            slotIndex: si,
+            text: sectionNameByChordId.get(slot.id),
+          });
         }
 
         // ── EditPoint Marker（Sprint2-2で post-hoc DOM patch から統合） ──
@@ -3117,6 +3112,17 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
 
       measureEl.appendChild(slotsEl);
       rowEl.appendChild(measureEl);
+    }
+
+    // [Phase143] Section名の重ね層（名前がある行だけ。行高は変えない・absolute）
+    const nameLayerEl = _buildSectionNameLayer(
+      rowNameLabels,
+      Math.min(rowStart + measuresPerRow, measures.length) - rowStart,
+      model.slotsPerMeasure
+    );
+    if (nameLayerEl) {
+      rowEl.classList.add('chart-row--section-layer');   // position:relativeのみ（行高は変わらない）
+      rowEl.appendChild(nameLayerEl);
     }
 
     container.appendChild(rowEl);
@@ -3233,6 +3239,56 @@ function _resolveSectionMarkers(markers, segments) {
     });
   }
   return result;
+}
+
+/**
+ * _buildSectionNameLayer — 編集中(Slot経路)の1行ぶんのSection名の重ね層を作る（Phase143・C案）
+ *
+ * 名前の表示領域は「開始位置から、同じ行の中の次のSection開始まで（無ければ行末まで）」。
+ * 小節の外へ伸ばせるよう、小節の子ではなく行直下の重ね層（Continuousと同じ
+ * .chart-section-layer / .chart-section-cell を流用）に置く。
+ * - 位置は%だけ（left = slot番号 ÷ 1小節のslot数）。px計測はしない。
+ * - 行高は変えない（層はabsolute・Header段なし）。pointer-events:noneでタップを通す。
+ * - 幅の上限はslot数から決める（gap・枠は無視。小節をまたぐ分は少し小さめに見積もる＝安全側）。
+ * - 幅が足りない場合の非表示（最低限読める幅）はCSSの@containerで行う（暫定値）。
+ *
+ * @param {Array<{cellIndex:number, slotIndex:number, text:string}>} labels - この行のSection名
+ * @param {number} cellCount - この行の小節数
+ * @param {number} slotsPerMeasure - 1小節のslot数（model.slotsPerMeasure）
+ * @returns {HTMLElement|null} 名前が無ければnull
+ */
+function _buildSectionNameLayer(labels, cellCount, slotsPerMeasure) {
+  if (!labels.length || !(slotsPerMeasure > 0)) return null;
+  const sorted = [...labels].sort(
+    (a, b) => (a.cellIndex * slotsPerMeasure + a.slotIndex) - (b.cellIndex * slotsPerMeasure + b.slotIndex)
+  );
+  const layerEl = document.createElement('div');
+  layerEl.className = 'chart-section-layer';
+  const cellEls = [];
+  for (let c = 0; c < cellCount; c++) {
+    const cellEl = document.createElement('div');
+    cellEl.className = 'chart-section-cell';
+    layerEl.appendChild(cellEl);
+    cellEls.push(cellEl);
+  }
+  const rowSlotEnd = cellCount * slotsPerMeasure;
+  sorted.forEach((lb, i) => {
+    const start = lb.cellIndex * slotsPerMeasure + lb.slotIndex;
+    const end = i + 1 < sorted.length
+      ? sorted[i + 1].cellIndex * slotsPerMeasure + sorted[i + 1].slotIndex
+      : rowSlotEnd;
+    const labelEl = document.createElement('span');
+    labelEl.className = 'chart-section-preview-label';
+    labelEl.style.left = `${(lb.slotIndex / slotsPerMeasure) * 100}%`;
+    labelEl.style.setProperty('--label-span-slots', Math.max(1, end - start));
+    labelEl.style.setProperty('--label-slots-per-measure', slotsPerMeasure);
+    const textEl = document.createElement('span');
+    textEl.className = 'chart-section-preview-label-text';
+    textEl.textContent = lb.text;
+    labelEl.appendChild(textEl);
+    cellEls[lb.cellIndex]?.appendChild(labelEl);
+  });
+  return layerEl;
 }
 
 /**
