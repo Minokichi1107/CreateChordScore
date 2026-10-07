@@ -3051,6 +3051,17 @@ let _openSectionMenuId = null;
  * 再描画後に存在しなくなっていた場合（reconcileによる削除等）は
  * _openSectionMenuId を自動的にnullへ戻す。
  */
+function _syncSectionMenuPosition() {
+  if (_openSectionMenuId === null) return;
+  const bar = document.getElementById('section-bar');
+  const menu = document.querySelector(`.sec-chip-menu[data-section-id="${_openSectionMenuId}"]`);
+  if (!bar || !menu || menu.hidden) return;
+
+  const barRect = bar.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  menu.classList.toggle('sec-chip-menu--align-right', menuRect.right > barRect.right + 1);
+}
+
 function _syncSectionMenuVisibility() {
   let found = false;
   document.querySelectorAll('.sec-chip-menu').forEach(el => {
@@ -3058,7 +3069,11 @@ function _syncSectionMenuVisibility() {
     el.hidden = !match;
     if (match) found = true;
   });
-  if (_openSectionMenuId !== null && !found) _openSectionMenuId = null;
+  if (_openSectionMenuId !== null && !found) {
+    _openSectionMenuId = null;
+    return;
+  }
+  _syncSectionMenuPosition();
 }
 
 /**
