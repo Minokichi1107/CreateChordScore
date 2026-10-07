@@ -37,7 +37,8 @@ ChatやAIのトークン切れでPhase全体が止まることがあった。
   ------------------- ------------------------------------------
   GitHub              コード・Issue・PR・commit・設計資料の共通基盤
   Task Issue          個別Taskの現在状態・判断・未解決事項
-  handover            次のChatへ渡す現在状態の要約
+  handover            Phase全体の状態・設計判断・Phaseをまたぐ残課題
+                      （Taskの現在状態はIssueが正本。handoverには転記しない）
   architecture.md等   確定した長期設計
   Chat                Taskを進める作業空間
   共有フォルダ        ChatGPTとのファイル・画像共有の**補助**（正本にしない）
