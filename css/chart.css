@@ -296,6 +296,16 @@
   transform: translateX(calc(-1 * var(--chart-section-start-offset)));
   pointer-events: none;
 }
+/* [Phase143] シルバーの編集モードだけ明るい色にする。セルが暗く、通常モード用の暗い色
+   （#00746B等）だと沈むため（コントラスト 1.2〜2.6 → 約4〜8）。
+   通常モード(Continuous)の色・他テーマ・--section-color-* 本体は変えない
+   （編集モード専用の重ね層 .chart-section-layer--slot の中だけ上書き）。 */
+body[data-theme="silver"] .chart-section-layer--slot {
+  --section-color-0: #5FD0C4;
+  --section-color-1: #8FB0FF;
+  --section-color-2: #D49AE8;
+  --section-color-3: #F0C060;
+}
 .chart-section-preview-label--hidden {
   display: none;
 }

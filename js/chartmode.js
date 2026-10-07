@@ -3302,7 +3302,7 @@ function _buildSectionNameLayer(labels, cellCount, slotsPerMeasure) {
 /** 小節と同数の空セルを持つ重ね層の要素を作る（Phase143） */
 function _createNameLayerEl(cellCount) {
   const layerEl = document.createElement('div');
-  layerEl.className = 'chart-section-layer';
+  layerEl.className = 'chart-section-layer chart-section-layer--slot';
   for (let c = 0; c < cellCount; c++) {
     const cellEl = document.createElement('div');
     cellEl.className = 'chart-section-cell';
