@@ -3051,6 +3051,31 @@ let _openSectionMenuId = null;
  * 再描画後に存在しなくなっていた場合（reconcileによる削除等）は
  * _openSectionMenuId を自動的にnullへ戻す。
  */
+function _syncSectionMenuPosition() {
+  if (_openSectionMenuId === null) return;
+  const bar = document.getElementById('section-bar');
+  const menu = document.querySelector(`.sec-chip-menu[data-section-id="${_openSectionMenuId}"]`);
+  if (!bar || !menu || menu.hidden) return;
+
+  const chip = menu.closest('.sec-chip');
+  if (!chip) return;
+
+  const menuRect = menu.getBoundingClientRect();
+  const chipRect = chip.getBoundingClientRect();
+  const barRect = bar.getBoundingClientRect();
+
+  // [Issue #134] 分割表示ではSection Barの見た目上の右端よりも
+  // documentElement.clientWidth（スクロールバーを除いた表示領域）の方が
+  // 実際のメニュー描画限界になる場合がある。
+  // 「メニュー自身のrightが境界を越えたか」ではなく、
+  // 「現在の展開方向で必要な幅が右側に残っているか」で判定する。
+  const visibleRight = Math.min(barRect.right, document.documentElement.clientWidth);
+  const availableRight = visibleRight - chipRect.left;
+  const shouldAlignRight = menuRect.width > availableRight + 1;
+
+  menu.classList.toggle('sec-chip-menu--align-right', shouldAlignRight);
+}
+
 function _syncSectionMenuVisibility() {
   let found = false;
   document.querySelectorAll('.sec-chip-menu').forEach(el => {
@@ -3058,7 +3083,11 @@ function _syncSectionMenuVisibility() {
     el.hidden = !match;
     if (match) found = true;
   });
-  if (_openSectionMenuId !== null && !found) _openSectionMenuId = null;
+  if (_openSectionMenuId !== null && !found) {
+    _openSectionMenuId = null;
+    return;
+  }
+  _syncSectionMenuPosition();
 }
 
 /**
