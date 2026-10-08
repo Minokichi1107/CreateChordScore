@@ -444,14 +444,32 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
 
 /* RIGHT PANEL RESPONSIVE */
 @media (max-width:900px){
-  #panel-right{display:none}
-  #app{grid-template-columns:minmax(200px,260px) minmax(280px,1fr)}
-  body.left-collapsed #app{grid-template-columns:40px minmax(280px,1fr)}
-}
+  /*
+   * Issue #143: 狭幅時も右パネルをユーザー操作で開けるようにする。
+   * 既存の右パネルトグル（right-hidden）をそのまま利用し、
+   * 表示時は中央領域の幅を奪わないオーバーレイとして表示する。
+   */
+  #app{
+    grid-template-columns:minmax(200px,260px) minmax(280px,1fr);
+    position:relative;
+  }
 
-/* panel-right min-width override for responsive */
-@media (max-width:900px){
-  #panel-right{min-width:0;max-width:none;width:0}
+  body.left-collapsed #app{
+    grid-template-columns:40px minmax(280px,1fr);
+  }
+
+  body:not(.right-hidden) #panel-right{
+    display:flex;
+    position:absolute;
+    top:6px;
+    right:6px;
+    bottom:6px;
+    width:261px;
+    min-width:0;
+    max-width:261px;
+    z-index:50;
+    box-shadow:var(--shadow-lg, 0 4px 16px rgba(0,0,0,.4));
+  }
 }
 
 /* ── Phase29: ヘッダー3レーン構造 ─────────────── */
