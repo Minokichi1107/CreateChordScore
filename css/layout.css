@@ -443,15 +443,69 @@ body.left-collapsed #panel-left > *:not(#btn-left-collapse){
 body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
 
 /* RIGHT PANEL RESPONSIVE */
-@media (max-width:900px){
-  #panel-right{display:none}
-  #app{grid-template-columns:minmax(200px,260px) minmax(280px,1fr)}
-  body.left-collapsed #app{grid-template-columns:40px minmax(280px,1fr)}
-}
+@media (max-width:960px){
+  /*
+   * Issue #143: 狭幅時の左右パネルを同じOverlay（重ね表示）方式に統一する。
+   *
+   * 狭幅時は中央領域を常時3列に分割せず、左右パネルは必要なときだけ
+   * ユーザー操作で前面に表示する。既存のbody classによる状態管理は維持する。
+   */
+  #app{
+    grid-template-columns:minmax(0,1fr);
+    position:relative;
+  }
 
-/* panel-right min-width override for responsive */
-@media (max-width:900px){
-  #panel-right{min-width:0;max-width:none;width:0}
+  /*
+   * 既存の body.left-collapsed #app は通常幅用の3列指定のため、
+   * 狭幅時はこのルールで上書きして中央領域を1列で確保する。
+   */
+  body.left-collapsed #app{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  #panel-center{
+    grid-column:1;
+  }
+
+  #panel-left,
+  #panel-right{
+    grid-column:1;
+    grid-row:1;
+    z-index:50;
+    min-width:0;
+    max-width:none;
+    box-shadow:var(--shadow-lg, 0 4px 16px rgba(0,0,0,.4));
+  }
+
+  /* 左パネル：狭幅時は閉じておき、表示時だけ左側にOverlay表示する。 */
+  body.left-collapsed #panel-left{
+    display:none;
+  }
+
+  body:not(.left-collapsed) #panel-left{
+    display:flex;
+    position:absolute;
+    top:6px;
+    left:6px;
+    bottom:6px;
+    width:261px;
+    max-width:261px;
+  }
+
+  /* 右パネル：既存のright-hiddenを使って表示/非表示を切り替える。 */
+  body.right-hidden #panel-right{
+    display:none;
+  }
+
+  body:not(.right-hidden) #panel-right{
+    display:flex;
+    position:absolute;
+    top:6px;
+    right:6px;
+    bottom:6px;
+    width:261px;
+    max-width:261px;
+  }
 }
 
 /* ── Phase29: ヘッダー3レーン構造 ─────────────── */
@@ -644,4 +698,19 @@ body.right-hidden #app {
 /* left-collapsed と right-hidden の組み合わせ */
 body.left-collapsed.right-hidden #app {
   grid-template-columns: 40px minmax(200px,1fr);
+}
+
+/* ── Issue #143: 狭幅時のパネル表示状態に関係なく中央領域を1列で確保 ──
+   通常幅用の right-hidden / left-collapsed ルールが後段で優先されるため、
+   狭幅時はそれらのgrid-template-columns指定をここで上書きする。
+   左右パネルは必要時だけOverlay（重ね表示）するため、閉じた状態で
+   32px/40pxのパネル列が残ったり、中央パネルが押し出されたりしない。
+*/
+@media (max-width:960px) {
+  #app,
+  body.right-hidden #app,
+  body.left-collapsed #app,
+  body.left-collapsed.right-hidden #app {
+    grid-template-columns:minmax(0,1fr);
+  }
 }
