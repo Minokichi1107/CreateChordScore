@@ -392,6 +392,9 @@ body[data-theme="silver"] {
 
   /* --- status colors --- */
   --color-green: #167a3e;
+  /* [Issue #150] --color-green に対応するRGB値。alpha合成で
+     --color-green-rgb を参照する箇所があるため、silver固有値を明示する。 */
+  --color-green-rgb: 22,122,62;
   --color-amber: #a86400;
   /* [Phase78 Sprint1] --color-amber-rgb がテーマ非依存だったため追加。
      ui-rules.md §6（alpha値はRGB変数+呼び出し側alphaで扱う）に合わせ、
