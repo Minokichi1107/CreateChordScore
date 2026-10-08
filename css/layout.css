@@ -443,7 +443,7 @@ body.left-collapsed #panel-left > *:not(#btn-left-collapse){
 body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
 
 /* RIGHT PANEL RESPONSIVE */
-@media (max-width:900px){
+@media (max-width:960px){
   /*
    * Issue #143: 狭幅時の左右パネルを同じOverlay（重ね表示）方式に統一する。
    *
