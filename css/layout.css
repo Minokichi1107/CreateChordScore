@@ -445,17 +445,44 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
 /* RIGHT PANEL RESPONSIVE */
 @media (max-width:900px){
   /*
-   * Issue #143: 狭幅時も右パネルをユーザー操作で開けるようにする。
-   * 既存の右パネルトグル（right-hidden）をそのまま利用し、
-   * 表示時は中央領域の幅を奪わないオーバーレイとして表示する。
+   * Issue #143: 狭幅時の左右パネルを同じOverlay（重ね表示）方式に統一する。
+   *
+   * 狭幅時は中央領域を常時3列に分割せず、左右パネルは必要なときだけ
+   * ユーザー操作で前面に表示する。既存のbody classによる状態管理は維持する。
    */
   #app{
-    grid-template-columns:minmax(200px,260px) minmax(280px,1fr);
+    grid-template-columns:minmax(200px,1fr);
     position:relative;
   }
 
-  body.left-collapsed #app{
-    grid-template-columns:40px minmax(280px,1fr);
+  #panel-left,
+  #panel-right{
+    grid-column:1;
+    grid-row:1;
+    z-index:50;
+    min-width:0;
+    max-width:none;
+    box-shadow:var(--shadow-lg, 0 4px 16px rgba(0,0,0,.4));
+  }
+
+  /* 左パネル：狭幅時は閉じておき、表示時だけ左側にOverlay表示する。 */
+  body.left-collapsed #panel-left{
+    display:none;
+  }
+
+  body:not(.left-collapsed) #panel-left{
+    display:flex;
+    position:absolute;
+    top:6px;
+    left:6px;
+    bottom:6px;
+    width:261px;
+    max-width:261px;
+  }
+
+  /* 右パネル：既存のright-hiddenを使って表示/非表示を切り替える。 */
+  body.right-hidden #panel-right{
+    display:none;
   }
 
   body:not(.right-hidden) #panel-right{
@@ -465,10 +492,7 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
     right:6px;
     bottom:6px;
     width:261px;
-    min-width:0;
     max-width:261px;
-    z-index:50;
-    box-shadow:var(--shadow-lg, 0 4px 16px rgba(0,0,0,.4));
   }
 }
 
