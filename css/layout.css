@@ -597,8 +597,36 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
    project-metaを一時的に非表示にして操作系のレーンを確保する。
    ─────────────────────────────────────────────────────── */
 @media (max-width:1000px) {
+  /* Issue #135: 分割表示ではヘッダー操作領域を優先する。 */
   .project-meta {
     display: none;
+  }
+
+  #header {
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .header-center {
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+
+  /* Chart Mode（チャートモード）を最優先で残し、
+     演奏/TAPは狭幅時に一旦隠して重なりを防ぐ。 */
+  #btn-perform-mode,
+  #btn-tapmode {
+    display: none;
+  }
+
+  .header-right {
+    gap: 4px;
+  }
+
+  .header-right .hdr-btn {
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 10px;
   }
 }
 
