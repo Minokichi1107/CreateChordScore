@@ -699,3 +699,18 @@ body.right-hidden #app {
 body.left-collapsed.right-hidden #app {
   grid-template-columns: 40px minmax(200px,1fr);
 }
+
+/* ── Issue #143: 狭幅時のパネル表示状態に関係なく中央領域を1列で確保 ──
+   通常幅用の right-hidden / left-collapsed ルールが後段で優先されるため、
+   狭幅時はそれらのgrid-template-columns指定をここで上書きする。
+   左右パネルは必要時だけOverlay（重ね表示）するため、閉じた状態で
+   32px/40pxのパネル列が残ったり、中央パネルが押し出されたりしない。
+*/
+@media (max-width:960px) {
+  #app,
+  body.right-hidden #app,
+  body.left-collapsed #app,
+  body.left-collapsed.right-hidden #app {
+    grid-template-columns:minmax(0,1fr);
+  }
+}
