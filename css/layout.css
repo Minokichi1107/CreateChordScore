@@ -451,8 +451,20 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
    * ユーザー操作で前面に表示する。既存のbody classによる状態管理は維持する。
    */
   #app{
-    grid-template-columns:minmax(200px,1fr);
+    grid-template-columns:minmax(0,1fr);
     position:relative;
+  }
+
+  /*
+   * 既存の body.left-collapsed #app は通常幅用の3列指定のため、
+   * 狭幅時はこのルールで上書きして中央領域を1列で確保する。
+   */
+  body.left-collapsed #app{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  #panel-center{
+    grid-column:1;
   }
 
   #panel-left,
