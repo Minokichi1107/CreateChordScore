@@ -590,6 +590,18 @@ body.left-collapsed #btn-left-collapse::after{content:'›';font-size:14px}
   color: var(--text-muted);
 }
 
+/* ── Issue #135: 狭い分割表示時のヘッダー崩れ対策 ─────────
+   通常幅ではproject-meta（アーティスト名・プロジェクト名）を表示する。
+   タブ分割などで表示領域が狭くなった場合は、入力欄が縮み切れず
+   header-center / header-right の操作ボタンを押し出して重なるため、
+   project-metaを一時的に非表示にして操作系のレーンを確保する。
+   ─────────────────────────────────────────────────────── */
+@media (max-width:1000px) {
+  .project-meta {
+    display: none;
+  }
+}
+
 /* ── right-hidden: 右パネル非表示 ────────────────────────────
    @media(max-width:900px) の既存パターンを踏襲。
    display:none だけでは grid gap が残るため
