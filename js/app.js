@@ -6617,8 +6617,16 @@ function setupEventHandlers() {
     if (e.shiftKey && e.key === '{') {   // Shift+[ 左パネル トグル
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      leftExpandedOverride = false;
-      leftCollapsedManual = !leftCollapsedManual;
+
+      // Issue #143: 狭幅時は自動折りたたみを一時解除してOverlay表示する。
+      const currentlyCollapsed = document.body.classList.contains('left-collapsed');
+      if (currentlyCollapsed) {
+        leftExpandedOverride = true;
+        leftCollapsedManual = false;
+      } else {
+        leftExpandedOverride = false;
+        leftCollapsedManual = true;
+      }
       applyLeftCollapsed();
       localStorage.setItem('leftCollapsed', leftCollapsedManual ? '1' : '0');
     }
