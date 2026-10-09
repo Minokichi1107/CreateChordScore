@@ -6421,7 +6421,13 @@ function setupEventHandlers() {
     autoSaveLocal();
     const cur=document.getElementById('diag-in').value.trim();
     if(cur) showDiagramPanel(cur, getCapo(), getDiagCallbacks());
-    toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
+    // Issue #149: 負のカポ値は「下げチューニング相当」とコード移調方向を併記する。
+    // 実際のコード移調は今回の変更差分(diff)に基づくため、絶対値(newCapo)と区別する。
+    if (newCapo < 0) {
+      toast(`カポ${newCapo}: ${Math.abs(newCapo)}半音下げチューニング相当（全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調）`);
+    } else {
+      toast(`カポ${newCapo}: 全コードを${Math.abs(diff)}半音${diff>0?'下':'上'}に移調`);
+    }
     
     // Chart Mode が開いていれば表示を更新する
     // TODO: future optimization: separate chord label refresh from full chart rerender
