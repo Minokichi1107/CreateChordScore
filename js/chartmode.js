@@ -2287,11 +2287,39 @@ export function getTimeForGridPosition(measureIndex, visualSlotIndex) {
 }
 
 /**
+ * pickNearestBeatInMeasure — 通常表示（Continuous）の右クリック位置から、
+ * 「その小節に属する拍」のうち最寄りの拍時刻を返す純関数。
+ * 隣接小節の拍は候補にしない（小節端のクリックで隣の小節頭が選ばれるのを防ぐ）。
+ *
+ * @param {number}   fraction   - 小節トラック内のクリック位置（0〜1、範囲外はclamp）
+ * @param {number}   startTime  - 小節開始時刻
+ * @param {number}   endTime    - 小節終了時刻
+ * @param {number[]} beats      - raw.beats（昇順）
+ * @returns {number|null} 最寄りの拍時刻。小節内に拍がなければnull
+ */
+export function pickNearestBeatInMeasure(fraction, startTime, endTime, beats) {
+  if (!Array.isArray(beats) || !Number.isFinite(fraction) ||
+      !Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) return null;
+  const EPS = 1e-6;
+  const r = Math.min(1, Math.max(0, fraction));
+  const t = startTime + r * (endTime - startTime);
+  let best = null;
+  let bestDist = Infinity;
+  for (const b of beats) {
+    if (b < startTime - EPS) continue;
+    if (b >= endTime - EPS) break;
+    const d = Math.abs(b - t);
+    if (d < bestDist) { bestDist = d; best = b; }
+  }
+  return best;
+}
+
+/**
  * _showContextMenu
  *
  * 右クリックメニューを表示する。
  *
- * @param {number}   beatTime   - 「ここを小節頭にする」で設定するbeatTime
+ * @param {number|null} beatTime - 「ここを小節頭にする」で設定するbeatTime（nullなら項目を出さない）
  * @param {boolean}  hasRepair  - 現在補正が設定されているか（解除項目の表示制御）
  * @param {number}   clientX    - クリック位置X（viewport座標）
  * @param {number}   clientY    - クリック位置Y（viewport座標）
@@ -2302,22 +2330,26 @@ function _showContextMenu(beatTime, hasRepair, clientX, clientY, diagramChordNam
   const menu = document.createElement('div');
   menu.className = 'chart-context-menu';
 
-  // 「ここを小節頭にする」項目
-  const setItem = document.createElement('div');
-  setItem.className = 'chart-context-item';
-  setItem.textContent = '📍 ここを小節頭にする';
-  setItem.addEventListener('click', () => {
-    _hideContextMenu();
-    _onSetRepairRule?.(beatTime);
-  });
-  menu.appendChild(setItem);
+  // 「ここを小節頭にする」項目（beatTimeがnull＝指定できる拍が無い場合は表示しない）
+  if (beatTime != null) {
+    const setItem = document.createElement('div');
+    setItem.className = 'chart-context-item';
+    setItem.textContent = '📍 ここを小節頭にする';
+    setItem.addEventListener('click', () => {
+      _hideContextMenu();
+      _onSetRepairRule?.(beatTime);
+    });
+    menu.appendChild(setItem);
+  }
 
   // 「補正を解除」項目（補正中の場合のみ表示）
   if (hasRepair) {
-    // Phase72-C: 項目間の区切り線（hasRepairの時のみ必要）
-    const divider = document.createElement('div');
-    divider.className = 'chart-context-divider';
-    menu.appendChild(divider);
+    // Phase72-C: 項目間の区切り線（先行項目がある時のみ必要）
+    if (menu.children.length > 0) {
+      const divider = document.createElement('div');
+      divider.className = 'chart-context-divider';
+      menu.appendChild(divider);
+    }
 
     const clearItem = document.createElement('div');
     clearItem.className = 'chart-context-item chart-context-item--clear';
@@ -2331,9 +2363,11 @@ function _showContextMenu(beatTime, hasRepair, clientX, clientY, diagramChordNam
 
   // [Phase128-A] 「コードダイアグラムを登録／編集する」項目（onsetセル限定・小節頭補正メニューとは排他ではなく共存）
   if (diagramChordName && _onDiagramRegisterRequested) {
-    const divider2 = document.createElement('div');
-    divider2.className = 'chart-context-divider';
-    menu.appendChild(divider2);
+    if (menu.children.length > 0) {
+      const divider2 = document.createElement('div');
+      divider2.className = 'chart-context-divider';
+      menu.appendChild(divider2);
+    }
 
     const diagItem = document.createElement('div');
     diagItem.className = 'chart-context-item';
@@ -2375,6 +2409,48 @@ function _hideContextMenu() {
 }
 
 /**
+ * _handleContinuousContextMenu
+ *
+ * 通常表示（Continuous Projection）の右クリック処理。
+ *  - 「ここを小節頭にする」: クリック位置に最も近い、その小節自身の拍
+ *  - 「小節補正を解除」: 既存のrepairRule有無で表示制御（Slot経路と同じ）
+ *  - 「コードダイアグラム」: 右クリックしたコード名（.chart-chord-name）
+ * 描画方式・保存形式・補正アルゴリズムには触れない。
+ */
+function _handleContinuousContextMenu(e, measureEl) {
+  const mi = Number(measureEl.dataset.measureIndex);
+  if (!Number.isFinite(mi)) return;
+
+  const vm = chartState.viewModel;
+  if (!vm?.model || vm.model.mode === 'fallback') return;
+  const analysis = _getAnalysis?.();
+  if (!analysis) return;
+
+  const measure = vm.model.getMeasure(mi);
+  const trackEl = measureEl.querySelector('.continuous-track');
+  if (!measure || !trackEl) return;
+  const rect = trackEl.getBoundingClientRect();
+  if (!(rect.width > 0)) return;
+
+  const fraction = (e.clientX - rect.left) / rect.width;
+  // 拍が見つからない小節でも、ダイアグラム登録・補正解除は独立して使えるようにする
+  const beatTime = pickNearestBeatInMeasure(fraction, measure.startTime, measure.endTime, analysis.beats ?? []);
+  const hasRepair = !!analysis.repairRule;
+
+  let diagramChordName = null;
+  if (_onDiagramRegisterRequested) {
+    diagramChordName = e.target.closest('.chart-chord-name')?.dataset.chord ?? null;
+  }
+
+  // 出せる項目が1つも無ければ何もしない（ブラウザ標準メニューに任せる）
+  if (beatTime == null && !hasRepair && !diagramChordName) return;
+
+  e.preventDefault();  // ブラウザ標準メニューを抑制
+  _hideTooltip();
+  _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY, diagramChordName);
+}
+
+/**
  * _setupContextMenu
  *
  * contextmenu イベントを document に委譲登録する（idempotent、一度だけ呼ばれる）。
@@ -2409,10 +2485,17 @@ function _setupContextMenu() {
 
     if (!_onSetRepairRule) return;         // コールバック未注入なら無視
 
-    // .chart-slot を対象とする（projectionEmpty slot は data-visual-slot-index がないため自然に除外される）
+    // 編集表示: .chart-slot を対象とする（projectionEmpty slot は data-visual-slot-index がないため自然に除外される）
+    // 通常表示（Continuous）: .chart-slot が存在しないため、小節トラック上の座標から最寄り拍を求める
     const slotEl    = e.target.closest('.chart-slot[data-visual-slot-index]');
     const measureEl = e.target.closest('.chart-measure[data-measure-index]');
-    if (!slotEl || !measureEl) return;
+    if (!measureEl) return;
+    if (!slotEl) {
+      if (measureEl.classList.contains('chart-measure--continuous')) {
+        _handleContinuousContextMenu(e, measureEl);
+      }
+      return;
+    }
 
     e.preventDefault();  // ブラウザ標準メニューを抑制
 
