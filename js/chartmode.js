@@ -1955,9 +1955,16 @@ function _onGridPointerMove(e) {
     if (Math.hypot(dx, dy) < BOUNDARY_DRAG_THRESHOLD_PX) return;
     // ── ドラッグ確定 ──
     drag.dragging = true;
-    // [Phase95-A2 修正] captureはここ（実際にドラッグと確定した瞬間）まで遅らせる。
-    // 理由は_onGridPointerDown側のコメント参照。
-    drag.handleEl.setPointerCapture(drag.pointerId);
+    // capture（ポインター捕捉）は、再描画で削除されるhandleElではなく、
+    // DOMが維持される#chart-gridに設定する。境界移動は各pointermoveで
+    // グリッド内部を再構築するため、handleElを捕捉先にすると捕捉が失われ得る。
+    const grid = document.getElementById('chart-grid');
+    if (!grid?.setPointerCapture) {
+      drag.dragging = false;
+      return;
+    }
+    drag.captureEl = grid;
+    grid.setPointerCapture(drag.pointerId);
     // [Phase95-A2] chordIdを渡す。app.js側はこれをbufferから直接引き、
     // selectionを経由せずboundaryIndexを導出する。
     _onBoundaryDragStart?.(drag.chordId);
@@ -1997,12 +2004,16 @@ function _onGridPointerMove(e) {
  * [ChatGPTレビュー反映] pointercancel（OSジェスチャ介入・ウィンドウ外へのドラッグ等）
  * でもこの関数を呼び、_suppressNextClick等の状態が残留しないようにする。
  */
-function _endGridBoundaryDrag(e) {
-  const drag = _boundaryDrag;
-  if (!drag || e.pointerId !== drag.pointerId) return;
+function _finishGridBoundaryDrag(drag) {
+  if (!drag || _boundaryDrag !== drag) return;
 
-  if (drag.handleEl.hasPointerCapture?.(e.pointerId)) {
-    drag.handleEl.releasePointerCapture(e.pointerId);
+  // lostpointercaptureやblurからも呼ばれるため、先に状態をクリアして
+  // releasePointerCaptureに伴うイベントとの二重終了を防ぐ。
+  _boundaryDrag = null;
+
+  const captureEl = drag.captureEl;
+  if (captureEl?.hasPointerCapture?.(drag.pointerId)) {
+    captureEl.releasePointerCapture(drag.pointerId);
   }
 
   if (drag.dragging) {
@@ -2011,8 +2022,12 @@ function _endGridBoundaryDrag(e) {
     _suppressNextClick = true;
     _onBoundaryDragEnd?.();
   }
+}
 
-  _boundaryDrag = null;
+function _endGridBoundaryDrag(e) {
+  const drag = _boundaryDrag;
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  _finishGridBoundaryDrag(drag);
 }
 
 /**
@@ -2034,6 +2049,13 @@ function _setupGridBoundaryDrag() {
   grid.addEventListener('pointermove', _onGridPointerMove);
   grid.addEventListener('pointerup',   _endGridBoundaryDrag);
   grid.addEventListener('pointercancel', _endGridBoundaryDrag);
+  // 捕捉が予期せず失われた場合もドラッグ状態とUndoトランザクションを閉じる。
+  grid.addEventListener('lostpointercapture', _endGridBoundaryDrag);
+  // ブラウザー外へ移動してフォーカスを失った場合の最終フォールバック。
+  window.addEventListener('blur', () => {
+    const drag = _boundaryDrag;
+    if (drag?.dragging) _finishGridBoundaryDrag(drag);
+  });
 }
 
 /**
