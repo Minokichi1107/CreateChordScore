@@ -2054,7 +2054,7 @@ function _setupGridBoundaryDrag() {
   // ブラウザー外へ移動してフォーカスを失った場合の最終フォールバック。
   window.addEventListener('blur', () => {
     const drag = _boundaryDrag;
-    if (drag?.dragging) _finishGridBoundaryDrag(drag);
+    if (drag) _finishGridBoundaryDrag(drag);
   });
 }
 
