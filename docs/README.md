@@ -1,4 +1,4 @@
-# CreateChordScore Documentation
+﻿# CreateChordScore Documentation
 
 このディレクトリは CreateChordScore の設計・運用・開発資料を管理する。
 
