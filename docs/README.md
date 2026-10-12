@@ -1,4 +1,4 @@
-﻿# CreateChordScore Documentation
+# CreateChordScore Documentation
 
 このディレクトリは CreateChordScore の設計・運用・開発資料を管理する。
 
@@ -44,7 +44,7 @@ CreateChordScoreのドキュメントは、以下の区分で管理する。
 - **リファレンス**（用語・仕様の定義集）
   `naming-glossary.md` / `doc-glossary.md` / `file_format.md` / `keybindings.md`
 - **ガイドライン**（作業の進め方）
-  `project_instructions.md` / `review-guidelines.md`
+  `project_instructions.md` / `review-guidelines.md` / `theme-validation.md`
 - **技術設計書**（特定のフェーズまたは Issue に関する設計根拠・計算ルール・制約・検証範囲）
   - フェーズ単位：`phaseNNN-technical-design.md`（例：`phase141-technical-design.md`）
   - Issue 単位：`issueNNN-technical-design.md`（例：`issue129-technical-design.md`）
@@ -95,6 +95,7 @@ docs/
 ├── keybindings.md
 ├── project_instructions.md
 ├── review-guidelines.md
+├── theme-validation.md
 ├── devlog.md
 ├── issue129-technical-design.md
 ├── phase136-a-technical-design.md
