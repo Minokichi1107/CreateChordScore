@@ -112,6 +112,21 @@
 
 ## 2. Current Issues（未解決の問題・バグ・既知の設計ギャップ）
 
+### 開発プロセス
+
+#### GitHub Issue #117 — 開発プロセスの省力化候補を検討する（Phase133〜136の経験から）
+状態: 試行中。Task運用の確定ルール化・廃止は未決定。
+
+Phase144では、Task開始時に「目的／触る・触らない／完了条件」をIssueに記載する最小運用を試した。
+Issue #120の調査Taskはクローズ済みで、別Chat/別AIでもIssueだけから目的・結論・残件を読み戻せることを確認した。
+
+未確認・次の検証:
+- [ ] 同じファイルを変更する実装Taskを並行させない運用が実際に機能するか。
+- [ ] 作業途中の短い状況記録が引き継ぎを改善するか、負担を増やさないか。
+- [ ] Task運用の試行結果を踏まえ、Issueの状態記録とhandoverの責務分担を再評価する。
+
+新しいTask台帳や必須の追加工程は作らない。詳細な合意・試行記録はGitHub Issue #117とPhase144 handoverを参照する。
+
 ### Chart Mode 系
 
 ### GitHub Issue #130 — Chart ModeにおけるChord / Beat / Measure Projection（コード・拍・小節の投影）の根本的な再評価
@@ -193,15 +208,6 @@
 - [ ] PR #159のCI結果を確認する。取得できない場合は未確認と明記して扱いを判断する。
 
 詳細な設計・確認範囲は docs/issue129-technical-design.md と https://github.com/Minokichi1107/CreateChordScore/issues/129 を参照。#101は別Issueとして引き続きOpen。
-
-#### GitHub Issue #120 — 右端小節でContinuous Playheadの描画が乱れて見える
-状態: 保留（原因未特定）
-内容: Chart Mode通常表示（editing=false）で、各行の右端小節のContinuous Playheadが
-一時的にぎくつく／薄く見えることがある。3列・4列表示で確認済み。
-`scrollIntoView()`無効化やPaint flashingでは原因を特定できなかった。
-Continuous Projectionの基本設計、Playheadの基本位置計算、Slot Model、`quantize()` /
-`anticipationWindow`の責務はこのIssueでは変更しない。
-
 
 #### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
 状態: Type B対応済み・Type A/C/D未対応
