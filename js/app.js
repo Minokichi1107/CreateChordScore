@@ -7524,8 +7524,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     // chartmode.js はユーザーが「何を選んだか」を通知するだけ。
 
     // 「ここを小節頭にする」: beatTime を受け取り、repairRule を保存して再描画
-    onSetRepairRule: async (beatTime) => {
+    onSetRepairRule: async (beatTime, type = 'anchorDownbeat', blockedReason = null) => {
       if (!project.analysis) return;
+
+      // 曲全体の組み直し(#129)が使えない曲(4/4以外・beat-only)は理由だけ通知して終了
+      if (blockedReason) {
+        toast(blockedReason);
+        return;
+      }
+      const isWhole = type === 'wholeSongDownbeat';
 
       const prevRepairRule = project.analysis.repairRule ?? null;
 
@@ -7533,12 +7540,14 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (prevRepairRule) {
         const confirmed = confirm(
           `現在の小節補正（${prevRepairRule.beatTime.toFixed(2)}秒）を\n` +
-          `新しい位置（${beatTime.toFixed(2)}秒）に変更します。よろしいですか？`
+          (isWhole
+            ? `「曲全体を${beatTime.toFixed(2)}秒基準に組み直す」補正に置き換えます。よろしいですか？`
+            : `新しい位置（${beatTime.toFixed(2)}秒）に変更します。よろしいですか？`)
         );
         if (!confirmed) return;
       }
 
-      const newRepairRule = { version: 1, type: 'anchorDownbeat', beatTime };
+      const newRepairRule = { version: 1, type, beatTime };
 
       // [Phase72-B 修正: ChatGPTレビュー指摘対応]
       // 先に保存し、成功を確認してから project.analysis に反映する。
@@ -7561,7 +7570,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       // である_refreshEditorView()に統一し、buffer-aware かつ
       // editing: isAnalysisEditing() を渡す描画へ揃える。
       _refreshEditorView();
-      toast('✅ 小節頭を補正しました');
+      toast(isWhole ? '✅ 曲全体を組み直しました' : '✅ 小節頭を補正しました');
     },
 
     // 「補正を解除」: repairRule を null にして保存・再描画

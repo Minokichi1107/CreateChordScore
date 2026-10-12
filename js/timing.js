@@ -215,6 +215,58 @@ function applyAnchorRepair(beats, downbeats, repairRule, timeSignature) {
   return [...before, ...after];
 }
 
+/**
+ * applyWholeSongRepair（#129）
+ *
+ * repairRule（type: 'wholeSongDownbeat'）を適用し、曲全体の下拍を
+ * 「指定した拍の位相」で組み直した配列を生成する。
+ *
+ * 【計算】
+ *   idx  = raw.beats 内の beatTime と一致する拍の番号（0始まり）
+ *   n    = 1小節の拍数（timeSignature.numerator）
+ *   r    = idx % n
+ *   下拍 = （r > 0 なら beats[0]）＋ beats[r], beats[r+n], beats[r+2n], …
+ *
+ *   r = 0 : 先頭の拍から n 拍ごと
+ *   r > 0 : 先頭に r 拍の短い小節ができ、指定した拍が次の小節頭になる
+ *
+ * 【anchorDownbeat（applyAnchorRepair）との違い】
+ *   applyAnchorRepair は「anchor より前の downbeats を変更しない」。
+ *   こちらは元の downbeats を使わず、曲全体を同じ位相で再グルーピングする。
+ *   両者は別の補正形式であり、互いの原則を持ち込まない。
+ *
+ * 【pure function】beats / downbeats を書き換えない。
+ *
+ * @param {number[]} beats
+ * @param {number[]} downbeats      - raw.downbeats（beatTime が見つからない場合の素通し用）
+ * @param {object}   repairRule     - { version, type: 'wholeSongDownbeat', beatTime }
+ * @param {object}   timeSignature  - { numerator, denominator }
+ * @returns {{ downbeats: number[], leadingBeatCount: number }}
+ */
+function applyWholeSongRepair(beats, downbeats, repairRule, timeSignature) {
+  const beatsPerMeasure = timeSignature?.numerator ?? 4;
+  const EPS = 1e-6;
+
+  const idx = beats.findIndex(b => Math.abs(b - repairRule.beatTime) < EPS);
+  if (idx === -1) {
+    // [VALUE SOURCE CONSTRAINT] beatTime は raw.beats に実在する値のはず。
+    // 見つからない場合は補正せず素通しにする（内部不整合のログのみ）。
+    console.error(
+      '[applyWholeSongRepair] beatTime not found in raw.beats — ' +
+      'repairRule invariant violated. Skipping repair for this call.'
+    );
+    return { downbeats, leadingBeatCount: 0 };
+  }
+
+  const phase = idx % beatsPerMeasure;
+  const result = [];
+  if (phase > 0) result.push(beats[0]);
+  for (let i = phase; i < beats.length; i += beatsPerMeasure) {
+    result.push(beats[i]);
+  }
+  return { downbeats: result, leadingBeatCount: phase };
+}
+
 // ────────────────────────────────────────
 // スロット境界の構築
 // ────────────────────────────────────────
@@ -418,6 +470,7 @@ function quantizeTime(time, {
  * @param {number}   [params.anticipationWindow]- デフォルト 0.5
  * @param {number}   [params.audioDuration]     - 秒。最終小節 endTime 計算用
  * @param {object|null} [params.repairRule]     - Phase72-B: { version, type:'anchorDownbeat', beatTime }
+ *                                                 #129: type:'wholeSongDownbeat' も受け付ける（曲全体の組み直し）
  *                                                 ユーザーが指定した手動タイミング補正の意図。
  *                                                 null の場合は repair なし（既存動作と同一）。
  * @returns {TimingModel}
@@ -451,9 +504,32 @@ export function createTimingModel({
   //   repairedDownbeats 自体はこの関数のローカル変数に留まり、
   //   呼び出し側（chartmode.js / analysisLoader.js）には公開しない。
   //   raw.downbeats は変更しない（applyAnchorRepair は pure function）。
-  const repairedDownbeats = applyAnchorRepair(beats, downbeats, repairRule, timeSignature);
+  // Phase146 / #129: repairRule.type で補正方式を振り分ける。
+  //   'wholeSongDownbeat' : 曲全体の小節を指定した拍の位相で組み直す（applyWholeSongRepair）
+  //   それ以外            : 従来どおり applyAnchorRepair（指定位置以降のみ再構成。変更なし）
+  // どちらも pure function で、raw.beats / raw.downbeats は変更しない。
+  let repairedDownbeats;
+  let leadingBeatCount = 0;
+  if (repairRule && repairRule.type === 'wholeSongDownbeat') {
+    const whole = applyWholeSongRepair(beats, downbeats, repairRule, timeSignature);
+    repairedDownbeats = whole.downbeats;
+    leadingBeatCount  = whole.leadingBeatCount;
+  } else {
+    repairedDownbeats = applyAnchorRepair(beats, downbeats, repairRule, timeSignature);
+  }
 
   const measures     = buildMeasures({ beats, downbeats: repairedDownbeats, timeSignature, mode, audioDuration });
+
+  // 【短い先頭小節の印（#129）】
+  //   wholeSongDownbeat で最初の拍と指定した拍の間に拍が余った場合、
+  //   先頭小節（最初の拍〜指定した拍）は4拍未満の短い小節になる。
+  //   既存の弱起判定（detectPickupMeasure の長さ閾値）は 1〜3拍の短い小節を
+  //   確実には拾えないため、この印で弱起扱いを確定させる（閾値は変更しない）。
+  //   実行時にだけ付ける値で、保存はしない。印の参照は chartmode.js の
+  //   小節コピー（2か所）と detectPickupMeasure() のみ。
+  if (leadingBeatCount > 0 && measures[0]) {
+    measures[0].isLeading = true;
+  }
   const slotTimings  = buildSlotTimings(beats, resolutionPerBeat);
   const slotsPerMeasure = timeSignature.numerator * resolutionPerBeat;
 

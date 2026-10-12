@@ -141,6 +141,9 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
       startTime:  m.startTime,
       endTime:    m.endTime,    // pickup 判定・seek に必須
       confidence: m.confidence,
+      // #129: 短い先頭小節の印（timing.js が付与。実行時のみ・保存しない）。
+      // detectPickupMeasure() が参照し、1〜3拍の先頭小節を確実に弱起扱いにする。
+      isLeading:  m.isLeading === true,
       slots:      [],           // { slotIndex, onsets[] } onset ありのみ追加
     };
   });
@@ -348,7 +351,7 @@ export function buildContinuousChordProjection(analysis, audioDuration = null) {
   const measures = [];
   for (let mi = 0; mi < model.measureCount; mi++) {
     const m = model.getMeasure(mi);
-    if (m) measures.push({ startTime: m.startTime, endTime: m.endTime, confidence: m.confidence });
+    if (m) measures.push({ startTime: m.startTime, endTime: m.endTime, confidence: m.confidence, isLeading: m.isLeading === true });
   }
 
   // Beat Grid: raw.beats（実時間）をMeasure内の連続位置へ変換するのみ。
@@ -2337,6 +2340,26 @@ export function pickNearestBeatInMeasure(fraction, startTime, endTime, beats) {
 }
 
 /**
+ * getWholeSongRepairSupport（#129）
+ *
+ * 「曲全体をここ基準に組み直す」を設定できるかを判定する（pure function）。
+ * 初回の対象は、4/4拍子かつ下拍のある解析データ（mode === 'full'）のみ。
+ *
+ * @param {string} mode           - TimingModel の mode（'full' | 'beat-only' | 'fallback'）
+ * @param {object} timeSignature  - { numerator, denominator }
+ * @returns {{ ok: boolean, reason: string|null }}
+ */
+export function getWholeSongRepairSupport(mode, timeSignature) {
+  if (mode !== 'full') {
+    return { ok: false, reason: 'この曲は拍だけの解析データのため、曲全体の組み直しは使えません' };
+  }
+  if (timeSignature?.numerator !== 4 || timeSignature?.denominator !== 4) {
+    return { ok: false, reason: '曲全体の組み直しは、4/4拍子の曲のみ使えます' };
+  }
+  return { ok: true, reason: null };
+}
+
+/**
  * _showContextMenu
  *
  * 右クリックメニューを表示する。
@@ -2346,7 +2369,7 @@ export function pickNearestBeatInMeasure(fraction, startTime, endTime, beats) {
  * @param {number}   clientX    - クリック位置X（viewport座標）
  * @param {number}   clientY    - クリック位置Y（viewport座標）
  */
-function _showContextMenu(beatTime, hasRepair, clientX, clientY, diagramChordName = null) {
+function _showContextMenu(beatTime, hasRepair, clientX, clientY, diagramChordName = null, wholeSongSupport = null) {
   _hideContextMenu();  // 既存を閉じてから生成
 
   const menu = document.createElement('div');
@@ -2356,12 +2379,26 @@ function _showContextMenu(beatTime, hasRepair, clientX, clientY, diagramChordNam
   if (beatTime != null) {
     const setItem = document.createElement('div');
     setItem.className = 'chart-context-item';
-    setItem.textContent = '📍 ここを小節頭にする';
+    setItem.textContent = '📍 ここから先を小節頭にする';
     setItem.addEventListener('click', () => {
       _hideContextMenu();
       _onSetRepairRule?.(beatTime);
     });
     menu.appendChild(setItem);
+
+    // #129: 「曲全体をここ基準に組み直す」（指定した拍の位相で曲全体の小節を並べ直す）。
+    // 4/4以外・拍だけのモード（beat-only）は設定せず、app.js が理由を通知する
+    // （blockedReason を渡す）。wholeSongSupport が null の場合は項目を出さない。
+    if (wholeSongSupport) {
+      const wholeItem = document.createElement('div');
+      wholeItem.className = 'chart-context-item';
+      wholeItem.textContent = '📍 曲全体をここ基準に組み直す';
+      wholeItem.addEventListener('click', () => {
+        _hideContextMenu();
+        _onSetRepairRule?.(beatTime, 'wholeSongDownbeat', wholeSongSupport.ok ? null : wholeSongSupport.reason);
+      });
+      menu.appendChild(wholeItem);
+    }
   }
 
   // 「補正を解除」項目（補正中の場合のみ表示）
@@ -2469,7 +2506,8 @@ function _handleContinuousContextMenu(e, measureEl) {
 
   e.preventDefault();  // ブラウザ標準メニューを抑制
   _hideTooltip();
-  _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY, diagramChordName);
+  _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY, diagramChordName,
+    getWholeSongRepairSupport(vm.model.mode, analysis.timeSignature));
 }
 
 /**
@@ -2553,7 +2591,8 @@ function _setupContextMenu() {
 
     // [Phase128-A] hover tooltipと座標が重なり残留しないよう、右クリック時に閉じる
     _hideTooltip();
-    _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY, diagramChordName);
+    _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY, diagramChordName,
+      getWholeSongRepairSupport(vm.model.mode, analysis.timeSignature));
   });
 
   // メニュー外クリックで閉じる
@@ -3283,6 +3322,11 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
  */
 function detectPickupMeasure(measures) {
   if (measures.length < 2) return false;
+
+  // #129: 曲全体の組み直し（wholeSongDownbeat）で timing.js が付けた印がある場合は、
+  // 長さの閾値判定を行わず弱起と確定する（1〜3拍の短い先頭小節は閾値では確実に拾えない）。
+  // 閾値（0.75倍・±30%）は変更しない。印が無い曲は従来どおりの判定。
+  if (measures[0]?.isLeading === true) return true;
 
   // 旧project互換ガード（Phase61 hotfix）:
   // 保存済み viewModel には endTime が存在しない場合がある。
