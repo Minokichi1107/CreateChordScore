@@ -20,6 +20,10 @@ GitHub: github.com/Minokichi1107/CreateChordScore
   「Development Process」参照）。見た目の微調整・軽微なバグ修正は
   上記の簡易フロー（仕様確認→提案→実装指示）のままでよい
 
+- 実装時のテーマ検証は `docs/theme-validation.md` を参照する。
+  実データでの検証は差分と関連CSSからテーマ依存性を判断し、
+  合成データでの検証は当面 dark / silver / blue の3テーマで行う。
+
 ### コード制約
 - 1回の回答で500行以上のコードを書かない
 - 既存コードを破壊するリファクタリング禁止。段階的変更のみ
