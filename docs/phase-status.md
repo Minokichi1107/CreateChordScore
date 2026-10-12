@@ -244,7 +244,7 @@ Current Work（現在の作業: 2026-10-12 Documentation Checkpoint（ドキュ�
 ------------------------------------------------------------
 Phase141〜143のSection Marker改善はmainへマージ済み。Phase144ではTaskとPhaseを分け、GitHub Issueを共有状態とする
 最小運用を試行した。Issue #120でIssueのみの読み戻しを確認した一方、並行実装Taskでの検証は未実施。
-Task運用とIssue open/closeの記録ルールは、確定ではなく試行中として扱う。
+Task運用とIssue open/closeの記録ルールは、確定ではなく試行中として扱う。Issue #132のテーマ検証基準はPR #158が未マージのため、提案段階。
 
 今回のCheckpointでphase-status.mdとcurrent-issues.mdを更新し、廃止せずに維持する。
 次に着手するProduct IntentやPhase番号は先決めしない。Phase133〜136の残課題は対応するhandoverとGitHub Issueを参照。
