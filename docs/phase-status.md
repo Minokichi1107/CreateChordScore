@@ -231,16 +231,16 @@ Completed（完了済み）
   変更はcommit 84d58f8でmainへpush済み。
 ✓ Phase140 — Section UX（#95 / #96 / #104）。PR #126でmainへマージ済み。
   [SECTION ORDER INDEPENDENCE]を確立。表示順はsession.sectionsの配列順で管理する。
-✓ Phase141〜142 — Section Markerを実装・視覚調整。PR #131でmainへマージ済み。
-  保存済みSectionから共通Projectionを作り、Continuous表示に開始線・終了線・名前を描画。
-✓ Phase143 — Section編集中/Slot経路でも全Section名と開始線を表示。PR #133でmainへマージ済み。
-  Section Model / Authority / 保存形式は変更なし。最小表示幅32pxは暫定で、最終判断は未完了。
-✓ Phase144 — コード変更なしの開発プロセス検討。Issue #120で、IssueだけからTaskの目的・結論・残件を
+✓ Phase141〜142 — Section Marker（セクション境界表示）を実装・視覚調整。PR #131でmainへマージ済み。
+  保存済みSectionから共通Projection（描画用データへの導出）を作り、Continuous（連続表示）に開始線・終了線・名前を描画。
+✓ Phase143 — Section編集中/Slot経路（スロット表示経路）でも全Section名と開始線を表示。PR #133でmainへマージ済み。
+  Section Model / Authority（正本） / 保存形式は変更なし。最小表示幅32pxは暫定で、最終判断は未完了。
+✓ Phase144 — コード変更なしの開発プロセス検討。Issue #120で、IssueだけからTask（作業単位）の目的・結論・残件を
   読み戻せることを確認。Task運用は試行中で、並行実装Taskは未検証。詳細はIssue #117とhandoverを参照。
 ✓ Issue #129 — 曲全体の小節頭補正をPR #159でmainへマージ。基本動作を確認済み。
   対象外条件の通知・旧アプリ互換性・CI結果は未確認のためIssueはOpen。詳細はIssue #129と技術設計書を参照。
 
-Current Work（現在の作業: 2026-10-12 Documentation Checkpoint。Phase141〜144とOpen Issue一覧を同期。次のProduct Intent / Taskは未選定）
+Current Work（現在の作業: 2026-10-12 Documentation Checkpoint（ドキュメント棚卸し）。Phase141〜144とOpen Issue（未解決Issue）一覧を同期。次のProduct Intent（開発テーマの意図） / Taskは未選定）
 ------------------------------------------------------------
 Phase141〜143のSection Marker改善はmainへマージ済み。Phase144ではTaskとPhaseを分け、GitHub Issueを共有状態とする
 最小運用を試行した。Issue #120でIssueのみの読み戻しを確認した一方、並行実装Taskでの検証は未実施。
