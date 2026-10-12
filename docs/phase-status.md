@@ -237,14 +237,16 @@ Completed（完了済み）
   Section Model / Authority（正本） / 保存形式は変更なし。最小表示幅32pxは暫定で、最終判断は未完了。
 ✓ Phase144 — コード変更なしの開発プロセス検討。Issue #120で、IssueだけからTask（作業単位）の目的・結論・残件を
   読み戻せることを確認。Task運用は試行中で、並行実装Taskは未検証。詳細はIssue #117とhandoverを参照。
+  公開時にREADME等へChromeのハードウェアアクセラレーション（GPU描画）設定の注意書きを入れるかは未決定。公開が近づいた時に判断する。
 ✓ Issue #129 — 曲全体の小節頭補正をPR #159でmainへマージ。基本動作を確認済み。
   対象外条件の通知・旧アプリ互換性・CI結果は未確認のためIssueはOpen。詳細はIssue #129と技術設計書を参照。
+✓ Issue #132 — テーマ検証基準をPR #162でmainへマージ。`docs/theme-validation.md` を正式ガイドとして参照する。
 
 Current Work（現在の作業: 2026-10-12 Documentation Checkpoint（ドキュメント棚卸し）。Phase141〜144とOpen Issue（未解決Issue）一覧を同期。次のProduct Intent（開発テーマの意図） / Taskは未選定）
 ------------------------------------------------------------
 Phase141〜143のSection Marker改善はmainへマージ済み。Phase144ではTaskとPhaseを分け、GitHub Issueを共有状態とする
 最小運用を試行した。Issue #120でIssueのみの読み戻しを確認した一方、並行実装Taskでの検証は未実施。
-Task運用とIssue open/closeの記録ルールは、確定ではなく試行中として扱う。Issue #132のテーマ検証基準はPR #158が未マージのため、提案段階。
+Task運用とIssue open/closeの記録ルールは、確定ではなく試行中として扱う。Issue #132のテーマ検証基準はPR #162でmainへマージ済み。
 
 今回のCheckpointでphase-status.mdとcurrent-issues.mdを更新し、廃止せずに維持する。
 次に着手するProduct IntentやPhase番号は先決めしない。Phase133〜136の残課題は対応するhandoverとGitHub Issueを参照。
