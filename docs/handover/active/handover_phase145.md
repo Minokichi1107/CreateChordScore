@@ -11,7 +11,7 @@
   - 決定済みなのは「作る順序は②が先、①が後」だけ。
   - **次にどちらから進めるかは、まだ指示されていない**（優先順位を補わない）。
   - ①の設計を始めても、#129 の close を意味しない。#129 の未確認事項を確認済み扱いにしたり、#129 の設計を暗黙に変えたりしない。
-- `phase-status.md` / `current-issues.md` は**未更新**。たかっちさんから「監査完了後に更新を行う」との発言があったが、更新する人・時期の明示指示は未確認。**更新の明示指示があるまで、こちらからは着手しない。**
+- `phase-status.md` / `current-issues.md` は、2026-10-12 の Documentation Checkpoint（PR #161）で更新済み。#129 の状態（実装済み・受け入れ確認待ち）も反映されている。Issue #132 はPR #162でマージ・クローズ済み。
 
 ## 1. 実現したこと（利用者から見た形）
 
@@ -39,7 +39,7 @@
 | 触らなかったもの | `applyAnchorRepair()`（①）、`analysisLoader.js`、`server.py`、保存形式の検証処理 |
 | 注意（CRLF） | `js/chartmode.js` は CRLF を維持する（`.gitattributes`） |
 
-設計の詳細は `claude/issue129-technical-design.md`（2026-10-12 に、`type` の位置づけをこの書類と同じ表現に統一済み。「仮名」は「将来、名称を見直す余地がある」の意味）。
+設計の詳細は `docs/issue129-technical-design.md`（PR #160 で正式配置。`type` の位置づけは本書と同じ表現に統一済み。「仮名」は「将来、名称を見直す余地がある」の意味）。
 
 ### 旧アプリとの互換性（想定と確認を区別する）
 
@@ -79,11 +79,11 @@
 
 - PR #159 の本文は `Refs #129`（自動クローズしない）。
 - 作業ブランチ `feature/issue129-whole-song-rebuild` はマージ済みで、削除は可能。**実際には削除していない**（削除する場合は別途指示）。
-- 実装前に作った資料（scratchの下書き）はリポジトリ外のため、正本は `claude/issue129-technical-design.md` と Issue #129。
+- 実装前に作った資料（scratchの下書き）はリポジトリ外のため、正本は `docs/issue129-technical-design.md` と Issue #129。
 
 ## 7. 参照
 
 - GitHub Issue **#129**（正本）、**#101**（①）、**#130**
 - PR **#159**
-- `claude/issue129-technical-design.md`
-- `handover_phase144.md`（Task運用の考え方）
+- `docs/issue129-technical-design.md`
+- `docs/handover/archive/phase141-160/handover_phase144.md`（Task運用の考え方）
