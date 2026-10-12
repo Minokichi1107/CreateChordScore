@@ -127,6 +127,13 @@ Issue #120の調査Taskはクローズ済みで、別Chat/別AIでもIssueだけ
 
 新しいTask台帳や必須の追加工程は作らない。詳細な合意・試行記録はGitHub Issue #117とPhase144 handoverを参照する。
 
+#### GitHub Issue #132 — 実装時のテーマ検証をdark中心にする条件の定義
+状態: 検討中。PR #158（テーマ検証基準の文書化）は作成済みだが、未マージ。
+
+実データでの実機確認はdarkを標準とし、テーマ依存の変更や視認性への影響がある場合にsilver / blueへ拡張する方向を検討している。合成データでの3テーマ確認を継続するかなど、完了条件のすべてはまだ確定していない。PR #158がmainへ反映されるまでは、提案内容をマージ済みの正式ルールとして扱わない。
+
+詳細はGitHub Issue #132とPR #158を参照。
+
 ### Chart Mode 系
 
 ### GitHub Issue #130 — Chart ModeにおけるChord / Beat / Measure Projection（コード・拍・小節の投影）の根本的な再評価
