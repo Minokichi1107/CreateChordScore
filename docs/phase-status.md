@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: 2026-10-03（Phase140 / Section UX #95・#96・#104完了まで反映）。
+> 最終更新: 2026-10-12（Phase141〜144とIssue #129実装マージまで反映）。
 > Phase124以降は固定周期ではなくDocumentation Checkpoint方式で棚卸しする運用を継続する。
 
 ---
@@ -229,28 +229,28 @@ Completed（完了済み）
   実行し、最終dryRunでrenamed=0 / unchanged=231 / conflict=0 / error=0を確認。
   Library対象外の39 orphanファイルはanalysis_orphans/へ分離し、.gitignoreへ追加。
   変更はcommit 84d58f8でmainへpush済み。
-✓ Phase140 — Section UX 3件（GitHub Issue #95 / #96 / #104）を完了。
-  #104は日本式の音楽構成プリセットを追加し、日本式/Englishのグループ切替を実装。
-  #96はSection種類変更時の名前連動を実装（作成時は常に自動名を生成、変更時は
-  自動生成名のみ追従し手動名を保持）。#95はSectionチップのドラッグ並べ替えを実装し、
-  Section表示順とChart上の位置を独立させた。3件とも実機確認済み。
-  [SECTION ORDER INDEPENDENCE]（Section表示順は位置と独立）を確立し、
-  並べ替えはsession.sectionsの配列順だけを変更する。displayOrder等の別モデルは作らない。
-  実装ブランチはfeature/phase140-section-ux、最新commitは62c9174。mainへは未merge。
+✓ Phase140 — Section UX（#95 / #96 / #104）。PR #126でmainへマージ済み。
+  [SECTION ORDER INDEPENDENCE]を確立。表示順はsession.sectionsの配列順で管理する。
+✓ Phase141〜142 — Section Marker（セクション境界表示）を実装・視覚調整。PR #131でmainへマージ済み。
+  保存済みSectionから共通Projection（描画用データへの導出）を作り、Continuous（連続表示）に開始線・終了線・名前を描画。
+✓ Phase143 — Section編集中/Slot経路（スロット表示経路）でも全Section名と開始線を表示。PR #133でmainへマージ済み。
+  Section Model / Authority（正本） / 保存形式は変更なし。最小表示幅32pxは暫定で、最終判断は未完了。
+✓ Phase144 — コード変更なしの開発プロセス検討。Issue #120で、IssueだけからTask（作業単位）の目的・結論・残件を
+  読み戻せることを確認。Task運用は試行中で、並行実装Taskは未検証。詳細はIssue #117とhandoverを参照。
+  公開時にREADME等へChromeのハードウェアアクセラレーション（GPU描画）設定の注意書きを入れるかは未決定。公開が近づいた時に判断する。
+✓ Issue #129 — 曲全体の小節頭補正をPR #159でmainへマージ。基本動作を確認済み。
+  対象外条件の通知・旧アプリ互換性・CI結果は未確認のためIssueはOpen。詳細はIssue #129と技術設計書を参照。
+✓ Issue #132 — テーマ検証基準をPR #162でmainへマージ。`docs/theme-validation.md` を正式ガイドとして参照する。
 
-Current Work（現在の作業: Phase140 / Section UX 3件を完了。次は新しいProduct Intentから開発テーマを開始）
+Current Work（現在の作業: 2026-10-12 Documentation Checkpoint（ドキュメント棚卸し）。Phase141〜144とOpen Issue（未解決Issue）一覧を同期。次のProduct Intent（開発テーマの意図） / Taskは未選定）
 ------------------------------------------------------------
-Phase133〜136の実装・設計・検証と、Phase137/#117の開発プロセス省力化検討を完了した。
-Phase137では、handoverを現在状態の受け渡しに使い、過去の判断理由が必要な場合だけChat
-archiveを参照する方法が有効であることを確認した。一方で、これを新しい管理工程・台帳・
-強制的なWhy記録へ発展させることは、かえって運用負荷を増やすため採用しない。
+Phase141〜143のSection Marker改善はmainへマージ済み。Phase144ではTaskとPhaseを分け、GitHub Issueを共有状態とする
+最小運用を試行した。Issue #120でIssueのみの読み戻しを確認した一方、並行実装Taskでの検証は未実施。
+Task運用とIssue open/closeの記録ルールは、確定ではなく試行中として扱う。Issue #132のテーマ検証基準はPR #162でmainへマージ済み。
 
-今後は、必要なドキュメントだけを既存の共有場所へ残し、Chat更新時は最新handoverから再開する。
-handoverにない過去判断が必要になった場合のみ、保存したChat archiveを検索する。
-新しいIssueはhandoverへ溜め込まず、発見時にGitHub Issue等の既存の適切な場所へ記録する。
-
-Phase133〜136の成果物・未解決事項は対応するhandoverおよびcurrent-issues.mdを参照する。
-Phase137/#117の運用検討、Phase138の軽量Issue 3件、Phase139/#118のAnalysisファイル名変更、Phase140/#95・#96・#104のSection UX改善を完了した。Phase140の実装はfeature/phase140-section-uxにあり、mainへは未merge。ここからは新しいProduct Intentへ戻る。
+今回のCheckpointでphase-status.mdとcurrent-issues.mdを更新し、廃止せずに維持する。
+次に着手するProduct IntentやPhase番号は先決めしない。Phase133〜136の残課題は対応するhandoverとGitHub Issueを参照。
+Issue #129は実装済みだが、受け入れ確認3件が残るためOpen。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
@@ -321,7 +321,9 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 96〜97 | Decorator Inventory棚卸し・Visual Hierarchy確立／Selection Hit-Test統一／Search Engine Enharmonic対応 |
 | 138 | #115 曲切替時のChart Modeスクロールリセット（予約方式。_prevScrollTop保持仕様は維持） |
 | 139 | Analysis JSONファイル名の人間可読化（Issue #118。projectId論理参照を維持し、実ファイル名をProjectionとして解決・rename・migration） |
-| 140 | Section UX（#104 日本式Section種類プリセット＋日本式/English切替、#96 種類変更時のSection名連動、#95 Sectionチップのドラッグ並べ替え。#95では[SECTION ORDER INDEPENDENCE]を確立） |
+| 140 | Section UX（#95 / #96 / #104）。[SECTION ORDER INDEPENDENCE]確立、PR #126でmainへマージ |
+| 141〜142 | Section Markerの開始線・終了線・名前表示と視覚調整。PR #131でmainへマージ |
+| 143 | Section編集中/Slot経路のSection名・開始線表示。PR #133でmainへマージ。最小幅32pxは暫定 |
 
 ### Project Repository / Persistence
 

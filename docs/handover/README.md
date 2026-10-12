@@ -10,7 +10,7 @@
 
 日々のTask（具体的な作業単位）の状態管理はGitHub Issueを基本とする。IssueがTaskのsource of truth（正本）であり、handoverはTaskごとの途中経過を逐一記録する場所ではない。
 
-Phase144時点の実運用では、Issueだけを読んでもTaskの目的・完了条件・最終判断を再構成できることを確認した。この運用は現在試行中であり、Task運用のために別の常設台帳やTask専用ログを新設しない方針も、Phase144時点では試行中とする。
+Phase144時点の実運用では、Issueだけを読んでもTaskの目的・完了条件・最終判断を再構成できることを確認した。このTask運用は引き続き試行中であり、並行する実装Taskでの検証は未完了である。2026-10-12のDocumentation Checkpointでは、`phase-status.md` と `current-issues.md` を廃止せず、役割に応じた現状を更新した。Task運用のための常設台帳やTask専用ログは新設しない。
 
 正式ドキュメント（phase-status.md / architecture.md 等）への
 反映は、固定フェーズ数ではなく「意味のある設計変更」「大きな機能の
@@ -104,8 +104,8 @@ continuity document として機能する。
 
 ## current-issues.md の状態管理（issue open/close）方針
 
-> **Phase144時点では、この運用の継続・変更・廃止は未決定（試行中）。**
-> 以下は従来の暫定ルールを現時点では残しているものであり、Phase144で新たに確定した運用ではない。次の通常実装Taskでの試行結果を踏まえて再評価する。
+> **Issueのopen/closeをhandover作成時に記録し、Checkpointでcurrent-issues.mdへ反映する運用は、引き続き試行中。**
+> 2026-10-12のCheckpointでは本ルール自体の確定・廃止は判断していない。以下の暫定ルールを維持し、次の通常実装Taskでの試行結果を踏まえて再評価する。
 
 issue の open/close は **handover作成時に記録する**（current-issues.md
 自体の更新ではない）。実装中は current-issues.md を触らない。
