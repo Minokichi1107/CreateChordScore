@@ -1,0 +1,40 @@
+name: JavaScript syntax check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax-check:
+    name: JavaScript syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files '*.js')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No tracked JavaScript files found."
+            exit 1
+          fi
+          printf 'Checking %s JavaScript files\n' "${#files[@]}"
+          for file in "${files[@]}"; do
+            echo "::group::node --check $file"
+            node --check "$file"
+            echo "::endgroup::"
+          done
