@@ -52,6 +52,7 @@ CreateChordScoreのドキュメントは、以下の区分で管理する。
   - 設計時点の判断と、実装後に確認された結果・未確認事項は区別して記録する。
 - **セットアップ**（環境構築）
   `起動方法.txt` / `開発環境メモ.md`
+- **レポート** — `reports/`。調査・検証・レビュー・監査レポートの索引と本文を管理する。レポートへの登録は、内容の正式決定を意味しない。
 - **handover** — `handover/`
 - **legacy** — `legacy/`
 
@@ -87,6 +88,10 @@ docs/
 │   ├── design/
 │   ├── testing/
 │   └── その他の過去資料・設計メモ
+├── reports/
+│   ├── index.md
+│   ├── phase127-process-review.md
+│   └── Issue #101 の調査・検証・監査レポート
 ├── current-issues.md
 ├── phase-status.md
 ├── naming-glossary.md
