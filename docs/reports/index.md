@@ -35,6 +35,7 @@
 
 | 資料 | 対象 | 種別 | 状態 | 主な内容・用途 | 関連資料 |
 |---|---|---|---|---|---|
+| [Phase127 Process Review（新開発プロセスの評価と正式採用候補整理）](phase127-process-review.md) | Phase127-D' / 開発プロセス | レビュー | 過去の評価・正式採用は未確定 | 試行した開発プロセスの評価、Process Guard（完了条件の照合チェック）案、正式採用に向けた論点を整理 | `docs/README.md`、関連handover資料 |
 | [Issue #101 コード検証 v3（C1：`quantizeTime()` フォールバックの直接計測）](issue101-code-verification-v3.md) | Issue #101 / C1・F5 | 検証 | 検証済み（実験条件に限定） | 231曲の実データと合成＆頭小節を用い、フォールバック通過と不一致の関係を直接計測。製品修正案の採用を意味しない | [初期プロトタイプ検証](issue101-s1-coordinate-prototype-initial-verification.md)、[実装前監査](issue101-s1-preimplementation-audit-memo.md) |
 | [Issue #101 S1 — ＆頭小節の座標変換プロトタイプ・初期検証](issue101-s1-coordinate-prototype-initial-verification.md) | Issue #101 / S1・F5 | 検証・プロトタイプ | 検証済み（合成例のみ）／提案中・未承認 | 小節頭スロットを小節内座標の原点にする局所計算の初期実験。統合経路・実曲での非退行性は未確認 | [コード検証 v3](issue101-code-verification-v3.md)、[境界・許容誤差契約](issue101-s1-boundary-and-tolerance-contract-open-items.md) |
 | [Issue #101 S1 設計整理・実装前監査メモ](issue101-s1-preimplementation-audit-memo.md) | Issue #101 / S1 | レビュー・監査 | 提案中／一部事実は読み取り監査済み | 既存設計文書の状態不整合、テストID重複、末尾slot・外挿・許容誤差・不規則小節の未決事項を整理 | [境界・許容誤差契約](issue101-s1-boundary-and-tolerance-contract-open-items.md) |
