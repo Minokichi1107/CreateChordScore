@@ -35,11 +35,17 @@
 
 | 資料 | 対象 | 種別 | 状態 | 主な内容・用途 | 関連資料 |
 |---|---|---|---|---|---|
-| （登録時に記入） | Issue / Phase | 調査・検証・レビュー | 要確認 | この資料から確認できる事実・結果 | 関連資料へのリンク |
+| [Issue #101 コード検証 v3（C1：`quantizeTime()` フォールバックの直接計測）](issue101-code-verification-v3.md) | Issue #101 / C1・F5 | 検証 | 検証済み（実験条件に限定） | 231曲の実データと合成＆頭小節を用い、フォールバック通過と不一致の関係を直接計測。製品修正案の採用を意味しない | [初期プロトタイプ検証](issue101-s1-coordinate-prototype-initial-verification.md)、[実装前監査](issue101-s1-preimplementation-audit-memo.md) |
+| [Issue #101 S1 — ＆頭小節の座標変換プロトタイプ・初期検証](issue101-s1-coordinate-prototype-initial-verification.md) | Issue #101 / S1・F5 | 検証・プロトタイプ | 検証済み（合成例のみ）／提案中・未承認 | 小節頭スロットを小節内座標の原点にする局所計算の初期実験。統合経路・実曲での非退行性は未確認 | [コード検証 v3](issue101-code-verification-v3.md)、[境界・許容誤差契約](issue101-s1-boundary-and-tolerance-contract-open-items.md) |
+| [Issue #101 S1 設計整理・実装前監査メモ](issue101-s1-preimplementation-audit-memo.md) | Issue #101 / S1 | レビュー・監査 | 提案中／一部事実は読み取り監査済み | 既存設計文書の状態不整合、テストID重複、末尾slot・外挿・許容誤差・不規則小節の未決事項を整理 | [境界・許容誤差契約](issue101-s1-boundary-and-tolerance-contract-open-items.md) |
+| [Issue #101 S1 境界生成・許容誤差の設計契約（未確定事項整理）](issue101-s1-boundary-and-tolerance-contract-open-items.md) | Issue #101 / S1 | 設計補助資料 | 提案中／未決事項あり | BND-1〜BND-5、EPS-1〜EPS-4、境界出所、末尾領域、不規則小節の判断事項を明示。仕様承認・実装指示ではない | [実装前監査](issue101-s1-preimplementation-audit-memo.md)、[初期プロトタイプ検証](issue101-s1-coordinate-prototype-initial-verification.md) |
 
-### Issue #101
+### Issue #101 登録時の注意
 
-Issue #101 の調査・設計・検証資料は、現在、登録対象を整理中。GitHubへの登録先と各資料の状態を確認したうえで、この一覧に追加する。Dropbox上の資料をGitHubに登録済みであるとは扱わない。
+- 上記4件は Dropbox の作業資料から GitHub の `docs/reports/` に試験登録したもの。各資料に登録元を記載している。
+- レポート本文にある「選択済み」との記載は、元資料内の設計状況の記述であり、この索引への登録自体が新たな承認を行うものではない。
+- コード検証 v3 は対象コード `aa470f9` の作業用コピーでの実験、プロトタイプ初期検証は合成データでの結果。いずれも現行ブランチへの統合検証と同一視しない。
+- Dropbox にあるその他の資料は、GitHub に登録済みであると扱わない。次の資料登録は、重複・版関係・継続利用価値を確認してから行う。
 
 ## 5. 登録・更新ルール
 
@@ -53,9 +59,9 @@ Issue #101 の調査・設計・検証資料は、現在、登録対象を整理
 
 ## 6. 分類ディレクトリについて
 
-資料数と実際の利用状況を確認しながら、必要な分類ディレクトリを段階的に整備する。現時点では、分類を先に増やして資料の移動を始めるのではなく、Issue #101 の資料を試験的に登録し、分類の妥当性を確認してから追加する。
+資料数と実際の利用状況を確認しながら、必要な分類ディレクトリを段階的に整備する。まずは `docs/reports/` 直下で Issue #101 の資料を試験登録し、検索性と一覧の読みやすさを確認する。
 
-候補となる分類：
+今後、件数や利用状況から必要性が確認できた場合の候補：
 
 - `investigations/` — 調査レポート
 - `verification/` — 検証レポート
