@@ -229,26 +229,25 @@ function applyAnchorRepair(beats, downbeats, repairRule, timeSignature, resoluti
  * @param {object}   timeSignature  - { numerator, denominator }
  * @returns {{ downbeats: number[], leadingBeatCount: number }}
  */
-function applyWholeSongRepair(beats, downbeats, repairRule, timeSignature) {
+function applyWholeSongRepair(beats, downbeats, repairRule, timeSignature, resolutionPerBeat = 2) {
   const beatsPerMeasure = timeSignature?.numerator ?? 4;
+  const slotsPerMeasure = beatsPerMeasure * resolutionPerBeat;
   const EPS = 1e-6;
-
   const idx = beats.findIndex(b => Math.abs(b - repairRule.beatTime) < EPS);
-  if (idx === -1) {
-    // [VALUE SOURCE CONSTRAINT] beatTime は raw.beats に実在する値のはず。
-    // 見つからない場合は補正せず素通しにする（内部不整合のログのみ）。
-    console.error(
-      '[applyWholeSongRepair] beatTime not found in raw.beats — ' +
-      'repairRule invariant violated. Skipping repair for this call.'
-    );
+  const subdivision = Number.isInteger(repairRule.subdivision) ? repairRule.subdivision : 0;
+  const slotTimings = buildSlotTimings(beats, resolutionPerBeat);
+  const anchorSlotIdx = idx * resolutionPerBeat + subdivision;
+  if (idx < 0 || subdivision < 0 || subdivision >= resolutionPerBeat
+      || !Number.isFinite(slotTimings[anchorSlotIdx])) {
+    console.error('[applyWholeSongRepair] invalid beat/subdivision anchor; skipping repair.');
     return { downbeats, leadingBeatCount: 0 };
   }
 
-  const phase = idx % beatsPerMeasure;
+  const phase = anchorSlotIdx % slotsPerMeasure;
   const result = [];
-  if (phase > 0) result.push(beats[0]);
-  for (let i = phase; i < beats.length; i += beatsPerMeasure) {
-    result.push(beats[i]);
+  if (phase > 0) result.push(slotTimings[0]);
+  for (let i = phase; i < slotTimings.length; i += slotsPerMeasure) {
+    result.push(slotTimings[i]);
   }
   return { downbeats: result, leadingBeatCount: phase };
 }
@@ -497,11 +496,11 @@ export function createTimingModel({
   let repairedDownbeats;
   let leadingBeatCount = 0;
   if (repairRule && repairRule.type === 'wholeSongDownbeat') {
-    const whole = applyWholeSongRepair(beats, downbeats, repairRule, timeSignature);
+    const whole = applyWholeSongRepair(beats, downbeats, repairRule, timeSignature, resolutionPerBeat);
     repairedDownbeats = whole.downbeats;
     leadingBeatCount  = whole.leadingBeatCount;
   } else {
-    repairedDownbeats = applyAnchorRepair(beats, downbeats, repairRule, timeSignature);
+    repairedDownbeats = applyAnchorRepair(beats, downbeats, repairRule, timeSignature, resolutionPerBeat);
   }
 
   const measures     = buildMeasures({ beats, downbeats: repairedDownbeats, timeSignature, mode, audioDuration });
