@@ -8,6 +8,10 @@ import {
   expandToSlots,
 } from '../js/chartmode.js';
 
+// buildGridViewModel writes diagnostics to window.__TIMING_DEBUG__.
+// Provide only that browser global for this Node-only regression harness.
+if (typeof window === 'undefined') globalThis.window = {};
+
 const beats = Array.from({ length: 17 }, (_, i) => i * 0.5);
 const originalDownbeats = [0, 2, 4, 6, 8];
 const repairRule = { version: 1, type: 'anchorDownbeat', beatTime: 1 };
