@@ -2,7 +2,11 @@
 // Run with Node.js 22: node scripts/test-phase146-timing.mjs
 import assert from 'node:assert/strict';
 import { createTimingModel } from '../js/timing.js';
-import { expandToSlots } from '../js/chartmode.js';
+import {
+  buildGridViewModel,
+  buildContinuousChordProjection,
+  expandToSlots,
+} from '../js/chartmode.js';
 
 const beats = Array.from({ length: 17 }, (_, i) => i * 0.5);
 const originalDownbeats = [0, 2, 4, 6, 8];
@@ -27,11 +31,26 @@ assert.equal(model.getMeasure(1).displaySlotCount, 8);
 assert.equal(model.getBeatPosition(0.5), 0.5);
 assert.equal(model.getBeatPosition(1), 0);
 
+// Both renderer projections must preserve the TimingModel's per-measure metadata.
+const analysis = {
+  beats,
+  downbeats: [...originalDownbeats],
+  timeSignature: { numerator: 4, denominator: 4 },
+  chords: [],
+  repairRule,
+};
+const gridViewModel = buildGridViewModel(analysis, 8);
+assert.equal(gridViewModel.measures[0].displaySlotCount, 4);
+assert.equal(gridViewModel.measures[0].isLocalAnchorTruncated, true);
+assert.equal(gridViewModel.measures[1].displaySlotCount, 8);
+
+const continuousProjection = buildContinuousChordProjection(analysis, 8);
+assert.equal(continuousProjection.measures[0].displaySlotCount, 4);
+assert.equal(continuousProjection.measures[0].isLocalAnchorTruncated, true);
+assert.equal(continuousProjection.measures[1].displaySlotCount, 8);
+
 // The renderer's slot expansion must honor each measure's display count.
-const expandedSlots = expandToSlots([
-  { index: 0, displaySlotCount: 4, slots: [] },
-  { index: 1, displaySlotCount: 8, slots: [] },
-], 8);
+const expandedSlots = expandToSlots(gridViewModel.measures, gridViewModel.model.slotsPerMeasure);
 assert.equal(expandedSlots.filter(slot => slot.measureIndex === 0).length, 4);
 assert.equal(expandedSlots.filter(slot => slot.measureIndex === 1).length, 8);
 
