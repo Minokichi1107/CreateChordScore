@@ -2,6 +2,7 @@
 // Run with Node.js 22: node scripts/test-phase146-subbeat-anchor.mjs
 import assert from 'node:assert/strict';
 import { createTimingModel } from '../js/timing.js';
+import { pickNearestBeatInMeasure } from '../js/chartmode.js';
 
 const beats = Array.from({ length: 33 }, (_, i) => i * 0.5);
 const originalDownbeats = [0, 2, 4, 6, 8, 10, 12, 14, 16];
@@ -39,5 +40,22 @@ assert.equal(model.getMeasure(0).isLocalAnchorTruncated, true);
 // Repair is runtime-only; source analysis arrays must remain unchanged.
 assert.deepEqual(originalDownbeats, [0, 2, 4, 6, 8, 10, 12, 14, 16]);
 assert.deepEqual(beats, Array.from({ length: 33 }, (_, i) => i * 0.5));
+
+// Continuous-projection context-menu selection must preserve the offbeat subdivision.
+const continuousAnchor = pickNearestBeatInMeasure(0.875, 0, 2, beats);
+assert.deepEqual(continuousAnchor, { beatTime: 1.5, subdivision: 1 });
+
+// Whole-song correction uses the same sub-beat anchor representation.
+const wholeSongModel = createTimingModel({
+  beats,
+  downbeats: [...originalDownbeats],
+  timeSignature: { numerator: 4, denominator: 4 },
+  resolutionPerBeat: 2,
+  audioDuration: 16,
+  repairRule: { ...repairRule, type: 'wholeSongDownbeat' },
+});
+assert.equal(wholeSongModel.getMeasure(1).startTime, 1.75);
+assert.equal(wholeSongModel.getMeasure(2).startTime, 3.75);
+assert.equal(wholeSongModel.getMeasure(0).isLeading, true);
 
 console.log('Phase146 sub-beat anchor acceptance tests passed.');
