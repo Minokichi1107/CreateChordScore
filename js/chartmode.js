@@ -2524,7 +2524,7 @@ function _handleContinuousContextMenu(e, measureEl) {
 
   const fraction = (e.clientX - rect.left) / rect.width;
   // 拍が見つからない小節でも、ダイアグラム登録・補正解除は独立して使えるようにする
-  const beatTime = pickNearestBeatInMeasure(fraction, measure.startTime, measure.endTime, analysis.beats ?? []);
+  const anchor = pickNearestBeatInMeasure(fraction, measure.startTime, measure.endTime, analysis.beats ?? []);
   const hasRepair = !!analysis.repairRule;
 
   let diagramChordName = null;
@@ -2533,11 +2533,11 @@ function _handleContinuousContextMenu(e, measureEl) {
   }
 
   // 出せる項目が1つも無ければ何もしない（ブラウザ標準メニューに任せる）
-  if (beatTime == null && !hasRepair && !diagramChordName) return;
+  if (anchor == null && !hasRepair && !diagramChordName) return;
 
   e.preventDefault();  // ブラウザ標準メニューを抑制
   _hideTooltip();
-  _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY, diagramChordName,
+  _showContextMenu(anchor, hasRepair, e.clientX, e.clientY, diagramChordName,
     getWholeSongRepairSupport(vm.model.mode, analysis.timeSignature));
 }
 
@@ -2601,8 +2601,8 @@ function _setupContextMenu() {
     if (!analysis) return;
 
     // slot → beatTime 逆引き
-    const beatTime = _getBeatTimeFromSlot(mi, visualSlotIdx, vm.model, analysis.beats ?? [], analysis.timeSignature);
-    if (beatTime == null) return;
+    const anchor = _getBeatTimeFromSlot(mi, visualSlotIdx, vm.model, analysis.beats ?? [], analysis.timeSignature);
+    if (anchor == null) return;
 
     const hasRepair = !!analysis.repairRule;
 
@@ -2622,7 +2622,7 @@ function _setupContextMenu() {
 
     // [Phase128-A] hover tooltipと座標が重なり残留しないよう、右クリック時に閉じる
     _hideTooltip();
-    _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY, diagramChordName,
+    _showContextMenu(anchor, hasRepair, e.clientX, e.clientY, diagramChordName,
       getWholeSongRepairSupport(vm.model.mode, analysis.timeSignature));
   });
 
