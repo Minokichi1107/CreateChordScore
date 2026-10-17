@@ -1,6 +1,5 @@
 // Phase146 / Issue #101 acceptance fixture for sub-beat measure anchors.
 // Run with Node.js 22: node scripts/test-phase146-subbeat-anchor.mjs
-// This is a red acceptance test until timing.js supports repairRule.subdivision.
 import assert from 'node:assert/strict';
 import { createTimingModel } from '../js/timing.js';
 
