@@ -950,7 +950,8 @@ export function expandCarryForward(measures, slotsPerMeasure) {
       measure.slots.map(s => [s.slotIndex, resolveCollision(s.onsets)])
     );
 
-    for (let si = 0; si < slotsPerMeasure; si++) {
+    const measureSlotCount = measure.displaySlotCount ?? slotsPerMeasure;
+    for (let si = 0; si < measureSlotCount; si++) {
       const onset = onsetMap.get(si);
       if (onset) {
         lastChord = onset.chord;
@@ -2001,13 +2002,18 @@ function _onGridPointerMove(e) {
   const measureEl = hitEl.closest('.chart-measure[data-measure-index]');
   if (!measureEl) return;
 
-  const spm = chartState.viewModel?.model?.slotsPerMeasure;
-  if (!spm) return;
+  const model = chartState.viewModel?.model;
+  const standardCount = model?.slotsPerMeasure;
+  if (!standardCount) return;
 
   const measureIndex = Number(measureEl.dataset.measureIndex);
+  const measure = chartState.viewModel?.measures?.[measureIndex];
+  const slotCount = (measureIndex === 0 && chartState.pickupLeadingOffset > 0)
+    ? standardCount
+    : (measure?.displaySlotCount ?? standardCount);
   const rect = measureEl.getBoundingClientRect();
   const ratio = (e.clientX - rect.left) / rect.width;
-  const slotIndex = Math.min(Math.max(Math.floor(ratio * spm), 0), spm - 1);
+  const slotIndex = Math.min(Math.max(Math.floor(ratio * slotCount), 0), slotCount - 1);
 
   // slot単位の間引き: 同一slotの間はonBoundaryDragMoveを呼ばない
   // （_refreshEditorView()のフルリレンダリングコストを抑えるため）。
