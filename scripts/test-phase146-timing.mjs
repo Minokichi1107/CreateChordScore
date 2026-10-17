@@ -35,6 +35,19 @@ assert.equal(model.getMeasure(1).displaySlotCount, 8);
 assert.equal(model.getBeatPosition(0.5), 0.5);
 assert.equal(model.getBeatPosition(1), 0);
 
+// Numeric strings are accepted by the existing anchor repair comparisons; metadata
+// derivation must normalize them consistently so a shortened measure is not left at 8 slots.
+const stringAnchorModel = createTimingModel({
+  beats,
+  downbeats: [...originalDownbeats],
+  timeSignature: { numerator: 4, denominator: 4 },
+  resolutionPerBeat: 2,
+  audioDuration: 8,
+  repairRule: { version: 1, type: 'anchorDownbeat', beatTime: '1.0' },
+});
+assert.equal(stringAnchorModel.getMeasure(0).isLocalAnchorTruncated, true);
+assert.equal(stringAnchorModel.getMeasure(0).displaySlotCount, 4);
+
 // Both renderer projections must preserve the TimingModel's per-measure metadata.
 const analysis = {
   beats,
