@@ -38,3 +38,6 @@ jobs:
             node --check "$file"
             echo "::endgroup::"
           done
+          echo "::group::Phase146 local anchor timing regression tests"
+          node scripts/test-phase146-timing.mjs
+          echo "::endgroup::"
