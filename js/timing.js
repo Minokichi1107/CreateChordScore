@@ -520,6 +520,52 @@ export function createTimingModel({
 
   const measures     = buildMeasures({ beats, downbeats: repairedDownbeats, timeSignature, mode, audioDuration });
 
+  // Phase146 / Issue #101: local anchorDownbeat が直前小節を短縮した場合だけ、
+  // 実行時の表示slot数を記録する。raw.beats / raw.downbeats と保存形式は変更しない。
+  // 観測された拍数だけを理由に短縮しない（補正の provenance を必須とする）。
+  const LOCAL_ANCHOR_EPS = 1e-6;
+  if (mode === 'full' && repairRule?.type === 'anchorDownbeat'
+      && Number.isFinite(repairRule.beatTime)) {
+    const anchorTime = repairRule.beatTime;
+    const anchorWasOriginalDownbeat = downbeats.some(
+      d => Math.abs(d - anchorTime) < LOCAL_ANCHOR_EPS
+    );
+    const anchorBeatIdx = beats.findIndex(
+      b => Math.abs(b - anchorTime) < LOCAL_ANCHOR_EPS
+    );
+    const anchorMeasureIdx = measures.findIndex(
+      m => Math.abs(m.startTime - anchorTime) < LOCAL_ANCHOR_EPS
+    );
+
+    // 既存downbeatでない有効なanchorが、新しい小節境界として採用され、
+    // その直前に小節がある場合に限り、直前小節を局所短縮として印付けする。
+    if (!anchorWasOriginalDownbeat && anchorBeatIdx >= 0 && anchorMeasureIdx > 0) {
+      const previous = measures[anchorMeasureIdx - 1];
+      const isActualAnchorBoundary =
+        Math.abs(previous.endTime - anchorTime) < LOCAL_ANCHOR_EPS;
+      const actualBeatCount = beats.filter(
+        b => b >= previous.startTime - LOCAL_ANCHOR_EPS
+          && b < anchorTime - LOCAL_ANCHOR_EPS
+      ).length;
+
+      if (isActualAnchorBoundary && actualBeatCount > 0
+          && actualBeatCount < (timeSignature?.numerator ?? 4)) {
+        previous.isLocalAnchorTruncated = true;
+        previous.displaySlotCount = actualBeatCount * resolutionPerBeat;
+      }
+    }
+  }
+
+  // displaySlotCount は全小節で必ず数値を持つ。通常小節は従来の標準値。
+  // measure.beatCount と model.slotsPerMeasure の既存意味は変更しない。
+  const standardDisplaySlotCount = timeSignature.numerator * resolutionPerBeat;
+  for (const measure of measures) {
+    if (!Number.isFinite(measure.displaySlotCount)) {
+      measure.displaySlotCount = standardDisplaySlotCount;
+    }
+    measure.isLocalAnchorTruncated = measure.isLocalAnchorTruncated === true;
+  }
+
   // 【短い先頭小節の印（#129）】
   //   wholeSongDownbeat で最初の拍と指定した拍の間に拍が余った場合、
   //   先頭小節（最初の拍〜指定した拍）は4拍未満の短い小節になる。
@@ -586,7 +632,8 @@ export function createTimingModel({
       // fallback quantize の戻り値（全部0）は位置不明として先頭扱い
       return 0.0;
     }
-    return q.slot / slotsPerMeasure;
+    const measureSlotCount = measures[q.measure]?.displaySlotCount ?? slotsPerMeasure;
+    return measureSlotCount > 0 ? q.slot / measureSlotCount : 0.0;
   }
 
   /**
