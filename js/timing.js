@@ -417,15 +417,23 @@ function quantizeTime(time, {
   // その場合は measure.startBeatIdx を事前計算して持たせる方式に切り替えること。
   const BEAT_EPS = 1e-6;
   let beatInMeasure = 0;
-  const startBeatIdx = beats.findIndex(
-    b => Math.abs(b - measure.startTime) < BEAT_EPS
+  const startSlotIdx = slotTimings.findIndex(
+    t => Math.abs(t - measure.startTime) < BEAT_EPS
   );
-  if (startBeatIdx !== -1) {
-    beatInMeasure = beatIdx - startBeatIdx;
+  let slotInMeasure;
+  if (startSlotIdx !== -1) {
+    // 小節頭が拍の後半でも、共通スロット座標から小節内位置を算出する。
+    slotInMeasure = nearestIdx - startSlotIdx;
+    beatInMeasure = Math.floor(slotInMeasure / resolutionPerBeat);
+  } else {
+    // 既存解析の小節頭がスロットに一致しない場合は従来経路を維持する。
+    const startBeatIdx = beats.findIndex(
+      b => Math.abs(b - measure.startTime) < BEAT_EPS
+    );
+    if (startBeatIdx !== -1) beatInMeasure = beatIdx - startBeatIdx;
+    const finalSlotInBeat = nearestIdx % resolutionPerBeat;
+    slotInMeasure = beatInMeasure * resolutionPerBeat + finalSlotInBeat;
   }
-
-  const finalSlotInBeat = nearestIdx % resolutionPerBeat;
-  const slotInMeasure   = beatInMeasure * resolutionPerBeat + finalSlotInBeat;
 
   const confidence = nearestDist < 0.1 ? 'high' : 'low';
 
@@ -504,6 +512,11 @@ export function createTimingModel({
   }
 
   const measures     = buildMeasures({ beats, downbeats: repairedDownbeats, timeSignature, mode, audioDuration });
+  const slotTimings  = buildSlotTimings(beats, resolutionPerBeat);
+  const SLOT_EPS = 1e-6;
+  for (const measure of measures) {
+    measure.startSlotIndex = slotTimings.findIndex(t => Math.abs(t - measure.startTime) < SLOT_EPS);
+  }
 
   // Phase146 / Issue #101: local anchorDownbeat が直前小節を短縮した場合だけ、
   // 実行時の表示slot数を記録する。raw.beats / raw.downbeats と保存形式は変更しない。
@@ -519,31 +532,31 @@ export function createTimingModel({
       : NaN);
   if (mode === 'full' && repairRule?.type === 'anchorDownbeat'
       && Number.isFinite(anchorTime)) {
+    const subdivision = Number.isInteger(repairRule.subdivision) ? repairRule.subdivision : 0;
+    const anchorBeatIdx = beats.findIndex(b => Math.abs(b - anchorTime) < LOCAL_ANCHOR_EPS);
+    const anchorSlotIdx = anchorBeatIdx * resolutionPerBeat + subdivision;
+    const resolvedAnchorTime = slotTimings[anchorSlotIdx];
     const anchorWasOriginalDownbeat = downbeats.some(
-      d => Math.abs(d - anchorTime) < LOCAL_ANCHOR_EPS
-    );
-    const anchorBeatIdx = beats.findIndex(
-      b => Math.abs(b - anchorTime) < LOCAL_ANCHOR_EPS
+      d => Math.abs(d - resolvedAnchorTime) < LOCAL_ANCHOR_EPS
     );
     const anchorMeasureIdx = measures.findIndex(
-      m => Math.abs(m.startTime - anchorTime) < LOCAL_ANCHOR_EPS
+      m => Math.abs(m.startTime - resolvedAnchorTime) < LOCAL_ANCHOR_EPS
     );
 
-    // 既存downbeatでない有効なanchorが、新しい小節境界として採用され、
-    // その直前に小節がある場合に限り、直前小節を局所短縮として印付けする。
-    if (!anchorWasOriginalDownbeat && anchorBeatIdx >= 0 && anchorMeasureIdx > 0) {
+    if (!anchorWasOriginalDownbeat && anchorBeatIdx >= 0
+        && Number.isFinite(resolvedAnchorTime) && anchorMeasureIdx > 0) {
       const previous = measures[anchorMeasureIdx - 1];
       const isActualAnchorBoundary =
-        Math.abs(previous.endTime - anchorTime) < LOCAL_ANCHOR_EPS;
-      const actualBeatCount = beats.filter(
-        b => b >= previous.startTime - LOCAL_ANCHOR_EPS
-          && b < anchorTime - LOCAL_ANCHOR_EPS
-      ).length;
+        Math.abs(previous.endTime - resolvedAnchorTime) < LOCAL_ANCHOR_EPS;
+      const previousStartSlotIdx = previous.startSlotIndex;
+      const actualSlotCount = previousStartSlotIdx >= 0
+        ? anchorSlotIdx - previousStartSlotIdx
+        : 0;
 
-      if (isActualAnchorBoundary && actualBeatCount > 0
-          && actualBeatCount < (timeSignature?.numerator ?? 4)) {
+      if (isActualAnchorBoundary && actualSlotCount > 0
+          && actualSlotCount < (timeSignature?.numerator ?? 4) * resolutionPerBeat) {
         previous.isLocalAnchorTruncated = true;
-        previous.displaySlotCount = actualBeatCount * resolutionPerBeat;
+        previous.displaySlotCount = actualSlotCount;
       }
     }
   }
@@ -568,7 +581,6 @@ export function createTimingModel({
   if (leadingBeatCount > 0 && measures[0]) {
     measures[0].isLeading = true;
   }
-  const slotTimings  = buildSlotTimings(beats, resolutionPerBeat);
   const slotsPerMeasure = timeSignature.numerator * resolutionPerBeat;
 
   /**
