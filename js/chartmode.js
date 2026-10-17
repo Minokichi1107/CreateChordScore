@@ -3333,11 +3333,20 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
 }
 
 
-// Phase146 / Issue #101: Measure幅とSection cell幅を共通slot-unitで決める。
-// 標準小節幅は configured measures-per-row を基準に固定し、短縮小節の分だけ
-// 行末に余白を残す。ResizeObserverでコンテナ幅の変化にも追従する。
+// Phase146 / Issue #101: 局所短縮小節を含む行だけ、Measure幅とSection cell幅を調整する。
+// 短縮小節のない行は既存の flex レイアウトを維持する。
+// ResizeObserverでコンテナ幅が変化した場合も同じ幾何設定を再適用する。
 function _applyMeasureSlotGeometry(rowEl, measures, standardSlotCount, measuresPerRow) {
   if (!rowEl || !(standardSlotCount > 0) || !(measuresPerRow > 0)) return;
+  if (!measures.some(measure => measure.isLocalAnchorTruncated === true)) {
+    delete rowEl._phase146MeasureGeometry;
+    return;
+  }
+
+  // 幅0で初回描画された場合も、後のResizeObserverで再試行できるよう先に保存する。
+  rowEl._phase146MeasureGeometry = { measures, standardSlotCount, measuresPerRow };
+
+  const measureEls = [...rowEl.children].filter(el => el.classList?.contains('chart-measure'));
   const style = getComputedStyle(rowEl);
   const px = value => Number.parseFloat(value) || 0;
   const contentWidth = rowEl.clientWidth - px(style.paddingLeft) - px(style.paddingRight);
@@ -3345,32 +3354,32 @@ function _applyMeasureSlotGeometry(rowEl, measures, standardSlotCount, measuresP
   const standardWidth = (contentWidth - gap * (measuresPerRow - 1)) / measuresPerRow;
   if (!(standardWidth > 0)) return;
 
-  const measureEls = [...rowEl.children].filter(el => el.classList?.contains('chart-measure'));
-  measures.forEach((measure, index) => {
-    const el = measureEls[index];
-    if (!el) return;
+  // DOMの寸法をすべて読み取ってからstyleを書き換え、強制レイアウトを避ける。
+  const widths = measures.map(measure => {
     const count = measure.displaySlotCount ?? standardSlotCount;
-    const width = standardWidth * count / standardSlotCount;
+    return standardWidth * count / standardSlotCount;
+  });
+
+  measureEls.forEach((el, index) => {
+    const width = widths[index];
+    if (!(width > 0)) return;
     el.style.flex = `0 0 ${width}px`;
     el.style.width = `${width}px`;
     el.style.boxSizing = 'border-box';
   });
 
-  // Section overlay cells must use the exact same outer widths as the measures.
+  // Section overlay cells use the same computed widths without reading layout after writes.
   const layers = [...rowEl.children].filter(el => el.classList?.contains('chart-section-layer'));
   for (const layer of layers) {
     const cells = [...layer.children];
-    measureEls.forEach((measureEl, index) => {
+    widths.forEach((width, index) => {
       const cell = cells[index];
-      if (!cell) return;
-      const width = measureEl.getBoundingClientRect().width;
+      if (!cell || !(width > 0)) return;
       cell.style.flex = `0 0 ${width}px`;
       cell.style.width = `${width}px`;
       cell.style.boxSizing = 'border-box';
     });
   }
-
-  rowEl._phase146MeasureGeometry = { measures, standardSlotCount, measuresPerRow };
 }
 
 let _phase146MeasureResizeObserver = null;
