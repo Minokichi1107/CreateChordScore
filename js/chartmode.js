@@ -2399,20 +2399,21 @@ export function getWholeSongRepairSupport(mode, timeSignature) {
  * @param {number}   clientX    - クリック位置X（viewport座標）
  * @param {number}   clientY    - クリック位置Y（viewport座標）
  */
-function _showContextMenu(beatTime, hasRepair, clientX, clientY, diagramChordName = null, wholeSongSupport = null) {
+function _showContextMenu(anchor, hasRepair, clientX, clientY, diagramChordName = null, wholeSongSupport = null) {
   _hideContextMenu();  // 既存を閉じてから生成
 
   const menu = document.createElement('div');
   menu.className = 'chart-context-menu';
 
-  // 「ここを小節頭にする」項目（beatTimeがnull＝指定できる拍が無い場合は表示しない）
-  if (beatTime != null) {
+  // anchorは拍頭時刻と拍内分割位置を保持する。
+  if (anchor != null) {
+    const { beatTime, subdivision = 0 } = anchor;
     const setItem = document.createElement('div');
     setItem.className = 'chart-context-item';
     setItem.textContent = '📍 ここから先を小節頭にする';
     setItem.addEventListener('click', () => {
       _hideContextMenu();
-      _onSetRepairRule?.(beatTime);
+      _onSetRepairRule?.(beatTime, 'anchorDownbeat', null, subdivision);
     });
     menu.appendChild(setItem);
 
@@ -2425,7 +2426,7 @@ function _showContextMenu(beatTime, hasRepair, clientX, clientY, diagramChordNam
       wholeItem.textContent = '📍 曲全体をここ基準に組み直す';
       wholeItem.addEventListener('click', () => {
         _hideContextMenu();
-        _onSetRepairRule?.(beatTime, 'wholeSongDownbeat', wholeSongSupport.ok ? null : wholeSongSupport.reason);
+        _onSetRepairRule?.(beatTime, 'wholeSongDownbeat', wholeSongSupport.ok ? null : wholeSongSupport.reason, subdivision);
       });
       menu.appendChild(wholeItem);
     }
