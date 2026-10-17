@@ -2356,15 +2356,28 @@ export function pickNearestBeatInMeasure(fraction, startTime, endTime, beats) {
   if (!Array.isArray(beats) || !Number.isFinite(fraction) ||
       !Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) return null;
   const EPS = 1e-6;
-  const r = Math.min(1, Math.max(0, fraction));
-  const t = startTime + r * (endTime - startTime);
+  const target = startTime + Math.min(1, Math.max(0, fraction)) * (endTime - startTime);
   let best = null;
   let bestDist = Infinity;
-  for (const b of beats) {
-    if (b < startTime - EPS) continue;
-    if (b >= endTime - EPS) break;
-    const d = Math.abs(b - t);
-    if (d < bestDist) { bestDist = d; best = b; }
+
+  // Match the TimingModel's current two-slot-per-beat grid: beat head and "&".
+  // Interpolate each offbeat from its own neighboring beat interval, not a song-wide tempo.
+  for (let i = 0; i < beats.length; i++) {
+    const beatStart = beats[i];
+    const beatEnd = beats[i + 1] !== undefined
+      ? beats[i + 1]
+      : beatStart + (beatStart - (beats[i - 1] ?? beatStart - 0.5));
+    if (beatStart >= endTime - EPS) break;
+    if (beatEnd < startTime - EPS) continue;
+    for (let subdivision = 0; subdivision < 2; subdivision++) {
+      const slotTime = beatStart + (beatEnd - beatStart) * subdivision / 2;
+      if (slotTime < startTime - EPS || slotTime >= endTime - EPS) continue;
+      const distance = Math.abs(slotTime - target);
+      if (distance < bestDist) {
+        bestDist = distance;
+        best = { beatTime: beatStart, subdivision };
+      }
+    }
   }
   return best;
 }
