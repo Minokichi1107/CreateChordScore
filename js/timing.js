@@ -524,9 +524,16 @@ export function createTimingModel({
   // 実行時の表示slot数を記録する。raw.beats / raw.downbeats と保存形式は変更しない。
   // 観測された拍数だけを理由に短縮しない（補正の provenance を必須とする）。
   const LOCAL_ANCHOR_EPS = 1e-6;
+  // applyAnchorRepair は比較演算で数値文字列も受け入れるため、短縮判定も同じ値に正規化する。
+  // 空文字列・null・その他の非数値型は、有効なアンカー値として扱わない。
+  const rawAnchorTime = repairRule?.beatTime;
+  const anchorTime = typeof rawAnchorTime === 'number'
+    ? rawAnchorTime
+    : (typeof rawAnchorTime === 'string' && rawAnchorTime.trim() !== ''
+      ? Number(rawAnchorTime)
+      : NaN);
   if (mode === 'full' && repairRule?.type === 'anchorDownbeat'
-      && Number.isFinite(repairRule.beatTime)) {
-    const anchorTime = repairRule.beatTime;
+      && Number.isFinite(anchorTime)) {
     const anchorWasOriginalDownbeat = downbeats.some(
       d => Math.abs(d - anchorTime) < LOCAL_ANCHOR_EPS
     );
