@@ -3600,6 +3600,14 @@ function _placeSectionNames(nameRows) {
       rec.layerEl = _createNameLayerEl(rec.cellCount);
       rec.rowEl.classList.add('chart-row--section-layer');
       rec.rowEl.appendChild(rec.layerEl);
+      // Layer may be created after the row's initial width pass when a label
+      // is relocated into a row that had no Section label of its own.
+      const geometry = rec.rowEl._phase146MeasureGeometry;
+      if (geometry) {
+        _applyMeasureSlotGeometry(
+          rec.rowEl, geometry.measures, geometry.standardSlotCount, geometry.measuresPerRow
+        );
+      }
     }
     const cells = [...rec.layerEl.children];
     rec.cells = cells;
