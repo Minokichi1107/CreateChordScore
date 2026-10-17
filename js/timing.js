@@ -175,43 +175,29 @@ function buildMeasures({ beats, downbeats, timeSignature, mode, audioDuration })
  * @returns {number[]}  repairedDownbeats
  *                      （repairRule が null / 型不一致なら downbeats をそのまま返す）
  */
-function applyAnchorRepair(beats, downbeats, repairRule, timeSignature) {
-  // repairRule なし → 何もしない（素通し）
-  if (!repairRule || repairRule.type !== 'anchorDownbeat') {
-    return downbeats;
-  }
+function applyAnchorRepair(beats, downbeats, repairRule, timeSignature, resolutionPerBeat = 2) {
+  if (!repairRule || repairRule.type !== 'anchorDownbeat') return downbeats;
 
-  const anchorTime      = repairRule.beatTime;
   const beatsPerMeasure = timeSignature?.numerator ?? 4;
-  const EPS              = 1e-6;
-
-  // ① anchor より前の既存 downbeats はそのまま残す（時刻比較のみ）。
-  //    「怪しい downbeat を自動で除外する」判定はここでは行わない
-  //    （それは新しい自動推定であり、repairRule の責務外）。
-  const before = downbeats.filter(d => d < anchorTime - EPS);
-
-  // ② anchor に対応する拍を raw.beats から探す。
-  //    [VALUE SOURCE CONSTRAINT] beatTime は raw.beats に実在する値の
-  //    はずなので、見つからない場合はデータ整合性違反として扱う
-  //    （ユーザーへの通知は行わない。内部不整合のログのみ）。
-  const anchorBeatIdx = beats.findIndex(b => Math.abs(b - anchorTime) < EPS);
-  if (anchorBeatIdx === -1) {
-    console.error(
-      '[applyAnchorRepair] anchor beatTime not found in raw.beats — ' +
-      'repairRule invariant violated (beatTime must reference an existing beat). ' +
-      'Skipping repair for this call.'
-    );
+  const slotsPerMeasure = beatsPerMeasure * resolutionPerBeat;
+  const EPS = 1e-6;
+  const anchorBeatIdx = beats.findIndex(b => Math.abs(b - repairRule.beatTime) < EPS);
+  const subdivision = Number.isInteger(repairRule.subdivision) ? repairRule.subdivision : 0;
+  const slotTimings = buildSlotTimings(beats, resolutionPerBeat);
+  const anchorSlotIdx = anchorBeatIdx * resolutionPerBeat + subdivision;
+  if (anchorBeatIdx < 0 || subdivision < 0 || subdivision >= resolutionPerBeat
+      || !Number.isFinite(slotTimings[anchorSlotIdx])) {
+    console.error('[applyAnchorRepair] invalid beat/subdivision anchor; skipping repair.');
     return downbeats;
   }
 
-  // ③ anchor 以降の beats を beatsPerMeasure ごとに区切って
-  //    新しい downbeats として並べる。
+  const anchorTime = slotTimings[anchorSlotIdx];
+  // 既存境界はアンカーより前を維持し、アンカー以降だけをスロット単位で再構築する。
+  const before = downbeats.filter(d => d < anchorTime - EPS);
   const after = [];
-  for (let i = anchorBeatIdx; i < beats.length; i += beatsPerMeasure) {
-    after.push(beats[i]);
+  for (let i = anchorSlotIdx; i < slotTimings.length; i += slotsPerMeasure) {
+    after.push(slotTimings[i]);
   }
-
-  // ④ 前半（変更なし）+ 後半（再生成）をつなげる
   return [...before, ...after];
 }
 
