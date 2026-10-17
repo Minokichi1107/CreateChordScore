@@ -2,6 +2,7 @@
 // Run with Node.js 22: node scripts/test-phase146-timing.mjs
 import assert from 'node:assert/strict';
 import { createTimingModel } from '../js/timing.js';
+import { expandToSlots } from '../js/chartmode.js';
 
 const beats = Array.from({ length: 17 }, (_, i) => i * 0.5);
 const originalDownbeats = [0, 2, 4, 6, 8];
@@ -25,6 +26,14 @@ assert.equal(model.getMeasure(1).isLocalAnchorTruncated, false);
 assert.equal(model.getMeasure(1).displaySlotCount, 8);
 assert.equal(model.getBeatPosition(0.5), 0.5);
 assert.equal(model.getBeatPosition(1), 0);
+
+// The renderer's slot expansion must honor each measure's display count.
+const expandedSlots = expandToSlots([
+  { index: 0, displaySlotCount: 4, slots: [] },
+  { index: 1, displaySlotCount: 8, slots: [] },
+], 8);
+assert.equal(expandedSlots.filter(slot => slot.measureIndex === 0).length, 4);
+assert.equal(expandedSlots.filter(slot => slot.measureIndex === 1).length, 8);
 
 // The repair is runtime-only and must not mutate input arrays.
 assert.deepEqual(originalDownbeats, [0, 2, 4, 6, 8]);
