@@ -394,27 +394,12 @@ function quantizeTime(time, {
   const measure = measures[measureIdx];
 
   // ── measure 内の beat / slot 位置を求める ──
-  // measure.startTime からの経過時間を beats 間隔で数え、
-  // 「このmeasure内で何拍目か」を直接算出する（積み上げ逆算をしない）。
-  // beats は raw のまま（repair対象外）なので、measure.startTime と
-  // 一致する beat のインデックスを起点として使う。
-  // [ASSUMPTION] measure.startTime は必ず raw.beats のいずれかの要素と一致する。
-  // 現在の anchorDownbeat repair では:
-  //   applyAnchorRepair() が after.push(beats[i]) で downbeat を生成するため、
-  //   measure.startTime は常に beats[] 上の実在する値になる。
-  //
-  // [IMPLEMENTATION NOTE] 一致検索は b >= startTime - EPS ではなく
-  //   Math.abs(b - startTime) < EPS（厳密一致）を使う。
-  //   b >= startTime - EPS だと「startTimeより少し後ろの拍」を誤って拾う
-  //   可能性があるため（例: startTime=4.0 の時に beats=[3.9999995, 4.5] があると
-  //   b >= 3.9999994 で 4.5 を先に拾ってしまう）。
-  //   ASSUMPTION に従い「startTime と一致する拍を探す」という意図で実装する。
-  //
-  // [FUTURE RISK] 将来 'shiftTime' 等、beats 上に存在しない時刻を
-  // startTime として持つ別方式の repairRule が追加された場合、
-  // findIndex が -1 を返し、startBeatIdx !== -1 ガードにより
-  // beatInMeasure = 0 にサイレントフォールバックする。
-  // その場合は measure.startBeatIdx を事前計算して持たせる方式に切り替えること。
+  // 小節頭が共通 slotTimings 上にある場合は、そのグローバルslot indexを基準に
+  // 小節内slotを算出する。これにより拍頭だけでなく拍の後半を小節頭にできる。
+  // 既存解析の小節頭がスロット時刻に一致しない場合に限り、互換性のため
+  // 従来の raw beats ベース計算へフォールバックする。
+  // フォールバックでも一致する拍が見つからない場合は beatInMeasure=0 になるため、
+  // 不整合な downbeat と beats の検証は別途の課題として残す。
   const BEAT_EPS = 1e-6;
   let beatInMeasure = 0;
   const startSlotIdx = slotTimings.findIndex(
@@ -462,7 +447,7 @@ function quantizeTime(time, {
  * @param {string}   [params.quantizeMode]      - "nearest"（現在のみ対応）
  * @param {number}   [params.anticipationWindow]- デフォルト 0.5
  * @param {number}   [params.audioDuration]     - 秒。最終小節 endTime 計算用
- * @param {object|null} [params.repairRule]     - Phase72-B: { version, type:'anchorDownbeat', beatTime }
+ * @param {object|null} [params.repairRule]     - { version, type, beatTime, subdivision? }; subdivision=0 is beat head, 1 is the second half of the beat
  *                                                 #129: type:'wholeSongDownbeat' も受け付ける（曲全体の組み直し）
  *                                                 ユーザーが指定した手動タイミング補正の意図。
  *                                                 null の場合は repair なし（既存動作と同一）。
