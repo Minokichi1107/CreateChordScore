@@ -1817,8 +1817,9 @@ function _getMinSlotDuration(atTime) {
   const q = model.quantize(atTime);
   if (!q || q.measure == null || q.measure < 0) return null;
   const measure = model.getMeasure(q.measure);
-  if (!measure || !model.slotsPerMeasure) return null;
-  return (measure.endTime - measure.startTime) / model.slotsPerMeasure;
+  const slotCount = measure?.displaySlotCount ?? model.slotsPerMeasure;
+  if (!measure || !(slotCount > 0)) return null;
+  return (measure.endTime - measure.startTime) / slotCount;
 }
 
 /**
