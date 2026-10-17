@@ -2186,28 +2186,28 @@ let _contextMenuBound   = false; // idempotent guard
 function _getBeatTimeFromSlot(measureIndex, visualSlotIndex, model, beats, timeSignature) {
   const measure = model.getMeasure(measureIndex);
   if (!measure) return null;
-
-  // measure.startTime に対応する beats[] のインデックスを求める
-  // [ASSUMPTION] measure.startTime は必ず beats[] のいずれかと一致する
-  //（applyAnchorRepair が after.push(beats[i]) で生成するため）
-  const EPS = 1e-6;
-  const startBeatIdx = beats.findIndex(b => Math.abs(b - measure.startTime) < EPS);
-  if (startBeatIdx === -1) return null;  // invariant violation
-
-  // [Phase72-B 修正: ChatGPTレビュー指摘対応]
-  // resolutionPerBeat は measure.beatCount（repair後は小節ごとに変わりうる）
-  // からではなく、timeSignature.numerator（固定値）から算出する。
-  // model.slotsPerMeasure = timeSignature.numerator × resolutionPerBeat
-  // （createTimingModel 内で固定の timeSignature を使って算出されているため、
-  //   repairによる不揃い小節があっても resolutionPerBeat 自体は変わらない）
   const numerator = timeSignature?.numerator || 4;
   const resolutionPerBeat = model.slotsPerMeasure / numerator;
+  if (!(resolutionPerBeat > 0)) return null;
 
-  // visual slot index → measure 内の拍番号
-  const beatInMeasure = Math.floor(visualSlotIndex / resolutionPerBeat);
+  if (!(measureIndex === 0 && chartState.pickupLeadingOffset > 0)
+      && Number.isInteger(measure.startSlotIndex) && measure.startSlotIndex >= 0) {
+    const globalSlotIdx = measure.startSlotIndex + visualSlotIndex;
+    const beatIdx = Math.floor(globalSlotIdx / resolutionPerBeat);
+    const subdivision = globalSlotIdx % resolutionPerBeat;
+    const beatTime = beats[beatIdx];
+    return Number.isFinite(beatTime) ? { beatTime, subdivision } : null;
+  }
 
-  const globalBeatIdx = startBeatIdx + beatInMeasure;
-  return beats[globalBeatIdx] ?? null;
+  // Pickup uses a distinct visual slot space; retain the legacy fallback there.
+  const EPS = 1e-6;
+  const startBeatIdx = beats.findIndex(b => Math.abs(b - measure.startTime) < EPS);
+  if (startBeatIdx === -1) return null;
+  const globalSlotIdx = startBeatIdx * resolutionPerBeat + visualSlotIndex;
+  const beatIdx = Math.floor(globalSlotIdx / resolutionPerBeat);
+  const subdivision = globalSlotIdx % resolutionPerBeat;
+  const beatTime = beats[beatIdx];
+  return Number.isFinite(beatTime) ? { beatTime, subdivision } : null;
 }
 
 /**
