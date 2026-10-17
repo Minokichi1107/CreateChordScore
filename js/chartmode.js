@@ -141,9 +141,12 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
       startTime:  m.startTime,
       endTime:    m.endTime,    // pickup 判定・seek に必須
       confidence: m.confidence,
-      // #129: 短い先頭小節の印（timing.js が付与。実行時のみ・保存しない）。
-      // detectPickupMeasure() が参照し、1〜3拍の先頭小節を確実に弱起扱いにする。
+      // #129: 曲全体の弱起由来の印。局所anchor短縮とは別の意味を持つ。
       isLeading:  m.isLeading === true,
+      // Phase146 / #101: anchorDownbeat によって直前小節が短縮された場合のみ
+      // displaySlotCount が標準値より小さくなる。実行時のみ・保存しない。
+      displaySlotCount: m.displaySlotCount ?? slotsPerMeasure,
+      isLocalAnchorTruncated: m.isLocalAnchorTruncated === true,
       slots:      [],           // { slotIndex, onsets[] } onset ありのみ追加
     };
   });
@@ -162,7 +165,7 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
     const measure = measures[q.measure];
     const slotIndex = q.slot;  // 0-based, within measure
 
-    if (slotIndex < 0 || slotIndex >= slotsPerMeasure) continue;
+    if (slotIndex < 0 || slotIndex >= (measure.displaySlotCount ?? slotsPerMeasure)) continue;
 
     // 既存 slot を探す
     let slot = measure.slots.find(s => s.slotIndex === slotIndex);
@@ -351,7 +354,14 @@ export function buildContinuousChordProjection(analysis, audioDuration = null) {
   const measures = [];
   for (let mi = 0; mi < model.measureCount; mi++) {
     const m = model.getMeasure(mi);
-    if (m) measures.push({ startTime: m.startTime, endTime: m.endTime, confidence: m.confidence, isLeading: m.isLeading === true });
+    if (m) measures.push({
+      startTime: m.startTime,
+      endTime: m.endTime,
+      confidence: m.confidence,
+      isLeading: m.isLeading === true,
+      displaySlotCount: m.displaySlotCount ?? model.slotsPerMeasure,
+      isLocalAnchorTruncated: m.isLocalAnchorTruncated === true,
+    });
   }
 
   // Beat Grid: raw.beats（実時間）をMeasure内の連続位置へ変換するのみ。
@@ -706,7 +716,11 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
     // mode/isPickup/timeSignature/actualBeats を確認済みの最終フラグ。
     // leadingOffset も _renderChartGrid() 側で一度だけ計算済み
     // （chartState.pickupLeadingOffset と同じ値。単一情報源）。
-    const usesPickupProjection = (mi === 0 && pickupCtx?.enabled);
+    const usesPickupProjection = (mi === 0 && pickupCtx?.enabled)
+      && measure.isLocalAnchorTruncated !== true;
+    const measureSlotCount = usesPickupProjection
+      ? slotsPerMeasure
+      : (measure.displaySlotCount ?? slotsPerMeasure);
     const leadingOffset = usesPickupProjection ? pickupCtx.leadingOffset : 0;
 
     if (usesPickupProjection) {
@@ -854,7 +868,7 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
       }])
     );
 
-    for (let si = 0; si < slotsPerMeasure; si++) {
+    for (let si = 0; si < measureSlotCount; si++) {
       const projected = onsetMap.get(si);
       const onset = projected?.chosen ?? null;
 
@@ -1795,11 +1809,16 @@ function _setupGridClickSeek() {
       // （architecture.md §9.5の不可侵性を維持する）。
       let slotIndex = null;
       if (measureEl && !e.target.closest('.chart-slot--projection-empty')) {
-        const spm = chartState.viewModel?.model?.slotsPerMeasure;
-        if (spm) {
+        const model = chartState.viewModel?.model;
+        const standardCount = model?.slotsPerMeasure;
+        const measure = measureIndex !== null ? chartState.viewModel?.measures?.[measureIndex] : null;
+        const count = (measureIndex === 0 && chartState.pickupLeadingOffset > 0)
+          ? standardCount
+          : (measure?.displaySlotCount ?? standardCount);
+        if (count) {
           const rect = measureEl.getBoundingClientRect();
           const ratio = (e.clientX - rect.left) / rect.width;
-          slotIndex = Math.min(Math.max(Math.floor(ratio * spm), 0), spm - 1);
+          slotIndex = Math.min(Math.max(Math.floor(ratio * count), 0), count - 1);
         }
       }
 
@@ -2207,8 +2226,13 @@ function _getBeatTimeFromSlot(measureIndex, visualSlotIndex, model, beats, timeS
 function _getExactTimeFromSlot(measureIndex, visualSlotIndex, model) {
   const measure = model.getMeasure(measureIndex);
   if (!measure) return null;
-  const slotsPerMeasure = model.slotsPerMeasure;
-  if (!slotsPerMeasure) return null;
+  const standardSlotCount = model.slotsPerMeasure;
+  if (!standardSlotCount) return null;
+  // Genuine pickup projection remains in standard visual slot space; local
+  // anchor-truncated measures use their own display count.
+  const slotsPerMeasure = (measureIndex === 0 && chartState.pickupLeadingOffset > 0)
+    ? standardSlotCount
+    : (measure.displaySlotCount ?? standardSlotCount);
   const ratio = visualSlotIndex / slotsPerMeasure;
   return measure.startTime + (measure.endTime - measure.startTime) * ratio;
 }
@@ -3026,7 +3050,8 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
       // chord label の幅は CSS変数 --duration-slots で制御する（span 方式は使わない）。
       const slotsEl = document.createElement('div');
       slotsEl.className = 'chart-slots';
-      slotsEl.style.gridTemplateColumns = `repeat(${model.slotsPerMeasure}, 1fr)`;
+      const measureSlotCount = measures[mi]?.displaySlotCount ?? model.slotsPerMeasure;
+      slotsEl.style.gridTemplateColumns = `repeat(${measureSlotCount}, 1fr)`;
 
       // ── slot loop ──────────────────────────────────────────
       // 全 slot（onset / carry / empty）の DOM を生成する。
@@ -3267,13 +3292,14 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
     const nameRow = {
       rowEl,
       cellCount: Math.min(rowStart + measuresPerRow, measures.length) - rowStart,
-      slotsPerMeasure: model.slotsPerMeasure,
+      slotCounts: measures.slice(rowStart, Math.min(rowStart + measuresPerRow, measures.length))
+        .map(m => m.displaySlotCount ?? model.slotsPerMeasure),
       layerEl: null,
       items: [],
       placed: [],
     };
     if (rowNameLabels.length) {
-      const built = _buildSectionNameLayer(rowNameLabels, nameRow.cellCount, nameRow.slotsPerMeasure);
+      const built = _buildSectionNameLayer(rowNameLabels, nameRow.slotCounts);
       if (built) {
         nameRow.layerEl = built.el;
         nameRow.items = built.items;
@@ -3284,13 +3310,84 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
     nameRows.push(nameRow);
 
     container.appendChild(rowEl);
+    _applyMeasureSlotGeometry(
+      rowEl,
+      measures.slice(rowStart, Math.min(rowStart + measuresPerRow, measures.length)),
+      model.slotsPerMeasure,
+      measuresPerRow
+    );
   }
+  _observeMeasureSlotGeometry(container);
 
   // [Phase143] Section名の最終位置を決める（全行追加後・行ごとに1回だけ幅を読む）
   _placeSectionNames(nameRows);
 
   // [Phase106] 通常経路（full/beat-only）の描画完了後にもスクロール位置を復元する。
   container.scrollTop = _prevScrollTop;
+}
+
+
+// Phase146 / Issue #101: Measure幅とSection cell幅を共通slot-unitで決める。
+// 標準小節幅は configured measures-per-row を基準に固定し、短縮小節の分だけ
+// 行末に余白を残す。ResizeObserverでコンテナ幅の変化にも追従する。
+function _applyMeasureSlotGeometry(rowEl, measures, standardSlotCount, measuresPerRow) {
+  if (!rowEl || !(standardSlotCount > 0) || !(measuresPerRow > 0)) return;
+  const style = getComputedStyle(rowEl);
+  const px = value => Number.parseFloat(value) || 0;
+  const contentWidth = rowEl.clientWidth - px(style.paddingLeft) - px(style.paddingRight);
+  const gap = px(style.columnGap || style.gap);
+  const standardWidth = (contentWidth - gap * (measuresPerRow - 1)) / measuresPerRow;
+  if (!(standardWidth > 0)) return;
+
+  const measureEls = [...rowEl.children].filter(el => el.classList?.contains('chart-measure'));
+  measures.forEach((measure, index) => {
+    const el = measureEls[index];
+    if (!el) return;
+    const count = measure.displaySlotCount ?? standardSlotCount;
+    const width = standardWidth * count / standardSlotCount;
+    el.style.flex = `0 0 ${width}px`;
+    el.style.width = `${width}px`;
+    el.style.boxSizing = 'border-box';
+  });
+
+  // Section overlay cells must use the exact same outer widths as the measures.
+  const layers = [...rowEl.children].filter(el => el.classList?.contains('chart-section-layer'));
+  for (const layer of layers) {
+    const cells = [...layer.children];
+    measureEls.forEach((measureEl, index) => {
+      const cell = cells[index];
+      if (!cell) return;
+      const width = measureEl.getBoundingClientRect().width;
+      cell.style.flex = `0 0 ${width}px`;
+      cell.style.width = `${width}px`;
+      cell.style.boxSizing = 'border-box';
+    });
+  }
+
+  rowEl._phase146MeasureGeometry = { measures, standardSlotCount, measuresPerRow };
+}
+
+let _phase146MeasureResizeObserver = null;
+const _phase146ObservedContainers = new WeakSet();
+function _observeMeasureSlotGeometry(container) {
+  if (typeof ResizeObserver !== 'function' || _phase146ObservedContainers.has(container)) return;
+  if (!_phase146MeasureResizeObserver) {
+    _phase146MeasureResizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const rows = entry.target.querySelectorAll('.chart-row');
+        for (const row of rows) {
+          const config = row._phase146MeasureGeometry;
+          if (config) {
+            _applyMeasureSlotGeometry(
+              row, config.measures, config.standardSlotCount, config.measuresPerRow
+            );
+          }
+        }
+      }
+    });
+  }
+  _phase146MeasureResizeObserver.observe(container);
+  _phase146ObservedContainers.add(container);
 }
 
 // ────────────────────────────────────────
@@ -3326,6 +3423,8 @@ function detectPickupMeasure(measures) {
   // #129: 曲全体の組み直し（wholeSongDownbeat）で timing.js が付けた印がある場合は、
   // 長さの閾値判定を行わず弱起と確定する（1〜3拍の短い先頭小節は閾値では確実に拾えない）。
   // 閾値（0.75倍・±30%）は変更しない。印が無い曲は従来どおりの判定。
+  // A local anchor can shorten the first displayed measure, but that is not a pickup.
+  if (measures[0]?.isLocalAnchorTruncated === true) return false;
   if (measures[0]?.isLeading === true) return true;
 
   // 旧project互換ガード（Phase61 hotfix）:
@@ -3420,16 +3519,19 @@ function _resolveSectionMarkers(markers, segments) {
  * @param {number} slotsPerMeasure - 1小節のslot数（model.slotsPerMeasure）
  * @returns {{el: HTMLElement, items: Array}|null} 名前が無ければnull
  */
-function _buildSectionNameLayer(labels, cellCount, slotsPerMeasure) {
-  if (!labels.length || !(slotsPerMeasure > 0)) return null;
-  const sorted = [...labels].sort(
-    (a, b) => (a.cellIndex * slotsPerMeasure + a.slotIndex) - (b.cellIndex * slotsPerMeasure + b.slotIndex)
-  );
+function _buildSectionNameLayer(labels, slotCounts) {
+  if (!labels.length || !Array.isArray(slotCounts) || !slotCounts.length
+      || slotCounts.some(n => !(n > 0))) return null;
+  const cellCount = slotCounts.length;
+  const absoluteSlot = (item) => slotCounts
+    .slice(0, item.cellIndex)
+    .reduce((sum, count) => sum + count, 0) + item.slotIndex;
+  const sorted = [...labels].sort((a, b) => absoluteSlot(a) - absoluteSlot(b));
   const layerEl = _createNameLayerEl(cellCount);
   const items = sorted.map(lb => {
     const labelEl = document.createElement('span');
     labelEl.className = 'chart-section-preview-label';
-    labelEl.style.left = `${(lb.slotIndex / slotsPerMeasure) * 100}%`;
+    labelEl.style.left = `${(lb.slotIndex / slotCounts[lb.cellIndex]) * 100}%`;
     if (lb.colorToken) labelEl.dataset.colorToken = lb.colorToken;
     const textEl = document.createElement('span');
     textEl.className = 'chart-section-preview-label-text';
@@ -3441,7 +3543,7 @@ function _buildSectionNameLayer(labels, cellCount, slotsPerMeasure) {
     const lineEl = document.createElement('span');
     lineEl.className = 'chart-section-marker chart-section-marker--slot';
     if (lb.colorToken) lineEl.dataset.colorToken = lb.colorToken;
-    lineEl.style.left = `${(lb.slotIndex / slotsPerMeasure) * 100}%`;
+    lineEl.style.left = `${(lb.slotIndex / slotCounts[lb.cellIndex]) * 100}%`;
     layerEl.children[lb.cellIndex]?.appendChild(lineEl);
     return { labelEl, cellIndex: lb.cellIndex, slotIndex: lb.slotIndex };
   });
@@ -3500,7 +3602,8 @@ function _placeSectionNames(nameRows) {
     return rec.innerW[0] > 0;
   };
   const startX = (rec, it) =>
-    rec.innerLeft[it.cellIndex] + (it.slotIndex / rec.slotsPerMeasure) * rec.innerW[it.cellIndex]
+    rec.innerLeft[it.cellIndex]
+    + (it.slotIndex / rec.slotCounts[it.cellIndex]) * rec.innerW[it.cellIndex]
     + SECTION_NAME_MARGIN_LEFT_PX;
 
   // 候補位置 x に置ける最大幅。置けない（重なる）なら -Infinity。
@@ -3534,7 +3637,12 @@ function _placeSectionNames(nameRows) {
 
     rec.items.forEach((it, idx) => {
       const nextInRow = rec.items[idx + 1];
-      const candidates = [{ rec, cellIndex: it.cellIndex, x: it.x, rel: it.slotIndex / rec.slotsPerMeasure }];
+      const candidates = [{
+        rec,
+        cellIndex: it.cellIndex,
+        x: it.x,
+        rel: it.slotIndex / rec.slotCounts[it.cellIndex],
+      }];
       for (let c = it.cellIndex + 1; c < rec.cellCount; c++) {
         const hx = rec.innerLeft[c] + SECTION_NAME_MARGIN_LEFT_PX;
         if (nextInRow && hx >= nextInRow.x) break;   // 次のSectionの開始より後ろには出さない
@@ -3873,7 +3981,14 @@ function _renderChartGridContinuous(container, analysis, { measuresPerRow = 3 } 
     }
 
     container.appendChild(rowEl);
+    _applyMeasureSlotGeometry(
+      rowEl,
+      measures.slice(rowStart, Math.min(rowStart + measuresPerRow, measures.length)),
+      model.slotsPerMeasure,
+      measuresPerRow
+    );
   }
+  _observeMeasureSlotGeometry(container);
 
   // 【Phase136-A】全Rowの描画が終わり、Measureの実際のpx幅が
   // DOM上で確定した後に、Chord Label Projectionを適用する。
