@@ -147,6 +147,7 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
       // displaySlotCount が標準値より小さくなる。実行時のみ・保存しない。
       displaySlotCount: m.displaySlotCount ?? slotsPerMeasure,
       isLocalAnchorTruncated: m.isLocalAnchorTruncated === true,
+      isWholeSongSubbeatTruncated: m.isWholeSongSubbeatTruncated === true,
       slots:      [],           // { slotIndex, onsets[] } onset ありのみ追加
     };
   });
@@ -361,6 +362,7 @@ export function buildContinuousChordProjection(analysis, audioDuration = null) {
       isLeading: m.isLeading === true,
       displaySlotCount: m.displaySlotCount ?? model.slotsPerMeasure,
       isLocalAnchorTruncated: m.isLocalAnchorTruncated === true,
+      isWholeSongSubbeatTruncated: m.isWholeSongSubbeatTruncated === true,
     });
   }
 
@@ -3347,12 +3349,15 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
 }
 
 
-// Phase146 / Issue #101: 局所短縮小節を含む行だけ、Measure幅とSection cell幅を調整する。
+// Phase146 / Issue #101: 局所短縮小節、または全曲補正でサブビート短縮先頭小節を含む行だけ、Measure幅とSection cell幅を調整する。
 // 短縮小節のない行は既存の flex レイアウトを維持する。
 // ResizeObserverでコンテナ幅が変化した場合も同じ幾何設定を再適用する。
 function _applyMeasureSlotGeometry(rowEl, measures, standardSlotCount, measuresPerRow) {
   if (!rowEl || !(standardSlotCount > 0) || !(measuresPerRow > 0)) return;
-  if (!measures.some(measure => measure.isLocalAnchorTruncated === true)) {
+  if (!measures.some(measure =>
+    measure.isLocalAnchorTruncated === true ||
+    measure.isWholeSongSubbeatTruncated === true
+  )) {
     delete rowEl._phase146MeasureGeometry;
     return;
   }
