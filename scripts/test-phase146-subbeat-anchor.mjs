@@ -9,6 +9,10 @@ import {
   pickNearestBeatInMeasure,
 } from '../js/chartmode.js';
 
+// buildGridViewModel writes optional diagnostics to window; provide the minimal
+// browser global for this Node-only integration fixture.
+globalThis.window = globalThis.window ?? {};
+
 const beats = Array.from({ length: 33 }, (_, i) => i * 0.5);
 const originalDownbeats = [0, 2, 4, 6, 8, 10, 12, 14, 16];
 const repairRule = {
