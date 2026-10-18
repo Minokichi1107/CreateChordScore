@@ -1817,8 +1817,9 @@ function _getMinSlotDuration(atTime) {
   const q = model.quantize(atTime);
   if (!q || q.measure == null || q.measure < 0) return null;
   const measure = model.getMeasure(q.measure);
-  if (!measure || !model.slotsPerMeasure) return null;
-  return (measure.endTime - measure.startTime) / model.slotsPerMeasure;
+  const slotCount = measure?.displaySlotCount ?? model.slotsPerMeasure;
+  if (!measure || !(slotCount > 0)) return null;
+  return (measure.endTime - measure.startTime) / slotCount;
 }
 
 /**
@@ -7524,7 +7525,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // chartmode.js はユーザーが「何を選んだか」を通知するだけ。
 
     // 「ここを小節頭にする」: beatTime を受け取り、repairRule を保存して再描画
-    onSetRepairRule: async (beatTime, type = 'anchorDownbeat', blockedReason = null) => {
+    onSetRepairRule: async (beatTime, type = 'anchorDownbeat', blockedReason = null, subdivision = 0) => {
       if (!project.analysis) return;
 
       // 曲全体の組み直し(#129)が使えない曲(4/4以外・beat-only)は理由だけ通知して終了
@@ -7547,7 +7548,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (!confirmed) return;
       }
 
-      const newRepairRule = { version: 1, type, beatTime };
+      const newRepairRule = { version: 1, type, beatTime, subdivision: Number.isInteger(subdivision) && subdivision >= 0 ? subdivision : 0 };
 
       // [Phase72-B 修正: ChatGPTレビュー指摘対応]
       // 先に保存し、成功を確認してから project.analysis に反映する。

@@ -175,43 +175,29 @@ function buildMeasures({ beats, downbeats, timeSignature, mode, audioDuration })
  * @returns {number[]}  repairedDownbeats
  *                      （repairRule が null / 型不一致なら downbeats をそのまま返す）
  */
-function applyAnchorRepair(beats, downbeats, repairRule, timeSignature) {
-  // repairRule なし → 何もしない（素通し）
-  if (!repairRule || repairRule.type !== 'anchorDownbeat') {
-    return downbeats;
-  }
+function applyAnchorRepair(beats, downbeats, repairRule, timeSignature, resolutionPerBeat = 2) {
+  if (!repairRule || repairRule.type !== 'anchorDownbeat') return downbeats;
 
-  const anchorTime      = repairRule.beatTime;
   const beatsPerMeasure = timeSignature?.numerator ?? 4;
-  const EPS              = 1e-6;
-
-  // ① anchor より前の既存 downbeats はそのまま残す（時刻比較のみ）。
-  //    「怪しい downbeat を自動で除外する」判定はここでは行わない
-  //    （それは新しい自動推定であり、repairRule の責務外）。
-  const before = downbeats.filter(d => d < anchorTime - EPS);
-
-  // ② anchor に対応する拍を raw.beats から探す。
-  //    [VALUE SOURCE CONSTRAINT] beatTime は raw.beats に実在する値の
-  //    はずなので、見つからない場合はデータ整合性違反として扱う
-  //    （ユーザーへの通知は行わない。内部不整合のログのみ）。
-  const anchorBeatIdx = beats.findIndex(b => Math.abs(b - anchorTime) < EPS);
-  if (anchorBeatIdx === -1) {
-    console.error(
-      '[applyAnchorRepair] anchor beatTime not found in raw.beats — ' +
-      'repairRule invariant violated (beatTime must reference an existing beat). ' +
-      'Skipping repair for this call.'
-    );
+  const slotsPerMeasure = beatsPerMeasure * resolutionPerBeat;
+  const EPS = 1e-6;
+  const anchorBeatIdx = beats.findIndex(b => Math.abs(b - repairRule.beatTime) < EPS);
+  const subdivision = Number.isInteger(repairRule.subdivision) ? repairRule.subdivision : 0;
+  const slotTimings = buildSlotTimings(beats, resolutionPerBeat);
+  const anchorSlotIdx = anchorBeatIdx * resolutionPerBeat + subdivision;
+  if (anchorBeatIdx < 0 || subdivision < 0 || subdivision >= resolutionPerBeat
+      || !Number.isFinite(slotTimings[anchorSlotIdx])) {
+    console.error('[applyAnchorRepair] invalid beat/subdivision anchor; skipping repair.');
     return downbeats;
   }
 
-  // ③ anchor 以降の beats を beatsPerMeasure ごとに区切って
-  //    新しい downbeats として並べる。
+  const anchorTime = slotTimings[anchorSlotIdx];
+  // 既存境界はアンカーより前を維持し、アンカー以降だけをスロット単位で再構築する。
+  const before = downbeats.filter(d => d < anchorTime - EPS);
   const after = [];
-  for (let i = anchorBeatIdx; i < beats.length; i += beatsPerMeasure) {
-    after.push(beats[i]);
+  for (let i = anchorSlotIdx; i < slotTimings.length; i += slotsPerMeasure) {
+    after.push(slotTimings[i]);
   }
-
-  // ④ 前半（変更なし）+ 後半（再生成）をつなげる
   return [...before, ...after];
 }
 
@@ -243,26 +229,25 @@ function applyAnchorRepair(beats, downbeats, repairRule, timeSignature) {
  * @param {object}   timeSignature  - { numerator, denominator }
  * @returns {{ downbeats: number[], leadingBeatCount: number }}
  */
-function applyWholeSongRepair(beats, downbeats, repairRule, timeSignature) {
+function applyWholeSongRepair(beats, downbeats, repairRule, timeSignature, resolutionPerBeat = 2) {
   const beatsPerMeasure = timeSignature?.numerator ?? 4;
+  const slotsPerMeasure = beatsPerMeasure * resolutionPerBeat;
   const EPS = 1e-6;
-
   const idx = beats.findIndex(b => Math.abs(b - repairRule.beatTime) < EPS);
-  if (idx === -1) {
-    // [VALUE SOURCE CONSTRAINT] beatTime は raw.beats に実在する値のはず。
-    // 見つからない場合は補正せず素通しにする（内部不整合のログのみ）。
-    console.error(
-      '[applyWholeSongRepair] beatTime not found in raw.beats — ' +
-      'repairRule invariant violated. Skipping repair for this call.'
-    );
+  const subdivision = Number.isInteger(repairRule.subdivision) ? repairRule.subdivision : 0;
+  const slotTimings = buildSlotTimings(beats, resolutionPerBeat);
+  const anchorSlotIdx = idx * resolutionPerBeat + subdivision;
+  if (idx < 0 || subdivision < 0 || subdivision >= resolutionPerBeat
+      || !Number.isFinite(slotTimings[anchorSlotIdx])) {
+    console.error('[applyWholeSongRepair] invalid beat/subdivision anchor; skipping repair.');
     return { downbeats, leadingBeatCount: 0 };
   }
 
-  const phase = idx % beatsPerMeasure;
+  const phase = anchorSlotIdx % slotsPerMeasure;
   const result = [];
-  if (phase > 0) result.push(beats[0]);
-  for (let i = phase; i < beats.length; i += beatsPerMeasure) {
-    result.push(beats[i]);
+  if (phase > 0) result.push(slotTimings[0]);
+  for (let i = phase; i < slotTimings.length; i += slotsPerMeasure) {
+    result.push(slotTimings[i]);
   }
   return { downbeats: result, leadingBeatCount: phase };
 }
@@ -409,38 +394,31 @@ function quantizeTime(time, {
   const measure = measures[measureIdx];
 
   // ── measure 内の beat / slot 位置を求める ──
-  // measure.startTime からの経過時間を beats 間隔で数え、
-  // 「このmeasure内で何拍目か」を直接算出する（積み上げ逆算をしない）。
-  // beats は raw のまま（repair対象外）なので、measure.startTime と
-  // 一致する beat のインデックスを起点として使う。
-  // [ASSUMPTION] measure.startTime は必ず raw.beats のいずれかの要素と一致する。
-  // 現在の anchorDownbeat repair では:
-  //   applyAnchorRepair() が after.push(beats[i]) で downbeat を生成するため、
-  //   measure.startTime は常に beats[] 上の実在する値になる。
-  //
-  // [IMPLEMENTATION NOTE] 一致検索は b >= startTime - EPS ではなく
-  //   Math.abs(b - startTime) < EPS（厳密一致）を使う。
-  //   b >= startTime - EPS だと「startTimeより少し後ろの拍」を誤って拾う
-  //   可能性があるため（例: startTime=4.0 の時に beats=[3.9999995, 4.5] があると
-  //   b >= 3.9999994 で 4.5 を先に拾ってしまう）。
-  //   ASSUMPTION に従い「startTime と一致する拍を探す」という意図で実装する。
-  //
-  // [FUTURE RISK] 将来 'shiftTime' 等、beats 上に存在しない時刻を
-  // startTime として持つ別方式の repairRule が追加された場合、
-  // findIndex が -1 を返し、startBeatIdx !== -1 ガードにより
-  // beatInMeasure = 0 にサイレントフォールバックする。
-  // その場合は measure.startBeatIdx を事前計算して持たせる方式に切り替えること。
+  // 小節頭が共通 slotTimings 上にある場合は、そのグローバルslot indexを基準に
+  // 小節内slotを算出する。これにより拍頭だけでなく拍の後半を小節頭にできる。
+  // 既存解析の小節頭がスロット時刻に一致しない場合に限り、互換性のため
+  // 従来の raw beats ベース計算へフォールバックする。
+  // フォールバックでも一致する拍が見つからない場合は beatInMeasure=0 になるため、
+  // 不整合な downbeat と beats の検証は別途の課題として残す。
   const BEAT_EPS = 1e-6;
   let beatInMeasure = 0;
-  const startBeatIdx = beats.findIndex(
-    b => Math.abs(b - measure.startTime) < BEAT_EPS
+  const startSlotIdx = slotTimings.findIndex(
+    t => Math.abs(t - measure.startTime) < BEAT_EPS
   );
-  if (startBeatIdx !== -1) {
-    beatInMeasure = beatIdx - startBeatIdx;
+  let slotInMeasure;
+  if (startSlotIdx !== -1) {
+    // 小節頭が拍の後半でも、共通スロット座標から小節内位置を算出する。
+    slotInMeasure = nearestIdx - startSlotIdx;
+    beatInMeasure = Math.floor(slotInMeasure / resolutionPerBeat);
+  } else {
+    // 既存解析の小節頭がスロットに一致しない場合は従来経路を維持する。
+    const startBeatIdx = beats.findIndex(
+      b => Math.abs(b - measure.startTime) < BEAT_EPS
+    );
+    if (startBeatIdx !== -1) beatInMeasure = beatIdx - startBeatIdx;
+    const finalSlotInBeat = nearestIdx % resolutionPerBeat;
+    slotInMeasure = beatInMeasure * resolutionPerBeat + finalSlotInBeat;
   }
-
-  const finalSlotInBeat = nearestIdx % resolutionPerBeat;
-  const slotInMeasure   = beatInMeasure * resolutionPerBeat + finalSlotInBeat;
 
   const confidence = nearestDist < 0.1 ? 'high' : 'low';
 
@@ -469,7 +447,7 @@ function quantizeTime(time, {
  * @param {string}   [params.quantizeMode]      - "nearest"（現在のみ対応）
  * @param {number}   [params.anticipationWindow]- デフォルト 0.5
  * @param {number}   [params.audioDuration]     - 秒。最終小節 endTime 計算用
- * @param {object|null} [params.repairRule]     - Phase72-B: { version, type:'anchorDownbeat', beatTime }
+ * @param {object|null} [params.repairRule]     - { version, type, beatTime, subdivision? }; subdivision=0 is beat head, 1 is the second half of the beat
  *                                                 #129: type:'wholeSongDownbeat' も受け付ける（曲全体の組み直し）
  *                                                 ユーザーが指定した手動タイミング補正の意図。
  *                                                 null の場合は repair なし（既存動作と同一）。
@@ -511,14 +489,73 @@ export function createTimingModel({
   let repairedDownbeats;
   let leadingBeatCount = 0;
   if (repairRule && repairRule.type === 'wholeSongDownbeat') {
-    const whole = applyWholeSongRepair(beats, downbeats, repairRule, timeSignature);
+    const whole = applyWholeSongRepair(beats, downbeats, repairRule, timeSignature, resolutionPerBeat);
     repairedDownbeats = whole.downbeats;
     leadingBeatCount  = whole.leadingBeatCount;
   } else {
-    repairedDownbeats = applyAnchorRepair(beats, downbeats, repairRule, timeSignature);
+    repairedDownbeats = applyAnchorRepair(beats, downbeats, repairRule, timeSignature, resolutionPerBeat);
   }
 
   const measures     = buildMeasures({ beats, downbeats: repairedDownbeats, timeSignature, mode, audioDuration });
+  const slotTimings  = buildSlotTimings(beats, resolutionPerBeat);
+  const SLOT_EPS = 1e-6;
+  for (const measure of measures) {
+    measure.startSlotIndex = slotTimings.findIndex(t => Math.abs(t - measure.startTime) < SLOT_EPS);
+  }
+
+  // Phase146 / Issue #101: local anchorDownbeat が直前小節を短縮した場合だけ、
+  // 実行時の表示slot数を記録する。raw.beats / raw.downbeats と保存形式は変更しない。
+  // 観測された拍数だけを理由に短縮しない（補正の provenance を必須とする）。
+  const LOCAL_ANCHOR_EPS = 1e-6;
+  // applyAnchorRepair は比較演算で数値文字列も受け入れるため、短縮判定も同じ値に正規化する。
+  // 空文字列・null・その他の非数値型は、有効なアンカー値として扱わない。
+  const rawAnchorTime = repairRule?.beatTime;
+  const anchorTime = typeof rawAnchorTime === 'number'
+    ? rawAnchorTime
+    : (typeof rawAnchorTime === 'string' && rawAnchorTime.trim() !== ''
+      ? Number(rawAnchorTime)
+      : NaN);
+  if (mode === 'full' && repairRule?.type === 'anchorDownbeat'
+      && Number.isFinite(anchorTime)) {
+    const subdivision = Number.isInteger(repairRule.subdivision) ? repairRule.subdivision : 0;
+    const anchorBeatIdx = beats.findIndex(b => Math.abs(b - anchorTime) < LOCAL_ANCHOR_EPS);
+    const anchorSlotIdx = anchorBeatIdx * resolutionPerBeat + subdivision;
+    const resolvedAnchorTime = slotTimings[anchorSlotIdx];
+    const anchorWasOriginalDownbeat = downbeats.some(
+      d => Math.abs(d - resolvedAnchorTime) < LOCAL_ANCHOR_EPS
+    );
+    const anchorMeasureIdx = measures.findIndex(
+      m => Math.abs(m.startTime - resolvedAnchorTime) < LOCAL_ANCHOR_EPS
+    );
+
+    if (!anchorWasOriginalDownbeat && anchorBeatIdx >= 0
+        && Number.isFinite(resolvedAnchorTime) && anchorMeasureIdx > 0) {
+      const previous = measures[anchorMeasureIdx - 1];
+      const isActualAnchorBoundary =
+        Math.abs(previous.endTime - resolvedAnchorTime) < LOCAL_ANCHOR_EPS;
+      const previousStartSlotIdx = previous.startSlotIndex;
+      const actualSlotCount = previousStartSlotIdx >= 0
+        ? anchorSlotIdx - previousStartSlotIdx
+        : 0;
+
+      if (isActualAnchorBoundary && actualSlotCount > 0
+          && actualSlotCount < (timeSignature?.numerator ?? 4) * resolutionPerBeat) {
+        previous.isLocalAnchorTruncated = true;
+        previous.displaySlotCount = actualSlotCount;
+      }
+    }
+  }
+
+  // displaySlotCount は全小節で必ず数値を持つ。通常小節は従来の標準値。
+  // measure.beatCount と model.slotsPerMeasure の既存意味は変更しない。
+  const standardDisplaySlotCount = timeSignature.numerator * resolutionPerBeat;
+  for (const measure of measures) {
+    if (!Number.isFinite(measure.displaySlotCount)) {
+      measure.displaySlotCount = standardDisplaySlotCount;
+    }
+    measure.isLocalAnchorTruncated = measure.isLocalAnchorTruncated === true;
+    measure.isWholeSongSubbeatTruncated = measure.isWholeSongSubbeatTruncated === true;
+  }
 
   // 【短い先頭小節の印（#129）】
   //   wholeSongDownbeat で最初の拍と指定した拍の間に拍が余った場合、
@@ -529,8 +566,22 @@ export function createTimingModel({
   //   小節コピー（2か所）と detectPickupMeasure() のみ。
   if (leadingBeatCount > 0 && measures[0]) {
     measures[0].isLeading = true;
+
+    // A whole-song anchor on an "&" can leave a shortened leading measure
+    // that still contains every beat head of the time signature. Such a
+    // measure is not eligible for the existing pickup right-alignment path;
+    // preserve its actual slot width instead of padding it to a full measure.
+    const isSubbeatLeading = leadingBeatCount % resolutionPerBeat !== 0;
+    const firstMeasureBeatCount = beats.filter(beat =>
+      beat >= measures[0].startTime - SLOT_EPS &&
+      beat < measures[0].endTime - SLOT_EPS
+    ).length;
+    if (repairRule?.type === 'wholeSongDownbeat' && isSubbeatLeading &&
+        firstMeasureBeatCount >= (timeSignature?.numerator ?? 4)) {
+      measures[0].isWholeSongSubbeatTruncated = true;
+      measures[0].displaySlotCount = leadingBeatCount;
+    }
   }
-  const slotTimings  = buildSlotTimings(beats, resolutionPerBeat);
   const slotsPerMeasure = timeSignature.numerator * resolutionPerBeat;
 
   /**
@@ -586,7 +637,8 @@ export function createTimingModel({
       // fallback quantize の戻り値（全部0）は位置不明として先頭扱い
       return 0.0;
     }
-    return q.slot / slotsPerMeasure;
+    const measureSlotCount = measures[q.measure]?.displaySlotCount ?? slotsPerMeasure;
+    return measureSlotCount > 0 ? q.slot / measureSlotCount : 0.0;
   }
 
   /**
