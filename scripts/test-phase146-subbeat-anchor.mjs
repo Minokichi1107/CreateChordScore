@@ -131,11 +131,18 @@ for (const { beatIndex, expectedSlots } of [
     repairRule: anchorRule,
   });
   const phaseGrid = buildGridViewModel(phaseAnalysis, 16);
+  const phaseContinuous = buildContinuousChordProjection(phaseAnalysis, 16);
   const phaseMeasure = phaseGrid.measures[0];
   assert.equal(phaseModel.getMeasure(0).displaySlotCount, expectedSlots);
   assert.equal(phaseModel.getMeasure(0).isWholeSongSubbeatTruncated, true);
   assert.equal(phaseMeasure.displaySlotCount, expectedSlots);
   assert.equal(phaseMeasure.isWholeSongSubbeatTruncated, true);
+  assert.equal(phaseContinuous.measures[0].displaySlotCount, expectedSlots);
+  assert.equal(phaseContinuous.measures[0].isWholeSongSubbeatTruncated, true);
+  assert.equal(
+    phaseContinuous.segments.filter(segment => segment.measureIndex === 0).length,
+    expectedSlots,
+  );
   assert.deepEqual(
     phaseMeasure.slots.map(slot => slot.slotIndex).sort((a, b) => a - b),
     Array.from({ length: expectedSlots }, (_, i) => i),
