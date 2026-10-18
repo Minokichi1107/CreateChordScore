@@ -141,9 +141,13 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
       startTime:  m.startTime,
       endTime:    m.endTime,    // pickup 判定・seek に必須
       confidence: m.confidence,
-      // #129: 短い先頭小節の印（timing.js が付与。実行時のみ・保存しない）。
-      // detectPickupMeasure() が参照し、1〜3拍の先頭小節を確実に弱起扱いにする。
+      // #129: 曲全体の弱起由来の印。局所anchor短縮とは別の意味を持つ。
       isLeading:  m.isLeading === true,
+      // Phase146 / #101: anchorDownbeat によって直前小節が短縮された場合のみ
+      // displaySlotCount が標準値より小さくなる。実行時のみ・保存しない。
+      displaySlotCount: m.displaySlotCount ?? slotsPerMeasure,
+      isLocalAnchorTruncated: m.isLocalAnchorTruncated === true,
+      isWholeSongSubbeatTruncated: m.isWholeSongSubbeatTruncated === true,
       slots:      [],           // { slotIndex, onsets[] } onset ありのみ追加
     };
   });
@@ -162,7 +166,7 @@ export function buildGridViewModel(analysis, audioDuration = null, opts = {}) {
     const measure = measures[q.measure];
     const slotIndex = q.slot;  // 0-based, within measure
 
-    if (slotIndex < 0 || slotIndex >= slotsPerMeasure) continue;
+    if (slotIndex < 0 || slotIndex >= (measure.displaySlotCount ?? slotsPerMeasure)) continue;
 
     // 既存 slot を探す
     let slot = measure.slots.find(s => s.slotIndex === slotIndex);
@@ -351,7 +355,15 @@ export function buildContinuousChordProjection(analysis, audioDuration = null) {
   const measures = [];
   for (let mi = 0; mi < model.measureCount; mi++) {
     const m = model.getMeasure(mi);
-    if (m) measures.push({ startTime: m.startTime, endTime: m.endTime, confidence: m.confidence, isLeading: m.isLeading === true });
+    if (m) measures.push({
+      startTime: m.startTime,
+      endTime: m.endTime,
+      confidence: m.confidence,
+      isLeading: m.isLeading === true,
+      displaySlotCount: m.displaySlotCount ?? model.slotsPerMeasure,
+      isLocalAnchorTruncated: m.isLocalAnchorTruncated === true,
+      isWholeSongSubbeatTruncated: m.isWholeSongSubbeatTruncated === true,
+    });
   }
 
   // Beat Grid: raw.beats（実時間）をMeasure内の連続位置へ変換するのみ。
@@ -706,7 +718,12 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
     // mode/isPickup/timeSignature/actualBeats を確認済みの最終フラグ。
     // leadingOffset も _renderChartGrid() 側で一度だけ計算済み
     // （chartState.pickupLeadingOffset と同じ値。単一情報源）。
-    const usesPickupProjection = (mi === 0 && pickupCtx?.enabled);
+    const usesPickupProjection = (mi === 0 && pickupCtx?.enabled)
+      && measure.isLocalAnchorTruncated !== true
+      && measure.isWholeSongSubbeatTruncated !== true;
+    const measureSlotCount = usesPickupProjection
+      ? slotsPerMeasure
+      : (measure.displaySlotCount ?? slotsPerMeasure);
     const leadingOffset = usesPickupProjection ? pickupCtx.leadingOffset : 0;
 
     if (usesPickupProjection) {
@@ -854,7 +871,7 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
       }])
     );
 
-    for (let si = 0; si < slotsPerMeasure; si++) {
+    for (let si = 0; si < measureSlotCount; si++) {
       const projected = onsetMap.get(si);
       const onset = projected?.chosen ?? null;
 
@@ -936,7 +953,8 @@ export function expandCarryForward(measures, slotsPerMeasure) {
       measure.slots.map(s => [s.slotIndex, resolveCollision(s.onsets)])
     );
 
-    for (let si = 0; si < slotsPerMeasure; si++) {
+    const measureSlotCount = measure.displaySlotCount ?? slotsPerMeasure;
+    for (let si = 0; si < measureSlotCount; si++) {
       const onset = onsetMap.get(si);
       if (onset) {
         lastChord = onset.chord;
@@ -1795,11 +1813,16 @@ function _setupGridClickSeek() {
       // （architecture.md §9.5の不可侵性を維持する）。
       let slotIndex = null;
       if (measureEl && !e.target.closest('.chart-slot--projection-empty')) {
-        const spm = chartState.viewModel?.model?.slotsPerMeasure;
-        if (spm) {
+        const model = chartState.viewModel?.model;
+        const standardCount = model?.slotsPerMeasure;
+        const measure = measureIndex !== null ? chartState.viewModel?.measures?.[measureIndex] : null;
+        const count = (measureIndex === 0 && chartState.pickupLeadingOffset > 0)
+          ? standardCount
+          : (measure?.displaySlotCount ?? standardCount);
+        if (count) {
           const rect = measureEl.getBoundingClientRect();
           const ratio = (e.clientX - rect.left) / rect.width;
-          slotIndex = Math.min(Math.max(Math.floor(ratio * spm), 0), spm - 1);
+          slotIndex = Math.min(Math.max(Math.floor(ratio * count), 0), count - 1);
         }
       }
 
@@ -1982,13 +2005,18 @@ function _onGridPointerMove(e) {
   const measureEl = hitEl.closest('.chart-measure[data-measure-index]');
   if (!measureEl) return;
 
-  const spm = chartState.viewModel?.model?.slotsPerMeasure;
-  if (!spm) return;
+  const model = chartState.viewModel?.model;
+  const standardCount = model?.slotsPerMeasure;
+  if (!standardCount) return;
 
   const measureIndex = Number(measureEl.dataset.measureIndex);
+  const measure = chartState.viewModel?.measures?.[measureIndex];
+  const slotCount = (measureIndex === 0 && chartState.pickupLeadingOffset > 0)
+    ? standardCount
+    : (measure?.displaySlotCount ?? standardCount);
   const rect = measureEl.getBoundingClientRect();
   const ratio = (e.clientX - rect.left) / rect.width;
-  const slotIndex = Math.min(Math.max(Math.floor(ratio * spm), 0), spm - 1);
+  const slotIndex = Math.min(Math.max(Math.floor(ratio * slotCount), 0), slotCount - 1);
 
   // slot単位の間引き: 同一slotの間はonBoundaryDragMoveを呼ばない
   // （_refreshEditorView()のフルリレンダリングコストを抑えるため）。
@@ -2161,28 +2189,28 @@ let _contextMenuBound   = false; // idempotent guard
 function _getBeatTimeFromSlot(measureIndex, visualSlotIndex, model, beats, timeSignature) {
   const measure = model.getMeasure(measureIndex);
   if (!measure) return null;
-
-  // measure.startTime に対応する beats[] のインデックスを求める
-  // [ASSUMPTION] measure.startTime は必ず beats[] のいずれかと一致する
-  //（applyAnchorRepair が after.push(beats[i]) で生成するため）
-  const EPS = 1e-6;
-  const startBeatIdx = beats.findIndex(b => Math.abs(b - measure.startTime) < EPS);
-  if (startBeatIdx === -1) return null;  // invariant violation
-
-  // [Phase72-B 修正: ChatGPTレビュー指摘対応]
-  // resolutionPerBeat は measure.beatCount（repair後は小節ごとに変わりうる）
-  // からではなく、timeSignature.numerator（固定値）から算出する。
-  // model.slotsPerMeasure = timeSignature.numerator × resolutionPerBeat
-  // （createTimingModel 内で固定の timeSignature を使って算出されているため、
-  //   repairによる不揃い小節があっても resolutionPerBeat 自体は変わらない）
   const numerator = timeSignature?.numerator || 4;
   const resolutionPerBeat = model.slotsPerMeasure / numerator;
+  if (!(resolutionPerBeat > 0)) return null;
 
-  // visual slot index → measure 内の拍番号
-  const beatInMeasure = Math.floor(visualSlotIndex / resolutionPerBeat);
+  if (!(measureIndex === 0 && chartState.pickupLeadingOffset > 0)
+      && Number.isInteger(measure.startSlotIndex) && measure.startSlotIndex >= 0) {
+    const globalSlotIdx = measure.startSlotIndex + visualSlotIndex;
+    const beatIdx = Math.floor(globalSlotIdx / resolutionPerBeat);
+    const subdivision = globalSlotIdx % resolutionPerBeat;
+    const beatTime = beats[beatIdx];
+    return Number.isFinite(beatTime) ? { beatTime, subdivision } : null;
+  }
 
-  const globalBeatIdx = startBeatIdx + beatInMeasure;
-  return beats[globalBeatIdx] ?? null;
+  // Pickup uses a distinct visual slot space; retain the legacy fallback there.
+  const EPS = 1e-6;
+  const startBeatIdx = beats.findIndex(b => Math.abs(b - measure.startTime) < EPS);
+  if (startBeatIdx === -1) return null;
+  const globalSlotIdx = startBeatIdx * resolutionPerBeat + visualSlotIndex;
+  const beatIdx = Math.floor(globalSlotIdx / resolutionPerBeat);
+  const subdivision = globalSlotIdx % resolutionPerBeat;
+  const beatTime = beats[beatIdx];
+  return Number.isFinite(beatTime) ? { beatTime, subdivision } : null;
 }
 
 /**
@@ -2207,8 +2235,13 @@ function _getBeatTimeFromSlot(measureIndex, visualSlotIndex, model, beats, timeS
 function _getExactTimeFromSlot(measureIndex, visualSlotIndex, model) {
   const measure = model.getMeasure(measureIndex);
   if (!measure) return null;
-  const slotsPerMeasure = model.slotsPerMeasure;
-  if (!slotsPerMeasure) return null;
+  const standardSlotCount = model.slotsPerMeasure;
+  if (!standardSlotCount) return null;
+  // Genuine pickup projection remains in standard visual slot space; local
+  // anchor-truncated measures use their own display count.
+  const slotsPerMeasure = (measureIndex === 0 && chartState.pickupLeadingOffset > 0)
+    ? standardSlotCount
+    : (measure.displaySlotCount ?? standardSlotCount);
   const ratio = visualSlotIndex / slotsPerMeasure;
   return measure.startTime + (measure.endTime - measure.startTime) * ratio;
 }
@@ -2326,15 +2359,28 @@ export function pickNearestBeatInMeasure(fraction, startTime, endTime, beats) {
   if (!Array.isArray(beats) || !Number.isFinite(fraction) ||
       !Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) return null;
   const EPS = 1e-6;
-  const r = Math.min(1, Math.max(0, fraction));
-  const t = startTime + r * (endTime - startTime);
+  const target = startTime + Math.min(1, Math.max(0, fraction)) * (endTime - startTime);
   let best = null;
   let bestDist = Infinity;
-  for (const b of beats) {
-    if (b < startTime - EPS) continue;
-    if (b >= endTime - EPS) break;
-    const d = Math.abs(b - t);
-    if (d < bestDist) { bestDist = d; best = b; }
+
+  // Match the TimingModel's current two-slot-per-beat grid: beat head and "&".
+  // Interpolate each offbeat from its own neighboring beat interval, not a song-wide tempo.
+  for (let i = 0; i < beats.length; i++) {
+    const beatStart = beats[i];
+    const beatEnd = beats[i + 1] !== undefined
+      ? beats[i + 1]
+      : beatStart + (beatStart - (beats[i - 1] ?? beatStart - 0.5));
+    if (beatStart >= endTime - EPS) break;
+    if (beatEnd < startTime - EPS) continue;
+    for (let subdivision = 0; subdivision < 2; subdivision++) {
+      const slotTime = beatStart + (beatEnd - beatStart) * subdivision / 2;
+      if (slotTime < startTime - EPS || slotTime >= endTime - EPS) continue;
+      const distance = Math.abs(slotTime - target);
+      if (distance < bestDist) {
+        bestDist = distance;
+        best = { beatTime: beatStart, subdivision };
+      }
+    }
   }
   return best;
 }
@@ -2369,20 +2415,21 @@ export function getWholeSongRepairSupport(mode, timeSignature) {
  * @param {number}   clientX    - クリック位置X（viewport座標）
  * @param {number}   clientY    - クリック位置Y（viewport座標）
  */
-function _showContextMenu(beatTime, hasRepair, clientX, clientY, diagramChordName = null, wholeSongSupport = null) {
+function _showContextMenu(anchor, hasRepair, clientX, clientY, diagramChordName = null, wholeSongSupport = null) {
   _hideContextMenu();  // 既存を閉じてから生成
 
   const menu = document.createElement('div');
   menu.className = 'chart-context-menu';
 
-  // 「ここを小節頭にする」項目（beatTimeがnull＝指定できる拍が無い場合は表示しない）
-  if (beatTime != null) {
+  // anchorは拍頭時刻と拍内分割位置を保持する。
+  if (anchor != null) {
+    const { beatTime, subdivision = 0 } = anchor;
     const setItem = document.createElement('div');
     setItem.className = 'chart-context-item';
     setItem.textContent = '📍 ここから先を小節頭にする';
     setItem.addEventListener('click', () => {
       _hideContextMenu();
-      _onSetRepairRule?.(beatTime);
+      _onSetRepairRule?.(beatTime, 'anchorDownbeat', null, subdivision);
     });
     menu.appendChild(setItem);
 
@@ -2395,7 +2442,7 @@ function _showContextMenu(beatTime, hasRepair, clientX, clientY, diagramChordNam
       wholeItem.textContent = '📍 曲全体をここ基準に組み直す';
       wholeItem.addEventListener('click', () => {
         _hideContextMenu();
-        _onSetRepairRule?.(beatTime, 'wholeSongDownbeat', wholeSongSupport.ok ? null : wholeSongSupport.reason);
+        _onSetRepairRule?.(beatTime, 'wholeSongDownbeat', wholeSongSupport.ok ? null : wholeSongSupport.reason, subdivision);
       });
       menu.appendChild(wholeItem);
     }
@@ -2493,7 +2540,7 @@ function _handleContinuousContextMenu(e, measureEl) {
 
   const fraction = (e.clientX - rect.left) / rect.width;
   // 拍が見つからない小節でも、ダイアグラム登録・補正解除は独立して使えるようにする
-  const beatTime = pickNearestBeatInMeasure(fraction, measure.startTime, measure.endTime, analysis.beats ?? []);
+  const anchor = pickNearestBeatInMeasure(fraction, measure.startTime, measure.endTime, analysis.beats ?? []);
   const hasRepair = !!analysis.repairRule;
 
   let diagramChordName = null;
@@ -2502,11 +2549,11 @@ function _handleContinuousContextMenu(e, measureEl) {
   }
 
   // 出せる項目が1つも無ければ何もしない（ブラウザ標準メニューに任せる）
-  if (beatTime == null && !hasRepair && !diagramChordName) return;
+  if (anchor == null && !hasRepair && !diagramChordName) return;
 
   e.preventDefault();  // ブラウザ標準メニューを抑制
   _hideTooltip();
-  _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY, diagramChordName,
+  _showContextMenu(anchor, hasRepair, e.clientX, e.clientY, diagramChordName,
     getWholeSongRepairSupport(vm.model.mode, analysis.timeSignature));
 }
 
@@ -2570,8 +2617,8 @@ function _setupContextMenu() {
     if (!analysis) return;
 
     // slot → beatTime 逆引き
-    const beatTime = _getBeatTimeFromSlot(mi, visualSlotIdx, vm.model, analysis.beats ?? [], analysis.timeSignature);
-    if (beatTime == null) return;
+    const anchor = _getBeatTimeFromSlot(mi, visualSlotIdx, vm.model, analysis.beats ?? [], analysis.timeSignature);
+    if (anchor == null) return;
 
     const hasRepair = !!analysis.repairRule;
 
@@ -2591,7 +2638,7 @@ function _setupContextMenu() {
 
     // [Phase128-A] hover tooltipと座標が重なり残留しないよう、右クリック時に閉じる
     _hideTooltip();
-    _showContextMenu(beatTime, hasRepair, e.clientX, e.clientY, diagramChordName,
+    _showContextMenu(anchor, hasRepair, e.clientX, e.clientY, diagramChordName,
       getWholeSongRepairSupport(vm.model.mode, analysis.timeSignature));
   });
 
@@ -2923,7 +2970,8 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
   let pickupLeadingOffset = 0;
   const numerator = analysis.timeSignature?.numerator;
 
-  if (numerator && model.mode !== 'beat-only' && isPickup && measures[0]) {
+  if (numerator && model.mode !== 'beat-only' && isPickup && measures[0]
+      && measures[0].isWholeSongSubbeatTruncated !== true) {
     const beats = analysis.normalized?.beats ?? analysis.beats ?? [];
     const actualBeats0 = getMeasureBeatCount(measures[0], beats);
 
@@ -3026,7 +3074,8 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
       // chord label の幅は CSS変数 --duration-slots で制御する（span 方式は使わない）。
       const slotsEl = document.createElement('div');
       slotsEl.className = 'chart-slots';
-      slotsEl.style.gridTemplateColumns = `repeat(${model.slotsPerMeasure}, 1fr)`;
+      const measureSlotCount = measures[mi]?.displaySlotCount ?? model.slotsPerMeasure;
+      slotsEl.style.gridTemplateColumns = `repeat(${measureSlotCount}, 1fr)`;
 
       // ── slot loop ──────────────────────────────────────────
       // 全 slot（onset / carry / empty）の DOM を生成する。
@@ -3267,13 +3316,14 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
     const nameRow = {
       rowEl,
       cellCount: Math.min(rowStart + measuresPerRow, measures.length) - rowStart,
-      slotsPerMeasure: model.slotsPerMeasure,
+      slotCounts: measures.slice(rowStart, Math.min(rowStart + measuresPerRow, measures.length))
+        .map(m => m.displaySlotCount ?? model.slotsPerMeasure),
       layerEl: null,
       items: [],
       placed: [],
     };
     if (rowNameLabels.length) {
-      const built = _buildSectionNameLayer(rowNameLabels, nameRow.cellCount, nameRow.slotsPerMeasure);
+      const built = _buildSectionNameLayer(rowNameLabels, nameRow.slotCounts);
       if (built) {
         nameRow.layerEl = built.el;
         nameRow.items = built.items;
@@ -3284,13 +3334,96 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
     nameRows.push(nameRow);
 
     container.appendChild(rowEl);
+    _applyMeasureSlotGeometry(
+      rowEl,
+      measures.slice(rowStart, Math.min(rowStart + measuresPerRow, measures.length)),
+      model.slotsPerMeasure,
+      measuresPerRow
+    );
   }
+  _observeMeasureSlotGeometry(container);
 
   // [Phase143] Section名の最終位置を決める（全行追加後・行ごとに1回だけ幅を読む）
   _placeSectionNames(nameRows);
 
   // [Phase106] 通常経路（full/beat-only）の描画完了後にもスクロール位置を復元する。
   container.scrollTop = _prevScrollTop;
+}
+
+
+// Phase146 / Issue #101: 局所短縮小節、または全曲補正でサブビート短縮先頭小節を含む行だけ、Measure幅とSection cell幅を調整する。
+// 短縮小節のない行は既存の flex レイアウトを維持する。
+// ResizeObserverでコンテナ幅が変化した場合も同じ幾何設定を再適用する。
+function _applyMeasureSlotGeometry(rowEl, measures, standardSlotCount, measuresPerRow) {
+  if (!rowEl || !(standardSlotCount > 0) || !(measuresPerRow > 0)) return;
+  if (!measures.some(measure =>
+    measure.isLocalAnchorTruncated === true ||
+    measure.isWholeSongSubbeatTruncated === true
+  )) {
+    delete rowEl._phase146MeasureGeometry;
+    return;
+  }
+
+  // 幅0で初回描画された場合も、後のResizeObserverで再試行できるよう先に保存する。
+  rowEl._phase146MeasureGeometry = { measures, standardSlotCount, measuresPerRow };
+
+  const measureEls = [...rowEl.children].filter(el => el.classList?.contains('chart-measure'));
+  const style = getComputedStyle(rowEl);
+  const px = value => Number.parseFloat(value) || 0;
+  const contentWidth = rowEl.clientWidth - px(style.paddingLeft) - px(style.paddingRight);
+  const gap = px(style.columnGap || style.gap);
+  const standardWidth = (contentWidth - gap * (measuresPerRow - 1)) / measuresPerRow;
+  if (!(standardWidth > 0)) return;
+
+  // DOMの寸法をすべて読み取ってからstyleを書き換え、強制レイアウトを避ける。
+  const widths = measures.map(measure => {
+    const count = measure.displaySlotCount ?? standardSlotCount;
+    return standardWidth * count / standardSlotCount;
+  });
+
+  measureEls.forEach((el, index) => {
+    const width = widths[index];
+    if (!(width > 0)) return;
+    el.style.flex = `0 0 ${width}px`;
+    el.style.width = `${width}px`;
+    el.style.boxSizing = 'border-box';
+  });
+
+  // Section overlay cells use the same computed widths without reading layout after writes.
+  const layers = [...rowEl.children].filter(el => el.classList?.contains('chart-section-layer'));
+  for (const layer of layers) {
+    const cells = [...layer.children];
+    widths.forEach((width, index) => {
+      const cell = cells[index];
+      if (!cell || !(width > 0)) return;
+      cell.style.flex = `0 0 ${width}px`;
+      cell.style.width = `${width}px`;
+      cell.style.boxSizing = 'border-box';
+    });
+  }
+}
+
+let _phase146MeasureResizeObserver = null;
+const _phase146ObservedContainers = new WeakSet();
+function _observeMeasureSlotGeometry(container) {
+  if (typeof ResizeObserver !== 'function' || _phase146ObservedContainers.has(container)) return;
+  if (!_phase146MeasureResizeObserver) {
+    _phase146MeasureResizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const rows = entry.target.querySelectorAll('.chart-row');
+        for (const row of rows) {
+          const config = row._phase146MeasureGeometry;
+          if (config) {
+            _applyMeasureSlotGeometry(
+              row, config.measures, config.standardSlotCount, config.measuresPerRow
+            );
+          }
+        }
+      }
+    });
+  }
+  _phase146MeasureResizeObserver.observe(container);
+  _phase146ObservedContainers.add(container);
 }
 
 // ────────────────────────────────────────
@@ -3326,6 +3459,8 @@ function detectPickupMeasure(measures) {
   // #129: 曲全体の組み直し（wholeSongDownbeat）で timing.js が付けた印がある場合は、
   // 長さの閾値判定を行わず弱起と確定する（1〜3拍の短い先頭小節は閾値では確実に拾えない）。
   // 閾値（0.75倍・±30%）は変更しない。印が無い曲は従来どおりの判定。
+  // A local anchor can shorten the first displayed measure, but that is not a pickup.
+  if (measures[0]?.isLocalAnchorTruncated === true) return false;
   if (measures[0]?.isLeading === true) return true;
 
   // 旧project互換ガード（Phase61 hotfix）:
@@ -3420,16 +3555,19 @@ function _resolveSectionMarkers(markers, segments) {
  * @param {number} slotsPerMeasure - 1小節のslot数（model.slotsPerMeasure）
  * @returns {{el: HTMLElement, items: Array}|null} 名前が無ければnull
  */
-function _buildSectionNameLayer(labels, cellCount, slotsPerMeasure) {
-  if (!labels.length || !(slotsPerMeasure > 0)) return null;
-  const sorted = [...labels].sort(
-    (a, b) => (a.cellIndex * slotsPerMeasure + a.slotIndex) - (b.cellIndex * slotsPerMeasure + b.slotIndex)
-  );
+function _buildSectionNameLayer(labels, slotCounts) {
+  if (!labels.length || !Array.isArray(slotCounts) || !slotCounts.length
+      || slotCounts.some(n => !(n > 0))) return null;
+  const cellCount = slotCounts.length;
+  const absoluteSlot = (item) => slotCounts
+    .slice(0, item.cellIndex)
+    .reduce((sum, count) => sum + count, 0) + item.slotIndex;
+  const sorted = [...labels].sort((a, b) => absoluteSlot(a) - absoluteSlot(b));
   const layerEl = _createNameLayerEl(cellCount);
   const items = sorted.map(lb => {
     const labelEl = document.createElement('span');
     labelEl.className = 'chart-section-preview-label';
-    labelEl.style.left = `${(lb.slotIndex / slotsPerMeasure) * 100}%`;
+    labelEl.style.left = `${(lb.slotIndex / slotCounts[lb.cellIndex]) * 100}%`;
     if (lb.colorToken) labelEl.dataset.colorToken = lb.colorToken;
     const textEl = document.createElement('span');
     textEl.className = 'chart-section-preview-label-text';
@@ -3441,7 +3579,7 @@ function _buildSectionNameLayer(labels, cellCount, slotsPerMeasure) {
     const lineEl = document.createElement('span');
     lineEl.className = 'chart-section-marker chart-section-marker--slot';
     if (lb.colorToken) lineEl.dataset.colorToken = lb.colorToken;
-    lineEl.style.left = `${(lb.slotIndex / slotsPerMeasure) * 100}%`;
+    lineEl.style.left = `${(lb.slotIndex / slotCounts[lb.cellIndex]) * 100}%`;
     layerEl.children[lb.cellIndex]?.appendChild(lineEl);
     return { labelEl, cellIndex: lb.cellIndex, slotIndex: lb.slotIndex };
   });
@@ -3492,6 +3630,14 @@ function _placeSectionNames(nameRows) {
       rec.layerEl = _createNameLayerEl(rec.cellCount);
       rec.rowEl.classList.add('chart-row--section-layer');
       rec.rowEl.appendChild(rec.layerEl);
+      // Layer may be created after the row's initial width pass when a label
+      // is relocated into a row that had no Section label of its own.
+      const geometry = rec.rowEl._phase146MeasureGeometry;
+      if (geometry) {
+        _applyMeasureSlotGeometry(
+          rec.rowEl, geometry.measures, geometry.standardSlotCount, geometry.measuresPerRow
+        );
+      }
     }
     const cells = [...rec.layerEl.children];
     rec.cells = cells;
@@ -3500,7 +3646,8 @@ function _placeSectionNames(nameRows) {
     return rec.innerW[0] > 0;
   };
   const startX = (rec, it) =>
-    rec.innerLeft[it.cellIndex] + (it.slotIndex / rec.slotsPerMeasure) * rec.innerW[it.cellIndex]
+    rec.innerLeft[it.cellIndex]
+    + (it.slotIndex / rec.slotCounts[it.cellIndex]) * rec.innerW[it.cellIndex]
     + SECTION_NAME_MARGIN_LEFT_PX;
 
   // 候補位置 x に置ける最大幅。置けない（重なる）なら -Infinity。
@@ -3534,7 +3681,12 @@ function _placeSectionNames(nameRows) {
 
     rec.items.forEach((it, idx) => {
       const nextInRow = rec.items[idx + 1];
-      const candidates = [{ rec, cellIndex: it.cellIndex, x: it.x, rel: it.slotIndex / rec.slotsPerMeasure }];
+      const candidates = [{
+        rec,
+        cellIndex: it.cellIndex,
+        x: it.x,
+        rel: it.slotIndex / rec.slotCounts[it.cellIndex],
+      }];
       for (let c = it.cellIndex + 1; c < rec.cellCount; c++) {
         const hx = rec.innerLeft[c] + SECTION_NAME_MARGIN_LEFT_PX;
         if (nextInRow && hx >= nextInRow.x) break;   // 次のSectionの開始より後ろには出さない
@@ -3873,7 +4025,14 @@ function _renderChartGridContinuous(container, analysis, { measuresPerRow = 3 } 
     }
 
     container.appendChild(rowEl);
+    _applyMeasureSlotGeometry(
+      rowEl,
+      measures.slice(rowStart, Math.min(rowStart + measuresPerRow, measures.length)),
+      model.slotsPerMeasure,
+      measuresPerRow
+    );
   }
+  _observeMeasureSlotGeometry(container);
 
   // 【Phase136-A】全Rowの描画が終わり、Measureの実際のpx幅が
   // DOM上で確定した後に、Chord Label Projectionを適用する。
