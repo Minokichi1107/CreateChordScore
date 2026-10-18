@@ -1050,3 +1050,45 @@ body[data-theme="silver"] .chart-section-layer--slot {
     animation: none;
   }
 }
+
+/* Phase147 / #167: right-clickで判定された拍位置を一時表示する。
+   通常表示は専用マーカー、編集表示は対象slotにクラスを付ける。 */
+.chart-context-position-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-edit-point);
+  pointer-events: none;
+  z-index: 5;
+  transform: translateX(-1px);
+}
+.chart-slot--context-position {
+  position: relative;
+}
+.chart-slot--context-position::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -1px;
+  width: 2px;
+  background: var(--color-edit-point);
+  pointer-events: none;
+  z-index: 5;
+}
+.chart-context-position-marker::after,
+.chart-slot--context-position::after {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: -4px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--color-edit-point);
+  pointer-events: none;
+  z-index: 5;
+}
+
