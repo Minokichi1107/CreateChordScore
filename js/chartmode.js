@@ -2353,7 +2353,7 @@ export function getTimeForGridPosition(measureIndex, visualSlotIndex) {
  * @param {number}   startTime  - 小節開始時刻
  * @param {number}   endTime    - 小節終了時刻
  * @param {number[]} beats      - raw.beats（昇順）
- * @returns {{beatTime:number, subdivision:number, time:number}|null} 最寄りの拍位置と表示用時刻
+ * @returns {{beatTime:number, subdivision:number}|null} 最寄りの拍位置
  */
 export function pickNearestBeatInMeasure(fraction, startTime, endTime, beats) {
   if (!Array.isArray(beats) || !Number.isFinite(fraction) ||
@@ -2378,7 +2378,7 @@ export function pickNearestBeatInMeasure(fraction, startTime, endTime, beats) {
       const distance = Math.abs(slotTime - target);
       if (distance < bestDist) {
         bestDist = distance;
-        best = { beatTime: beatStart, subdivision, time: slotTime };
+        best = { beatTime: beatStart, subdivision };
       }
     }
   }
@@ -2561,10 +2561,17 @@ function _handleContinuousContextMenu(e, measureEl) {
     getWholeSongRepairSupport(vm.model.mode, analysis.timeSignature));
 
   // 判定された拍位置を、メニュー表示中だけマーカーで示す。
-  if (anchor?.time != null) {
+  const beats = analysis.beats ?? [];
+  const beatIndex = beats.indexOf(anchor?.beatTime);
+  if (beatIndex >= 0) {
+    const beatStart = beats[beatIndex];
+    const beatEnd = beats[beatIndex + 1] !== undefined
+      ? beats[beatIndex + 1]
+      : beatStart + (beatStart - (beats[beatIndex - 1] ?? beatStart - 0.5));
+    const anchorTime = beatStart + (beatEnd - beatStart) * (anchor.subdivision ?? 0) / 2;
     const marker = document.createElement('span');
     marker.className = 'chart-context-position-marker';
-    const position = (anchor.time - measure.startTime) / (measure.endTime - measure.startTime);
+    const position = (anchorTime - measure.startTime) / (measure.endTime - measure.startTime);
     marker.style.left = `${Math.min(1, Math.max(0, position)) * 100}%`;
     trackEl.appendChild(marker);
   }
