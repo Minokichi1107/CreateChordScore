@@ -94,6 +94,65 @@ const expandedSlots = expandToSlots(gridView.measures, gridView.model.slotsPerMe
 assert.equal(expandedSlots.filter(slot => slot.measureIndex === 0).length, 7);
 assert.equal(expandedSlots.filter(slot => slot.measureIndex === 1).length, 8);
 
+// Every whole-song "&" phase uses its actual short width. The existing
+// pickup right-alignment transform must not remap these slot positions,
+// because that beat-based transform can collapse distinct slots.
+for (const { beatIndex, expectedSlots } of [
+  { beatIndex: 0, expectedSlots: 1 },
+  { beatIndex: 1, expectedSlots: 3 },
+  { beatIndex: 2, expectedSlots: 5 },
+  { beatIndex: 3, expectedSlots: 7 },
+]) {
+  const anchorRule = {
+    version: 1,
+    type: 'wholeSongDownbeat',
+    beatTime: beats[beatIndex],
+    subdivision: 1,
+  };
+  const phaseChords = Array.from({ length: expectedSlots }, (_, slotIndex) => ({
+    _id: `phase-${beatIndex}-slot-${slotIndex}`,
+    chord: ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'Bdim'][slotIndex],
+    start: slotIndex * 0.25,
+    end: (slotIndex + 1) * 0.25,
+  }));
+  const phaseAnalysis = {
+    beats,
+    downbeats: [...originalDownbeats],
+    timeSignature: { numerator: 4, denominator: 4 },
+    chords: phaseChords,
+    repairRule: anchorRule,
+  };
+  const phaseModel = createTimingModel({
+    beats,
+    downbeats: [...originalDownbeats],
+    timeSignature: { numerator: 4, denominator: 4 },
+    resolutionPerBeat: 2,
+    audioDuration: 16,
+    repairRule: anchorRule,
+  });
+  const phaseGrid = buildGridViewModel(phaseAnalysis, 16);
+  const phaseMeasure = phaseGrid.measures[0];
+  assert.equal(phaseModel.getMeasure(0).displaySlotCount, expectedSlots);
+  assert.equal(phaseModel.getMeasure(0).isWholeSongSubbeatTruncated, true);
+  assert.equal(phaseMeasure.displaySlotCount, expectedSlots);
+  assert.equal(phaseMeasure.isWholeSongSubbeatTruncated, true);
+  assert.deepEqual(
+    phaseMeasure.slots.map(slot => slot.slotIndex).sort((a, b) => a - b),
+    Array.from({ length: expectedSlots }, (_, i) => i),
+  );
+  const phaseExpanded = expandToSlots(phaseGrid.measures, phaseGrid.model.slotsPerMeasure);
+  assert.equal(
+    phaseExpanded.filter(slot => slot.measureIndex === 0).length,
+    expectedSlots,
+  );
+  assert.deepEqual(
+    phaseExpanded
+      .filter(slot => slot.measureIndex === 0 && slot.onset)
+      .map(slot => slot.onset.chord),
+    phaseChords.map(chord => chord.chord),
+  );
+}
+
 // Existing beat-head whole-song repair retains its original pickup semantics.
 const beatHeadView = buildGridViewModel({
   ...wholeSongAnalysis,
