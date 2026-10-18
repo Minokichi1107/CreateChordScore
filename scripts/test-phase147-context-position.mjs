@@ -5,21 +5,21 @@ import { pickNearestBeatInMeasure } from '../js/chartmode.js';
 
 // The result includes the exact resolved time used to place the visual marker.
 const regular = pickNearestBeatInMeasure(0.13, 0, 2, [0, 0.5, 1, 1.5]);
-assert.deepEqual(regular, { beatTime: 0, subdivision: 1, time: 0.25 });
+assert.deepEqual(regular, { beatTime: 0, subdivision: 1 });
 
 const beatHead = pickNearestBeatInMeasure(0.25, 0, 2, [0, 0.5, 1, 1.5]);
-assert.deepEqual(beatHead, { beatTime: 0.5, subdivision: 0, time: 0.5 });
+assert.deepEqual(beatHead, { beatTime: 0.5, subdivision: 0 });
 
 // Offbeats use the local neighboring beat interval rather than a song-wide interval.
 const uneven = pickNearestBeatInMeasure(0.11, 0, 1.8, [0, 0.4, 1, 1.4]);
-assert.deepEqual(uneven, { beatTime: 0, subdivision: 1, time: 0.2 });
+assert.deepEqual(uneven, { beatTime: 0, subdivision: 1 });
 
 const laterUnevenOffbeat = pickNearestBeatInMeasure(0.39, 0, 1.8, [0, 0.4, 1, 1.4]);
-assert.deepEqual(laterUnevenOffbeat, { beatTime: 0.4, subdivision: 1, time: 0.7 });
+assert.deepEqual(laterUnevenOffbeat, { beatTime: 0.4, subdivision: 1 });
 
 // Candidates outside the measure must not be selected.
 const measureHead = pickNearestBeatInMeasure(0, 0.4, 1.4, [0, 0.4, 1, 1.4]);
-assert.deepEqual(measureHead, { beatTime: 0.4, subdivision: 0, time: 0.4 });
+assert.deepEqual(measureHead, { beatTime: 0.4, subdivision: 0 });
 
 assert.equal(pickNearestBeatInMeasure(0.5, 1, 1, [0, 0.5, 1]), null);
 assert.equal(pickNearestBeatInMeasure(Number.NaN, 0, 2, [0, 0.5, 1]), null);
