@@ -567,17 +567,12 @@ export function createTimingModel({
   if (leadingBeatCount > 0 && measures[0]) {
     measures[0].isLeading = true;
 
-    // A whole-song anchor on an "&" can leave a shortened leading measure
-    // that still contains every beat head of the time signature. Such a
-    // measure is not eligible for the existing pickup right-alignment path;
-    // preserve its actual slot width instead of padding it to a full measure.
+    // A whole-song anchor on an "&" creates a leading measure whose actual
+    // width is the number of slots before the anchor. Keep that short width
+    // for every sub-beat phase; do not route these measures through pickup
+    // right-alignment, which is beat-based and can collapse distinct slots.
     const isSubbeatLeading = leadingBeatCount % resolutionPerBeat !== 0;
-    const firstMeasureBeatCount = beats.filter(beat =>
-      beat >= measures[0].startTime - SLOT_EPS &&
-      beat < measures[0].endTime - SLOT_EPS
-    ).length;
-    if (repairRule?.type === 'wholeSongDownbeat' && isSubbeatLeading &&
-        firstMeasureBeatCount >= (timeSignature?.numerator ?? 4)) {
+    if (repairRule?.type === 'wholeSongDownbeat' && isSubbeatLeading) {
       measures[0].isWholeSongSubbeatTruncated = true;
       measures[0].displaySlotCount = leadingBeatCount;
     }
