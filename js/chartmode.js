@@ -719,7 +719,8 @@ export function expandToSlots(measures, slotsPerMeasure, pickupCtx = null) {
     // leadingOffset も _renderChartGrid() 側で一度だけ計算済み
     // （chartState.pickupLeadingOffset と同じ値。単一情報源）。
     const usesPickupProjection = (mi === 0 && pickupCtx?.enabled)
-      && measure.isLocalAnchorTruncated !== true;
+      && measure.isLocalAnchorTruncated !== true
+      && measure.isWholeSongSubbeatTruncated !== true;
     const measureSlotCount = usesPickupProjection
       ? slotsPerMeasure
       : (measure.displaySlotCount ?? slotsPerMeasure);
@@ -2969,7 +2970,8 @@ function _renderChartGrid(vm, analysis, { measuresPerRow = 3, editing = false } 
   let pickupLeadingOffset = 0;
   const numerator = analysis.timeSignature?.numerator;
 
-  if (numerator && model.mode !== 'beat-only' && isPickup && measures[0]) {
+  if (numerator && model.mode !== 'beat-only' && isPickup && measures[0]
+      && measures[0].isWholeSongSubbeatTruncated !== true) {
     const beats = analysis.normalized?.beats ?? analysis.beats ?? [];
     const actualBeats0 = getMeasureBeatCount(measures[0], beats);
 
