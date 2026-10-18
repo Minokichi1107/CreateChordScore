@@ -1,6 +1,6 @@
-# Phase146 / Issue #101 — サブビート位置を小節頭にする技術設計（実装前）
+# Phase146 / Issue #101 — サブビート位置を小節頭にする技術設計（実装・監査中）
 
-- 状態: 設計案。未実装・未承認の細部を含む
+- 状態: 基本実装済み。PR #166 の追加修正・回帰確認中。マージ前の最終監査とCI確認は未完了
 - 対象ブランチ: `phase146/issue-101-local-anchor-slot-width`
 - 関連: [Issue #101](https://github.com/Minokichi1107/CreateChordScore/issues/101)、[PR #166](https://github.com/Minokichi1107/CreateChordScore/pull/166)、[Issue #130](https://github.com/Minokichi1107/CreateChordScore/issues/130)
 
@@ -129,14 +129,23 @@ anchorTime = slotTimings[globalSlotIndex]
 6. Continuous projection、編集、再生・シークの統合テストを行う。
 7. 問題がなければPR #166の範囲・Issue #101の受け入れ条件と照合する。
 
-## 8. 今回の設計で確定していないこと
+## 8. 実装上の決定事項と未解決事項
 
-- `repairRule` の保存スキーマを `beatTime + subdivision` にするか、グローバルスロットインデックスを保存するか。
-- スロット時刻をモデル内で再構築するか、既存 `slotTimings` を唯一の時刻参照として使うか。
-- pickupを含む先頭小節でアンカーを指定した場合の厳密な表示位置の扱い。
-- `buildMeasures()` の既存 `downbeats[]` ベースの構造をどこまで維持するか。
+### 実装上の決定事項
 
-これらは実装前のコード追跡とテストfixtureで決める。既存の「確定事項」を変更したり、未確定のBeat / Measure / Slot定義を先取りして確定したりしない。
+- 補正アンカーは `beatTime + subdivision` で表す。`subdivision: 0` は拍頭、`subdivision: 1` は拍の後半（「&」）。
+- アンカー時刻は `buildSlotTimings()` が生成する共通スロット時刻から取得する。
+- 局所補正と全曲補正は同じアンカー表現を使い、補正範囲だけを変える。
+- 全曲補正で先頭小節が「＆」境界で短縮され、かつ拍頭数が拍子の基準拍数に達する場合は、実際のスロット数を `displaySlotCount` に反映する。既存の弱起右寄せ経路が適用される先頭小節の表示は変更しない。
+- `displaySlotCount` と `isWholeSongSubbeatTruncated` は実行時の派生値であり、保存しない。
+
+### 未解決事項
+
+- pickupを含む先頭小節での右クリック位置変換は近似であり、厳密な逆変換は未解決。
+- `quantizeTime()` で小節頭がスロット時刻に一致しない場合、`beatInMeasure = 0` に黙ってフォールバックする既存リスクは未解決。
+- 保存後の再読み込みを含む実サーバー経由の検証は別途必要。
+
+既存の「確定事項」を変更したり、未確定のBeat / Measure / Slot定義やCollision（衝突）処理を先取りして確定したりしない。
 
 ## 9. 受け入れ条件
 
