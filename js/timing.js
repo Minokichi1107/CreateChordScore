@@ -554,6 +554,7 @@ export function createTimingModel({
       measure.displaySlotCount = standardDisplaySlotCount;
     }
     measure.isLocalAnchorTruncated = measure.isLocalAnchorTruncated === true;
+    measure.isWholeSongSubbeatTruncated = measure.isWholeSongSubbeatTruncated === true;
   }
 
   // 【短い先頭小節の印（#129）】
@@ -565,6 +566,21 @@ export function createTimingModel({
   //   小節コピー（2か所）と detectPickupMeasure() のみ。
   if (leadingBeatCount > 0 && measures[0]) {
     measures[0].isLeading = true;
+
+    // A whole-song anchor on an "&" can leave a shortened leading measure
+    // that still contains every beat head of the time signature. Such a
+    // measure is not eligible for the existing pickup right-alignment path;
+    // preserve its actual slot width instead of padding it to a full measure.
+    const isSubbeatLeading = leadingBeatCount % resolutionPerBeat !== 0;
+    const firstMeasureBeatCount = beats.filter(beat =>
+      beat >= measures[0].startTime - SLOT_EPS &&
+      beat < measures[0].endTime - SLOT_EPS
+    ).length;
+    if (repairRule?.type === 'wholeSongDownbeat' && isSubbeatLeading &&
+        firstMeasureBeatCount >= (timeSignature?.numerator ?? 4)) {
+      measures[0].isWholeSongSubbeatTruncated = true;
+      measures[0].displaySlotCount = leadingBeatCount;
+    }
   }
   const slotsPerMeasure = timeSignature.numerator * resolutionPerBeat;
 
