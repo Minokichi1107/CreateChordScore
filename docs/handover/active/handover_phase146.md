@@ -1,13 +1,13 @@
 # 引き継ぎ: Phase146 — Issue #101 サブビート小節頭補正の実装・マージ完了
 
 作成日: 2026-10-18  
-状態: PR #166 は `main` に squash merge 済み。Issue #101 はクローズ済み。次の候補は Issue #167。
+状態: PR #166 は `main` に squash merge（複数コミットを1つにまとめるマージ方式）済み。Issue #101 はクローズ済み。次の候補は Issue #167。
 
 ## 最重要（次のChatへ）
 
 - PR #166: https://github.com/Minokichi1107/CreateChordScore/pull/166
 - マージコミット: `6f0e689f523759fa3bfb9ab41194dca971889ae9`
-- CI run #42 成功: https://github.com/Minokichi1107/CreateChordScore/actions/runs/39082858291
+- CI（継続的インテグレーション）run #42 成功: https://github.com/Minokichi1107/CreateChordScore/actions/runs/39082858291
 - Issue #101（完了）: https://github.com/Minokichi1107/CreateChordScore/issues/101
 - Issue #167（次の調査候補）: https://github.com/Minokichi1107/CreateChordScore/issues/167
 - Issue #167のUI仕様・実装方式は未決定。右クリック位置が拍の前半・後半（「&」）のどちらなのか把握しづらいというUX上の問題意識から、現行のメニューと位置情報を調べる。
@@ -20,7 +20,7 @@ Phase146で対応したこと:
 - 補正アンカーを拍頭だけでなく拍内分割位置（サブビート）でも扱えるようにした。
 - 局所補正と全曲補正の両方でサブビートアンカーを扱う経路を整備した。
 - 全曲補正で先頭小節が「&」位置から始まる場合、実際の表示スロット数を反映するようにした。
-- このケースでは、弱起右寄せ変換（pickup projection）による異なるスロット位置の衝突を避ける。
+- このケースでは、弱起右寄せ変換（pickup projection：弱起位置への表示変換）による異なるスロット位置の衝突を避ける。
 - 回帰テストを追加・拡張し、CIで実行した。
 
 主な変更ファイル:
@@ -85,7 +85,7 @@ GitHub Actions run #42も成功。
 - 表示箇所や情報密度。
 - UI変更が必要か、現行位置情報の調査で足りるか。
 
-開始時は表示案を決め打ちせず、コンテキストメニュー表示時点で利用できるコード時刻・拍・スロット情報を調査する。その後、必要に応じてProduct Intent / UX整理から進む。
+開始時は表示案を決め打ちせず、コンテキストメニュー表示時点で利用できるコード時刻・拍・スロット情報を調査する。その後、必要に応じてProduct Intent（製品意図）/ UX（ユーザー体験）整理から進む。
 
 ## Gitの現在地
 
@@ -104,7 +104,7 @@ GitHub Actions run #42も成功。
 
 - [ ] Issue #167の現状調査を行い、右クリック位置の文脈情報として何が取得できるか整理する。
 - [ ] Product Intent / UXの完成イメージを確認し、必要な場合のみ仕様を具体化する。
-- [ ] ドキュメント棚卸しは `docs/handover/README.md` のCheckpoint基準に従い、Deferred DocumentationをPhase番号順に適用する。固定周期やhandover作成だけを理由に無条件で実施しない。
+- [ ] ドキュメント棚卸しは `docs/handover/README.md` のCheckpoint（棚卸し）基準に従い、Deferred DocumentationをPhase番号順に適用する。固定周期やhandover作成だけを理由に無条件で実施しない。
 
 ## Issue状態変更記録
 
