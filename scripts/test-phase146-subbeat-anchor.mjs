@@ -2,7 +2,12 @@
 // Run with Node.js 22: node scripts/test-phase146-subbeat-anchor.mjs
 import assert from 'node:assert/strict';
 import { createTimingModel } from '../js/timing.js';
-import { pickNearestBeatInMeasure } from '../js/chartmode.js';
+import {
+  buildGridViewModel,
+  buildContinuousChordProjection,
+  expandToSlots,
+  pickNearestBeatInMeasure,
+} from '../js/chartmode.js';
 
 const beats = Array.from({ length: 33 }, (_, i) => i * 0.5);
 const originalDownbeats = [0, 2, 4, 6, 8, 10, 12, 14, 16];
@@ -65,5 +70,32 @@ assert.equal(wholeSongModel.getMeasure(0).isWholeSongSubbeatTruncated, true);
 assert.equal(wholeSongModel.getMeasure(1).displaySlotCount, 8);
 assert.equal(wholeSongModel.quantize(1.75).measure, 1);
 assert.equal(wholeSongModel.quantize(1.75).slot, 0);
+
+// Integration-level projection checks: both view-model paths must carry the
+// seven-slot width, and slot expansion must not restore an eighth empty slot.
+const wholeSongAnalysis = {
+  beats,
+  downbeats: [...originalDownbeats],
+  timeSignature: { numerator: 4, denominator: 4 },
+  chords: [],
+  repairRule: { ...repairRule, type: 'wholeSongDownbeat' },
+};
+const gridView = buildGridViewModel(wholeSongAnalysis, 16);
+const continuousView = buildContinuousChordProjection(wholeSongAnalysis, 16);
+assert.equal(gridView.measures[0].displaySlotCount, 7);
+assert.equal(gridView.measures[0].isWholeSongSubbeatTruncated, true);
+assert.equal(continuousView.measures[0].displaySlotCount, 7);
+assert.equal(continuousView.measures[0].isWholeSongSubbeatTruncated, true);
+const expandedSlots = expandToSlots(gridView.measures, gridView.model.slotsPerMeasure);
+assert.equal(expandedSlots.filter(slot => slot.measureIndex === 0).length, 7);
+assert.equal(expandedSlots.filter(slot => slot.measureIndex === 1).length, 8);
+
+// Existing beat-head whole-song repair retains its original pickup semantics.
+const beatHeadView = buildGridViewModel({
+  ...wholeSongAnalysis,
+  repairRule: { version: 1, type: 'wholeSongDownbeat', beatTime: 1.5, subdivision: 0 },
+}, 16);
+assert.equal(beatHeadView.measures[0].displaySlotCount, 8);
+assert.equal(beatHeadView.measures[0].isWholeSongSubbeatTruncated, false);
 
 console.log('Phase146 sub-beat anchor acceptance tests passed.');
