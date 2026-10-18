@@ -2346,14 +2346,14 @@ export function getTimeForGridPosition(measureIndex, visualSlotIndex) {
 
 /**
  * pickNearestBeatInMeasure — 通常表示（Continuous）の右クリック位置から、
- * 「その小節に属する拍」のうち最寄りの拍時刻を返す純関数。
+ * 「その小節に属する拍頭／拍裏」のうち最寄りの位置を返す純関数。
  * 隣接小節の拍は候補にしない（小節端のクリックで隣の小節頭が選ばれるのを防ぐ）。
  *
  * @param {number}   fraction   - 小節トラック内のクリック位置（0〜1、範囲外はclamp）
  * @param {number}   startTime  - 小節開始時刻
  * @param {number}   endTime    - 小節終了時刻
  * @param {number[]} beats      - raw.beats（昇順）
- * @returns {number|null} 最寄りの拍時刻。小節内に拍がなければnull
+ * @returns {{beatTime:number, subdivision:number, time:number}|null} 最寄りの拍位置と表示用時刻
  */
 export function pickNearestBeatInMeasure(fraction, startTime, endTime, beats) {
   if (!Array.isArray(beats) || !Number.isFinite(fraction) ||
@@ -2378,7 +2378,7 @@ export function pickNearestBeatInMeasure(fraction, startTime, endTime, beats) {
       const distance = Math.abs(slotTime - target);
       if (distance < bestDist) {
         bestDist = distance;
-        best = { beatTime: beatStart, subdivision };
+        best = { beatTime: beatStart, subdivision, time: slotTime };
       }
     }
   }
@@ -2512,6 +2512,10 @@ function _hideContextMenu() {
     _contextMenuEl.remove();
     _contextMenuEl = null;
   }
+  document.querySelectorAll('.chart-context-position-marker').forEach(el => el.remove());
+  document.querySelectorAll('.chart-slot--context-position').forEach(el => {
+    el.classList.remove('chart-slot--context-position');
+  });
 }
 
 /**
@@ -2555,6 +2559,15 @@ function _handleContinuousContextMenu(e, measureEl) {
   _hideTooltip();
   _showContextMenu(anchor, hasRepair, e.clientX, e.clientY, diagramChordName,
     getWholeSongRepairSupport(vm.model.mode, analysis.timeSignature));
+
+  // 判定された拍位置を、メニュー表示中だけマーカーで示す。
+  if (anchor?.time != null) {
+    const marker = document.createElement('span');
+    marker.className = 'chart-context-position-marker';
+    const position = (anchor.time - measure.startTime) / (measure.endTime - measure.startTime);
+    marker.style.left = `${Math.min(1, Math.max(0, position)) * 100}%`;
+    trackEl.appendChild(marker);
+  }
 }
 
 /**
@@ -2640,6 +2653,8 @@ function _setupContextMenu() {
     _hideTooltip();
     _showContextMenu(anchor, hasRepair, e.clientX, e.clientY, diagramChordName,
       getWholeSongRepairSupport(vm.model.mode, analysis.timeSignature));
+    // 編集表示では、右クリックされたスロット自体に同じ目印を付ける。
+    slotEl.classList.add('chart-slot--context-position');
   });
 
   // メニュー外クリックで閉じる
