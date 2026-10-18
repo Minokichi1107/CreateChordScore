@@ -57,5 +57,13 @@ const wholeSongModel = createTimingModel({
 assert.equal(wholeSongModel.getMeasure(1).startTime, 1.75);
 assert.equal(wholeSongModel.getMeasure(2).startTime, 3.75);
 assert.equal(wholeSongModel.getMeasure(0).isLeading, true);
+// Unlike a conventional beat-head pickup, this leading measure contains all
+// four beat heads but ends on the "&" boundary, so its canonical/display width
+// must be seven slots rather than the standard eight.
+assert.equal(wholeSongModel.getMeasure(0).displaySlotCount, 7);
+assert.equal(wholeSongModel.getMeasure(0).isWholeSongSubbeatTruncated, true);
+assert.equal(wholeSongModel.getMeasure(1).displaySlotCount, 8);
+assert.equal(wholeSongModel.quantize(1.75).measure, 1);
+assert.equal(wholeSongModel.quantize(1.75).slot, 0);
 
 console.log('Phase146 sub-beat anchor acceptance tests passed.');
