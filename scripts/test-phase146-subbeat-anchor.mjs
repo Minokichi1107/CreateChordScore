@@ -147,8 +147,8 @@ for (const { beatIndex, expectedSlots } of [
   );
   assert.deepEqual(
     phaseExpanded
-      .filter(slot => slot.measureIndex === 0 && slot.onset)
-      .map(slot => slot.onset.chord),
+      .filter(slot => slot.measureIndex === 0 && slot.type === 'onset')
+      .map(slot => slot.chord),
     phaseChords.map(chord => chord.chord),
   );
 }
