@@ -1,7 +1,7 @@
-# Phase146 / Issue #101 — サブビート位置を小節頭にする技術設計（実装・監査中）
+# Phase146 / Issue #101 — サブビート位置を小節頭にする技術設計（実装・マージ済み）
 
-- 状態: 基本実装済み。PR #166 の追加修正・回帰確認中。マージ前の最終監査とCI確認は未完了
-- 対象ブランチ: `phase146/issue-101-local-anchor-slot-width`
+- 状態: PR #166 は `main` に squash merge 済み。Issue #101 はクローズ済み。実装・回帰テスト・ブラウザ受け入れ確認は完了。実サーバー経由の保存後再読み込み検証など、handoverに記載した残課題は別途扱う。
+- 対象ブランチ: `phase146/issue-101-local-anchor-slot-width`（実装時のブランチ。現在は削除済み）
 - 関連: [Issue #101](https://github.com/Minokichi1107/CreateChordScore/issues/101)、[PR #166](https://github.com/Minokichi1107/CreateChordScore/pull/166)、[Issue #130](https://github.com/Minokichi1107/CreateChordScore/issues/130)
 
 ## 1. 目的と範囲
