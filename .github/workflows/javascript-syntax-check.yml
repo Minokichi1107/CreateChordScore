@@ -44,3 +44,6 @@ jobs:
           echo "::group::Phase146 sub-beat anchor acceptance tests"
           node scripts/test-phase146-subbeat-anchor.mjs
           echo "::endgroup::"
+          echo "::group::Phase147 right-click context-position tests"
+          node scripts/test-phase147-context-position.mjs
+          echo "::endgroup::"
