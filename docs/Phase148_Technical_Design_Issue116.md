@@ -817,7 +817,7 @@ Claudeの独立再監査v3は最終判定A。コード・設計書・Issue・PR�
 
 ### 26.6 関連Issue
 
-- 曲中の異名同音表記をまとめて切り替え・置き換える機能はIssue #116の範囲外とし、独立Issue [#174](https://github.com/Minokichi1107/CreateChordScore/issues/174)で要件整理する。Issue #116ではBuilderのRoot/Bass候補と移調互換性を扱い、既存曲全体の一括表記変換は実装しない。
+- 曲中の異名同音表記をまとめて切り替え・置き換える機能はIssue #116の範囲外とし、独立Issue [#174](https://github.com/Minokichi1107/CreateChordScore/issues/174)で要件整理する。Issue #174には、既存曲に保存されたUnicode音名（例：C♯m7、D♭、Am7/C♯）をASCII表記へ変換・移行する必要性と、その安全な移行方針も追記した。Issue #116ではBuilderのRoot/Bass候補と新規生成値の互換性を扱い、既存曲全体の一括表記変換／移行は実装しない。
 
 ### 26.7 将来の表記形式設定（Phase148対象外）
 
