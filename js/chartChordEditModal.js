@@ -111,7 +111,7 @@ export function openChartChordEditModal({
       '<label>ベース音<select data-builder="bass" aria-label="ベース音">' + bassOptions + '</select></label>' +
       '</div><div class="chart-chord-builder-actions">' +
       '<span class="chart-chord-builder-preview">' + escapeHtml(toDisplayChord(builderChord)) + '</span>' +
-      '<button type="button" class="sm-btn" data-action="builder-add"' + (canAdd ? '' : ' disabled') + '>＋追加</button>' +
+      '<button type="button" class="sm-btn" data-action="builder-add"' + (canSplit ? '' : ' disabled') + '>＋追加</button>' +
       '</div><p class="chart-chord-edit-hint">追加は選択中のコード区間を中央で分割します（左右各0.05秒以上）。</p>' +
       '</section>' +
       '<div class="chart-chord-edit-actions">' +
@@ -141,9 +141,11 @@ export function openChartChordEditModal({
       const syncAddButton = () => {
         const current = selectedChord(draft);
         const addButton = body.querySelector('[data-action="add"]');
-        const canAdd = !!current && (current.end - current.start) / 2 >= MIN_EDIT_INTERVAL_SECONDS
-          && !!String(inputValue).trim();
-        if (addButton) addButton.disabled = !canAdd;
+        const builderButton = body.querySelector('[data-action="builder-add"]');
+        const canSplit = !!current && Number.isFinite(current.start) && Number.isFinite(current.end)
+          && (current.end - current.start) / 2 >= MIN_EDIT_INTERVAL_SECONDS;
+        if (addButton) addButton.disabled = !(canSplit && !!String(inputValue).trim());
+        if (builderButton) builderButton.disabled = !canSplit;
       };
 
       const addChordAtMidpoint = chordName => {
