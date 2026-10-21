@@ -56,7 +56,7 @@ export function openChartChordEditModal({
   const draft = structuredClone(initialState);
   const baseline = structuredClone(initialState);
   let closeCurrentModal = () => {};
-  let inputValue = selectedChord(draft)?.chord || '';
+  let inputValue = toDisplayChord(selectedChord(draft)?.chord || '');
 
   const renderBody = () => {
     const current = selectedChord(draft);
@@ -81,7 +81,7 @@ export function openChartChordEditModal({
       '<div class="chart-chord-edit-label">コード名</div>' +
       '<div class="chart-chord-edit-input-row">' +
       '<input id="chart-chord-edit-name" class="mi" type="text" autocomplete="off" value="' +
-      escapeHtml(toDisplayChord(inputValue)) + '" aria-label="コード名">' +
+      escapeHtml(inputValue) + '" aria-label="コード名">' +
       '<button type="button" class="sm-btn" data-action="no-chord">N.C.</button></div>' +
       '<div class="chart-chord-edit-actions">' +
       '<button type="button" class="sm-btn" data-action="replace"' + (current ? '' : ' disabled') + '>決定</button>' +
@@ -139,7 +139,7 @@ export function openChartChordEditModal({
           const id = button.dataset.id;
           if (!draft.buffer.some(chord => chord._id === id)) return;
           refreshSelection(draft, [id], id);
-          inputValue = selectedChord(draft)?.chord || '';
+          inputValue = toDisplayChord(selectedChord(draft)?.chord || '');
           body.innerHTML = renderBody();
           return;
         }
@@ -152,7 +152,7 @@ export function openChartChordEditModal({
           if (!canonical) { setHint('コード名を入力してください。'); return; }
           const result = updateChordCommand(draft, current._id, { chord: canonical });
           if (!result.ok) { setHint('コードを更新できませんでした。'); return; }
-          inputValue = canonical;
+          inputValue = toDisplayChord(canonical);
           body.innerHTML = renderBody();
           return;
         }
@@ -174,13 +174,13 @@ export function openChartChordEditModal({
         if (action === 'delete') {
           const result = deleteChordCommand(draft, current._id);
           if (!result.ok) { setHint(result.reason || 'コードを削除できませんでした。'); return; }
-          inputValue = selectedChord(draft)?.chord || '';
+          inputValue = toDisplayChord(selectedChord(draft)?.chord || '');
           body.innerHTML = renderBody();
         }
       });
 
       const input = document.getElementById('chart-chord-edit-name');
-      if (input) input.value = toDisplayChord(inputValue);
+      if (input) input.value = inputValue;
     },
     buttons: close => {
       closeCurrentModal = close;
