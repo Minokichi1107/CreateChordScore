@@ -108,14 +108,18 @@ export function openChartChordEditModal({
       const body = document.getElementById('chart-chord-edit-body');
       if (!body) return;
 
-      body.addEventListener('input', event => {
-        if (!event.target || event.target.id !== 'chart-chord-edit-name') return;
-        inputValue = event.target.value;
+      const syncAddButton = () => {
         const current = selectedChord(draft);
         const addButton = body.querySelector('[data-action="add"]');
         const canAdd = !!current && (current.end - current.start) / 2 >= MIN_EDIT_INTERVAL_SECONDS
           && !!String(inputValue).trim();
         if (addButton) addButton.disabled = !canAdd;
+      };
+
+      body.addEventListener('input', event => {
+        if (!event.target || event.target.id !== 'chart-chord-edit-name') return;
+        inputValue = event.target.value;
+        syncAddButton();
       });
 
       body.addEventListener('click', event => {
@@ -127,12 +131,14 @@ export function openChartChordEditModal({
           inputValue = toDisplayChord(button.dataset.chord || '');
           const input = document.getElementById('chart-chord-edit-name');
           if (input) { input.value = inputValue; input.focus(); }
+          syncAddButton();
           return;
         }
         if (action === 'no-chord') {
           inputValue = 'N.C.';
           const input = document.getElementById('chart-chord-edit-name');
           if (input) { input.value = inputValue; input.focus(); }
+          syncAddButton();
           return;
         }
         if (action === 'select') {
