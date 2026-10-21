@@ -15,7 +15,7 @@ function escapeHtml(value) {
 }
 
 function payload(state) {
-  return { buffer: state.buffer, sections: state.sections, hasContentEdit: state.hasContentEdit };
+  return { buffer: state.buffer, sections: state.sections };
 }
 
 function samePayload(a, b) {
@@ -157,7 +157,7 @@ export function openChartChordEditModal({
           const result = deleteChordCommand(draft, current._id);
           if (!result.ok) { setHint(result.reason || 'コードを削除できませんでした。'); return; }
           inputValue = selectedChord(draft)?.chord || '';
-          body.innerHTML = renderBody().replace('<div id="chart-chord-edit-body" class="chart-chord-edit">', '');
+          body.innerHTML = renderBody();
         }
       });
 
