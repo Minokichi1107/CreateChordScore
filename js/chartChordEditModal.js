@@ -4,7 +4,7 @@
  * The authoritative session is mutated only when the user chooses 完了.
  */
 import { addChordCommand, deleteChordCommand, updateChordCommand } from './analysisCommands.js';
-import { refreshSelection } from './analysisSession.js';
+import { pushHistory, refreshSelection } from './analysisSession.js';
 
 const MIN_EDIT_INTERVAL_SECONDS = 0.05;
 
@@ -25,6 +25,24 @@ function samePayload(a, b) {
 function selectedChord(state) {
   const id = state.selection && state.selection.chordIds && state.selection.chordIds[0];
   return state.buffer.find(chord => chord._id === id) || null;
+}
+
+/**
+ * Commit the modal draft as one Analysis Editor history entry.
+ * Returns false when the draft contains no final data change.
+ */
+export function commitChartChordEditDraft(session, draft) {
+  if (samePayload(session, draft)) return false;
+  pushHistory(session);
+  session.buffer = structuredClone(draft.buffer);
+  session.sections = structuredClone(draft.sections ?? []);
+  session.hasContentEdit = session.hasContentEdit || draft.hasContentEdit;
+  refreshSelection(
+    session,
+    draft.selection?.chordIds ?? [],
+    draft.selection?.anchorChordId ?? null
+  );
+  return true;
 }
 
 export function openChartChordEditModal({
