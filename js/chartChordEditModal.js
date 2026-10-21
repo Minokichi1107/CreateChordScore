@@ -8,6 +8,20 @@ import { pushHistory, refreshSelection } from './analysisSession.js';
 
 const MIN_EDIT_INTERVAL_SECONDS = 0.05;
 
+// Prototype-only common chord vocabulary. The final Type list remains a design decision.
+const BUILDER_ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+const BUILDER_TYPES = [
+  { value: '', label: 'Major (なし)' }, { value: 'm', label: 'm' },
+  { value: '7', label: '7' }, { value: 'maj7', label: 'maj7' },
+  { value: 'm7', label: 'm7' }, { value: '6', label: '6' },
+  { value: 'm6', label: 'm6' }, { value: 'sus2', label: 'sus2' },
+  { value: 'sus4', label: 'sus4' }, { value: 'dim', label: 'dim' },
+  { value: 'aug', label: 'aug' }, { value: 'dim7', label: 'dim7' },
+  { value: 'm7b5', label: 'm7♭5' }, { value: 'add9', label: 'add9' },
+  { value: '9', label: '9' }, { value: 'm9', label: 'm9' },
+  { value: 'maj9', label: 'maj9' }, { value: '7sus4', label: '7sus4' },
+];
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -57,6 +71,9 @@ export function openChartChordEditModal({
   const baseline = structuredClone(initialState);
   let closeCurrentModal = () => {};
   let inputValue = toDisplayChord(selectedChord(draft)?.chord || '');
+  let builderRoot = 'C';
+  let builderType = '';
+  let builderBass = '';
 
   const renderBody = () => {
     const current = selectedChord(draft);
@@ -78,20 +95,33 @@ export function openChartChordEditModal({
     return (
       '<div class="chart-chord-edit-label">編集中のコード列</div>' +
       '<div class="chart-chord-edit-sequence">' + chips + '</div>' +
-      '<div class="chart-chord-edit-label">コード名</div>' +
+      '<div class="chart-chord-edit-label">コードシーケンス（クリックして選択）</div>' +
+      '<div class="chart-chord-edit-direct">' +
+      '<label for="chart-chord-edit-name">コード名を直接入力</label>' +
       '<div class="chart-chord-edit-input-row">' +
       '<input id="chart-chord-edit-name" class="mi" type="text" autocomplete="off" value="' +
       escapeHtml(inputValue) + '" aria-label="コード名">' +
-      '<button type="button" class="sm-btn" data-action="no-chord">N.C.</button></div>' +
+      '<button type="button" class="sm-btn" data-action="no-chord">N.C.</button>' +
+      '<button type="button" class="sm-btn" data-action="replace"' + (current ? '' : ' disabled') + '>置換</button></div></div>' +
+      '<section class="chart-chord-builder" aria-label="コードビルダー">' +
+      '<div class="chart-chord-edit-label">コードビルダー</div>' +
+      '<div class="chart-chord-builder-fields">' +
+      '<label>ルート音<select data-builder="root" aria-label="ルート音">' + rootOptions + '</select></label>' +
+      '<label>タイプ<select data-builder="type" aria-label="タイプ">' + typeOptions + '</select></label>' +
+      '<label>ベース音<select data-builder="bass" aria-label="ベース音">' + bassOptions + '</select></label>' +
+      '</div><div class="chart-chord-builder-actions">' +
+      '<span class="chart-chord-builder-preview">' + escapeHtml(toDisplayChord(builderChord)) + '</span>' +
+      '<button type="button" class="sm-btn" data-action="builder-add"' + (canAdd ? '' : ' disabled') + '>＋追加</button>' +
+      '</div><p class="chart-chord-edit-hint">追加は選択中のコード区間を中央で分割します（左右各0.05秒以上）。</p>' +
+      '</section>' +
       '<div class="chart-chord-edit-actions">' +
-      '<button type="button" class="sm-btn" data-action="replace"' + (current ? '' : ' disabled') + '>決定</button>' +
-      '<button type="button" class="sm-btn" data-action="add"' + (canAdd ? '' : ' disabled') + '>＋追加</button>' +
+      '<button type="button" class="sm-btn" data-action="add"' + (canAdd ? '' : ' disabled') + '>入力欄のコードを＋追加</button>' +
       '<button type="button" class="sm-btn" data-action="delete"' +
       (current && draft.buffer.length > 1 ? '' : ' disabled') + '>削除</button></div>' +
       '<div class="chart-chord-edit-hint" id="chart-chord-edit-hint">' +
-      (current ? (canAdd ? '＋追加は選択中の時間区間を中央で分割します。' :
+      (current ? (canAdd ? '追加は選択中の時間区間を中央で分割します。' :
         '追加には左右それぞれ0.05秒以上の時間が必要です。') : '編集するコードを選択してください。') +
-      '</div><div class="chart-chord-edit-label">楽曲のコードから選択</div>' +
+      '</div><div class="chart-chord-edit-label">曲内で使用中のコード（クイック選択）</div>' +
       '<div class="chart-chord-edit-used-list">' +
       (used || '<span class="chart-chord-edit-hint">使用中のコードはありません。</span>') + '</div>');
   };
@@ -116,6 +146,30 @@ export function openChartChordEditModal({
         if (addButton) addButton.disabled = !canAdd;
       };
 
+      const addChordAtMidpoint = chordName => {
+        const current = selectedChord(draft);
+        if (!current || !chordName) { setHint('コード名を入力してください。'); return; }
+        const splitTime = (current.start + current.end) / 2;
+        const result = addChordCommand(draft, current._id, splitTime, toCanonicalChord(chordName));
+        if (!result.ok) {
+          setHint(result.reason === 'invalid-range'
+            ? 'この時間区間は短すぎるため分割できません。' : 'コードを追加できませんでした。');
+          return;
+        }
+        inputValue = toDisplayChord(toCanonicalChord(chordName));
+        body.innerHTML = renderBody();
+      };
+
+      body.addEventListener('change', event => {
+        const field = event.target?.dataset?.builder;
+        if (field === 'root') builderRoot = event.target.value;
+        else if (field === 'type') builderType = event.target.value;
+        else if (field === 'bass') builderBass = event.target.value;
+        else return;
+        const preview = body.querySelector('.chart-chord-builder-preview');
+        if (preview) preview.textContent = toDisplayChord(builderRoot + builderType + (builderBass ? '/' + builderBass : ''));
+      });
+
       body.addEventListener('input', event => {
         if (!event.target || event.target.id !== 'chart-chord-edit-name') return;
         inputValue = event.target.value;
@@ -132,6 +186,10 @@ export function openChartChordEditModal({
           const input = document.getElementById('chart-chord-edit-name');
           if (input) { input.value = inputValue; input.focus(); }
           syncAddButton();
+          return;
+        }
+        if (action === 'builder-add') {
+          addChordAtMidpoint(builderRoot + builderType + (builderBass ? '/' + builderBass : ''));
           return;
         }
         if (action === 'no-chord') {
@@ -165,15 +223,7 @@ export function openChartChordEditModal({
 
         if (action === 'add') {
           if (!canonical) { setHint('追加するコード名を入力してください。'); return; }
-          const splitTime = (current.start + current.end) / 2;
-          const result = addChordCommand(draft, current._id, splitTime, canonical);
-          if (!result.ok) {
-            setHint(result.reason === 'invalid-range'
-              ? 'この時間区間は短すぎるため分割できません。' : 'コードを追加できませんでした。');
-            return;
-          }
-          inputValue = toDisplayChord(canonical);
-          body.innerHTML = renderBody();
+          addChordAtMidpoint(canonical);
           return;
         }
 
