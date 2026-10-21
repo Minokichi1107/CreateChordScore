@@ -99,12 +99,12 @@
 }
 
 
-/* Phase148: Chart Mode code-edit modal prototype */
+/* Phase148: Chart Mode code-edit modal prototype — compact editor layout */
 .chart-chord-edit {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: min(65vh, 620px);
+  gap: 9px;
+  max-height: min(68vh, 650px);
   overflow-y: auto;
   min-width: 0;
 }
@@ -113,31 +113,62 @@
   color: var(--text-muted);
   font-family: var(--font-mono);
 }
-.chart-chord-edit-sequence,
+.chart-chord-edit-sequence {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 3px 2px 6px;
+  border-bottom: 1px solid var(--border-ui);
+}
 .chart-chord-edit-used-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
+  max-height: 88px;
+  overflow-y: auto;
+  padding: 2px 0;
 }
 .chart-chord-edit-chip,
 .chart-chord-edit-used {
-  max-width: 100%;
+  flex: 0 0 auto;
+  max-width: 180px;
   border: 1px solid var(--border-ui);
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--surface-overlay);
   color: var(--text-primary);
-  padding: 5px 8px;
+  padding: 3px 7px;
+  font-size: 12px;
+  line-height: 1.25;
   cursor: pointer;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 .chart-chord-edit-chip.is-selected {
   border-color: var(--accent);
   background: var(--surface-raised, var(--surface-overlay));
   outline: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
+.chart-chord-edit-direct,
+.chart-chord-builder {
+  border: 1px solid var(--border-ui);
+  border-radius: 6px;
+  padding: 8px;
+  min-width: 0;
+}
+.chart-chord-edit-direct > label,
+.chart-chord-builder-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
 .chart-chord-edit-input-row,
-.chart-chord-edit-actions {
+.chart-chord-edit-actions,
+.chart-chord-builder-actions {
   display: flex;
   gap: 6px;
   align-items: center;
@@ -145,15 +176,45 @@
 }
 .chart-chord-edit-input-row input {
   flex: 1;
+  min-width: 80px;
+}
+.chart-chord-builder-fields {
+  display: grid;
+  grid-template-columns: minmax(80px, .8fr) minmax(110px, 1.3fr) minmax(80px, .8fr);
+  gap: 8px;
+  align-items: end;
+}
+.chart-chord-builder-fields select {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
+  color: var(--text-primary);
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-ui);
+  border-radius: 4px;
+  padding: 5px 6px;
+}
+.chart-chord-builder-actions {
+  justify-content: space-between;
+  margin-top: 7px;
+}
+.chart-chord-builder-preview {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
 }
 .chart-chord-edit-hint {
   font-size: 11px;
   color: var(--text-secondary);
+  margin: 0;
 }
 @media (max-width: 560px) {
   .chart-chord-edit-input-row,
   .chart-chord-edit-actions {
     flex-wrap: wrap;
+  }
+  .chart-chord-builder-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
   }
 }
