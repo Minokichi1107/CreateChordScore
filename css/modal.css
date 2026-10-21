@@ -97,3 +97,63 @@
   padding: 5px 2px;
   text-align: center;
 }
+
+
+/* Phase148: Chart Mode code-edit modal prototype */
+.chart-chord-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(65vh, 620px);
+  overflow-y: auto;
+  min-width: 0;
+}
+.chart-chord-edit-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.chart-chord-edit-sequence,
+.chart-chord-edit-used-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+.chart-chord-edit-chip,
+.chart-chord-edit-used {
+  max-width: 100%;
+  border: 1px solid var(--border-ui);
+  border-radius: 5px;
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  padding: 5px 8px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.chart-chord-edit-chip.is-selected {
+  border-color: var(--accent);
+  background: var(--surface-raised, var(--surface-overlay));
+  outline: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.chart-chord-edit-input-row,
+.chart-chord-edit-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.chart-chord-edit-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+.chart-chord-edit-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+@media (max-width: 560px) {
+  .chart-chord-edit-input-row,
+  .chart-chord-edit-actions {
+    flex-wrap: wrap;
+  }
+}
