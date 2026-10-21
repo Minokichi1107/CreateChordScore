@@ -179,6 +179,8 @@ import {
   openPasteFitCollisionWarningModal, // Phase130
 } from './modals.js';
 
+import { openChartChordEditModal } from './chartChordEditModal.js';
+
 import { isSepToken, isNoChordToken } from './tokens.js';
 
 // [Phase127-E③] textTooltip.jsのimportは削除した。app.js側の呼び出し元が
@@ -1542,6 +1544,68 @@ function openChordRenameSelector(chord) {
       // （splitChordのような_refreshSelection()呼び出しは不要）。
     },
     // onCancel省略: 何も呼ばれないため状態は一切変化しない
+  });
+}
+
+/**
+ * Phase148: Chart Mode code-edit modal entry point.
+ * The modal owns a draft clone; this callback commits all edits as one Undo unit.
+ */
+function openChartChordEditSession(chord) {
+  if (!isAnalysisEditing() || !chord || !analysisEditor.buffer?.some(item => item._id === chord._id)) return;
+
+  const capo = getCapo();
+  const draftInitial = structuredClone(analysisEditor);
+  refreshSelection(draftInitial, [chord._id], chord._id);
+
+  openChartChordEditModal({
+    openModal,
+    mkMBtn,
+    initialState: draftInitial,
+    usedChords: analysisEditor.buffer.map(item => item.chord),
+    toDisplayChord: value => toDisplayChord(toReadableChord(value), capo),
+    toCanonicalChord: value => toCanonicalChord(value, capo),
+    onCommit: (draft, changed) => {
+      if (!changed) return true;
+
+      const errors = validateAnalysis(draft.buffer);
+      if (errors.length) {
+        toast('⚠ 確定できません: ' + errors[0]);
+        return false;
+      }
+
+      const before = _recIsRecording()
+        ? _recSnapshot({ includeBuffer: true, includeSections: true })
+        : null;
+      const sectionsBefore = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
+
+      // One main-session history entry represents the entire modal transaction.
+      pushHistorySession(analysisEditor);
+      analysisEditor.buffer = structuredClone(draft.buffer);
+      analysisEditor.sections = structuredClone(draft.sections ?? []);
+      analysisEditor.hasContentEdit = analysisEditor.hasContentEdit || draft.hasContentEdit;
+      refreshSelection(
+        analysisEditor,
+        draft.selection?.chordIds ?? [],
+        draft.selection?.anchorChordId ?? null
+      );
+      setSelectedChordIds(analysisEditor.selection.chordIds);
+
+      const after = _recIsRecording()
+        ? _recSnapshot({ includeBuffer: true, includeSections: true })
+        : null;
+      const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
+      _recRecord(
+        'chordEditModal',
+        { ok: true },
+        before,
+        after,
+        _recIsRecording() ? _recDiffSections(sectionsBefore, sectionsAfter) : undefined
+      );
+
+      _refreshEditorView('chordEditModal');
+      return true;
+    },
   });
 }
 
@@ -4294,7 +4358,7 @@ function renderAnalysisEditorPanel() {
   });
   document.getElementById('aep-rename')?.addEventListener('click', () => {
     if (!chord) return;
-    openChordRenameSelector(chord);
+    openChartChordEditSession(chord);
   });
   document.getElementById('aep-undo')?.addEventListener('click', undoEdit);
   document.getElementById('aep-redo')?.addEventListener('click', redoEdit);
@@ -6575,7 +6639,7 @@ function setupEventHandlers() {
           );
           if (chord) {
             e.preventDefault();
-            openChordRenameSelector(chord);
+            openChartChordEditSession(chord);
             return;
           }
         }
