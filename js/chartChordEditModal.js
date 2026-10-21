@@ -124,9 +124,9 @@ export function openChartChordEditModal({
         const action = button.dataset.action;
 
         if (action === 'use') {
-          inputValue = button.dataset.chord || '';
+          inputValue = toDisplayChord(button.dataset.chord || '');
           const input = document.getElementById('chart-chord-edit-name');
-          if (input) { input.value = toDisplayChord(inputValue); input.focus(); }
+          if (input) { input.value = inputValue; input.focus(); }
           return;
         }
         if (action === 'no-chord') {
@@ -166,7 +166,7 @@ export function openChartChordEditModal({
               ? 'この時間区間は短すぎるため分割できません。' : 'コードを追加できませんでした。');
             return;
           }
-          inputValue = canonical;
+          inputValue = toDisplayChord(canonical);
           body.innerHTML = renderBody();
           return;
         }
