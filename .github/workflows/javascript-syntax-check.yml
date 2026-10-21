@@ -50,3 +50,6 @@ jobs:
           echo "::group::Phase148 Chart Mode chord modal transaction tests"
           node scripts/test-phase148-chart-chord-modal.mjs
           echo "::endgroup::"
+          echo "::group::Phase148 Chart Mode chord modal UI tests"
+          node scripts/test-phase148-chart-chord-modal-ui.mjs
+          echo "::endgroup::"
