@@ -47,3 +47,6 @@ jobs:
           echo "::group::Phase147 right-click context-position tests"
           node scripts/test-phase147-context-position.mjs
           echo "::endgroup::"
+          echo "::group::Phase148 Chart Mode chord modal transaction tests"
+          node scripts/test-phase148-chart-chord-modal.mjs
+          echo "::endgroup::"
