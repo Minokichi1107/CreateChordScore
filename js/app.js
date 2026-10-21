@@ -179,7 +179,7 @@ import {
   openPasteFitCollisionWarningModal, // Phase130
 } from './modals.js';
 
-import { openChartChordEditModal } from './chartChordEditModal.js';
+import { openChartChordEditModal, commitChartChordEditDraft } from './chartChordEditModal.js';
 
 import { isSepToken, isNoChordToken } from './tokens.js';
 
@@ -1579,16 +1579,8 @@ function openChartChordEditSession(chord) {
         : null;
       const sectionsBefore = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
 
-      // One main-session history entry represents the entire modal transaction.
-      pushHistorySession(analysisEditor);
-      analysisEditor.buffer = structuredClone(draft.buffer);
-      analysisEditor.sections = structuredClone(draft.sections ?? []);
-      analysisEditor.hasContentEdit = analysisEditor.hasContentEdit || draft.hasContentEdit;
-      refreshSelection(
-        analysisEditor,
-        draft.selection?.chordIds ?? [],
-        draft.selection?.anchorChordId ?? null
-      );
+      // The shared helper commits the full draft as one Undo transaction.
+      if (!commitChartChordEditDraft(analysisEditor, draft)) return true;
       setSelectedChordIds(analysisEditor.selection.chordIds);
 
       const after = _recIsRecording()
