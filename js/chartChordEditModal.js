@@ -57,7 +57,7 @@ export function openChartChordEditModal({
     const canAdd = !!current && Number.isFinite(current.start) && Number.isFinite(current.end)
       && (current.end - current.start) / 2 >= MIN_EDIT_INTERVAL_SECONDS && !!String(inputValue).trim();
 
-    return '<div id="chart-chord-edit-body" class="chart-chord-edit">' +
+    return 
       '<div class="chart-chord-edit-label">編集中のコード列</div>' +
       '<div class="chart-chord-edit-sequence">' + chips + '</div>' +
       '<div class="chart-chord-edit-label">コード名</div>' +
@@ -75,7 +75,7 @@ export function openChartChordEditModal({
         '追加には左右それぞれ0.05秒以上の時間が必要です。') : '編集するコードを選択してください。') +
       '</div><div class="chart-chord-edit-label">楽曲のコードから選択</div>' +
       '<div class="chart-chord-edit-used-list">' +
-      (used || '<span class="chart-chord-edit-hint">使用中のコードはありません。</span>') + '</div></div>';
+      (used || '<span class="chart-chord-edit-hint">使用中のコードはありません。</span>') + '</div>';
   };
 
   const setHint = message => {
@@ -85,7 +85,7 @@ export function openChartChordEditModal({
 
   openModal({
     title: 'コード編集（Chart Mode 試作）',
-    body: renderBody(),
+    body: '<div id="chart-chord-edit-body" class="chart-chord-edit">' + renderBody() + '</div>',
     onOpen: () => {
       const body = document.getElementById('chart-chord-edit-body');
       if (!body) return;
@@ -122,9 +122,7 @@ export function openChartChordEditModal({
           if (!draft.buffer.some(chord => chord._id === id)) return;
           refreshSelection(draft, [id], id);
           inputValue = selectedChord(draft)?.chord || '';
-          body.innerHTML = renderBody().replace('id="chart-chord-edit-body" class="chart-chord-edit"', '');
-          // Restore the wrapper because the delegated event listener must survive rerendering.
-          body.innerHTML = renderBody().replace('<div id="chart-chord-edit-body" class="chart-chord-edit">', '');
+          body.innerHTML = renderBody();
           return;
         }
 
@@ -137,7 +135,7 @@ export function openChartChordEditModal({
           const result = updateChordCommand(draft, current._id, { chord: canonical });
           if (!result.ok) { setHint('コードを更新できませんでした。'); return; }
           inputValue = canonical;
-          body.innerHTML = renderBody().replace('<div id="chart-chord-edit-body" class="chart-chord-edit">', '');
+          body.innerHTML = renderBody();
           return;
         }
 
