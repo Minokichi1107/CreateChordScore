@@ -12,19 +12,32 @@
  * 仕様の境界（未決事項は変更しない）:
  *  - 最小区間長の独自閾値は設けない。分割可否は既存 addChordCommand の範囲検証
  *    （start < splitTime < end）と同じ条件で判断する。
- *  - Rootの初期状態・コード名の分解（既存コードからの復元）・Used Chordsの出典と動作・
- *    内部保存値（B1）・Type内部ID（A2）は決定しない。
+ *  - Used Chordsの出典と動作・内部保存値（B1）・Type内部ID（A2）は決定しない。
+ *
+ * 既存コードの復元と保存保護（restore-protection-spec v3）:
+ *  - ビルダーは「選択中チップ」に同期する。既存チップを選ぶと、画面表示名から完全一致で
+ *    Root/Type/Bass を復元し（parseChordToBuilder）、その値を baseline とする。
+ *  - 「決定」は baseline と異なるときだけ有効（baseline が無い＝新チップ・復元不可・N.C. は Root 選択後に有効）。
+ *    比較は builder と baseline の文字列だけで、保存値の再生成結果とは比べない。
+ *  - 決定後の baseline は決定時の builder 値。チップ表示名（カポ・読み替えで綴りが変わりうる）から再復元しない。
+ *  - 復元はビルダーの画面状態だけを書き換える。曲データ（draft）・hasChanges・Undo には触れない。
  */
 import { addChordCommand, deleteChordCommand, updateChordCommand } from './analysisCommands.js';
 import { pushHistory, refreshSelection } from './analysisSession.js';
 import {
   BUILDER_ROOT_OPTIONS, BUILDER_TYPE_OPTIONS, BUILDER_BASS_OPTIONS,
-  DEFAULT_BUILDER_TYPE_ID, buildChordName,
+  DEFAULT_BUILDER_TYPE_ID, buildChordName, parseChordToBuilder,
 } from './chordBuilderCatalog.js';
 
-// ビルダーの初期選択（既存PRの初期状態を変更しない。Rootの初期状態は未決）
-const INITIAL_BUILDER = { root: 'C', type: DEFAULT_BUILDER_TYPE_ID, bass: '' };
+// ビルダーの未選択状態（Root 未選択・Type は既定・Bass は指定なし）
+const UNSELECTED_BUILDER = { root: '', type: DEFAULT_BUILDER_TYPE_ID, bass: '' };
 const DISCARD_MESSAGE = '変更を破棄しますか？';
+const ROOT_PLACEHOLDER_OPTION = { label: '— ルートを選択 —', value: '' };
+// 復元できなかった既存コード・N.C. を選んだときの表示（新チップの未選択状態では出さない）
+export const BUILDER_NOTICE_TEXT = {
+  unsupported: 'このコードはビルダー対象外です。直接入力で編集できます。',
+  nc: 'N.C.（コードビルダー対象外）',
+};
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -86,7 +99,9 @@ export function createChartChordEditController({
   const baseline = structuredClone(initialState);
   const c = {
     draft, usedChords, toDisplayChord, toCanonicalChord,
-    builder: { ...INITIAL_BUILDER },
+    builder: { ...UNSELECTED_BUILDER },
+    baseline: null,        // 復元できたコードの基準値 {root,type,bass}。それ以外は null
+    notice: 'none',        // 'none' | 'unsupported' | 'nc'
     inputValue: toDisplayChord(selectedChord(draft)?.chord || ''),
     hint: '',
   };
@@ -94,7 +109,10 @@ export function createChartChordEditController({
   c.current = () => selectedChord(draft);
   c.builderName = () => buildChordName(c.builder.root, c.builder.type, c.builder.bass);
   c.canSplit = () => midpointOf(c.current()) !== null;
-  c.canDecide = () => !!c.current() && !!c.builderName();
+  c.builderChanged = () => !c.baseline || c.builder.root !== c.baseline.root
+    || c.builder.type !== c.baseline.type || c.builder.bass !== c.baseline.bass;
+  c.canDecide = () => !!c.current() && c.builder.root !== '' && !!c.builderName() && c.builderChanged();
+  c.canAddFromBuilder = () => c.canSplit() && c.builder.root !== '' && !!c.builderName();
   c.canReplace = () => !!c.current() && !!String(c.inputValue).trim();
   c.canAddFromInput = () => c.canSplit() && !!String(c.inputValue).trim();
   // 直接入力欄の文字列 → 保存用のコード名（N.C.は 'N'、それ以外は表示名→実音へ）
@@ -106,11 +124,33 @@ export function createChartChordEditController({
   c.canDelete = () => !!c.current() && draft.buffer.length > 1;
   c.hasChanges = () => !samePayload(baseline, draft);
 
+  // ビルダーを未選択へ戻す（notice は呼び出し側が指定）。builder オブジェクトは同一のまま値だけ戻す
+  const resetBuilder = notice => {
+    Object.assign(c.builder, UNSELECTED_BUILDER);
+    c.baseline = null;
+    c.notice = notice;
+  };
+
+  // 選択中チップの画面表示名から builder を復元する（完全一致のみ）。曲データ・draft には一切触れない。
+  c.syncBuilderFromSelection = () => {
+    const current = c.current();
+    if (!current) { resetBuilder('none'); return; }
+    const parsed = parseChordToBuilder(toDisplayChord(current.chord));
+    if (parsed.kind === 'ok') {
+      Object.assign(c.builder, { root: parsed.root, type: parsed.type, bass: parsed.bass });
+      c.baseline = { root: parsed.root, type: parsed.type, bass: parsed.bass };
+      c.notice = 'none';
+    } else {
+      resetBuilder(parsed.kind === 'nc' ? 'nc' : 'unsupported');
+    }
+  };
+
   c.select = id => {
     if (!draft.buffer.some(chord => chord._id === id)) return false;
     c.hint = '';
     refreshSelection(draft, [id], id);
     c.inputValue = toDisplayChord(selectedChord(draft)?.chord || '');
+    c.syncBuilderFromSelection();
     return true;
   };
 
@@ -131,8 +171,13 @@ export function createChartChordEditController({
     if (!current) { c.hint = '編集するコードを選択してください。'; return { ok: false }; }
     const name = c.builderName();
     if (!name) { c.hint = 'ルート音を選択してください。'; return { ok: false }; }
+    // UI の無効化だけに頼らず、ここでも再検査する（強制クリック・直接呼び出しでも曲データを変えない）
+    if (!c.canDecide()) return { ok: false, reason: 'unchanged' };
     const result = updateChordCommand(draft, current._id, { chord: toCanonicalChord(name) });
-    if (!result.ok) c.hint = 'コードを更新できませんでした。';
+    if (!result.ok) { c.hint = 'コードを更新できませんでした。'; return result; }
+    // 決定後の基準値は決定時の builder 値。表示名（カポ・読み替えで綴りが変わりうる）から再復元しない。
+    c.baseline = { root: c.builder.root, type: c.builder.type, bass: c.builder.bass };
+    c.notice = 'none';
     return result;
   };
 
@@ -146,6 +191,7 @@ export function createChartChordEditController({
     const result = updateChordCommand(draft, current._id, { chord: canonical });
     if (!result.ok) { c.hint = 'コードを更新できませんでした。'; return result; }
     c.inputValue = toDisplayChord(canonical);
+    c.syncBuilderFromSelection();   // 置換後の内容から復元を試みる
     return result;
   };
 
@@ -159,7 +205,9 @@ export function createChartChordEditController({
     if (!result.ok) {
       c.hint = result.reason === 'invalid-range'
         ? 'この時間区間は短すぎるため分割できません。' : 'コードを追加できませんでした。';
+      return result;
     }
+    resetBuilder('none');   // 新チップが選択される。ビルダーは未選択（復元は試みない・対象外表示も出さない）
     return result;
   };
 
@@ -185,6 +233,7 @@ export function createChartChordEditController({
     const result = deleteChordCommand(draft, current._id);
     if (!result.ok) { c.hint = result.reason || 'コードを削除できませんでした。'; return result; }
     c.inputValue = toDisplayChord(selectedChord(draft)?.chord || '');
+    c.syncBuilderFromSelection();   // 隣へ移った選択先から復元を試みる（選択先がなければ未選択）
     return result;
   };
 
@@ -202,6 +251,7 @@ export function createChartChordEditController({
     return committed !== false;
   };
 
+  c.syncBuilderFromSelection();   // 起動時：呼び出し元で選択済みのチップから復元を試みる
   return c;
 }
 
@@ -238,16 +288,20 @@ export function renderChartChordEditBody(c) {
     '<output class="chart-chord-builder-preview" aria-label="生成されるコード名">' +
     escapeHtml(c.builderName()) + '</output>' +
     '<button type="button" class="sm-btn" data-action="builder-decide"' + dis(c.canDecide()) + '>決定</button>' +
-    '<button type="button" class="sm-btn" data-action="builder-add"' + dis(c.canSplit() && !!c.builderName()) + '>＋追加</button>' +
+    '<button type="button" class="sm-btn" data-action="builder-add"' + dis(c.canAddFromBuilder()) + '>＋追加</button>' +
     '</div>' +
     '<div class="chart-chord-builder-fields">' +
     '<label>ルート音<select data-builder="root" aria-label="ルート音">' +
-    optionsHtml(BUILDER_ROOT_OPTIONS, c.builder.root, 'value') + '</select></label>' +
+    optionsHtml([ROOT_PLACEHOLDER_OPTION].concat(BUILDER_ROOT_OPTIONS), c.builder.root, 'value') + '</select></label>' +
     '<label>コードタイプ<select data-builder="type" aria-label="コードタイプ">' +
     optionsHtml(BUILDER_TYPE_OPTIONS, c.builder.type, 'id') + '</select></label>' +
     '<label>ベース音/オンコード<select data-builder="bass" aria-label="ベース音">' +
     optionsHtml(BUILDER_BASS_OPTIONS, c.builder.bass, 'value') + '</select></label>' +
-    '</div></section>' +
+    '</div>' +
+    (c.notice !== 'none' && BUILDER_NOTICE_TEXT[c.notice]
+      ? '<div class="chart-chord-builder-notice" role="status" data-notice="' + escapeHtml(c.notice) + '">' +
+        escapeHtml(BUILDER_NOTICE_TEXT[c.notice]) + '</div>' : '') +
+    '</section>' +
 
     '<div class="chart-chord-edit-direct">' +
     '<label for="chart-chord-edit-name">コード名を直接入力（補助）</label>' +
@@ -299,7 +353,7 @@ export function openChartChordEditModal({
     const set = (selector, fn) => { const el = bodyEl.querySelector(selector); if (el) fn(el); };
     set('.chart-chord-builder-preview', el => { el.textContent = c.builderName(); });
     set('[data-action="builder-decide"]', el => { el.disabled = !c.canDecide(); });
-    set('[data-action="builder-add"]', el => { el.disabled = !(c.canSplit() && !!c.builderName()); });
+    set('[data-action="builder-add"]', el => { el.disabled = !c.canAddFromBuilder(); });
     set('[data-action="replace"]', el => { el.disabled = !c.canReplace(); });
     set('[data-action="add"]', el => { el.disabled = !c.canAddFromInput(); });
   };

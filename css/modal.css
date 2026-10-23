@@ -196,7 +196,7 @@
 }
 .chart-chord-builder-fields {
   display: grid;
-  grid-template-columns: minmax(80px, .8fr) minmax(110px, 1.3fr) minmax(80px, .8fr);
+  grid-template-columns: minmax(156px, 1.3fr) minmax(110px, 1.2fr) minmax(80px, .8fr);
   gap: 8px;
   align-items: end;
 }
@@ -265,13 +265,22 @@
   color: var(--text-secondary);
   margin: 0;
 }
+.chart-chord-builder-notice {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+}
 @media (max-width: 560px) {
   .chart-chord-edit-input-row,
   .chart-chord-edit-actions {
     flex-wrap: wrap;
   }
   .chart-chord-builder-fields {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px;
+  }
+  /* Root の「— ルートを選択 —」が切れないよう、狭い幅では Root を1行ぶん使う */
+  .chart-chord-builder-fields > label:first-child {
+    grid-column: 1 / -1;
   }
 }

@@ -73,3 +73,40 @@ export function buildChordName(rootValue, typeId, bassValue) {
   if (!type) return '';
   return rootValue + type.suffix + (bassValue ? '/' + bassValue : '');
 }
+
+// ── 既存コードの復元（Phase148 後続：画面表示名 → Root / Type / Bass） ──
+// 画面に表示されるコード名（toDisplayChord(toReadableChord(保存値))）を完全一致で解析する純粋関数。
+//  - Root・Bass は 17 ラベル（ASCII の #/b と Unicode の ♯/♭ の両方）のいずれかと完全一致。
+//    戻り値の value は ASCII（buildChordName と同じ表記）。Unicode は内部値へ変換するだけで、保存値は書き換えない。
+//  - Type は 24 種の suffix と完全一致（別名・異名同音・部分一致の推測はしない。空 suffix は major のみ）。
+//  - N.C. は文字列が正確に 'N' のときだけ（保存値 N は表示でも N のまま。chartmode.js も display === 'N' のみ N.C. 扱い）。
+//    'NC' 'N.C.' 'n' '(N.C)' などは既知の表記ではないため通常の解析に委ね、失敗＝ unsupported になる。
+//  - 失敗しても何も変更しない（この関数は読み取りのみ）。
+const ROOT_VALUE_BY_TEXT = new Map();
+BUILDER_ROOT_OPTIONS.forEach(option => {
+  ROOT_VALUE_BY_TEXT.set(option.value, option.value);
+  ROOT_VALUE_BY_TEXT.set(option.label, option.value);
+});
+const TYPE_ID_BY_SUFFIX = new Map(BUILDER_TYPE_OPTIONS.map(option => [option.suffix, option.id]));
+
+/**
+ * @param {string} displayName 画面に表示されるコード名
+ * @returns {{kind:'ok', root:string, type:string, bass:string} | {kind:'nc'} | {kind:'unsupported'}}
+ */
+export function parseChordToBuilder(displayName) {
+  if (typeof displayName !== 'string') return { kind: 'unsupported' };
+  if (displayName === 'N') return { kind: 'nc' };
+  const slash = displayName.indexOf('/');
+  const main = slash >= 0 ? displayName.slice(0, slash) : displayName;
+  const bassText = slash >= 0 ? displayName.slice(slash + 1) : '';
+  const match = /^([A-G](?:#|b|♯|♭)?)([\s\S]*)$/.exec(main);
+  if (!match) return { kind: 'unsupported' };
+  const root = ROOT_VALUE_BY_TEXT.get(match[1]);
+  if (root === undefined || !TYPE_ID_BY_SUFFIX.has(match[2])) return { kind: 'unsupported' };
+  let bass = '';
+  if (slash >= 0) {
+    bass = ROOT_VALUE_BY_TEXT.get(bassText);
+    if (bass === undefined) return { kind: 'unsupported' };
+  }
+  return { kind: 'ok', root, type: TYPE_ID_BY_SUFFIX.get(match[2]), bass };
+}

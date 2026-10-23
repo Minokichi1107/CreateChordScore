@@ -130,10 +130,12 @@ function launch({ buffer = baseBuffer(), selectedId = 'b', confirmAnswer = true,
   assert.equal(BUILDER_BASS_OPTIONS[0].value, '');
   assert.deepEqual(BUILDER_TYPE_OPTIONS.map(o => [o.id, o.label, o.suffix]), APPROVED_TYPES);
   const html = launch().html();
-  assert.equal(countOptions(html, 'root'), 17);
+  // 仕様変更（restore-protection-spec v3 §E-2）: UI の Root は先頭に「— ルートを選択 —」を足した 18。カタログ定数は 17 のまま（上で検査済み）。
+  assert.equal(countOptions(html, 'root'), 18);
+  assert.match(html, /<select data-builder="root"[^>]*><option value="">— ルートを選択 —<\/option>/); // 先頭の項目（この起動では G を復元済みなので選択はされない）
   assert.equal(countOptions(html, 'type'), 24);
   assert.equal(countOptions(html, 'bass'), 18);
-  ok('2a candidates: Root 17 / Type 24 (§21.7 IDs, labels, suffixes) / Bass 17 + 指定なし');
+  ok('2a candidates: Root 17 (+ placeholder = 18 in UI) / Type 24 (§21.7 IDs, labels, suffixes) / Bass 17 + 指定なし');
 }
 
 // ===== 3. コード名の生成 =====
@@ -166,8 +168,10 @@ function launch({ buffer = baseBuffer(), selectedId = 'b', confirmAnswer = true,
   const canonicalCalls = [];
   const h = launch({ toCanonicalChord: v => { canonicalCalls.push(v); return v; } });
   h.typeText('XYZ');                       // 直接入力欄に別の値
+  // 仕様変更（v3）: 起動時に選択中チップ G を復元済み（基準値と同じ）なので、起動直後の HTML では決定は無効。
+  assert.equal(button(h.html(), 'builder-decide').disabled, true, 'restored and unchanged: 決定 is disabled at launch');
   h.change('root', 'D'); h.change('type', 'minor7');
-  assert.equal(button(h.html(), 'builder-decide').disabled, false);
+  assert.equal(h.body.querySelector('[data-action="builder-decide"]').disabled, false, 'changed from the baseline: 決定 is enabled');
   h.click('builder-decide');
   assert.match(h.html(), /data-id="b"[^>]*>Dm7<\/button>/, 'selected chip b is now Dm7');
   assert.equal(h.calls.closed, 0, '決定 must not close the modal');
@@ -232,7 +236,7 @@ function launch({ buffer = baseBuffer(), selectedId = 'b', confirmAnswer = true,
   assert.ok(h.els['chart-chord-edit-name'].value === 'N.C.');
   h.click('replace');
   assert.match(h.html(), /data-id="b"[^>]*>N<\/button>/, 'N.C. is stored as "N" like the existing selector');
-  assert.equal(button(h.html(), 'builder-decide').disabled, false);
+  assert.equal(button(h.html(), 'builder-decide').disabled, true, 'N.C. replace leaves builder unselected -> decide disabled');
   const ctl = createChartChordEditController({ initialState: makeSession(baseBuffer(), 'b') });
   assert.equal(ctl.canDelete(), true);
   assert.equal(ctl.remove().ok, true);

@@ -53,3 +53,6 @@ jobs:
           echo "::group::Phase148 Chart Mode chord modal UI tests"
           node scripts/test-phase148-chart-chord-modal-ui.mjs
           echo "::endgroup::"
+          echo "::group::Phase148 Chord Builder restore / save-protection tests"
+          node scripts/test-phase148-chord-builder-restore.mjs
+          echo "::endgroup::"
