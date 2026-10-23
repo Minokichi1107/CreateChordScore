@@ -13,6 +13,12 @@ export function nextBuilderField(field) {
   return NEXT_FIELD[field] || null;
 }
 
+// 2桁の番号を確定した直後に自動で移る欄（Root→Type→Bass。Bass は最後なので移動しない）
+const AUTO_ADVANCE_FIELD = { root: 'type', type: 'bass' };
+export function autoAdvanceField(field) {
+  return AUTO_ADVANCE_FIELD[field] || null;
+}
+
 /**
  * 数字を1桁受け取って入力バッファを進める。
  * @param {string} pending 入力中の桁（'' または 1桁）
@@ -45,7 +51,8 @@ const out = (op, prevent, stop) => ({ op, prevent, stop });
  * モーダル表示中の keydown の扱いを決める。
  * @param {object} p
  * @param {string} p.key  @param {string} [p.code]
- * @param {boolean} [p.ctrlKey] [p.altKey] [p.metaKey] [p.shiftKey] [p.isComposing] [p.repeat]
+ * @param {boolean} [p.ctrlKey] [p.altKey] [p.metaKey] [p.shiftKey] [p.isComposing] [p.justComposed] [p.repeat]
+ *   justComposed＝IME変換確定（compositionend）の直後。確定のEnterを誤って処理しないために使う
  * @param {'root'|'type'|'bass'|'button'|'text'|'other'} p.targetKind 発生元
  *   text=INPUT/TEXTAREA、button=モーダル内のボタン、other=その他（body・モーダル外・その他の要素）
  * @param {boolean} p.gateOpen  モーダルが開いている（open クラス かつ 本文要素がある）
@@ -55,11 +62,13 @@ const out = (op, prevent, stop) => ({ op, prevent, stop });
  */
 export function decideModalKey(p) {
   if (!p || !p.gateOpen) return NONE;
-  if (p.isComposing || p.key === 'Process') return NONE;      // IME変換中は処理しない
+  if (p.isComposing || p.justComposed || p.key === 'Process') return NONE;   // IME変換中・変換確定の直後は処理しない
   const kind = p.targetKind;
   // 番号表TIP: 表示中の Escape はTIPだけを閉じる（モーダルは閉じない。入力欄でも先に閉じる）
   if (p.key === 'Escape' && p.tipOpen && !p.ctrlKey && !p.altKey && !p.metaKey) return out('tip-close', true, true);
-  if (kind === 'text') return NONE;                           // 直接入力欄は通常入力を妨げない
+  if (kind === 'text') {                                      // 直接入力欄: 通常入力は妨げず、修飾なしの Enter だけ確定に使う
+    return (p.key === 'Enter' && !p.ctrlKey && !p.altKey && !p.metaKey && !p.shiftKey) ? out('enter', true, true) : NONE;
+  }
   const isField = BUILDER_FIELDS.includes(kind);
   const mod = !!(p.ctrlKey || p.altKey || p.metaKey);
   const key = p.key;
@@ -79,7 +88,7 @@ export function decideModalKey(p) {
   }
   // Enter（3つの select 上。ネイティブのポップアップを開かせず、決定操作に使う）
   if (key === 'Enter') {
-    if (isField && !mod && !p.shiftKey) return out('enter', true, false);
+    if (isField && !mod && !p.shiftKey) return out('enter', true, true);   // 確定で閉じた同じ Enter を背後のグローバル処理へ渡さない（再オープン防止）
     return NONE;
   }
   // 背後の編集へ作用してしまうキーはグローバルへ伝えない（標準動作は残す）

@@ -1548,6 +1548,22 @@ function openChordRenameSelector(chord) {
 }
 
 /**
+ * [Phase148] コード編集モーダルの入力方式（'builder' | 'direct'）の記憶先。
+ * アプリ全体のUI設定としてlocalStorageに保存する（曲データ・Undo履歴には入れない）。
+ * 未保存・読み出し失敗・不正値は 'builder'。書き込み失敗は無視する。
+ */
+const CHORD_EDIT_INPUT_MODE_KEY = 'cs.chordEditInputMode';
+function loadChordEditInputMode() {
+  try {
+    return localStorage.getItem(CHORD_EDIT_INPUT_MODE_KEY) === 'direct' ? 'direct' : 'builder';
+  } catch { return 'builder'; }
+}
+function saveChordEditInputMode(mode) {
+  if (mode !== 'builder' && mode !== 'direct') return;
+  try { localStorage.setItem(CHORD_EDIT_INPUT_MODE_KEY, mode); } catch { /* 無視 */ }
+}
+
+/**
  * Phase148: Chart Mode code-edit modal entry point.
  * The modal owns a draft clone; this callback commits all edits as one Undo unit.
  */
@@ -1562,10 +1578,10 @@ function openChartChordEditSession(chord) {
     openModal,
     mkMBtn,
     initialState: draftInitial,
-    usedChords: analysisEditor.buffer.map(item => item.chord),
+    loadInputMode: loadChordEditInputMode,
+    saveInputMode: saveChordEditInputMode,
     toDisplayChord: value => toDisplayChord(toReadableChord(value), capo),
     toCanonicalChord: value => toCanonicalChord(value, capo),
-    confirmDiscard: () => confirm('変更を破棄しますか？'),
     onCommit: (draft, changed) => {
       if (!changed) return true;
 
@@ -5482,11 +5498,11 @@ function handleAddChordToLine(chord) {
 // ════════════════════════════════════════
 // MODAL SYSTEM
 // ════════════════════════════════════════
-// [Phase148] モーダルが「キャンセル終了」の確認（変更があれば破棄確認）を持つ場合の入口。
+// [Phase148] モーダルが「キャンセル終了」を独自に処理する場合の入口（後始末が必要なモーダル用）。
 // Escape・背景クリックは requestCloseMod() を通し、openModal({ onRequestClose }) 指定があればそちらへ委ねる。
 // 指定がないモーダルは従来どおり closeMod() で即時に閉じる（既存モーダルの挙動は変えない）。
 let _modalRequestClose = null;
-function closeMod(){_modalRequestClose=null;mOv.classList.remove('open');mBody.innerHTML='';mBtns.innerHTML='';}
+function closeMod(){_modalRequestClose=null;mOv.classList.remove('open');mBody.innerHTML='';mBtns.innerHTML='';const box=document.getElementById('modal-box');if(box)box.style.transform='';}   // [Phase148] ドラッグ移動した位置は閉じたら必ず中央へ戻す
 function requestCloseMod(){
   if (_modalRequestClose) { _modalRequestClose(); return; }
   closeMod();
@@ -5531,7 +5547,7 @@ function mkMBtn(txt,cls,fn){const b=document.createElement('button');b.className
  * @param {string}   opts.body    - 本文HTML
  * @param {Function} opts.onOpen  - DOM描画後に呼ばれる（フォーカス等）
  * @param {Function} opts.buttons - (close) => HTMLElement[] ボタン一覧を返す関数
- * @param {Function} [opts.onRequestClose] - Escape／背景クリックで呼ばれる（[Phase148] 破棄確認を持つモーダル用。省略時は即時close）
+ * @param {Function} [opts.onRequestClose] - Escape／背景クリックで呼ばれる（[Phase148] 閉じる前に後始末が要るモーダル用。省略時は即時close）
  */
 function openModal({ title, body, onOpen, buttons, onRequestClose }) {
   _modalRequestClose = typeof onRequestClose === 'function' ? onRequestClose : null;
@@ -6626,6 +6642,8 @@ function setupEventHandlers() {
     // ここでは何もしない（Escapeの分岐と同じ判断基準・二重発火防止）。
     if (e.key === 'Enter') {
       if (document.getElementById('modal-ov').classList.contains('open')) return;
+      // [Phase148] Enterを押し続けたときの自動リピートで、確定して閉じた直後に編集モーダルが再び開かないようにする
+      if (e.repeat) return;
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (isAnalysisEditing()) {

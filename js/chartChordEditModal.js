@@ -10,9 +10,10 @@
  *  - commitChartChordEditDraft: 「完了」で本体セッションへ1回のUndo単位として反映する。
  *
  * 仕様の境界（未決事項は変更しない）:
- *  - 最小区間長の独自閾値は設けない。分割可否は既存 addChordCommand の範囲検証
- *    （start < splitTime < end）と同じ条件で判断する。
- *  - Used Chordsの出典と動作・内部保存値（B1）・Type内部ID（A2）は決定しない。
+ *  - 編集対象はチャートで選択中の1コードだけ（コード列・使用中コード・削除・時間分割は持たない）。
+ *  - 入力方式は「コードビルダー」「直接入力」の切替式（選んだ方式だけ表示。最後の選択は呼び出し元が記憶する）。
+ *  - Enter と「完了」は同じ確定処理（confirm → complete）を通る。
+ *  - 内部保存値（B1）・Type内部ID（A2）は決定しない。
  *
  * 既存コードの復元と保存保護（restore-protection-spec v3）:
  *  - ビルダーは「選択中チップ」に同期する。既存チップを選ぶと、画面表示名から完全一致で
@@ -22,21 +23,23 @@
  *  - 決定後の baseline は決定時の builder 値。チップ表示名（カポ・読み替えで綴りが変わりうる）から再復元しない。
  *  - 復元はビルダーの画面状態だけを書き換える。曲データ（draft）・hasChanges・Undo には触れない。
  */
-import { addChordCommand, deleteChordCommand, updateChordCommand } from './analysisCommands.js';
+import { updateChordCommand } from './analysisCommands.js';
+import { isChordLikeInput } from './chordEntry.js';
 import { pushHistory, refreshSelection } from './analysisSession.js';
 import {
   BUILDER_ROOT_OPTIONS, BUILDER_TYPE_OPTIONS, BUILDER_BASS_OPTIONS,
   DEFAULT_BUILDER_TYPE_ID, buildChordName, parseChordToBuilder,
   getBuilderNumberOf, formatBuilderNumber,
 } from './chordBuilderCatalog.js';
-import { decideModalKey, reduceDigit, nextBuilderField } from './chordBuilderKeyboard.js';
+import { attachModalDrag } from './chordModalDrag.js';
+import { decideModalKey, reduceDigit, nextBuilderField, autoAdvanceField } from './chordBuilderKeyboard.js';
 import {
   TIP_FIELDS, TIP_CLOSED, buildNumberTipRows, tipSections, reduceTip, computeTipPosition,
 } from './chordBuilderNumberTip.js';
 
 // ビルダーの未選択状態（Root 未選択・Type は既定・Bass は指定なし）
 const UNSELECTED_BUILDER = { root: '', type: DEFAULT_BUILDER_TYPE_ID, bass: '' };
-const DISCARD_MESSAGE = '変更を破棄しますか？';
+const BUILDER_FIELD_KINDS = ['root', 'type', 'bass'];
 const ROOT_PLACEHOLDER_OPTION = { label: '— ルートを選択 —', value: '' };
 // 復元できなかった既存コード・N.C. を選んだときの表示（新チップの未選択状態では出さない）
 export const BUILDER_NOTICE_TEXT = {
@@ -88,22 +91,18 @@ function isNoChordText(value) {
   return normalized === 'N' || normalized === 'NC';
 }
 
-/** 分割できるか。既存 addChordCommand と同じ条件（中点が start と end の間にあること）。 */
-function midpointOf(chord) {
-  if (!chord || !Number.isFinite(chord.start) || !Number.isFinite(chord.end)) return null;
-  const mid = (chord.start + chord.end) / 2;
-  return mid > chord.start && mid < chord.end ? mid : null;
-}
+export const INPUT_MODES = ['builder', 'direct'];
 
 export function createChartChordEditController({
-  initialState, usedChords = [],
+  initialState, inputMode = 'builder',
   toDisplayChord = chord => chord,
   toCanonicalChord = chord => chord,
 }) {
   const draft = structuredClone(initialState);
   const baseline = structuredClone(initialState);
   const c = {
-    draft, usedChords, toDisplayChord, toCanonicalChord,
+    draft, toDisplayChord, toCanonicalChord,
+    mode: inputMode === 'direct' ? 'direct' : 'builder',   // 表示中の入力方式（UI状態。曲データ・hasChanges には影響しない）
     builder: { ...UNSELECTED_BUILDER },
     baseline: null,        // 復元できたコードの基準値 {root,type,bass}。それ以外は null
     notice: 'none',        // 'none' | 'unsupported' | 'nc'
@@ -113,20 +112,15 @@ export function createChartChordEditController({
 
   c.current = () => selectedChord(draft);
   c.builderName = () => buildChordName(c.builder.root, c.builder.type, c.builder.bass);
-  c.canSplit = () => midpointOf(c.current()) !== null;
   c.builderChanged = () => !c.baseline || c.builder.root !== c.baseline.root
     || c.builder.type !== c.baseline.type || c.builder.bass !== c.baseline.bass;
   c.canDecide = () => !!c.current() && c.builder.root !== '' && !!c.builderName() && c.builderChanged();
-  c.canAddFromBuilder = () => c.canSplit() && c.builder.root !== '' && !!c.builderName();
-  c.canReplace = () => !!c.current() && !!String(c.inputValue).trim();
-  c.canAddFromInput = () => c.canSplit() && !!String(c.inputValue).trim();
   // 直接入力欄の文字列 → 保存用のコード名（N.C.は 'N'、それ以外は表示名→実音へ）
   const canonicalFromInput = () => {
     const text = String(c.inputValue).trim();
     if (!text) return '';
     return isNoChordText(text) ? 'N' : toCanonicalChord(text);
   };
-  c.canDelete = () => !!c.current() && draft.buffer.length > 1;
   c.hasChanges = () => !samePayload(baseline, draft);
 
   // ビルダーを未選択へ戻す（notice は呼び出し側が指定）。builder オブジェクトは同一のまま値だけ戻す
@@ -150,15 +144,6 @@ export function createChartChordEditController({
     }
   };
 
-  c.select = id => {
-    if (!draft.buffer.some(chord => chord._id === id)) return false;
-    c.hint = '';
-    refreshSelection(draft, [id], id);
-    c.inputValue = toDisplayChord(selectedChord(draft)?.chord || '');
-    c.syncBuilderFromSelection();
-    return true;
-  };
-
   c.setBuilder = (field, value) => {
     if (!(field in c.builder)) return false;
     c.builder[field] = value;
@@ -166,10 +151,15 @@ export function createChartChordEditController({
   };
 
   c.setInput = value => { c.inputValue = value; };
-  c.useChord = chord => { c.inputValue = toDisplayChord(chord || ''); };
-  c.noChord = () => { c.inputValue = 'N.C.'; };
 
-  // 「決定」: ビルダーで生成したコード名を選択中チップへ適用する（モーダルは閉じない）
+  c.setMode = mode => {
+    if (!INPUT_MODES.includes(mode) || mode === c.mode) return false;
+    c.mode = mode;
+    c.hint = '';
+    return true;
+  };
+
+  // ビルダーで生成したコード名を選択中のコードへ適用する（draft のみ。confirm から呼ばれる）
   c.decide = () => {
     c.hint = '';
     const current = c.current();
@@ -186,60 +176,39 @@ export function createChartChordEditController({
     return result;
   };
 
-  // 「置換」（直接入力・補助）: 入力欄の文字列を選択中チップへ適用する
-  c.replaceWithInput = () => {
-    c.hint = '';
+  // 選択中のコードへコード名（保存値）を適用する。N.C. は 'N'（chordEntry.js showChordSelector と同じ）
+  const applyChord = canonical => {
     const current = c.current();
-    if (!current) { c.hint = '編集するコードを選択してください。'; return { ok: false }; }
-    const canonical = canonicalFromInput();
-    if (!canonical) { c.hint = 'コード名を入力してください。'; return { ok: false }; }
     const result = updateChordCommand(draft, current._id, { chord: canonical });
     if (!result.ok) { c.hint = 'コードを更新できませんでした。'; return result; }
     c.inputValue = toDisplayChord(canonical);
-    c.syncBuilderFromSelection();   // 置換後の内容から復元を試みる
+    c.syncBuilderFromSelection();
     return result;
   };
 
-  // 選択中の時間区間を中点で分割して新しいチップを追加する（既存Commandの範囲検証に任せる）
-  const addAtMidpoint = canonicalName => {
+  /**
+   * 確定（Enter・「完了」・N.C.ボタン共通の最初の段階）: 表示中の方式の入力を draft へ適用する。
+   * 閉じる処理は呼び出し側（complete → closeCurrentModal）。適用できないときは理由を c.hint に入れて ok:false。
+   * 元から変わっていない入力は何も適用しない（再計算でカポ換算などの綴りが変わり、保存値が動くのを避ける）。
+   * @param {{noChord?: boolean}} opts noChord=true で入力方式にかかわらず N.C.（'N'）にする
+   */
+  c.confirm = ({ noChord = false } = {}) => {
+    c.hint = '';
     const current = c.current();
     if (!current) { c.hint = '編集するコードを選択してください。'; return { ok: false }; }
-    if (!canonicalName) { c.hint = 'コード名を入力してください。'; return { ok: false }; }
-    const splitTime = (current.start + current.end) / 2;
-    const result = addChordCommand(draft, current._id, splitTime, canonicalName);
-    if (!result.ok) {
-      c.hint = result.reason === 'invalid-range'
-        ? 'この時間区間は短すぎるため分割できません。' : 'コードを追加できませんでした。';
-      return result;
+    if (noChord) return applyChord('N');
+    if (c.mode === 'direct') {
+      const text = String(c.inputValue).trim();
+      if (!text) { c.hint = 'コード名を入力してください。'; return { ok: false }; }
+      if (text === toDisplayChord(current.chord)) return { ok: true, unchanged: true };
+      if (isNoChordText(text)) return applyChord('N');
+      // 検証: 旧 showChordSelector と同じ判定（isChordLikeInput）に加え、ビルダーが作れる名前（例 m7(b5)・7(#5)。括弧を含む）も有効とする
+      if (!isChordLikeInput(text) && parseChordToBuilder(text).kind !== 'ok') { c.hint = 'コード名として認識できません（例: Am7、F#m7(b5)）。'; return { ok: false }; }
+      return applyChord(toCanonicalChord(text));
     }
-    resetBuilder('none');   // 新チップが選択される。ビルダーは未選択（復元は試みない・対象外表示も出さない）
-    return result;
-  };
-
-  c.addFromBuilder = () => {
-    c.hint = '';
-    const name = c.builderName();
-    if (!name) { c.hint = 'ルート音を選択してください。'; return { ok: false }; }
-    return addAtMidpoint(toCanonicalChord(name));
-  };
-
-  c.addFromInput = () => {
-    c.hint = '';
-    const canonical = canonicalFromInput();
-    const result = addAtMidpoint(canonical);
-    if (result.ok) c.inputValue = toDisplayChord(canonical);
-    return result;
-  };
-
-  c.remove = () => {
-    c.hint = '';
-    const current = c.current();
-    if (!current) return { ok: false };
-    const result = deleteChordCommand(draft, current._id);
-    if (!result.ok) { c.hint = result.reason || 'コードを削除できませんでした。'; return result; }
-    c.inputValue = toDisplayChord(selectedChord(draft)?.chord || '');
-    c.syncBuilderFromSelection();   // 隣へ移った選択先から復元を試みる（選択先がなければ未選択）
-    return result;
+    if (c.builder.root === '') { c.hint = 'ルート音を選択してください。'; return { ok: false }; }
+    if (!c.builderChanged()) return { ok: true, unchanged: true };
+    return c.decide();
   };
 
   // 「完了」: 整合性を確認し、onCommit（本体への反映）を呼ぶ。閉じてよければ true
@@ -284,33 +253,14 @@ function labelRow(field, text) {
 
 export function renderChartChordEditBody(c) {
   const current = c.current();
-  const chips = c.draft.buffer.map(chord => {
-    const isSelected = !!current && chord._id === current._id;
-    return '<button type="button" class="chart-chord-edit-chip' + (isSelected ? ' is-selected' : '') +
-      '" data-action="select" data-id="' + escapeHtml(chord._id) + '" aria-pressed="' +
-      (isSelected ? 'true' : 'false') + '">' + escapeHtml(c.toDisplayChord(chord.chord)) + '</button>';
-  }).join('');
+  const modeButtons = [['builder', 'コードビルダー'], ['direct', '直接入力']].map(([mode, label]) =>
+    '<button type="button" class="sm-btn chart-chord-edit-mode' + (c.mode === mode ? ' is-active' : '') +
+    '" data-action="mode" data-mode="' + mode + '" aria-pressed="' + (c.mode === mode ? 'true' : 'false') + '">' + label + '</button>').join('');
 
-  const used = Array.from(new Set(c.usedChords.concat(c.draft.buffer.map(chord => chord.chord))))
-    .filter(Boolean)
-    .map(chord => '<button type="button" class="chart-chord-edit-used" data-action="use" data-chord="' +
-      escapeHtml(chord) + '">' + escapeHtml(c.toDisplayChord(chord)) + '</button>').join('');
-
-  const dis = ok => (ok ? '' : ' disabled');
-  const defaultHint = !current ? '編集するコードを選択してください。'
-    : (c.canSplit() ? '＋追加は選択中の時間区間を中央で分割します。' : 'この時間区間はこれ以上分割できません。');
-
-  return (
-    '<div class="chart-chord-edit-label">編集中のコード列（クリックして選択）</div>' +
-    '<div class="chart-chord-edit-sequence">' + chips + '</div>' +
-
-    '<section class="chart-chord-builder" aria-label="コードビルダー">' +
-    '<div class="chart-chord-edit-label">コードビルダー</div>' +
+  const builder = '<section class="chart-chord-builder" aria-label="コードビルダー">' +
     '<div class="chart-chord-builder-actions">' +
-    '<output class="chart-chord-builder-preview" aria-label="生成されるコード名">' +
-    escapeHtml(c.builderName()) + '</output>' +
-    '<button type="button" class="sm-btn" data-action="builder-decide"' + dis(c.canDecide()) + '>決定</button>' +
-    '<button type="button" class="sm-btn" data-action="builder-add"' + dis(c.canAddFromBuilder()) + '>＋追加</button>' +
+    '<output class="chart-chord-builder-preview" aria-label="生成されるコード名">' + escapeHtml(c.builderName()) + '</output>' +
+    '<button type="button" class="sm-btn" data-action="no-chord">N.C.</button>' +
     '</div>' +
     '<div class="chart-chord-builder-fields">' +
     '<label>' + labelRow('root', 'ルート音') + '<select data-builder="root" aria-label="ルート音">' +
@@ -323,22 +273,22 @@ export function renderChartChordEditBody(c) {
     (c.notice !== 'none' && BUILDER_NOTICE_TEXT[c.notice]
       ? '<div class="chart-chord-builder-notice" role="status" data-notice="' + escapeHtml(c.notice) + '">' +
         escapeHtml(BUILDER_NOTICE_TEXT[c.notice]) + '</div>' : '') +
-    '</section>' +
+    '</section>';
 
-    '<div class="chart-chord-edit-direct">' +
-    '<label for="chart-chord-edit-name">コード名を直接入力（補助）</label>' +
+  const direct = '<div class="chart-chord-edit-direct">' +
+    '<label for="chart-chord-edit-name">コード名</label>' +
     '<div class="chart-chord-edit-input-row">' +
     '<input id="chart-chord-edit-name" class="mi" type="text" autocomplete="off" value="' +
     escapeHtml(c.inputValue) + '" aria-label="コード名">' +
     '<button type="button" class="sm-btn" data-action="no-chord">N.C.</button>' +
-    '<button type="button" class="sm-btn" data-action="replace"' + dis(c.canReplace()) + '>置換</button>' +
-    '<button type="button" class="sm-btn" data-action="add"' + dis(c.canAddFromInput()) + '>＋追加</button>' +
-    '</div></div>' +
+    '</div></div>';
 
-    '<div class="chart-chord-edit-hint" id="chart-chord-edit-hint">' + escapeHtml(c.hint || defaultHint) + '</div>' +
-    '<div class="chart-chord-edit-label">曲内で使用中のコード（クイック選択）</div>' +
-    '<div class="chart-chord-edit-used-list">' +
-    (used || '<span class="chart-chord-edit-hint">使用中のコードはありません。</span>') + '</div>'
+  return (
+    '<div class="chart-chord-edit-label">編集中のコード: <b class="chart-chord-edit-current">' +
+    escapeHtml(current ? c.toDisplayChord(current.chord) : '') + '</b></div>' +
+    '<div class="chart-chord-edit-modes" role="group" aria-label="入力方式">' + modeButtons + '</div>' +
+    (c.mode === 'direct' ? direct : builder) +
+    (c.hint ? '<div class="chart-chord-edit-hint" id="chart-chord-edit-hint" role="status">' + escapeHtml(c.hint) + '</div>' : '')
   );
 }
 
@@ -361,18 +311,22 @@ function installKeyHandler() {
 }
 
 export function openChartChordEditModal({
-  openModal, mkMBtn, initialState, usedChords = [],
+  openModal, mkMBtn, initialState,
+  // 入力方式（'builder' | 'direct'）の記憶。保存先は呼び出し元（app.js）が持つ。曲データ・Undoには関わらない
+  loadInputMode = () => 'builder',
+  saveInputMode = () => {},
   toDisplayChord = chord => chord,
   toCanonicalChord = chord => chord,
   onCommit,
-  // 変更があるときの破棄確認（ブラウザ標準confirm()。承認済み仕様）。確認できない場合は編集を守るため false
-  confirmDiscard = () => (typeof globalThis.confirm === 'function' ? globalThis.confirm(DISCARD_MESSAGE) : false),
 }) {
   if (!initialState || !Array.isArray(initialState.buffer) || !initialState.buffer.length) return;
 
-  const c = createChartChordEditController({ initialState, usedChords, toDisplayChord, toCanonicalChord });
+  const c = createChartChordEditController({
+    initialState, toDisplayChord, toCanonicalChord,
+    inputMode: (() => { try { return loadInputMode(); } catch { return 'builder'; } })(),
+  });
   let closeCurrentModal = () => {};
-  let deleteButton = null;
+  let dragCtl = null;   // タイトル領域のドラッグ移動（一時的な表示位置のみ）
   let bodyEl = null;
   // 数字入力中の桁。builder・baseline・draft とは独立（hasChanges に影響しない）
   const kb = { pending: '', field: null };
@@ -381,6 +335,17 @@ export function openChartChordEditModal({
     const el = bodyEl && bodyEl.querySelector('select[data-builder="' + field + '"]');
     if (el && typeof el.focus === 'function') el.focus();
   };
+  // いまの方式の主な入力欄へフォーカス（ビルダー: 指定欄または Root／直接入力: コード名欄）
+  const focusPrimary = field => {
+    if (c.mode === 'direct') {
+      const input = bodyEl && bodyEl.querySelector('#chart-chord-edit-name');
+      if (input && typeof input.focus === 'function') { input.focus(); if (input.select) input.select(); }
+    } else {
+      focusField(field || 'root');
+    }
+  };
+  // IME変換確定（compositionend）の直後の Enter を確定に使わないための目印（旧 showChordSelector と同じ考え方）
+  let justComposed = false;
   const showPending = () => {
     bodyEl.querySelectorAll('[data-pending-for]').forEach(el => {
       el.textContent = kb.pending && el.dataset.pendingFor === kb.field ? kb.pending + '_' : '';
@@ -455,9 +420,9 @@ export function openChartChordEditModal({
   };
   const tipTargetOf = target => (target && target.closest ? target.closest('[data-tip-for]') : null);
 
-  // キャンセル終了（キャンセル／Escape／背景クリック／×）の共通経路
+  // キャンセル終了（キャンセル／Escape／背景クリック／×）の共通経路。確認なしで閉じ、未確定の入力は破棄する
+  // （単一コードの簡素な編集のため。作業用コピー draft は本体へ渡さないので、チャートには何も反映されない）
   const requestCancel = () => {
-    if (c.hasChanges() && !confirmDiscard()) return false; // 確認でキャンセル→モーダルと編集内容を維持
     closeCurrentModal();
     return true;
   };
@@ -465,7 +430,6 @@ export function openChartChordEditModal({
   const rerender = () => {
     kb.pending = ''; kb.field = null;   // 再描画で入力中の桁は残さない
     if (bodyEl) bodyEl.innerHTML = renderChartChordEditBody(c);
-    if (deleteButton) deleteButton.disabled = !c.canDelete();
   };
 
   // select/input変更時は再描画せず（フォーカスを保つため）、表示と有効/無効だけ更新する
@@ -473,18 +437,16 @@ export function openChartChordEditModal({
     if (!bodyEl) return;
     const set = (selector, fn) => { const el = bodyEl.querySelector(selector); if (el) fn(el); };
     set('.chart-chord-builder-preview', el => { el.textContent = c.builderName(); });
-    set('[data-action="builder-decide"]', el => { el.disabled = !c.canDecide(); });
-    set('[data-action="builder-add"]', el => { el.disabled = !c.canAddFromBuilder(); });
-    set('[data-action="replace"]', el => { el.disabled = !c.canReplace(); });
-    set('[data-action="add"]', el => { el.disabled = !c.canAddFromInput(); });
   };
 
-  // 「決定」の実行（ボタン・Enter 共通）。成功したら再描画して Root へ戻す。失敗時は元の欄を保つ
-  const runDecide = fromField => {
-    const result = c.decide();
-    rerender();
-    focusField(result.ok ? 'root' : (fromField || 'root'));
-    return result;
+  // 確定（Enter・「完了」・N.C.ボタン共通）。適用 → 完了処理 → 閉じる。
+  // 適用できない／本体が確定を拒否したときは閉じず、理由（c.hint）を表示して入力へ戻る
+  const submit = ({ noChord = false, fromField = null } = {}) => {
+    const result = c.confirm({ noChord });
+    if (!result.ok) { rerender(); focusPrimary(fromField); return false; }
+    if (c.complete(onCommit)) { closeCurrentModal(); return true; }
+    rerender(); focusPrimary(fromField);
+    return false;
   };
 
   if (activeKeyboard && activeKeyboard.destroy) activeKeyboard.destroy();   // 前のモーダルのTIPを残さない
@@ -495,7 +457,7 @@ export function openChartChordEditModal({
       if (!gateOpen && tip.state.visible) destroyTip();   // モーダルが閉じていればTIPも残さない
       const decision = decideModalKey({
         key: event.key, code: event.code, ctrlKey: event.ctrlKey, altKey: event.altKey,
-        metaKey: event.metaKey, shiftKey: event.shiftKey, isComposing: event.isComposing,
+        metaKey: event.metaKey, shiftKey: event.shiftKey, isComposing: event.isComposing, justComposed,
         repeat: event.repeat, targetKind: kindOf(event.target), gateOpen,
         tipOpen: tip.state.visible,
       });
@@ -509,19 +471,24 @@ export function openChartChordEditModal({
           if (r.commit && c.setBuilder(field, r.commit.value)) {
             event.target.value = r.commit.value;   // select の change と同じ経路（setBuilder → syncControls）
             syncControls();
+            const next = autoAdvanceField(field);   // 2桁が確定したら次の欄へ（Root→Type→Bass。Bass は最後）
+            if (next) focusField(next);
           }
         } else if (decision.op === 'focus-next') {
           discardPending();
           focusField(nextBuilderField(field));
         } else if (decision.op === 'enter') {
-          if (kb.pending) discardPending();
-          else if (c.canDecide()) runDecide(field);
+          if (kb.pending) discardPending();           // 入力途中の桁は破棄するだけ（確定しない）
+          else submit({ fromField: field });
         } else if (decision.op === 'tip-toggle') {
-          dispatchTip({ type: 'toggle-key' }, bodyEl.querySelector('.chart-chord-builder-fields'));
+          const anchor = bodyEl.querySelector('.chart-chord-builder-fields');   // 直接入力方式では番号表は出さない
+          if (anchor) dispatchTip({ type: 'toggle-key' }, anchor);
         } else if (decision.op === 'tip-close') {
           dispatchTip({ type: 'escape' }, null);
         }
       }
+      // 数字入力の途中で Backspace: その桁を取り消す（select は元々 Backspace を受けない）
+      if (!decision.op && bodyEl && event.key === 'Backspace' && kb.pending && BUILDER_FIELD_KINDS.includes(kindOf(event.target))) discardPending();
       if (decision.prevent) event.preventDefault();
       if (decision.stop) event.stopPropagation();
     },
@@ -529,7 +496,7 @@ export function openChartChordEditModal({
   installKeyHandler();
 
   openModal({
-    title: 'コード編集（Chart Mode 試作）',
+    title: 'コード編集',
     body: '<div id="chart-chord-edit-body" class="chart-chord-edit">' + renderChartChordEditBody(c) + '</div>',
     onRequestClose: requestCancel,
     onOpen: () => {
@@ -546,6 +513,12 @@ export function openChartChordEditModal({
         closeButton.textContent = '×';
         closeButton.addEventListener('click', requestCancel);
         titleEl.appendChild(closeButton);
+      }
+
+      // タイトル領域のドラッグでモーダルを動かせる（背後のチャートを確認するため。位置は保存しない）
+      const boxEl = document.getElementById('modal-box');
+      if (titleEl && boxEl && boxEl.style && typeof titleEl.addEventListener === 'function') {
+        dragCtl = attachModalDrag({ handle: titleEl, box: boxEl, enabled: isChordEditModalOpen, onStart: destroyTip });
       }
 
       bodyEl.addEventListener('change', event => {
@@ -580,43 +553,29 @@ export function openChartChordEditModal({
         syncControls();
       });
 
+      bodyEl.addEventListener('compositionend', () => { justComposed = true; setTimeout(() => { justComposed = false; }, 0); });
+
       bodyEl.addEventListener('click', event => {
         const button = event.target.closest('button[data-action]');
         if (!button || button.disabled) return;
-        const action = button.dataset.action;
-
-        if (action === 'use' || action === 'no-chord') {
-          if (action === 'use') c.useChord(button.dataset.chord); else c.noChord();
-          const input = document.getElementById('chart-chord-edit-name');
-          if (input) { input.value = c.inputValue; input.focus(); }
-          syncControls();
-          return;
+        if (button.dataset.action === 'no-chord') { submit({ noChord: true }); return; }
+        if (button.dataset.action === 'mode') {
+          if (!c.setMode(button.dataset.mode)) return;
+          try { saveInputMode(c.mode); } catch { /* 記憶できなくても編集は続けられる */ }
+          destroyTip();
+          rerender();
+          focusPrimary();
         }
-        let result = null;
-        if (action === 'select') c.select(button.dataset.id);
-        else if (action === 'builder-decide') result = c.decide();
-        else if (action === 'builder-add') result = c.addFromBuilder();
-        else if (action === 'replace') c.replaceWithInput();
-        else if (action === 'add') result = c.addFromInput();
-        else return;
-        rerender();
-        if (result && result.ok) focusField('root');   // 決定・＋追加の成功後は Root へ
       });
 
       rerender();
-      focusField('root');   // 起動時は Root にフォーカス
+      focusPrimary();   // 起動時: ビルダーは Root、直接入力はコード名欄
     },
     buttons: close => {
-      closeCurrentModal = () => { destroyTip(); close(); };   // どの終了経路でもTIPを残さない
-      deleteButton = mkMBtn('削除', 'del chart-chord-edit-delete', () => { c.remove(); rerender(); });
-      deleteButton.disabled = !c.canDelete();
+      closeCurrentModal = () => { destroyTip(); if (dragCtl) { dragCtl.destroy(); dragCtl = null; } close(); };   // どの終了経路でもTIP・ドラッグ処理を残さない
       return [
-        deleteButton,
         mkMBtn('キャンセル', '', requestCancel),
-        mkMBtn('完了', 'ok', () => {
-          if (c.complete(onCommit)) closeCurrentModal();
-          else rerender();
-        }),
+        mkMBtn('完了', 'ok', () => { submit(); }),
       ];
     },
   });
