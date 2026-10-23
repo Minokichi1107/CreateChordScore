@@ -47,3 +47,15 @@ jobs:
           echo "::group::Phase147 right-click context-position tests"
           node scripts/test-phase147-context-position.mjs
           echo "::endgroup::"
+          echo "::group::Phase148 Chart Mode chord modal transaction tests"
+          node scripts/test-phase148-chart-chord-modal.mjs
+          echo "::endgroup::"
+          echo "::group::Phase148 Chart Mode chord modal UI tests"
+          node scripts/test-phase148-chart-chord-modal-ui.mjs
+          echo "::endgroup::"
+          echo "::group::Phase148 Chord Builder restore / save-protection tests"
+          node scripts/test-phase148-chord-builder-restore.mjs
+          echo "::endgroup::"
+          echo "::group::Phase148 Chord Builder keyboard (digit-command) tests"
+          node scripts/test-phase148-chord-builder-keyboard.mjs
+          echo "::endgroup::"

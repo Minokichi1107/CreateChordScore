@@ -179,6 +179,8 @@ import {
   openPasteFitCollisionWarningModal, // Phase130
 } from './modals.js';
 
+import { openChartChordEditModal, commitChartChordEditDraft } from './chartChordEditModal.js';
+
 import { isSepToken, isNoChordToken } from './tokens.js';
 
 // [Phase127-E③] textTooltip.jsのimportは削除した。app.js側の呼び出し元が
@@ -1542,6 +1544,61 @@ function openChordRenameSelector(chord) {
       // （splitChordのような_refreshSelection()呼び出しは不要）。
     },
     // onCancel省略: 何も呼ばれないため状態は一切変化しない
+  });
+}
+
+/**
+ * Phase148: Chart Mode code-edit modal entry point.
+ * The modal owns a draft clone; this callback commits all edits as one Undo unit.
+ */
+function openChartChordEditSession(chord) {
+  if (!isAnalysisEditing() || !chord || !analysisEditor.buffer?.some(item => item._id === chord._id)) return;
+
+  const capo = getCapo();
+  const draftInitial = structuredClone(analysisEditor);
+  refreshSelection(draftInitial, [chord._id], chord._id);
+
+  openChartChordEditModal({
+    openModal,
+    mkMBtn,
+    initialState: draftInitial,
+    usedChords: analysisEditor.buffer.map(item => item.chord),
+    toDisplayChord: value => toDisplayChord(toReadableChord(value), capo),
+    toCanonicalChord: value => toCanonicalChord(value, capo),
+    confirmDiscard: () => confirm('変更を破棄しますか？'),
+    onCommit: (draft, changed) => {
+      if (!changed) return true;
+
+      const errors = validateAnalysis(draft.buffer);
+      if (errors.length) {
+        toast('⚠ 確定できません: ' + errors[0]);
+        return false;
+      }
+
+      const before = _recIsRecording()
+        ? _recSnapshot({ includeBuffer: true, includeSections: true })
+        : null;
+      const sectionsBefore = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
+
+      // The shared helper commits the full draft as one Undo transaction.
+      if (!commitChartChordEditDraft(analysisEditor, draft)) return true;
+      setSelectedChordIds(analysisEditor.selection.chordIds);
+
+      const after = _recIsRecording()
+        ? _recSnapshot({ includeBuffer: true, includeSections: true })
+        : null;
+      const sectionsAfter = _recIsRecording() ? _recSnapshotSections(analysisEditor) : null;
+      _recRecord(
+        'chordEditModal',
+        { ok: true },
+        before,
+        after,
+        _recIsRecording() ? _recDiffSections(sectionsBefore, sectionsAfter) : undefined
+      );
+
+      _refreshEditorView('chordEditModal');
+      return true;
+    },
   });
 }
 
@@ -4294,7 +4351,7 @@ function renderAnalysisEditorPanel() {
   });
   document.getElementById('aep-rename')?.addEventListener('click', () => {
     if (!chord) return;
-    openChordRenameSelector(chord);
+    openChartChordEditSession(chord);
   });
   document.getElementById('aep-undo')?.addEventListener('click', undoEdit);
   document.getElementById('aep-redo')?.addEventListener('click', redoEdit);
@@ -5425,14 +5482,22 @@ function handleAddChordToLine(chord) {
 // ════════════════════════════════════════
 // MODAL SYSTEM
 // ════════════════════════════════════════
-function closeMod(){mOv.classList.remove('open');mBody.innerHTML='';mBtns.innerHTML='';}
+// [Phase148] モーダルが「キャンセル終了」の確認（変更があれば破棄確認）を持つ場合の入口。
+// Escape・背景クリックは requestCloseMod() を通し、openModal({ onRequestClose }) 指定があればそちらへ委ねる。
+// 指定がないモーダルは従来どおり closeMod() で即時に閉じる（既存モーダルの挙動は変えない）。
+let _modalRequestClose = null;
+function closeMod(){_modalRequestClose=null;mOv.classList.remove('open');mBody.innerHTML='';mBtns.innerHTML='';}
+function requestCloseMod(){
+  if (_modalRequestClose) { _modalRequestClose(); return; }
+  closeMod();
+}
 // [Phase83] 背景クリックで閉じる判定をclickのみからmousedown+click両方が
 // 背景上で発生した場合のみへ変更（仮説：入力欄内でのドラッグ選択が背景外で
 // mouseupすると誤ってclickイベントがmOvをtargetにしてしまう問題への対策）。
 let _mOvMouseDownOnOverlay = false;
 mOv.addEventListener('mousedown', e => { _mOvMouseDownOnOverlay = (e.target === mOv); });
 mOv.addEventListener('click', e => {
-  if (e.target === mOv && _mOvMouseDownOnOverlay) closeMod();
+  if (e.target === mOv && _mOvMouseDownOnOverlay) requestCloseMod();
   _mOvMouseDownOnOverlay = false;
 });
 function mkMBtn(txt,cls,fn){const b=document.createElement('button');b.className=`mbtn ${cls||''}`;b.textContent=txt;b.addEventListener('click',fn);return b;}
@@ -5466,8 +5531,10 @@ function mkMBtn(txt,cls,fn){const b=document.createElement('button');b.className
  * @param {string}   opts.body    - 本文HTML
  * @param {Function} opts.onOpen  - DOM描画後に呼ばれる（フォーカス等）
  * @param {Function} opts.buttons - (close) => HTMLElement[] ボタン一覧を返す関数
+ * @param {Function} [opts.onRequestClose] - Escape／背景クリックで呼ばれる（[Phase148] 破棄確認を持つモーダル用。省略時は即時close）
  */
-function openModal({ title, body, onOpen, buttons }) {
+function openModal({ title, body, onOpen, buttons, onRequestClose }) {
+  _modalRequestClose = typeof onRequestClose === 'function' ? onRequestClose : null;
   mTit.textContent = title;
   mBody.innerHTML  = body;
   mBtns.innerHTML  = '';
@@ -6514,7 +6581,7 @@ function setupEventHandlers() {
     // INPUT/TEXTAREA フォーカス中でも diagLock 解除は動作させる
     if (e.key === 'Escape') {
       if (document.getElementById('modal-ov').classList.contains('open')) {
-        closeMod();
+        requestCloseMod();
         return;
       }
       // [Phase101-3] Section ▼メニューはModalの次に優先する。通常の遷移では
@@ -6575,7 +6642,7 @@ function setupEventHandlers() {
           );
           if (chord) {
             e.preventDefault();
-            openChordRenameSelector(chord);
+            openChartChordEditSession(chord);
             return;
           }
         }
