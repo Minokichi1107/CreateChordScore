@@ -132,7 +132,7 @@ function launch({ buffer = baseBuffer(), selectedId = 'b', confirmAnswer = true,
   const html = launch().html();
   // 仕様変更（restore-protection-spec v3 §E-2）: UI の Root は先頭に「— ルートを選択 —」を足した 18。カタログ定数は 17 のまま（上で検査済み）。
   assert.equal(countOptions(html, 'root'), 18);
-  assert.match(html, /<select data-builder="root"[^>]*><option value="">— ルートを選択 —<\/option>/); // 先頭の項目（この起動では G を復元済みなので選択はされない）
+  assert.match(html, /<select data-builder="root"[^>]*><option value="">— ルートを選択 — 00<\/option>/); // 番号付きラベル（digit-command spec v3 §2.4）。先頭の項目（この起動では G を復元済みなので選択はされない）
   assert.equal(countOptions(html, 'type'), 24);
   assert.equal(countOptions(html, 'bass'), 18);
   ok('2a candidates: Root 17 (+ placeholder = 18 in UI) / Type 24 (§21.7 IDs, labels, suffixes) / Bass 17 + 指定なし');

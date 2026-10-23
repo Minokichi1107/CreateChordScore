@@ -196,7 +196,7 @@
 }
 .chart-chord-builder-fields {
   display: grid;
-  grid-template-columns: minmax(156px, 1.3fr) minmax(110px, 1.2fr) minmax(80px, .8fr);
+  grid-template-columns: minmax(178px, 1.4fr) minmax(112px, 1.1fr) minmax(112px, 1fr);
   gap: 8px;
   align-items: end;
 }
@@ -283,4 +283,65 @@
   .chart-chord-builder-fields > label:first-child {
     grid-column: 1 / -1;
   }
+}
+/* 数字コマンド入力: 欄ラベル行の右に入力中の桁（例 `0_`）を出す。常に高さを確保して表示切替でずらさない */
+.chart-chord-builder-labelrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 1.3em;
+}
+.chart-chord-builder-pending {
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  color: var(--accent);
+  white-space: pre;
+}
+/* 番号表TIP（モーダルの外側に出す浮動表示。モーダル(#modal-ov z-index:500)より前面） */
+.chart-chord-builder-tip-target {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.chart-chord-number-tip {
+  position: fixed;
+  z-index: 501;
+  display: none;
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 8px 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-ui-strong);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .45);
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: none;
+}
+.chart-chord-number-tip-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.chart-chord-number-tip-section + .chart-chord-number-tip-section { margin-top: 8px; }
+.chart-chord-number-tip ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 2px 12px;
+}
+.chart-chord-number-tip li { white-space: nowrap; }
+.chart-chord-number-tip li b {
+  font-family: var(--font-mono, monospace);
+  color: var(--accent);
+  margin-right: 6px;
+}
+.chart-chord-number-tip-foot {
+  margin-top: 6px;
+  color: var(--text-muted, var(--text-secondary));
 }

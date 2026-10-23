@@ -60,6 +60,46 @@ export const BUILDER_TYPE_OPTIONS = [
 
 export const DEFAULT_BUILDER_TYPE_ID = 'major';
 
+// ── 数字コマンド入力の固定番号（digit-command-input-spec v3 §2。確定済み） ──
+// 番号と内部値/IDの対応は明示的な表で持つ。配列の位置や表示順から算出しない（並べ替えても番号は変わらない）。
+// Root / Bass 共通: 01〜17。00 は別扱い（Root＝未選択／Bass＝指定なし。内部値 ''）。
+export const BUILDER_NOTE_NUMBER_TABLE = Object.freeze([
+  [1, 'C'], [2, 'C#'], [3, 'Db'], [4, 'D'], [5, 'D#'], [6, 'Eb'], [7, 'E'], [8, 'F'], [9, 'F#'],
+  [10, 'Gb'], [11, 'G'], [12, 'G#'], [13, 'Ab'], [14, 'A'], [15, 'A#'], [16, 'Bb'], [17, 'B'],
+]);
+// Type: 01〜24（設計書 §21.7 の順）。00 は無効。将来の追加は次の未使用番号。無効化した番号は再利用しない。
+export const BUILDER_TYPE_NUMBER_TABLE = Object.freeze([
+  [1, 'major'], [2, 'major7'], [3, 'dominant7'], [4, 'sixth'], [5, 'add9'], [6, 'sus4'],
+  [7, 'dominant7sus4'], [8, 'dominant7-sharp5'], [9, 'dominant7-flat5'], [10, 'minor'], [11, 'minor7'],
+  [12, 'minor-major7'], [13, 'minor6'], [14, 'minor7-flat5'], [15, 'minor7-9'], [16, 'major7-9'],
+  [17, 'sixth-9'], [18, 'dominant7-9'], [19, 'dominant7-sharp9'], [20, 'dominant7-flat9'],
+  [21, 'dominant7-13'], [22, 'diminished'], [23, 'augmented'], [24, 'power5'],
+]);
+
+/** 欄ごとの 番号→内部値 の Map（'root' | 'bass' | 'type'）。Root/Bass は 0→''（未選択／指定なし）を含む。 */
+export function getBuilderNumberMap(field) {
+  if (field === 'type') return new Map(BUILDER_TYPE_NUMBER_TABLE);
+  if (field === 'root' || field === 'bass') return new Map([[0, '']].concat(BUILDER_NOTE_NUMBER_TABLE));
+  return new Map();
+}
+
+/** 内部値 → 番号（なければ null）。表示ラベル生成用。 */
+export function getBuilderNumberOf(field, value) {
+  for (const [number, v] of getBuilderNumberMap(field)) if (v === value) return number;
+  return null;
+}
+
+/** 2桁・先頭0付きの番号表示（例 3 → '03'）。 */
+export function formatBuilderNumber(number) {
+  return String(number).padStart(2, '0');
+}
+
+/** 将来の Type 追加用: 使用済み・無効化済みの番号より大きい次の番号を返す（再利用しない）。 */
+export function nextUnusedTypeNumber(retiredNumbers = []) {
+  const all = BUILDER_TYPE_NUMBER_TABLE.map(([n]) => n).concat(retiredNumbers);
+  return Math.max(0, ...all) + 1;
+}
+
 /**
  * Root / Type / Bass の選択値からコード名を組み立てる。
  * @param {string} rootValue  BUILDER_ROOT_OPTIONS の value（空なら組み立てない）

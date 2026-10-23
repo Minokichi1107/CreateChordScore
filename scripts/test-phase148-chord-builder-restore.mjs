@@ -251,7 +251,7 @@ let n = 0; const ok = name => console.log('PASS', name);
   const n2 = make('C'); n2.setBuilder('root', 'D'); n2.addFromBuilder();
   const html = renderChartChordEditBody(n2);
   assert.equal(noticeOf(html), undefined, 'new chip: no notice');
-  assert.match(html, /<option value="" selected>— ルートを選択 —<\/option>/, 'new chip: Root placeholder selected');
+  assert.match(html, /<option value="" selected>— ルートを選択 — 00<\/option>/, 'new chip: Root placeholder selected');
   ok('T19 notice texts exact; none for restored / new chip; Root placeholder shown');
 }
 console.warn = warn;
