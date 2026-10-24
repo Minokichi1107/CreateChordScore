@@ -8,7 +8,7 @@ import {
   redoBuffer,
   refreshSelection,
 } from '../js/analysisSession.js';
-import { commitChartChordEditDraft } from '../js/chartChordEditModal.js';
+import { commitChartChordEditDraft, createChartChordEditController } from '../js/chartChordEditModal.js';
 
 const initialBuffer = [
   { _id: 'a', chord: 'C', start: 0, end: 1, confidence: 1 },
@@ -71,5 +71,32 @@ single.sections = [];
 single.selection.chordIds = ['only'];
 assert.equal(deleteChordCommand(single, 'only').ok, false);
 assert.equal(single.buffer.length, 1);
+
+// Add Here: the draft already contains the inserted chord, but change detection must compare
+// it with the untouched authoritative state. Completing without renaming must still commit.
+const addMain = createAnalysisSession();
+addMain.active = true;
+addMain.buffer = structuredClone(initialBuffer);
+addMain.sections = [];
+addMain.hasContentEdit = false;
+addMain.dirty = false;
+refreshSelection(addMain, ['b'], 'b');
+const addBaseline = structuredClone(addMain);
+const addDraft = structuredClone(addMain);
+const addOnly = addChordCommand(addDraft, 'b', 2, 'G');
+assert.equal(addOnly.ok, true);
+const addController = createChartChordEditController({
+  initialState: addDraft,
+  baselineState: addBaseline,
+});
+assert.equal(addController.hasChanges(), true, 'the insertion itself must count as a modal change');
+assert.equal(commitChartChordEditDraft(addMain, addController.draft), true);
+assert.equal(addMain.history.length, 1, 'Add Here completion must create one Undo entry even without renaming');
+assert.equal(addMain.buffer.length, 4);
+assert.equal(addMain.buffer[2].chord, 'G');
+assert.equal(undoBuffer(addMain), true);
+assert.deepEqual(addMain.buffer, initialBuffer, 'one Undo must remove the inserted chord and restore the original timing');
+assert.equal(redoBuffer(addMain), true);
+assert.equal(addMain.buffer.length, 4, 'one Redo must restore the insertion');
 
 console.log('Phase148 Chart Mode chord modal transaction tests passed.');
