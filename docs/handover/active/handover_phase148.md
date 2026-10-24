@@ -52,7 +52,7 @@ Chart Modeで選択済みの既存コードを編集するモーダルを簡素�
 
 ## 未確認・残課題
 
-- **実機タッチ操作:** 未確認。タッチエミュレーションでは、`touch-action:none` 要素上でスワイプ後のタップがclickにならないケースが見られた。ただしドラッグなしの対照要素でも再現し、ブラウザ挙動の可能性がある。実機では未確認。
+- **実機タッチ操作:** Phase148のクローズ条件から切り離し、GitHub Issue #177「タッチ操作の受け入れテストリストを整備する」に集約。Issue #177では、未検証項目を合格扱いせず、実機確認を含むテスト計画を整備する。現時点で実機タッチ操作は未確認。
 - **非Windows環境のIME:** 未確認。
 - **独立したヘッダー幅超過:** viewport幅400pxでヘッダーの `scrollWidth` が406pxとなる。mainでも再現し、Phase148のモーダル変更が原因ではない。関連候補は `.header-right`、`.menu-group`、`.menu-trigger`、`#tap-btn`。Issue化は未決定で、`current-issues.md` に未登録課題として記録した。
 - **軽微なレビュー指摘:** `js/chartChordEditModal.js` に旧UI（チップ／「決定」ボタン）を説明する古いコメントが残る。共有タイトル要素のドラッグlistenerはモーダルを通常経路以外で閉じた場合に残り得るが、enabled guard・次回attach時のcleanup・transform resetにより実害は抑制されている。
@@ -63,15 +63,16 @@ Chart Modeで選択済みの既存コードを編集するモーダルを簡素�
 - [x] Phase147〜148のDeferred DocumentationをPhase番号順に適用。
 - [x] `phase-status.md` にPhase147 / Phase148の完了記録を追加。
 - [x] `current-issues.md` にIssue #170と、400px幅ヘッダー超過の未登録課題を反映。
-- [ ] 実機タッチ操作を確認するか、現時点では未確認として扱うか判断する。
-- [ ] 400px幅ヘッダー超過をGitHub Issue化するか判断する。
+- [x] タッチ操作の未確認事項をIssue #177へ切り出し、Phase148のクローズ条件から分離する。
+- [x] 400px幅ヘッダー超過は、どのUI上の不具合を意味するか未特定のため、現段階ではIssue化しない。現象の説明が不足している未トリアージ観測として記録を維持する。
 - [ ] 次のPhase / Product Intentを別途選ぶ。
 
 ## Documentation Checkpoint（ドキュメント棚卸し）適用記録
 
 ### current-issues.md
 - Phase147: Issue #170を意図的保留として追加。Issue #167は完了済みのため未解決課題一覧には残さない。
-- Phase148: 400px幅ヘッダー超過を、Issue化未決定の独立した未登録課題として追加。
+- Phase148: 400px幅ヘッダー超過を、具体的なユーザー影響・不具合箇所が未特定の観測として記録。Issue化は保留。
+- タッチ操作の実機確認・受け入れテスト整備はIssue #177へ切り出し、Phase148では未確認事項として明記する。
 
 ### phase-status.md
 - Phase147とPhase148を完了済みリスト・Chart Modeの履歴へ追加。
@@ -81,6 +82,6 @@ Chart Modeで選択済みの既存コードを編集するモーダルを簡素�
 ## 次フェーズ候補
 
 - Issue #116のコードパレット全体の再設計を続ける。
-- 400px幅ヘッダー超過を独立Issueとして扱うか決める。
-- 実機タッチ操作を確認する。
-- それ以外の候補も含め、次のProduct Intentを別途選定する。
+- 400px幅ヘッダー超過の具体的な不具合箇所・ユーザー影響を特定できた場合に、Issue化を再検討する。
+- タッチ操作の受け入れテストリスト整備はIssue #177で進める。
+- 次のPhase / Product Intentは次のChatで別途選定する。
