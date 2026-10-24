@@ -112,6 +112,29 @@
 
 ## 2. Current Issues（未解決の問題・バグ・既知の設計ギャップ）
 
+### Git運用 — ローカル main の保留コミット（2026-10-24 判断済み）
+状態: **判断済み・公開保留。通常の整理では再検討しない。**
+
+2026-10-24時点で、ローカル `main` は `origin/main`（`2e37dca`）より7コミット先行している。以下の7コミットは意図してローカルに保持し、現時点ではGitHubへpushしない。
+
+- `35d9099` — `test: preserve analysis session regression tests`
+- `cad4ef3` — `docs: archive one-time analysis ID migration tools`
+- `0a0c72b` — `chore: add section data inventory script`
+- `c03fed0` — `Merge branch 'main' of https://github.com/Minokichi1107/CreateChordScore`
+- `1624462` — `Merge remote-tracking branch 'origin/main'`
+- `65ef7ea` — `docs: archive analysis chord ID migration record`
+- `57274c3` — `chore: track audio duration export script`
+
+運用ルール:
+- 通常のローカル整理・ブランチ整理・作業開始時の状態確認では、`main` が `origin/main` より先行していることだけを理由に、この7コミットを再度問題提起しない。
+- この7コミットを削除・作り直し・リベース・pushしない。現在の保留判断のまま保持する。
+- 再検討するのは、ユーザーが明示的にGitHubへの公開または統合を検討するよう依頼した場合のみ。
+- 将来コミットが追加されても、先行コミット数だけで判断せず、上記の短縮SHAでこの保留対象を識別する。
+
+この項目は未解決の製品課題ではなく、再議論を防ぐための**判断済みGit運用記録**である。
+
+
+
 ### 開発プロセス
 
 #### GitHub Issue #117 — 開発プロセスの省力化候補を検討する（Phase133〜136の経験から）
