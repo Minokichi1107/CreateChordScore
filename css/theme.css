@@ -858,7 +858,7 @@ body[data-theme="blue"] {
   /* --- chart transport --- */
   --chart-seek-track: rgba(0,28,58,.55);   /* [SAFE] blueテーマ track背景 */
   --chart-seek-fill:  #4f9eff;             /* [SAFE] blueテーマ fill */
-  --chart-beat-cursor: rgba(255,255,255, 0.6); /* [SAFE] blueテーマ ビートカーソル */
+  --chart-beat-cursor: #164b80; /* [SAFE] blueテーマ。明るいChart背景上でplayheadを識別できる濃色 */
   /* [Phase141] Section Marker識別色（blue=標準の強さ） */
   --section-color-0: #1F6F69;
   --section-color-1: #3F5A9A;
