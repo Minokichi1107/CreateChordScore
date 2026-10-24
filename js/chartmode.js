@@ -382,9 +382,69 @@ export function buildContinuousChordProjection(analysis, audioDuration = null) {
 
   // [Issue #92踏襲] N.C.（chord:'N'）も通常のBuffer Entryとして含める。
   // 空コード（未設定）のみを除外する（buildGridViewModel()と同じ判定）。
-  const validChords = (chords || []).filter(c =>
+  const sourceChords = (chords || []).filter(c =>
     c.chord && c.chord.length > 0
   );
+
+  // [Issue #179] N.C.は実コードより表示優先度を下げる。
+  // 実コードと時間区間が重なるN.C.は、重複部分を表示投影から取り除く。
+  // 残った断片が半拍未満なら誤検出由来の短いラベルと判断して表示しない。
+  // raw.chordsは変更せず、再生・編集・保存データにも影響させない。
+  const nonNcIntervals = sourceChords
+    .filter(c => c.chord !== 'N' && Number.isFinite(c.start) && Number.isFinite(c.end) && c.end > c.start)
+    .map(c => ({ start: c.start, end: c.end }))
+    .sort((a, b) => a.start - b.start);
+  const positiveBeatSpans = [];
+  for (let i = 1; i < beats.length; i++) {
+    const span = beats[i] - beats[i - 1];
+    if (Number.isFinite(span) && span > 0) positiveBeatSpans.push(span);
+  }
+  positiveBeatSpans.sort((a, b) => a - b);
+  const fallbackBeatSpan = positiveBeatSpans.length
+    ? positiveBeatSpans[Math.floor(positiveBeatSpans.length / 2)]
+    : 0;
+  const localBeatSpan = time => {
+    for (let i = 1; i < beats.length; i++) {
+      if (beats[i] >= time && beats[i] > beats[i - 1]) return beats[i] - beats[i - 1];
+    }
+    return fallbackBeatSpan;
+  };
+
+  const validChords = [];
+  for (const chord of sourceChords) {
+    if (chord.chord !== 'N' || !Number.isFinite(chord.start) || !Number.isFinite(chord.end) || chord.end <= chord.start) {
+      validChords.push(chord);
+      continue;
+    }
+
+    let fragments = [{ start: chord.start, end: chord.end }];
+    let overlapped = false;
+    for (const interval of nonNcIntervals) {
+      if (!fragments.length) break;
+      const next = [];
+      for (const fragment of fragments) {
+        if (interval.end <= fragment.start || interval.start >= fragment.end) {
+          next.push(fragment);
+          continue;
+        }
+        overlapped = true;
+        if (interval.start > fragment.start) {
+          next.push({ start: fragment.start, end: Math.min(interval.start, fragment.end) });
+        }
+        if (interval.end < fragment.end) {
+          next.push({ start: Math.max(interval.end, fragment.start), end: fragment.end });
+        }
+      }
+      fragments = next;
+    }
+
+    const minFragmentDuration = time => localBeatSpan(time) * 0.5;
+    for (const fragment of fragments) {
+      if (fragment.end <= fragment.start) continue;
+      if (overlapped && fragment.end - fragment.start < minFragmentDuration((fragment.start + fragment.end) / 2)) continue;
+      validChords.push({ ...chord, start: fragment.start, end: fragment.end });
+    }
+  }
 
   // 【Phase136-B】小節線スナップ（表示専用）。
   // raw.chords（c.start/c.end）は書き換えない。「元の時刻 → 表示用の
