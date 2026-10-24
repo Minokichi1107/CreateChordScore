@@ -400,7 +400,7 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 138 | 軽量Issue 3件（GitHub #115 / #112 / #113）を完了。Chart Modeスクロールリセット、sus4(b7) Readable変換、m7b5→m7-5 Canonical統一を実装・実機確認 | app.js / chartmode.js / replacementMap.js / chordEntry.js |
 | 139 | Analysis JSONファイル名の人間可読化（GitHub #118）。resolve_analysis_file()による実ファイル解決、rename、dryRun対応migration、既存Library 231件の移行を完了 | server.py / analysisLoader.js / app.js / tools/migrate-analysis-filenames.js |
 | 147 | Issue #167右クリック時の拍内位置マーカーを実装。PR #169でマージ、Issue #167は完了 | chartmode.js / chart.css |
-| 148 | Issue #116の既存コード編集モーダルを簡素化し、タイトルバーのドラッグ移動を追加。PR #176でマージ | chartChordEditModal.js / chordModalDrag.js / chordBuilderKeyboard.js / app.js / chordEntry.js / modal.css |
+| 148 | Issue #116の既存コード編集モーダルを簡素化し、タイトルバーのドラッグ移動を追加。PR #176でマージ | chartChordEditModal.js / chordModalDrag.js / chordBuilderKeyboard.js / app.js / chordEntry.js / css/modal.css |
 
 ### Provenance / Data Provenance
 
