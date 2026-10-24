@@ -85,6 +85,7 @@ const addBaseline = structuredClone(addMain);
 const addDraft = structuredClone(addMain);
 const addOnly = addChordCommand(addDraft, 'b', 2, 'G');
 assert.equal(addOnly.ok, true);
+assert.deepEqual(addMain.buffer, initialBuffer, 'preparing Add Here must not mutate the authoritative session');
 const addController = createChartChordEditController({
   initialState: addDraft,
   baselineState: addBaseline,

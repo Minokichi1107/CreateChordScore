@@ -1427,9 +1427,8 @@ function clearEditPoint() {
  * 組み合わせ。違いは splitTime が「選択中コードの中間点固定」ではなく、
  * editPointのグリッド座標から都度算出した時刻になる点のみ。
  *
- * [CANCEL INVARIANT] showChordSelector()でキャンセルした場合、splitChord()自体が
- * 呼ばれないため、bufferもeditPointも一切変化しない
- * （「編集操作はユーザーの確定操作でのみ状態を変更する」というPhase74以来の方針）。
+ * [CANCEL INVARIANT] 挿入はモーダル用draftに対してのみ行う。
+ * 完了前にキャンセルされた場合はdraftを破棄し、本体bufferもeditPointも変更しない。
  */
 function addChordAtEditPoint() {
   const editPoint = analysisEditor.selection.editPoint;
