@@ -1,6 +1,6 @@
 # フェーズ進行状況
 
-> 最終更新: 2026-10-12（Phase141〜144とIssue #129実装マージまで反映）。
+> 最終更新: 2026-10-24（Phase147〜148のDocumentation Checkpointを反映）。
 > Phase124以降は固定周期ではなくDocumentation Checkpoint方式で棚卸しする運用を継続する。
 
 ---
@@ -241,6 +241,8 @@ Completed（完了済み）
 ✓ Issue #129 — 曲全体の小節頭補正をPR #159でmainへマージ。基本動作を確認済み。
   対象外条件の通知・旧アプリ互換性・CI結果は未確認のためIssueはOpen。詳細はIssue #129と技術設計書を参照。
 ✓ Issue #132 — テーマ検証基準をPR #162でmainへマージ。`docs/theme-validation.md` を正式ガイドとして参照する。
+✓ Phase147 — Issue #167 右クリック時の拍内位置マーカー表示を実装し、PR #169でmainへマージ。Issue #167は完了。弱起関連はIssue #170へ分離して意図的保留。
+✓ Phase148 — Issue #116のChart Mode既存コード編集モーダルを簡素化し、タイトルバーからのドラッグ移動を追加。PR #175 / #176マージ済み。PR #176のマージコミットは`e8cffa08b33e31b8b910d1da9eef09b798df7166`。CIの`JavaScript syntax check`は成功。Windows日本語IMEはユーザー実機確認済み。実機タッチ操作・非Windows環境のIMEは未確認。Issue #116全体のコードパレット再設計は未完了のためOpenを維持。
 
 Current Work（現在の作業: 2026-10-12 Documentation Checkpoint（ドキュメント棚卸し）。Phase141〜144とOpen Issue（未解決Issue）一覧を同期。次のProduct Intent（開発テーマの意図） / Taskは未選定）
 ------------------------------------------------------------
@@ -324,6 +326,8 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 140 | Section UX（#95 / #96 / #104）。[SECTION ORDER INDEPENDENCE]確立、PR #126でmainへマージ |
 | 141〜142 | Section Markerの開始線・終了線・名前表示と視覚調整。PR #131でmainへマージ |
 | 143 | Section編集中/Slot経路のSection名・開始線表示。PR #133でmainへマージ。最小幅32pxは暫定 |
+| 147 | 右クリック時の拍内位置マーカー表示（通常表示は専用マーカー、編集表示は対象スロット）。判定ロジックは変更なし。PR #169 |
+| 148 | 既存コード編集モーダルの簡素化とタイトルバーからのドラッグ移動。直接入力／ビルダーの排他切替、N.C.共通経路、IME Enter保護、キャンセル時の破棄を実装。PR #176 |
 
 ### Project Repository / Persistence
 
@@ -397,6 +401,8 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 137 | 開発プロセス省力化検討（GitHub #117）。handoverを現在状態、Chat archiveを必要時の判断理由参照として試行し、追加の管理工程・台帳は採用しない | docs / process audit |
 | 138 | 軽量Issue 3件（GitHub #115 / #112 / #113）を完了。Chart Modeスクロールリセット、sus4(b7) Readable変換、m7b5→m7-5 Canonical統一を実装・実機確認 | app.js / chartmode.js / replacementMap.js / chordEntry.js |
 | 139 | Analysis JSONファイル名の人間可読化（GitHub #118）。resolve_analysis_file()による実ファイル解決、rename、dryRun対応migration、既存Library 231件の移行を完了 | server.py / analysisLoader.js / app.js / tools/migrate-analysis-filenames.js |
+| 147 | Issue #167右クリック時の拍内位置マーカーを実装。PR #169でマージ、Issue #167は完了 | chartmode.js / chart.css |
+| 148 | Issue #116の既存コード編集モーダルを簡素化し、タイトルバーのドラッグ移動を追加。PR #176でマージ | chartChordEditModal.js / chordModalDrag.js / chordBuilderKeyboard.js / app.js / chordEntry.js / modal.css |
 
 ### Provenance / Data Provenance
 
