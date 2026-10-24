@@ -129,12 +129,20 @@ Issue #120の調査Taskはクローズ済みで、別Chat/別AIでもIssueだけ
 
 ### Chart Mode 系
 
-#### 未登録課題 — Chart Modeヘッダーの幅超過（400px viewport）
-状態: 未登録・Issue化未決定。Phase148で発見したが、mainでも再現し、Phase148のモーダル変更が原因ではない。
+#### GitHub Issue #177 — タッチ操作の受け入れテストリストを整備する
+状態: Open。タッチ操作のテスト計画・実施状況の管理を担当する。Phase148の実機タッチ未確認事項は本Issueへ集約し、Phase148のクローズ条件から分離した。現時点でアプリ全体のタッチ不具合が確認されたという意味ではない。
 
-- viewport（表示領域）幅400pxでヘッダーの`scrollWidth`（スクロール幅）が406pxとなり、横方向にはみ出す。
-- 関連候補: `.header-right`、`.menu-group`、`.menu-trigger`、`#tap-btn`。
-- 独立したUI課題として扱う。Issueを作成するかは別途判断する。
+- 実機・ブラウザ環境ごとの受け入れテスト項目と確認結果を整備する。
+- 未実施・対象外・不合格を区別し、未検証を合格扱いしない。
+- 再現可能な不具合が見つかった場合は、テスト計画と分けて個別Issue化する。
+- 詳細: https://github.com/Minokichi1107/CreateChordScore/issues/177
+
+#### 未登録課題 — Chart Modeヘッダーの幅超過（400px viewport）
+状態: 未トリアージの観測。Phase148で発見し、mainでも再現したが、Phase148のモーダル変更が原因ではない。具体的にどのUI要素のどの挙動がユーザー向けの不具合に当たるかは未特定のため、現段階ではIssue化しない。
+
+- viewport（表示領域）幅400pxでヘッダーの`scrollWidth`（スクロール幅）が406pxとなることを確認。
+- 関連候補: `.header-right`、`.menu-group`、`.menu-trigger`、`#tap-btn`。原因箇所とユーザー影響は未確認。
+- 再現条件・視覚的な影響・操作上の支障を特定できた場合に、Issue化を再検討する。
 
 ### GitHub Issue #130 — Chart ModeにおけるChord / Beat / Measure Projection（コード・拍・小節の投影）の根本的な再評価
 状態: 大テーマとして調査開始・実装未着手
