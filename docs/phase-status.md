@@ -244,15 +244,13 @@ Completed（完了済み）
 ✓ Phase147 — Issue #167 右クリック時の拍内位置マーカー表示を実装し、PR #169でmainへマージ。Issue #167は完了。弱起関連はIssue #170へ分離して意図的保留。
 ✓ Phase148 — Issue #116のChart Mode既存コード編集モーダルを簡素化し、タイトルバーからのドラッグ移動を追加。PR #175 / #176マージ済み。PR #176のマージコミットは`e8cffa08b33e31b8b910d1da9eef09b798df7166`。CIの`JavaScript syntax check`は成功。Windows日本語IMEはユーザー実機確認済み。実機タッチ操作・非Windows環境のIMEは未確認。Issue #116全体のコードパレット再設計は未完了のためOpenを維持。
 
-Current Work（現在の作業: 2026-10-12 Documentation Checkpoint（ドキュメント棚卸し）。Phase141〜144とOpen Issue（未解決Issue）一覧を同期。次のProduct Intent（開発テーマの意図） / Taskは未選定）
+Current Work（現在の作業: 2026-10-24 Documentation Checkpoint完了。Phase147〜148の完了記録と未解決事項を同期。次のProduct Intent（開発テーマの意図） / Taskは未選定）
 ------------------------------------------------------------
-Phase141〜143のSection Marker改善はmainへマージ済み。Phase144ではTaskとPhaseを分け、GitHub Issueを共有状態とする
-最小運用を試行した。Issue #120でIssueのみの読み戻しを確認した一方、並行実装Taskでの検証は未実施。
-Task運用とIssue open/closeの記録ルールは、確定ではなく試行中として扱う。Issue #132のテーマ検証基準はPR #162でmainへマージ済み。
+Phase147（PR #169）とPhase148（PR #175 / #176）はmainへマージ済み。今回のCheckpointではPhase147〜148のDeferred DocumentationをPhase番号順に適用し、phase-status.mdとcurrent-issues.mdを更新した。
 
-今回のCheckpointでphase-status.mdとcurrent-issues.mdを更新し、廃止せずに維持する。
-次に着手するProduct IntentやPhase番号は先決めしない。Phase133〜136の残課題は対応するhandoverとGitHub Issueを参照。
-Issue #129は実装済みだが、受け入れ確認3件が残るためOpen。
+Issue #167は完了済み。弱起関連はIssue #170へ分離し、実曲で具体的な不具合が確認されるまで意図的に保留する。Issue #116は既存コード編集モーダルの改善が完了した一方、コードパレット全体の再設計が未完了のためOpenを維持する。
+
+Phase148で確認された400px幅でのヘッダー横はみ出しはmainでも再現する独立課題として記録したが、GitHub Issue化は未決定。実機タッチ操作と非Windows環境のIMEは未確認。次に着手するProduct IntentやPhase番号は先決めしない。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
