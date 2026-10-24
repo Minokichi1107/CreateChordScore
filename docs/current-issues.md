@@ -132,7 +132,7 @@ Issue #120の調査Taskはクローズ済みで、別Chat/別AIでもIssueだけ
 #### 未登録課題 — Chart Modeヘッダーの幅超過（400px viewport）
 状態: 未登録・Issue化未決定。Phase148で発見したが、mainでも再現し、Phase148のモーダル変更が原因ではない。
 
-- viewport幅400pxでヘッダーの`scrollWidth`が406pxとなり、横方向にはみ出す。
+- viewport（表示領域）幅400pxでヘッダーの`scrollWidth`（スクロール幅）が406pxとなり、横方向にはみ出す。
 - 関連候補: `.header-right`、`.menu-group`、`.menu-trigger`、`#tap-btn`。
 - 独立したUI課題として扱う。Issueを作成するかは別途判断する。
 
