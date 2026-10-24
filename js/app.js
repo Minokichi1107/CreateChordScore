@@ -1427,9 +1427,8 @@ function clearEditPoint() {
  * 組み合わせ。違いは splitTime が「選択中コードの中間点固定」ではなく、
  * editPointのグリッド座標から都度算出した時刻になる点のみ。
  *
- * [CANCEL INVARIANT] showChordSelector()でキャンセルした場合、splitChord()自体が
- * 呼ばれないため、bufferもeditPointも一切変化しない
- * （「編集操作はユーザーの確定操作でのみ状態を変更する」というPhase74以来の方針）。
+ * [CANCEL INVARIANT] 挿入はモーダル用draftに対してのみ行う。
+ * 完了前にキャンセルされた場合はdraftを破棄し、本体bufferもeditPointも変更しない。
  */
 function addChordAtEditPoint() {
   const editPoint = analysisEditor.selection.editPoint;
@@ -1441,20 +1440,23 @@ function addChordAtEditPoint() {
   const splitTime = getTimeForGridPosition(editPoint.measureIndex, editPoint.slotIndex);
   if (splitTime == null) { toast('この位置の時刻を取得できませんでした'); return; }
 
-  const capo = getCapo();
-  showChordSelector({
-    title: 'コードを追加',
-    // [Phase84] 初期表示のみRepresentation→Projectionの順で適用。
-    // 選択結果(selected.name)は新規に選ばれた値であり、Representation変換は
-    // 不要（Rename等と同じ書き込み経路。設計上の理由はhandover_phase84参照）。
-    initialChord: toDisplayChord(toReadableChord(owner.chord), capo),
-    onSelect: (selected) => {
-      // [Phase89] 分割+リネームをaddChord()で1Undo単位に統合（Issue #46対応）。
-      // 新規コードの単独選択・editPointの自動クリアはaddChordCommand内部で行う。
-      const newId = addChord(owner._id, splitTime, toCanonicalChord(selected.name, capo));
-      if (!newId) { toast('この位置には追加できません（時間が足りません）'); return; }
-    },
-    // onCancel省略: 何も呼ばれず、addChord()にも到達しないためeditPointは維持される
+  // Add Here は本体を先に変更せず、モーダル用draft上で分割＋挿入を準備する。
+  // 完了時にdraft全体を一度だけcommitするため、挿入とコード名編集がUndo 1回になる。
+  const draftInitial = structuredClone(analysisEditor);
+  const result = addChordCommand(draftInitial, owner._id, splitTime, owner.chord);
+  if (!result.ok) {
+    toast('この位置には追加できません（時間が足りません）');
+    return;
+  }
+
+  const newChord = draftInitial.buffer.find(chord => chord._id === result.newId);
+  if (!newChord) { toast('追加するコードを準備できませんでした'); return; }
+
+  // Cancel/×/Esc はdraftを破棄するだけ。本体・editPointは確定操作まで変更しない。
+  openChartChordEditSession(newChord, {
+    initialState: draftInitial,
+    baselineState: analysisEditor,
+    allowDraftOnly: true,
   });
 }
 
@@ -1567,17 +1569,23 @@ function saveChordEditInputMode(mode) {
  * Phase148: Chart Mode code-edit modal entry point.
  * The modal owns a draft clone; this callback commits all edits as one Undo unit.
  */
-function openChartChordEditSession(chord) {
-  if (!isAnalysisEditing() || !chord || !analysisEditor.buffer?.some(item => item._id === chord._id)) return;
+function openChartChordEditSession(chord, {
+  initialState = null,
+  baselineState = analysisEditor,
+  allowDraftOnly = false,
+} = {}) {
+  if (!isAnalysisEditing() || !chord) return;
+  if (!allowDraftOnly && !analysisEditor.buffer?.some(item => item._id === chord._id)) return;
 
   const capo = getCapo();
-  const draftInitial = structuredClone(analysisEditor);
+  const draftInitial = initialState ? structuredClone(initialState) : structuredClone(analysisEditor);
   refreshSelection(draftInitial, [chord._id], chord._id);
 
   openChartChordEditModal({
     openModal,
     mkMBtn,
     initialState: draftInitial,
+    baselineState,
     loadInputMode: loadChordEditInputMode,
     saveInputMode: saveChordEditInputMode,
     toDisplayChord: value => toDisplayChord(toReadableChord(value), capo),

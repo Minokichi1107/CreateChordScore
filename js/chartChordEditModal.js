@@ -94,12 +94,14 @@ function isNoChordText(value) {
 export const INPUT_MODES = ['builder', 'direct'];
 
 export function createChartChordEditController({
-  initialState, inputMode = 'builder',
+  initialState, baselineState = initialState, inputMode = 'builder',
   toDisplayChord = chord => chord,
   toCanonicalChord = chord => chord,
 }) {
   const draft = structuredClone(initialState);
-  const baseline = structuredClone(initialState);
+  // Add Here begins with a prepared insertion draft, while change detection must compare
+  // against the untouched authoritative state so the insertion itself counts as a change.
+  const baseline = structuredClone(baselineState ?? initialState);
   const c = {
     draft, toDisplayChord, toCanonicalChord,
     mode: inputMode === 'direct' ? 'direct' : 'builder',   // 表示中の入力方式（UI状態。曲データ・hasChanges には影響しない）
@@ -311,7 +313,7 @@ function installKeyHandler() {
 }
 
 export function openChartChordEditModal({
-  openModal, mkMBtn, initialState,
+  openModal, mkMBtn, initialState, baselineState = initialState,
   // 入力方式（'builder' | 'direct'）の記憶。保存先は呼び出し元（app.js）が持つ。曲データ・Undoには関わらない
   loadInputMode = () => 'builder',
   saveInputMode = () => {},
@@ -322,7 +324,7 @@ export function openChartChordEditModal({
   if (!initialState || !Array.isArray(initialState.buffer) || !initialState.buffer.length) return;
 
   const c = createChartChordEditController({
-    initialState, toDisplayChord, toCanonicalChord,
+    initialState, baselineState, toDisplayChord, toCanonicalChord,
     inputMode: (() => { try { return loadInputMode(); } catch { return 'builder'; } })(),
   });
   let closeCurrentModal = () => {};
