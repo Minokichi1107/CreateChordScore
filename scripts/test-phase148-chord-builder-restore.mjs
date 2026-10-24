@@ -82,7 +82,6 @@ let n = 0; const ok = name => console.log('PASS', name);
     const c = make(odd); const before = snap(c);
     assert.equal(c.hasChanges(), false); assert.deepEqual(bs(c), UNSELECTED); assert.equal(c.baseline, null);
     assert.equal(c.notice, odd === 'N' ? 'nc' : 'unsupported', 'T16 notice for ' + odd);
-    c.select('b'); c.select('a');
     assert.equal(snap(c), before, 'T16 data unchanged ' + odd);
   }
   ok('T1/T16 open & complete never change data (' + runs + ' runs: ' + corpus.size + ' chords x capo 0-11); restore failures only set notice');
@@ -165,8 +164,7 @@ let n = 0; const ok = name => console.log('PASS', name);
   assert.equal(c.hasChanges(), false);
   assert.deepEqual(bs(c), { root: 'Bb', type: 'minor', bass: '' }, 'builder keeps the chosen spelling (no re-restore)');
   assert.deepEqual(c.baseline, { root: 'Bb', type: 'minor', bass: '' }); assert.equal(c.canDecide(), false);
-  c.select('b'); c.select('a');
-  assert.deepEqual(bs(c), { root: 'A#', type: 'minor', bass: '' }, 'reselecting restores from the displayed name');
+  assert.deepEqual(bs(make('Bm', 1)), { root: 'A#', type: 'minor', bass: '' }, 'reopening restores from the displayed name');
   ok('T6a capo1 Bm: decide keeps chosen spelling, stored value & history unchanged');
 }
 // ---- T6a': capo1 stored C (shown B): Type -> m, decide -------------------------------
@@ -179,63 +177,42 @@ let n = 0; const ok = name => console.log('PASS', name);
   assert.deepEqual(c.baseline, { root: 'B', type: 'minor', bass: '' }); assert.equal(c.canDecide(), false);
   ok("T6a' capo1 C -> m: stored Cm, shown Bm, hasChanges");
 }
-// ---- T6b: new chip / unsupported chip, Root=Bb Type=m, capo1 ------------------------------
+// ---- T6b: unsupported / N.C. chord (baseline=null), Root=Bb Type=m, capo1 ------------------------------
 {
-  for (const mkc of [
-    () => { const c = make('C', 1); c.setBuilder('root', 'D'); assert.equal(c.addFromBuilder().ok, true); return c; },
-    () => make('Csus2', 1),
-  ]) {
-    const c = mkc(); assert.equal(c.baseline, null); assert.equal(c.canDecide(), false);
+  for (const first of ['Csus2', 'N']) {
+    const c = make(first, 1); assert.equal(c.baseline, null); assert.equal(c.canDecide(), false);
     c.setBuilder('root', 'Bb'); c.setBuilder('type', 'minor'); assert.equal(c.canDecide(), true);
     const id = c.current()._id;
     assert.equal(c.decide().ok, true);
     assert.equal(chipText(c, id), 'Bm'); assert.equal(shown(c, id), 'A#m');
     assert.deepEqual(bs(c), { root: 'Bb', type: 'minor', bass: '' }); assert.deepEqual(c.baseline, bs(c)); assert.equal(c.canDecide(), false);
   }
-  ok('T6b new/unsupported chip: baseline=null -> decide enabled; Bb m -> stored Bm shown A#m');
+  ok('T6b unsupported/N.C. chord: baseline=null -> decide enabled; Bb m -> stored Bm shown A#m');
 }
 
-// ---- T7 / T8 / T17 / T18: state transitions --------------------------------------------
+// ---- T7 / T17 / T18: state transitions (single chord per session; confirm = the one apply path) ------------
 {
-  // launch: restorable
+  // launch: restorable / unsupported / N
   let c = make('Cmaj7');
   assert.equal(c.notice, 'none'); assert.equal(c.canDecide(), false);
-  // select unsupported / N / restorable
-  const s = makeSession('Csus2'); s.buffer[1].chord = 'N';
-  c = createChartChordEditController({ initialState: s, ...funcs(0) });
+  c = make('Csus2');
   assert.equal(c.notice, 'unsupported'); assert.deepEqual(bs(c), UNSELECTED); assert.equal(c.canDecide(), false);
   c.setBuilder('root', 'D'); assert.equal(c.canDecide(), true, 'baseline null: Root chosen -> enabled');
-  c.select('b'); assert.equal(c.notice, 'nc'); assert.deepEqual(bs(c), UNSELECTED); assert.equal(c.baseline, null);
-  c.select('c'); assert.equal(c.notice, 'none'); assert.deepEqual(bs(c), { root: 'A', type: 'minor', bass: '' }); assert.equal(c.canDecide(), false);
-  // decide success: baseline = builder; select other and back: restore again
+  c = make('N'); assert.equal(c.notice, 'nc'); assert.deepEqual(bs(c), UNSELECTED); assert.equal(c.baseline, null);
+  c = make('Am'); assert.equal(c.notice, 'none'); assert.deepEqual(bs(c), { root: 'A', type: 'minor', bass: '' }); assert.equal(c.canDecide(), false);
+  // decide success: baseline = builder
   c.setBuilder('root', 'B'); assert.equal(c.decide().ok, true); assert.equal(c.canDecide(), false);
   assert.equal(c.hasChanges(), true);
-  // replace -> restore attempt
-  c.setInput('Dm7'); assert.equal(c.replaceWithInput().ok, true);
+  // direct input confirm -> restore attempt
+  c.setMode('direct'); c.setInput('Dm7'); assert.equal(c.confirm().ok, true);
   assert.deepEqual(bs(c), { root: 'D', type: parseChordToBuilder('Dm7').type, bass: '' }); assert.equal(c.notice, 'none'); assert.equal(c.canDecide(), false);
-  c.setInput('Csus2'); c.replaceWithInput(); assert.equal(c.notice, 'unsupported'); assert.deepEqual(bs(c), UNSELECTED);
-  c.setInput('N.C.'); c.replaceWithInput(); assert.equal(chipText(c, 'c'), 'N'); assert.equal(c.notice, 'nc');
-  // T8 / T17: add from builder (restored + unchanged is allowed), builder resets, new chip selected
-  c = make('Cmaj7');
-  assert.equal(c.canAddFromBuilder(), true); const before = c.current()._id;
-  assert.equal(c.addFromBuilder().ok, true);
-  assert.notEqual(c.current()._id, before); assert.deepEqual(bs(c), UNSELECTED); assert.equal(c.baseline, null); assert.equal(c.notice, 'none');
-  assert.equal(c.canDecide(), false); assert.equal(c.canAddFromBuilder(), false, 'Root unselected');
-  c.select(before); assert.deepEqual(bs(c), { root: 'C', type: parseChordToBuilder('Cmaj7').type, bass: '' }, 'reselect restores');
-  // add from input
-  c = make('C'); c.setInput('Em'); assert.equal(c.addFromInput().ok, true);
-  assert.deepEqual(bs(c), UNSELECTED); assert.equal(c.notice, 'none'); assert.equal(c.current().chord, 'Em');
-  // failed add keeps builder untouched
-  c = make('C'); c.draft.buffer[0].end = 0.0001; c.setBuilder('root', 'D'); const b0 = bs(c);
-  const failed = c.addFromBuilder(); if (!failed.ok) assert.deepEqual(bs(c), b0, 'failed add leaves builder');
-  // delete -> restore from neighbour; T18 no selection
-  c = make('C'); c.setBuilder('root', 'D'); c.remove();
-  assert.equal(c.current()._id, 'b'); assert.deepEqual(bs(c), { root: 'G', type: 'major', bass: '' }); assert.equal(c.notice, 'none');
+  c.setInput('Csus2'); assert.equal(c.confirm().ok, true); assert.equal(c.notice, 'unsupported'); assert.deepEqual(bs(c), UNSELECTED);
+  c.setInput('N.C.'); assert.equal(c.confirm().ok, true); assert.equal(chipText(c, 'a'), 'N'); assert.equal(c.notice, 'nc');
+  // T18: no selection -> unselected, no notice
+  c = make('C'); c.setBuilder('root', 'D');
   c.draft.selection = []; c.syncBuilderFromSelection();
   assert.deepEqual(bs(c), UNSELECTED); assert.equal(c.baseline, null); assert.equal(c.notice, 'none'); assert.equal(c.canDecide(), false);
-  // quick buttons / used chords leave builder alone
-  c = make('Cmaj7'); const bb = bs(c); c.noChord(); c.useChord('Em'); assert.deepEqual(bs(c), bb); assert.equal(c.baseline.root, 'C');
-  ok('T7/T8/T17/T18 state transitions (launch/select/decide/replace/add/delete/no-selection/quick buttons)');
+  ok('T7/T17/T18 state transitions (launch / decide / direct confirm / N.C. / no-selection)');
 }
 
 // ---- T19: notice text & Root placeholder ------------------------------------------
@@ -243,16 +220,12 @@ let n = 0; const ok = name => console.log('PASS', name);
   assert.equal(BUILDER_NOTICE_TEXT.unsupported, 'このコードはビルダー対象外です。直接入力で編集できます。');
   assert.equal(BUILDER_NOTICE_TEXT.nc, 'N.C.（コードビルダー対象外）');
   const noticeOf = html => (html.match(/data-notice="([^"]*)"[^>]*>([^<]*)</) || [])[2];
-  const s = makeSession('Csus2'); s.buffer[1].chord = 'N';
-  const c = createChartChordEditController({ initialState: s, ...funcs(0) });
-  assert.equal(noticeOf(renderChartChordEditBody(c)), BUILDER_NOTICE_TEXT.unsupported);
-  c.select('b'); assert.equal(noticeOf(renderChartChordEditBody(c)), BUILDER_NOTICE_TEXT.nc);
-  c.select('c'); assert.equal(noticeOf(renderChartChordEditBody(c)), undefined, 'restored: no notice');
-  const n2 = make('C'); n2.setBuilder('root', 'D'); n2.addFromBuilder();
-  const html = renderChartChordEditBody(n2);
-  assert.equal(noticeOf(html), undefined, 'new chip: no notice');
-  assert.match(html, /<option value="" selected>— ルートを選択 — 00<\/option>/, 'new chip: Root placeholder selected');
-  ok('T19 notice texts exact; none for restored / new chip; Root placeholder shown');
+  assert.equal(noticeOf(renderChartChordEditBody(make('Csus2'))), BUILDER_NOTICE_TEXT.unsupported);
+  assert.equal(noticeOf(renderChartChordEditBody(make('N'))), BUILDER_NOTICE_TEXT.nc);
+  assert.equal(noticeOf(renderChartChordEditBody(make('Am'))), undefined, 'restored: no notice');
+  const html = renderChartChordEditBody(make('Csus2'));
+  assert.match(html, /<option value="" selected>— ルートを選択 — 00<\/option>/, 'unrestorable chord: Root placeholder selected');
+  ok('T19 notice texts exact; none for restored chord; Root placeholder shown');
 }
 console.warn = warn;
 console.log('Phase148 Chord Builder restore tests passed.');

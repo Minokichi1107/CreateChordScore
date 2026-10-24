@@ -7,7 +7,7 @@ import {
   BUILDER_NOTE_NUMBER_TABLE, BUILDER_TYPE_NUMBER_TABLE,
   getBuilderNumberMap, getBuilderNumberOf, formatBuilderNumber, nextUnusedTypeNumber,
 } from '../js/chordBuilderCatalog.js';
-import { decideModalKey, reduceDigit, nextBuilderField } from '../js/chordBuilderKeyboard.js';
+import { decideModalKey, reduceDigit, nextBuilderField, autoAdvanceField } from '../js/chordBuilderKeyboard.js';
 import {
   openChartChordEditModal, isChordEditModalOpen, createChartChordEditController, renderChartChordEditBody,
 } from '../js/chartChordEditModal.js';
@@ -152,10 +152,20 @@ const SPEC_TYPES = ('major major7 dominant7 sixth add9 sus4 dominant7sus4 domina
   assert.equal(d('Clear', 'type').op, null);                                          // NumLockオフ相当
   assert.equal(d('1', 'root', { isComposing: true }).op, null);
   // Enter
-  assert.deepEqual(d('Enter', 'bass'), { op: 'enter', prevent: true, stop: false });
-  assert.equal(d('Enter', 'button').op, null);
-  assert.equal(d('Enter', 'text').prevent, false);
-  assert.equal(d('Enter', 'root', { ctrlKey: true }).op, null);
+  // 確定に使った Enter は背後のグローバル処理へ渡さない（stop: true。Enterで閉じた直後の再オープン防止）
+  assert.deepEqual(d('Enter', 'bass'), { op: 'enter', prevent: true, stop: true });
+  assert.deepEqual(d('Enter', 'text'), { op: 'enter', prevent: true, stop: true });   // 直接入力欄の Enter も確定
+  assert.equal(d('Enter', 'button').op, null);                                       // ボタンは標準動作
+  assert.equal(d('Enter', 'other').op, null);
+  for (const kind of ['root', 'text']) for (const extra of [{ ctrlKey: true }, { altKey: true }, { metaKey: true }, { shiftKey: true }]) {
+    assert.equal(d('Enter', kind, extra).op, null, 'modified Enter is not a confirm: ' + kind + ' ' + Object.keys(extra));
+  }
+  // IME 変換中・変換確定の直後は確定しない
+  for (const kind of ['root', 'text']) {
+    assert.equal(d('Enter', kind, { isComposing: true }).op, null);
+    assert.equal(d('Enter', kind, { justComposed: true }).op, null);
+    assert.equal(d('Process', kind).op, null);
+  }
   // 抑止キー（標準動作は残す）
   for (const k of ['Delete', 'Backspace', 'ArrowLeft', 'ArrowRight']) {
     for (const kind of ['root', 'button', 'other']) assert.deepEqual(d(k, kind), { op: null, prevent: false, stop: true }, k + ' ' + kind);
@@ -176,11 +186,13 @@ const SPEC_TYPES = ('major major7 dominant7 sixth add9 sus4 dominant7sus4 domina
   assert.equal(nextBuilderField('root'), 'type');
   assert.equal(nextBuilderField('type'), 'bass');
   assert.equal(nextBuilderField('bass'), 'root');
+  // 2桁が確定した直後に移る欄（Root→Type→Bass。Bass は最後なので移らない）
+  assert.equal(autoAdvanceField('root'), 'type'); assert.equal(autoAdvanceField('type'), 'bass'); assert.equal(autoAdvanceField('bass'), null); assert.equal(autoAdvanceField('x'), null);
   ok('4 key decision table (Space / digits / Enter / suppressed keys / maintained keys / gate closed)');
 }
 
 // ===== 5. モーダル連携（DOMスタブ） =====
-function makeHarness({ gateOpen = true } = {}) {
+function makeHarness({ gateOpen = true, mode = 'builder' } = {}) {
   // ゲート条件を個別に切り替えられるようにする（open クラス／本文要素の有無／本文が overlay 内か／overlay の有無）
   const gate = { cls: gateOpen, body: gateOpen, inOverlay: true, overlay: true };
   const state = { active: null };
@@ -198,7 +210,8 @@ function makeHarness({ gateOpen = true } = {}) {
     addEventListener(t, fn) { (this.listeners[t] ||= []).push(fn); },
     appendChild() {}, setAttribute() {},
     contains: t => Object.values(selects).includes(t),
-    querySelector: sel => { const m = /data-builder="(\w+)"/.exec(sel); return m ? selects[m[1]] : { disabled: false, textContent: '' }; },
+    // 実DOMと同様、直接入力方式ではビルダーの欄（番号表TIPの基準位置）が存在しない
+    querySelector: sel => { const m = /data-builder="(\w+)"/.exec(sel); return m ? selects[m[1]] : (mode === 'direct' && sel.includes('chart-chord-builder-fields') ? null : { disabled: false, textContent: '' }); },
     querySelectorAll: () => spans,
   };
   const overlay = { classList: { contains: c => c === 'open' && gate.cls }, contains: t => gate.inOverlay && (t === bodyEl || t.inModal === true) };
@@ -226,9 +239,8 @@ function makeHarness({ gateOpen = true } = {}) {
   openChartChordEditModal({
     openModal: o => { captured = o; },
     mkMBtn: (text, cls, fn) => ({ text, fn, disabled: false }),
-    initialState: structuredClone(session), usedChords: [],
+    initialState: structuredClone(session), loadInputMode: () => mode,
     onCommit: (draft, changed) => { calls.committed.push({ draft: structuredClone(draft), changed }); return true; },
-    confirmDiscard: () => true,
   });
   const buttons = captured.buttons(() => { calls.closed += 1; });
   captured.onOpen();
@@ -239,13 +251,14 @@ function makeHarness({ gateOpen = true } = {}) {
     return ev;
   };
   // 実DOMの closest と同じく、セレクタに一致するときだけ要素を返す（ボタン操作）
+  const hintHtml = () => bodyHtml;
   const click = (action, extra = {}) => bodyEl.listeners.click.forEach(fn => fn({
     target: { closest: sel => (sel.startsWith('button[data-action]') ? { dataset: { action, ...extra }, disabled: false } : null) },
   }));
   const changeSelect = (field, value) => bodyEl.listeners.change.forEach(fn => fn({ target: { dataset: { builder: field }, value } }));
   const typeText = value => bodyEl.listeners.input.forEach(fn => fn({ target: { id: 'chart-chord-edit-name', value } }));
   const pendingText = () => spans.map(s => s.textContent).join('|');
-  return { click, changeSelect, typeText, tips, selects, spans, bodyEl, overlay, handlers, state, calls, buttons, press, pendingText, setOpen: v => { gate.cls = v; gate.body = v; }, gate, active: () => state.active };
+  return { click, hintHtml, changeSelect, typeText, tips, selects, spans, bodyEl, overlay, handlers, state, calls, buttons, press, pendingText, setOpen: v => { gate.cls = v; gate.body = v; }, gate, active: () => state.active };
 }
 
 {
@@ -265,6 +278,7 @@ function makeHarness({ gateOpen = true } = {}) {
   h.press('3', root);
   assert.equal(root.value, 'Db');
   assert.equal(h.pendingText(), '||');
+  assert.equal(h.active(), type, '2桁が確定したら次の欄（Type）へ自動で移る');
   // プレビューは syncControls 経由（スタブ要素）。選択値の変更が controller に反映されたことは 決定→完了 で確認する
   ok('5b digits 0,3 -> Root Db; first digit does not confirm');
 
@@ -310,40 +324,63 @@ function makeHarness({ gateOpen = true } = {}) {
   assert.equal(h.pendingText(), '||');
   ok('5g pending digit discarded on focusout / mousedown');
 
-  // Enter: 入力中の桁があれば破棄して決定しない
+  // Enter: 入力中の桁があれば破棄するだけ（確定しない・閉じない）
   h.press('0', root);
   const en1 = h.press('Enter', root);
-  assert.equal(en1.prevented, true); assert.equal(h.pendingText(), '||');
-  h.buttons[2].fn();
-  assert.equal(h.calls.committed.at(-1).changed, false, 'Enter with pending digit does not decide');
-  // 入力中の桁なし + 変更あり(Root=Db): 決定して Root へ
-  h.state.active = type;
+  assert.equal(en1.prevented, true); assert.equal(en1.stopped, true); assert.equal(h.pendingText(), '||');
+  assert.equal(h.calls.committed.length, 0, 'Enter with a pending digit does not confirm'); assert.equal(h.calls.closed, 0);
+  // 入力中の桁なし + 変更あり(Root=Db): 確定して閉じる。Enter は背後のグローバル処理へ伝えない
   const en2 = h.press('Enter', type);
-  assert.equal(en2.prevented, true);
-  assert.equal(h.state.active, root, 'Root focused after decide');
-  h.buttons[2].fn();
+  assert.equal(en2.prevented, true); assert.equal(en2.stopped, true, 'the confirming Enter must not reach the global handler (re-open guard)');
+  assert.equal(h.calls.committed.length, 1); assert.equal(h.calls.closed, 1, 'Enter closes the modal');
   const last = h.calls.committed.at(-1);
   assert.equal(last.changed, true);
   assert.equal(last.draft.buffer.find(c => c._id === 'b').chord, 'Db');
-  ok('5h Enter: pending -> discard only; otherwise decide + Root focus; preventDefault always');
+  ok('5h Enter: pending -> discard only; otherwise apply + close in one step; the confirming Enter is stopped');
 
-  // 決定済み（変更なし）で Enter: 何もしない（canDecide 偽）・preventDefault は呼ぶ
-  const n = h.calls.committed.length;
-  const en3 = h.press('Enter', root);
-  assert.equal(en3.prevented, true);
-  h.buttons[2].fn();
-  assert.equal(h.calls.committed.at(-1).draft.buffer.find(c => c._id === 'b').chord, 'Db');
-  assert.ok(h.calls.committed.length >= n);
-  ok('5i Enter when nothing to decide does nothing');
+  // 変更なし（復元したまま）で Enter: 変更なしで閉じる
+  const h4 = makeHarness();
+  const en3 = h4.press('Enter', h4.selects.root);
+  assert.equal(en3.prevented, true); assert.equal(en3.stopped, true);
+  assert.deepEqual([h4.calls.committed.length, h4.calls.committed[0].changed, h4.calls.closed], [1, false, 1]);
+  ok('5i Enter with nothing changed closes without a change');
 
-  // 数字入力だけでは曲データに反映しない（決定しない限り draft 不変）
+  // 3つの欄を順に移動: 2桁ごとに Root→Type→Bass。Bass の後は移動しない（確定は Enter）
+  const hm = makeHarness();
+  hm.press('0', hm.selects.root); hm.press('1', hm.selects.root); assert.equal(hm.active(), hm.selects.type);
+  hm.press('0', hm.selects.type); hm.press('2', hm.selects.type); assert.equal(hm.active(), hm.selects.bass);
+  hm.press('0', hm.selects.bass); hm.press('8', hm.selects.bass); assert.equal(hm.active(), hm.selects.bass, 'Bass is last: focus stays');
+  assert.deepEqual([hm.selects.root.value, hm.selects.type.value, hm.selects.bass.value], ['C', 'major7', 'F']);
+  // 無効値（Type 00・範囲外）では移動しない・値を変えない
+  const hi = makeHarness(); hi.state.active = hi.selects.type;
+  hi.press('0', hi.selects.type); hi.press('0', hi.selects.type);
+  assert.equal(hi.active(), hi.selects.type, 'invalid Type 00: no move'); assert.equal(hi.selects.type.value, 'major');
+  hi.press('9', hi.selects.type); assert.equal(hi.active(), hi.selects.type, 'invalid first digit: no move');
+  // 00（Root 未選択／Bass 指定なし）は有効値として次へ移る
+  hi.state.active = hi.selects.root; hi.press('0', hi.selects.root); hi.press('0', hi.selects.root);
+  assert.equal(hi.selects.root.value, ''); assert.equal(hi.active(), hi.selects.type, 'Root 00 is valid → moves on');
+  // Backspace: 入力途中の桁を取り消す（それ以外では何もしない）。標準動作は妨げず、背後の削除には伝えない
+  const hb = makeHarness();
+  hb.press('1', hb.selects.root); assert.equal(hb.pendingText(), '1_||');
+  const bs = hb.press('Backspace', hb.selects.root);
+  assert.equal(hb.pendingText(), '||', 'Backspace cancels the digit being typed'); assert.equal(bs.stopped, true); assert.equal(bs.prevented, false);
+  hb.press('7', hb.selects.root); assert.equal(hb.selects.root.value, '', 'cancelled digit does not combine with the next one');
+  const bs2 = hb.press('Backspace', hb.selects.root); assert.equal(bs2.stopped, true); assert.equal(hb.pendingText(), '||');
+  ok('5h2 number input moves Root→Type→Bass per 2 digits; invalid values do not move; Backspace cancels the pending digit');
+
+  // 数字入力だけでは曲データに反映しない（確定＝Enter／完了の前は draft 不変。キャンセルなら何も残らない）
   const h2 = makeHarness();
   h2.press('0', h2.selects.root); h2.press('7', h2.selects.root);
   h2.press('1', h2.selects.type); h2.press('0', h2.selects.type);
   assert.equal(h2.selects.root.value, 'E'); assert.equal(h2.selects.type.value, 'minor', 'digits really were processed');
-  h2.buttons[2].fn();
-  assert.equal(h2.calls.committed.at(-1).changed, false, 'digit input alone never applies to song data');
-  ok('5j digit input updates builder/preview only (no draft change, hasChanges false)');
+  assert.deepEqual([h2.calls.committed.length, h2.calls.closed], [0, 0], 'digits alone neither commit nor close');
+  h2.buttons[0].fn();   // キャンセル（変更なし → 確認なしで閉じる）
+  assert.deepEqual([h2.calls.committed.length, h2.calls.closed], [0, 1], 'cancel after digit input: nothing committed');
+  const h2b = makeHarness();
+  h2b.press('0', h2b.selects.root); h2b.press('7', h2b.selects.root); h2b.press('1', h2b.selects.type); h2b.press('0', h2b.selects.type);
+  h2b.buttons[1].fn();  // 完了 = Enter と同じ確定
+  assert.equal(h2b.calls.committed.at(-1).draft.buffer.find(c => c._id === 'b').chord, 'Em', '完了 applies the builder selection');
+  ok('5j digit input updates builder/preview only; cancel keeps the song untouched; 完了/Enter apply it');
 
   // ゲートが閉じている: 何もしない
   const h3 = makeHarness();
@@ -468,9 +505,9 @@ function makeHarness({ gateOpen = true } = {}) {
   await new Promise(r => setTimeout(r, 330));
   assert.ok(hasTip(), 'pinned tip survives hover-out');
   // 完了で閉じる（どの終了経路も closeCurrentModal を通る）。TIPは曲データを変えない
-  h.buttons[2].fn();
+  h.buttons[0].fn();   // キャンセル（変更なし → 確認なしで閉じる）
   assert.ok(!hasTip() && h.tips.every(t => !t.attached), 'tip removed when the modal closes');
-  assert.equal(h.calls.committed.at(-1).changed, false, 'tip/digits/Space did not change song data (only builder preview)');
+  assert.deepEqual([h.calls.committed.length, h.calls.closed], [0, 1], 'tip/digits/Space did not change song data (only builder preview)');
   ok('6e tip wiring: ? / Escape / hover / pin / close; digits, Space and pending digit unaffected; no data change');
 
   const h2 = makeHarness();
@@ -509,31 +546,25 @@ function makeHarness({ gateOpen = true } = {}) {
   probe('overlay missing', g => { g.overlay = false; });
   ok('7-1 each gate condition is checked independently (open class / body element / body inside overlay / overlay)');
 
-  // 7-2 再描画（ボタン操作・決定・追加・選択）では入力中の桁を残さない
+  // 7-2 再描画（方式の切替など）では入力中の桁を残さない
   const h = makeHarness();
   const { root } = h.selects;
   h.press('1', root);
   assert.equal(h.pendingText(), '1_||');
-  h.click('select', { id: 'a' });                       // チップ選択 → rerender（focusout なし）
+  h.click('mode', { mode: 'direct' }); h.click('mode', { mode: 'builder' });   // 切替 → rerender（focusout なし）
   assert.equal(h.pendingText(), '||', 'display cleared by the re-render');
   h.press('7', root);                                    // 残っていれば 1+7=17 が確定してしまう
   assert.equal(root.value, '', 'a stale "1" must not combine with the next digit (17 would be B)');
   assert.equal(h.pendingText(), '||', '"7" alone is not a valid Root first digit -> rejected');
-  // 同様に、決定のあとの再描画でも残らない
-  h.changeSelect('root', 'D'); h.press('1', root); h.click('builder-decide');
-  h.press('0', root);
-  assert.equal(root.value, '', 'after 決定 the pending digit is gone ("10" would be Gb)');
-  assert.equal(h.pendingText(), '0_||', 'a new first digit starts fresh');
-  // 入力中の桁が残っていると Enter は「破棄だけ」になり決定されない。再描画のあとの Enter は通常どおり決定できること
+  // 入力中の桁が残っていると Enter は「破棄だけ」になり確定されない。再描画のあとの Enter は通常どおり確定できること
   const r2 = makeHarness();
   r2.press('1', r2.selects.root);                        // 入力中の桁
-  r2.click('select', { id: 'a' });                       // 再描画（チップ a = C を選択。builder は C に復元）
-  r2.changeSelect('root', 'E');                          // 復元値 C から変更 → 決定が有効
+  r2.click('mode', { mode: 'direct' }); r2.click('mode', { mode: 'builder' });   // 再描画
+  r2.changeSelect('root', 'E');                          // 復元値 G から変更
   r2.press('Enter', r2.selects.root);                    // 桁が残っていれば破棄だけで終わる
-  r2.buttons[2].fn();                                    // 完了
-  assert.equal(r2.calls.committed.at(-1).draft.buffer.find(c => c._id === 'a').chord, 'E',
-    'Enter after a re-render decides (the pending digit did not survive the re-render)');
-  ok('7-2 re-render discards the pending digit (チップ選択・決定・再描画後の Enter)');
+  assert.equal(r2.calls.committed.at(-1).draft.buffer.find(c => c._id === 'b').chord, 'E',
+    'Enter after a re-render confirms (the pending digit did not survive the re-render)');
+  ok('7-2 re-render (method switch) discards the pending digit');
 
   // 7-3 入力中の桁は入力した欄のもの。別の欄の数字と合成しない（欄の照合）
   const g = makeHarness();
@@ -552,33 +583,66 @@ function makeHarness({ gateOpen = true } = {}) {
   assert.equal(g.pendingText(), '||1_');
   ok('7-3 pending digit belongs to the field it was typed in (no cross-field combination)');
 
-  // 7-4 決定・＋追加が成功したら Root へフォーカスを戻す。失敗したときは動かさない（ボタン操作）
+  // 7-4 確定できなかったときは閉じず、理由を出して元の欄へ戻る。方式の切替でフォーカスが移る
   const f = makeHarness();
-  f.changeSelect('root', 'D');                           // 復元値 G から変更 → 決定が有効
+  f.changeSelect('root', '');                            // Root 未選択
   f.state.active = f.selects.type;
-  f.click('builder-decide');
-  assert.equal(f.active(), f.selects.root, '決定 (button) success -> Root focus');
-  f.state.active = f.selects.type;
-  f.click('builder-decide');                             // 変更なし → 決定は失敗（canDecide 偽）
-  assert.equal(f.active(), f.selects.type, '決定 failure -> focus is not moved');
-  f.changeSelect('root', 'E');
-  f.state.active = f.selects.bass;
-  f.click('builder-add');
-  assert.equal(f.active(), f.selects.root, '＋追加 (builder) success -> Root focus');
-  f.state.active = f.selects.bass;
-  f.click('builder-add');                                // Root 未選択に戻っている → 失敗
-  assert.equal(f.active(), f.selects.bass, '＋追加 (builder) failure -> focus is not moved');
-  f.typeText('Am');
-  f.state.active = f.selects.type;
-  f.click('add');
-  assert.equal(f.active(), f.selects.root, '＋追加 (direct input) success -> Root focus');
-  f.state.active = f.selects.type;
-  f.click('replace');                                    // 置換は従来どおり Root へ移さない
-  assert.equal(f.active(), f.selects.type, '置換 does not move focus (existing behavior)');
-  f.state.active = f.selects.type;
-  f.click('select', { id: 'a' });
-  assert.equal(f.active(), f.selects.type, 'chip selection does not move focus (existing behavior)');
-  ok('7-4 Root regains focus after 決定 / ＋追加 (builder / direct input) success; not on failure, 置換, or chip selection');
+  const fe = f.press('Enter', f.selects.type);
+  assert.equal(f.calls.closed, 0); assert.equal(f.calls.committed.length, 0, 'unselected Root: not confirmed');
+  assert.ok(f.hintHtml().includes('ルート音を選択してください。'), 'reason is shown');
+  assert.equal(fe.stopped, true);
+  assert.equal(f.active(), f.selects.type, 'focus returns to the field Enter was pressed in');
+  f.state.active = null; f.click('mode', { mode: 'direct' }); f.click('mode', { mode: 'builder' });
+  assert.equal(f.active(), f.selects.root, 'switching back to builder focuses Root');
+  ok('7-4 failed confirm keeps the modal open with a reason and returns focus; mode switch focuses the new method');
+
+  // 7-5 直接入力方式: Enter で確定して閉じる／IME 変換中・変換確定の直後は確定しない／不正入力は閉じない
+  {
+    const input = { tagName: 'INPUT' };
+    const d = makeHarness({ mode: 'direct' });
+    assert.ok(!d.hintHtml().includes('data-builder'), 'direct method does not render the builder');
+    d.typeText('Am7');
+    const ime = d.press('Enter', input, { isComposing: true });
+    assert.deepEqual([ime.prevented, ime.stopped, d.calls.closed, d.calls.committed.length], [false, false, 0, 0], 'Enter during IME composition is ignored');
+    d.bodyEl.listeners.compositionend.forEach(fn => fn({}));
+    const justAfter = d.press('Enter', input);
+    assert.deepEqual([justAfter.stopped, d.calls.closed, d.calls.committed.length], [false, 0, 0], 'the Enter right after compositionend is ignored');
+    await new Promise(r => setTimeout(r, 10));
+    const confirm = d.press('Enter', input);
+    assert.equal(confirm.prevented, true); assert.equal(confirm.stopped, true, 'confirming Enter does not reach the global handler');
+    assert.deepEqual([d.calls.closed, d.calls.committed.length, d.calls.committed[0].changed], [1, 1, true]);
+    assert.equal(d.calls.committed[0].draft.buffer.find(c => c._id === 'b').chord, 'Am7');
+    // 不正・空欄: 閉じない・理由を表示
+    for (const [text, msg] of [['', 'コード名を入力してください。'], ['xyz', 'コード名として認識できません']]) {
+      const bad = makeHarness({ mode: 'direct' }); bad.typeText(text);
+      const be = bad.press('Enter', input);
+      assert.deepEqual([bad.calls.closed, bad.calls.committed.length], [0, 0], 'invalid "' + text + '" keeps the modal open');
+      assert.ok(bad.hintHtml().includes(msg), 'hint for "' + text + '"'); assert.equal(be.stopped, true);
+    }
+    // 直接入力方式では番号表TIPを出さない（? はボタン上でも無視）。修飾付き Enter は確定に使わない
+    const tipless = makeHarness({ mode: 'direct' });
+    tipless.press('?', { tagName: 'BUTTON', inModal: true });
+    assert.ok(tipless.tips.every(t => !t.attached || t.style.display !== 'block'), 'no number-table tip in direct mode');
+    const mod = tipless.press('Enter', input, { ctrlKey: true });
+    assert.deepEqual([mod.stopped, tipless.calls.closed], [false, 0], 'Ctrl+Enter is not a confirm');
+    // N.C. ボタン（両方式）: 確定して閉じる
+    for (const mode of ['builder', 'direct']) {
+      const nc = makeHarness({ mode }); nc.click('no-chord');
+      assert.deepEqual([nc.calls.closed, nc.calls.committed.length], [1, 1], mode);
+      assert.equal(nc.calls.committed[0].draft.buffer.find(c => c._id === 'b').chord, 'N', mode);
+    }
+    ok('7-5 direct input: Enter confirms+closes; IME composition / just-after-compositionend ignored; invalid → hint; N.C. from both methods');
+  }
+
+  // 7-6 app.js のグローバル Enter 処理: 自動リピートで閉じた直後に編集モーダルが再び開かない
+  {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const block = app.slice(app.indexOf("if (e.key === 'Enter') {\n      if (document.getElementById('modal-ov')"));
+    const idxOpen = block.indexOf("classList.contains('open')) return;"), idxRepeat = block.indexOf('if (e.repeat) return;'), idxOpenSession = block.indexOf('openChartChordEditSession(chord)');
+    assert.ok(idxOpen > 0 && idxRepeat > idxOpen && idxOpenSession > idxRepeat, 'repeat guard sits before the code that opens the edit modal');
+    ok('7-6 global Enter handler ignores auto-repeat before opening the edit modal (static check; real-browser check is separate)');
+  }
 }
 
 delete globalThis.window; delete globalThis.document;
