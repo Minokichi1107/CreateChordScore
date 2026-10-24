@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: 2026-10-12（Issue #129の実装マージ・残課題、Phase141〜144の実績を反映）。
+> 最終更新: 2026-10-24（Phase147〜148のDocumentation Checkpointを反映）。
 > 既存の未解決事項と新たに確認した残課題を、GitHub Issueの状態に合わせて整理し、
 > 解決済みの実装事項はCurrent Issuesへ残さず、対応するhandover / phase-statusへ寄せる。
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
@@ -129,6 +129,13 @@ Issue #120の調査Taskはクローズ済みで、別Chat/別AIでもIssueだけ
 
 ### Chart Mode 系
 
+#### 未登録課題 — Chart Modeヘッダーの幅超過（400px viewport）
+状態: 未登録・Issue化未決定。Phase148で発見したが、mainでも再現し、Phase148のモーダル変更が原因ではない。
+
+- viewport幅400pxでヘッダーの`scrollWidth`が406pxとなり、横方向にはみ出す。
+- 関連候補: `.header-right`、`.menu-group`、`.menu-trigger`、`#tap-btn`。
+- 独立したUI課題として扱う。Issueを作成するかは別途判断する。
+
 ### GitHub Issue #130 — Chart ModeにおけるChord / Beat / Measure Projection（コード・拍・小節の投影）の根本的な再評価
 状態: 大テーマとして調査開始・実装未着手
 
@@ -208,6 +215,15 @@ Issue #120の調査Taskはクローズ済みで、別Chat/別AIでもIssueだけ
 - [ ] PR #159のCI（継続的インテグレーション）結果を確認する。取得できない場合は未確認と明記して扱いを判断する。
 
 詳細な設計・確認範囲は docs/issue129-technical-design.md と https://github.com/Minokichi1107/CreateChordScore/issues/129 を参照。#101は別Issueとして引き続きOpen。
+
+#### GitHub Issue #170 — 弱起曲の検出・表示・補正に関する課題（親Issue／必要時に再調査）
+状態: 意図的保留。実曲で具体的な表示・編集上の不具合が確認された時点で再開する。
+
+- 現在の弱起関連の仕組みは削除・変更しない。
+- 「夢光年」は弱起の検証対象として使えず、冒頭区間のテンポ誤認の可能性があるが原因未確定。
+- 「POP STAR」も現時点では弱起として扱う根拠が確認できず、調査対象から除外。
+- 再開時は、対象曲・解析データ・操作手順・期待結果と実際の結果を記録する。
+- 関連Issue: #81、#101、#129。
 
 #### Issue #45 — Chart Mode 小節頭ズレ（timing failure taxonomy）
 状態: Type B対応済み・Type A/C/D未対応
