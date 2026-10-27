@@ -50,6 +50,20 @@ class SectionSaveLibraryTests(unittest.TestCase):
         self.assertFalse(encoded.endswith(b"\n\n"))
         self.assertNotIn(b"\n", encoded.replace(b"\r\n", b""))
 
+    def test_serialization_preserves_utf8_bom(self):
+        source = b'\\xef\\xbb\\xbf{\\n  "a": 1\\n}'
+        encoded = serialize_analysis_like_source(source, {"a": 2})
+        self.assertTrue(encoded.startswith(b"\\xef\\xbb\\xbf"))
+        self.assertEqual(parse_analysis_bytes(encoded), {"a": 2})
+
+    def test_candidate_validation_detects_boolean_number_type_change(self):
+        original = analysis_fixture()
+        original["unknownTopLevel"] = {"value": 1}
+        candidate = copy.deepcopy(original)
+        candidate["unknownTopLevel"]["value"] = True
+        with self.assertRaisesRegex(SectionSaveValidationError, "unexpected-analysis-change"):
+            validate_analysis_candidate(original, candidate, "project-1")
+
     def test_build_candidate_changes_only_sections_and_provenance(self):
         original = analysis_fixture()
         before = copy.deepcopy(original)
