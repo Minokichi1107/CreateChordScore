@@ -86,7 +86,7 @@ class SectionSaveLibraryTests(unittest.TestCase):
             "id": "s1", "type": "verse", "name": "Verse 1",
             "startChordId": "c1", "endChordId": "c2",
         }]
-        candidate = build_section_candidate(original, "project-1", sections, {"hasContentEdit": False, "externalCheck": {"checked": False}})
+        candidate = build_section_candidate(original, "project-1", sections, {})
         self.assertEqual(original, before)
         self.assertEqual(candidate["raw"]["sections"], sections)
         self.assertTrue(candidate["raw"]["provenance"]["hasContentEdit"])
@@ -117,6 +117,42 @@ class SectionSaveLibraryTests(unittest.TestCase):
         reversed_section = [dict(good[0], startChordId="c2", endChordId="c1")]
         with self.assertRaisesRegex(SectionSaveValidationError, "start-after-end"):
             validate_sections(reversed_section, chords)
+
+    def test_unknown_section_keys_rejected(self):
+        section = {
+            "id": "s1", "type": "verse", "name": "Verse",
+            "startChordId": "c1", "endChordId": "c1", "evil": {"x": 1},
+        }
+        with self.assertRaisesRegex(SectionSaveValidationError, "unknown-key"):
+            validate_sections([section], [{"_id": "c1"}])
+
+    def test_unknown_provenance_patch_keys_rejected(self):
+        original = analysis_fixture()
+        section = [{
+            "id": "s1", "type": "verse", "name": "Verse",
+            "startChordId": "c1", "endChordId": "c2",
+        }]
+        with self.assertRaisesRegex(SectionSaveValidationError, "provenance-patch-key-not-allowed"):
+            build_section_candidate(original, "project-1", section, {"source": "evil", "x": 1})
+
+    def test_empty_generated_sections_rejected(self):
+        original = analysis_fixture()
+        with self.assertRaisesRegex(SectionSaveValidationError, "empty-generated-sections"):
+            build_section_candidate(original, "project-1", [], {})
+
+    def test_missing_or_null_provenance_builds_only_derived_field(self):
+        section = [{
+            "id": "s1", "type": "verse", "name": "Verse",
+            "startChordId": "c1", "endChordId": "c2",
+        }]
+        for absent in ("missing", "null"):
+            original = analysis_fixture()
+            if absent == "missing":
+                del original["raw"]["provenance"]
+            else:
+                original["raw"]["provenance"] = None
+            candidate = build_section_candidate(original, "project-1", section, {})
+            self.assertEqual(candidate["raw"]["provenance"], {"hasStructureEdit": True})
 
     def test_duplicate_section_ids_rejected(self):
         section = {"id": "s1", "type": "verse", "name": "Verse", "startChordId": "c1", "endChordId": "c1"}
