@@ -1,0 +1,46 @@
+name: Section generation foundation tests
+
+on:
+  pull_request:
+    paths:
+      - "section_save.py"
+      - "js/analysisCommands.js"
+      - "js/analysisSession.js"
+      - "js/sectionGeneration.js"
+      - "scripts/test_section_save.py"
+      - "scripts/test-section-generation.mjs"
+      - ".github/workflows/section-generation-tests.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "section_save.py"
+      - "js/analysisCommands.js"
+      - "js/analysisSession.js"
+      - "js/sectionGeneration.js"
+      - "scripts/test_section_save.py"
+      - "scripts/test-section-generation.mjs"
+      - ".github/workflows/section-generation-tests.yml"
+
+jobs:
+  section-generation-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Section-save library tests
+        run: python scripts/test_section_save.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run Section-generation command tests
+        run: node scripts/test-section-generation.mjs
