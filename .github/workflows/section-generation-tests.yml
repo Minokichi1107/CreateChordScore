@@ -35,7 +35,7 @@ jobs:
           python-version: "3.12"
 
       - name: Run Section-save library tests
-        run: python scripts/test_section_save.py
+        run: python -m unittest discover -s scripts -p "test_section_save.py" -v
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
