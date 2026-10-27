@@ -98,13 +98,13 @@ class SectionSaveLibraryTests(unittest.TestCase):
     def test_sections_missing_is_not_treated_as_empty(self):
         original = analysis_fixture()
         del original["raw"]["sections"]
-        with self.assertRaisesRegex(SectionSaveValidationError, "sections-missing"):
+        with self.assertRaisesRegex(SectionSaveValidationError, "not-eligible-sections-missing"):
             build_section_candidate(original, "project-1", [], {})
 
     def test_existing_sections_block_candidate(self):
         original = analysis_fixture()
         original["raw"]["sections"] = [{"id": "existing"}]
-        with self.assertRaisesRegex(SectionSaveValidationError, "sections-existing"):
+        with self.assertRaisesRegex(SectionSaveValidationError, "not-eligible-sections-existing"):
             build_section_candidate(original, "project-1", [], {})
 
     def test_section_reference_and_order_validation(self):
@@ -135,10 +135,31 @@ class SectionSaveLibraryTests(unittest.TestCase):
         with self.assertRaisesRegex(SectionSaveValidationError, "provenance-patch-key-not-allowed"):
             build_section_candidate(original, "project-1", section, {"source": "evil", "x": 1})
 
+    def test_provenance_fields_cannot_be_patched_by_client(self):
+        original = analysis_fixture()
+        section = [{
+            "id": "s1", "type": "verse", "name": "Verse",
+            "startChordId": "c1", "endChordId": "c2",
+        }]
+        for key, value in (
+            ("hasContentEdit", False),
+            ("externalCheck", {"checked": False}),
+        ):
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(SectionSaveValidationError, "provenance-patch-key-not-allowed"):
+                    build_section_candidate(original, "project-1", section, {key: value})
+
     def test_empty_generated_sections_rejected(self):
         original = analysis_fixture()
         with self.assertRaisesRegex(SectionSaveValidationError, "empty-generated-sections"):
             build_section_candidate(original, "project-1", [], {})
+
+    def test_non_array_generated_sections_gets_type_error(self):
+        original = analysis_fixture()
+        for invalid in (None, False, 0, ""):
+            with self.subTest(value=invalid):
+                with self.assertRaisesRegex(SectionSaveValidationError, "sections-not-array"):
+                    build_section_candidate(original, "project-1", invalid, {})
 
     def test_missing_or_null_provenance_builds_only_derived_field(self):
         section = [{
