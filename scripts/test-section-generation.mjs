@@ -5,6 +5,7 @@ import {
   hasSectionGenerationCodeEdits,
 } from '../js/sectionGeneration.js';
 import { applyGeneratedSectionsCommand } from '../js/analysisCommands.js';
+import { undoBuffer, redoBuffer } from '../js/analysisSession.js';
 
 const analysis = {
   projectId: 'p1',
@@ -58,12 +59,39 @@ const generated = [{
   startChordId: 'c1', endChordId: 'c2',
 }];
 const state = session();
+state.future.push({ buffer: [], sections: [] }); // a new edit must clear Redo history
 const applied = applyGeneratedSectionsCommand(state, generated);
 assert.equal(applied.ok, true);
 assert.equal(applied.count, 1);
 assert.equal(state.sections.length, 1);
 assert.equal(state.history.length, 1);
 assert.equal(state.dirty, true);
+assert.equal(state.future.length, 0);
+
+// Undo restores the empty Section list, and Redo restores the generated Sections.
+assert.equal(undoBuffer(state), true);
+assert.equal(state.sections.length, 0);
+assert.equal(state.history.length, 0);
+assert.equal(state.future.length, 1);
+assert.equal(redoBuffer(state), true);
+assert.deepEqual(state.sections, generated);
+assert.equal(state.history.length, 1);
+assert.equal(state.future.length, 0);
+
+// Unknown Section keys are rejected before history or state mutation.
+const unknownKeyState = session();
+const unknownKey = applyGeneratedSectionsCommand(unknownKeyState, [
+  { ...generated[0], evil: { injected: true } },
+]);
+assert.equal(unknownKey.ok, false);
+assert.equal(unknownKey.reason, 'unknown-section-key');
+assert.equal(unknownKeyState.sections.length, 0);
+assert.equal(unknownKeyState.history.length, 0);
+
+// Empty generated Sections are rejected and do not create history.
+const emptyState = session();
+assert.equal(applyGeneratedSectionsCommand(emptyState, []).reason, 'empty-generated-sections');
+assert.equal(emptyState.history.length, 0);
 
 const invalidState = session();
 const invalid = applyGeneratedSectionsCommand(invalidState, [{
