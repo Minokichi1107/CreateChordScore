@@ -56,6 +56,21 @@ class SectionSaveLibraryTests(unittest.TestCase):
         self.assertTrue(encoded.startswith(b"\xef\xbb\xbf"))
         self.assertEqual(parse_analysis_bytes(encoded), {"a": 2})
 
+    def test_candidate_validation_allows_explicit_generated_at_update(self):
+        original = analysis_fixture()
+        candidate = copy.deepcopy(original)
+        candidate["raw"]["sections"] = [{
+            "id": "s1", "type": "verse", "name": "Verse 1",
+            "startChordId": "c1", "endChordId": "c2",
+        }]
+        candidate["raw"]["provenance"]["hasStructureEdit"] = True
+        candidate["generatedAt"] = "2026-10-28T00:00:00.000Z"
+        with self.assertRaisesRegex(SectionSaveValidationError, "unexpected-analysis-change"):
+            validate_analysis_candidate(original, candidate, "project-1")
+        validate_analysis_candidate(
+            original, candidate, "project-1", allow_generated_at_update=True
+        )
+
     def test_candidate_validation_detects_boolean_number_type_change(self):
         original = analysis_fixture()
         original["unknownTopLevel"] = {"value": 1}
