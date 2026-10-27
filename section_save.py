@@ -70,6 +70,9 @@ def validate_sections(sections: Any, chords: Any) -> None:
     for i, section in enumerate(sections):
         if not isinstance(section, dict):
             raise _section_error(i, "not-object")
+        unknown_keys = set(section) - set(required)
+        if unknown_keys:
+            raise _section_error(i, "unknown-key")
         for key in required:
             if not isinstance(section.get(key), str) or not section[key].strip():
                 raise _section_error(i, f"invalid-{key}")
@@ -189,6 +192,10 @@ def build_section_candidate(
         raise SectionSaveValidationError("not-eligible-generated-at-missing")
     if not isinstance(provenance_patch, dict):
         raise SectionSaveValidationError("provenance-not-object")
+    if set(provenance_patch) - {"hasStructureEdit"}:
+        raise SectionSaveValidationError("provenance-patch-key-not-allowed")
+    if not sections:
+        raise SectionSaveValidationError("empty-generated-sections")
 
     candidate = copy.deepcopy(original)
     candidate_raw = candidate["raw"]
@@ -201,9 +208,6 @@ def build_section_candidate(
         raise SectionSaveValidationError("existing-provenance-not-object")
     provenance = copy.deepcopy(old_provenance)
     preserved_keys = ("hasContentEdit", "externalCheck")
-    for key, value in provenance_patch.items():
-        if key not in preserved_keys:
-            provenance[key] = copy.deepcopy(value)
     for key in preserved_keys:
         if key in old_provenance:
             provenance[key] = copy.deepcopy(old_provenance[key])
