@@ -51,9 +51,9 @@ class SectionSaveLibraryTests(unittest.TestCase):
         self.assertNotIn(b"\n", encoded.replace(b"\r\n", b""))
 
     def test_serialization_preserves_utf8_bom(self):
-        source = b'\\xef\\xbb\\xbf{\\n  "a": 1\\n}'
+        source = b'\xef\xbb\xbf{\n  "a": 1\n}'
         encoded = serialize_analysis_like_source(source, {"a": 2})
-        self.assertTrue(encoded.startswith(b"\\xef\\xbb\\xbf"))
+        self.assertTrue(encoded.startswith(b"\xef\xbb\xbf"))
         self.assertEqual(parse_analysis_bytes(encoded), {"a": 2})
 
     def test_candidate_validation_detects_boolean_number_type_change(self):
