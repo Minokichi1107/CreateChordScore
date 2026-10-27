@@ -637,7 +637,7 @@ function makeHarness({ gateOpen = true, mode = 'builder' } = {}) {
   // 7-6 app.js のグローバル Enter 処理: 自動リピートで閉じた直後に編集モーダルが再び開かない
   {
     const fs = await import('node:fs');
-    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8').replace(/\r\n?/g, '\n');
     const block = app.slice(app.indexOf("if (e.key === 'Enter') {\n      if (document.getElementById('modal-ov')"));
     const idxOpen = block.indexOf("classList.contains('open')) return;"), idxRepeat = block.indexOf('if (e.repeat) return;'), idxOpenSession = block.indexOf('openChartChordEditSession(chord)');
     assert.ok(idxOpen > 0 && idxRepeat > idxOpen && idxOpenSession > idxRepeat, 'repeat guard sits before the code that opens the edit modal');
