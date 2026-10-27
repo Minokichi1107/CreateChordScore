@@ -41,7 +41,8 @@ def serialize_analysis_like_source(source_bytes: bytes, value: dict[str, Any]) -
     text = json.dumps(value, ensure_ascii=False, indent=2)
     if newline == "\r\n":
         text = text.replace("\n", "\r\n")
-    return text.encode("utf-8")
+    bom = b"\\xef\\xbb\\xbf" if source_bytes.startswith(b"\\xef\\xbb\\xbf") else b""
+    return bom + text.encode("utf-8")
 
 
 def _section_error(index: int, reason: str) -> SectionSaveValidationError:
@@ -85,6 +86,25 @@ def validate_sections(sections: Any, chords: Any) -> None:
             raise _section_error(i, "start-after-end")
 
 
+def _strict_json_equal(left: Any, right: Any) -> bool:
+    """Compare JSON values without Python's bool/int equality ambiguity.
+
+    Object key order is also checked because serialization must retain the source
+    key order outside the explicitly mutable fields.
+    """
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return list(left.keys()) == list(right.keys()) and all(
+            _strict_json_equal(left[key], right[key]) for key in left
+        )
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _strict_json_equal(a, b) for a, b in zip(left, right)
+        )
+    return left == right
+
+
 def validate_analysis_candidate(
     original: dict[str, Any],
     candidate: dict[str, Any],
@@ -120,7 +140,7 @@ def validate_analysis_candidate(
     new_compare_raw.pop("sections", None)
     old_compare_raw.pop("provenance", None)
     new_compare_raw.pop("provenance", None)
-    if old_compare != new_compare:
+    if not _strict_json_equal(old_compare, new_compare):
         raise SectionSaveValidationError("unexpected-analysis-change")
 
     validate_sections(new_raw.get("sections"), new_raw.get("chords"))
