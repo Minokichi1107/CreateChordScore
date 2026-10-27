@@ -109,8 +109,15 @@ def validate_analysis_candidate(
     original: dict[str, Any],
     candidate: dict[str, Any],
     expected_project_id: str,
+    *,
+    allow_generated_at_update: bool = False,
 ) -> None:
-    """Ensure candidate shape and that only raw.sections/raw.provenance changed."""
+    """Validate a Section candidate's preservation invariant.
+
+    By default only raw.sections and raw.provenance may change. The server-save
+    layer may explicitly allow the server-issued top-level generatedAt timestamp
+    to change; the pure candidate builder does not enable that exception.
+    """
     if not isinstance(original, dict) or not isinstance(candidate, dict):
         raise SectionSaveValidationError("analysis-not-object")
     for key in ("version", "projectId", "generatedAt", "raw", "repairRule"):
@@ -131,7 +138,11 @@ def validate_analysis_candidate(
     if candidate.get("repairRule") != original.get("repairRule"):
         raise SectionSaveValidationError("repair-rule-changed")
 
-    # Remove the two allowed fields before comparing all remaining content.
+    if allow_generated_at_update:
+        if not isinstance(candidate.get("generatedAt"), str) or not candidate["generatedAt"].strip():
+            raise SectionSaveValidationError("candidate-generated-at-invalid")
+
+    # Remove the fields explicitly allowed by this validation mode.
     old_compare = copy.deepcopy(original)
     new_compare = copy.deepcopy(candidate)
     old_compare_raw = old_compare.get("raw")
@@ -140,6 +151,9 @@ def validate_analysis_candidate(
     new_compare_raw.pop("sections", None)
     old_compare_raw.pop("provenance", None)
     new_compare_raw.pop("provenance", None)
+    if allow_generated_at_update:
+        old_compare.pop("generatedAt", None)
+        new_compare.pop("generatedAt", None)
     if not _strict_json_equal(old_compare, new_compare):
         raise SectionSaveValidationError("unexpected-analysis-change")
 
