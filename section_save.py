@@ -4,7 +4,6 @@ This module deliberately does not perform file I/O or mutate the authoritative
 analysis file. Transactional persistence belongs to the later W2 layer.
 """
 from __future__ import annotations
-
 import copy
 import hashlib
 import json
@@ -145,7 +144,6 @@ def validate_analysis_candidate(
         if not isinstance(candidate.get("generatedAt"), str) or not candidate["generatedAt"].strip():
             raise SectionSaveValidationError("candidate-generated-at-invalid")
 
-    # Remove the fields explicitly allowed by this validation mode.
     old_compare = copy.deepcopy(original)
     new_compare = copy.deepcopy(candidate)
     old_compare_raw = old_compare.get("raw")
@@ -194,7 +192,9 @@ def build_section_candidate(
         raise SectionSaveValidationError("provenance-not-object")
     if set(provenance_patch) - {"hasStructureEdit"}:
         raise SectionSaveValidationError("provenance-patch-key-not-allowed")
-    if not sections:
+    if not isinstance(sections, list):
+        raise SectionSaveValidationError("sections-not-array")
+    if len(sections) == 0:
         raise SectionSaveValidationError("empty-generated-sections")
 
     candidate = copy.deepcopy(original)
