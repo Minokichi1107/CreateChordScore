@@ -1004,9 +1004,13 @@ export function applyGeneratedSectionsCommand(state, generatedSections) {
   const candidate = structuredClone(generatedSections);
   const ids = new Set();
   for (const section of candidate) {
-    if (!section || typeof section !== 'object' ||
+    if (!section || typeof section !== 'object' || Array.isArray(section) ||
         typeof section.id !== 'string' || !section.id.trim()) {
       return { ok: false, reason: 'invalid-section-id' };
+    }
+    const allowedKeys = new Set(['id', 'type', 'name', 'startChordId', 'endChordId']);
+    if (Object.keys(section).some(key => !allowedKeys.has(key))) {
+      return { ok: false, reason: 'unknown-section-key' };
     }
     if (ids.has(section.id)) return { ok: false, reason: 'duplicate-section-id' };
     ids.add(section.id);
