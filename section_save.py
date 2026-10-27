@@ -41,7 +41,7 @@ def serialize_analysis_like_source(source_bytes: bytes, value: dict[str, Any]) -
     text = json.dumps(value, ensure_ascii=False, indent=2)
     if newline == "\r\n":
         text = text.replace("\n", "\r\n")
-    bom = b"\\xef\\xbb\\xbf" if source_bytes.startswith(b"\\xef\\xbb\\xbf") else b""
+    bom = b"\xef\xbb\xbf" if source_bytes.startswith(b"\xef\xbb\xbf") else b""
     return bom + text.encode("utf-8")
 
 
