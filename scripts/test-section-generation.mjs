@@ -120,6 +120,33 @@ assert.equal(evaluate({ editorSession: { active: true, dirty: false } }).eligibl
 assert.equal(evaluate({ editorSession: { active: false, dirty: true } }).eligible, true, 'inactive editor is not an editing session');
 assert.equal(evaluate({ editorSession: null }).eligible, true, 'no editor session');
 
+// Duplicate chord `_id`s on disk make Section endpoints ambiguous and are rejected by the server
+// (section_save.validate_sections: duplicate-chord-id), so generation must not start (review of PR #185).
+function chordsOf(ids) { return ids.map(id => ({ _id: id })); }
+function evaluateDiskChords(ids, memoryIds = ids) {
+  return evaluate({
+    loadResult: withAnalysis({ raw: { sections: [], chords: chordsOf(ids) } }),
+    memoryRaw: { chords: chordsOf(memoryIds) },
+  });
+}
+for (const [label, ids] of [
+  ['adjacent', ['c1', 'c1', 'c2', 'c3']],
+  ['distant', ['c1', 'c2', 'c3', 'c4', 'c1']],
+  ['first and last', ['c1', 'c2', 'c3', 'c1']],
+  ['two different pairs', ['c1', 'c2', 'c1', 'c2']],
+  ['last two', ['c1', 'c2', 'c3', 'c3']],
+  ['all identical', ['c1', 'c1', 'c1']],
+]) {
+  assertRejected(evaluateDiskChords(ids), 'disk-chords-duplicate-id', `duplicate disk chord ids (${label})`);
+}
+// Unique IDs stay eligible; IDs are compared exactly, as the server does (case and whitespace are significant).
+assert.equal(evaluateDiskChords(['c1', 'c2', 'c3', 'c4']).eligible, true, 'unique chord ids');
+assert.equal(evaluateDiskChords(['c1', 'C1', ' c1']).eligible, true, 'ids differing in case or whitespace are distinct');
+// The pre-existing invalid-ID classification is unchanged and takes precedence over the duplicate check.
+assertRejected(evaluateDiskChords(['c1', 'c1', '']), 'disk-chords-invalid', 'invalid id plus duplicate');
+// Duplicates only in memory (disk unique) are still reported as a memory/disk mismatch.
+assertRejected(evaluateDiskChords(['c1', 'c2', 'c3'], ['c1', 'c2', 'c2']), 'chords-changed-on-disk', 'duplicate ids only in memory');
+
 const initialBuffer = captureSectionGenerationBuffer([{ _id: 'c1', start: 0, end: 1 }]);
 assert.equal(hasSectionGenerationCodeEdits(initialBuffer, initialBuffer), false);
 assert.equal(hasSectionGenerationCodeEdits([{ _id: 'c1', start: 0, end: 2 }], initialBuffer), true);

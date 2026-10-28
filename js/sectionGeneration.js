@@ -76,6 +76,9 @@ export function evaluateSectionGenerationEligibility({
 
   const diskChordIds = chordIds(raw.chords);
   if (diskChordIds === null) return fail('disk-chords-invalid');
+  // Section endpoints are chord `_id` references, so duplicate IDs make them ambiguous.
+  // The server rejects this too (section_save.validate_sections: duplicate-chord-id).
+  if (new Set(diskChordIds).size !== diskChordIds.length) return fail('disk-chords-duplicate-id');
 
   const memoryChordIds = chordIds(memoryRaw?.chords);
   if (memoryChordIds === null || !sameSequence(memoryChordIds, diskChordIds)) {
