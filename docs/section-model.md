@@ -10,6 +10,9 @@
 > Navigation→Boundary Editor→UX Polish→Boundary Reassignment（単一削除）
 > まで一巡。**
 > 最終更新: Phase108完了時点
+>
+> 関連: Section自動生成の保存・復旧（保存API・競合検出・バックアップ・復旧）の詳細設計は
+> `section-save-technical-design.md`（正式仕様）を参照する。本ファイルにはその内容を重複して保持しない。
 
 ---
 

@@ -48,6 +48,7 @@ CreateChordScoreのドキュメントは、以下の区分で管理する。
 - **技術設計書**（特定のフェーズまたは Issue に関する設計根拠・計算ルール・制約・検証範囲）
   - フェーズ単位：`phaseNNN-technical-design.md`（例：`phase141-technical-design.md`）
   - Issue 単位：`issueNNN-technical-design.md`（例：`issue129-technical-design.md`）
+  - Section 保存・復旧の詳細設計（Phase B・正式仕様）：`section-save-technical-design.md`
   - 実装後も設計上の根拠や制約に参照価値がある文書は、完了直後に `legacy/` へ移さず、通常の設計資料として維持してよい。
   - 設計時点の判断と、実装後に確認された結果・未確認事項は区別して記録する。
 - **セットアップ**（環境構築）
@@ -103,6 +104,7 @@ docs/
 ├── theme-validation.md
 ├── devlog.md
 ├── issue129-technical-design.md
+├── section-save-technical-design.md
 ├── phase136-a-technical-design.md
 ├── phase141-technical-design.md
 ├── phase142-technical-design.md
