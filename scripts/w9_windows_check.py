@@ -47,6 +47,10 @@ def sections_for(path):
 
 
 def fresh_case(base, name, source):
+    global PID
+    if source:  # a real copy carries its own projectId; use it (the save checks it)
+        with open(source, "rb") as f:
+            PID = json.loads(f.read().decode("utf-8-sig"))["projectId"]
     folder = os.path.join(base, f"{name}_{int(time.time())}")
     os.makedirs(folder)
     path = os.path.join(folder, f"Artist_Title_{PID}.json")
