@@ -70,12 +70,18 @@ def g3(base):
             "drive_tmp": os.path.splitdrive(os.path.abspath(paths.tmp_dir))[0]}
 
 
-def g1(base, source):
+def g1(base, source, pause=False):
     folder, path = fresh_case(base, "g1", source)
     before = open(path, "rb").read()
     h0 = sha256_hex(before)
     out = {"id": "G1", "h0": h0}
-    holder = open(path, "rb")  # another reader that did not allow delete/rename
+    holder = None
+    if pause:  # real-app mode: you open the file in an app, then press Enter
+        print(f"\n[G1 real-app mode] Open this file in your app NOW (do not edit/save):\n  {path}")
+        input("Opened? Press Enter to attempt the save... ")
+        out["mode"] = "real-app"
+    else:
+        holder = open(path, "rb")  # another reader that did not allow delete/rename
     try:
         t0 = time.time()
         try:
@@ -88,7 +94,10 @@ def g1(base, source):
         out["file_unchanged_while_held"] = open(path, "rb").read() == before
         out["tmp_left"] = os.listdir(tx.TxnPaths(folder).tmp_dir)
     finally:
-        holder.close()
+        if holder:
+            holder.close()
+    if pause:
+        input("Now CLOSE the app, then press Enter to retry the save... ")
     if out["blocked_result"] == "UNEXPECTED_SUCCESS":
         out["note"] = "replace was NOT blocked while the file was held open (expected on Linux; on Windows record this as-is)"
         return out
@@ -122,14 +131,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--workdir", required=True)
     ap.add_argument("--label", default="local")
+    ap.add_argument("--only", choices=["g1", "g3", "g4"], help="run just one case")
+    ap.add_argument("--pause-g1", action="store_true", help="G1 with a real app (interactive)")
     ap.add_argument("--source", help="a COPY of an analysis json whose raw.sections is empty (optional)")
     args = ap.parse_args()
     os.makedirs(args.workdir, exist_ok=True)
     report = {"label": args.label, "workdir": os.path.abspath(args.workdir), "python": sys.version,
               "os": platform.platform(), "os_version": platform.version(), "cases": []}
     for fn in (g3, g1, g4):
+        if args.only and fn.__name__ != args.only:
+            continue
         try:
-            report["cases"].append(fn(args.workdir) if fn is g3 else fn(args.workdir, args.source))
+            if fn is g3:
+                report["cases"].append(fn(args.workdir))
+            elif fn is g1:
+                report["cases"].append(fn(args.workdir, args.source, args.pause_g1))
+            else:
+                report["cases"].append(fn(args.workdir, args.source))
         except Exception as exc:  # report, never hide
             report["cases"].append({"id": fn.__name__, "error": f"{type(exc).__name__}: {exc}"})
     text = json.dumps(report, ensure_ascii=False, indent=2)
