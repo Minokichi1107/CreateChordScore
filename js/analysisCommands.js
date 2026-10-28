@@ -975,3 +975,56 @@ export function deleteSectionCommand(state, sectionId) {
 
   return { ok: true, sectionId };
 }
+
+
+/**
+ * applyGeneratedSectionsCommand — apply one generated Section set as one undoable operation.
+ *
+ * The caller must perform disk-based eligibility checks before entering the editor.
+ * This command intentionally does not call getSections()/reconcile(): eligibility
+ * must be based on the authoritative on-disk data, not a potentially repaired
+ * in-memory Section array.
+ *
+ * @param {object} state - active Analysis Editor session
+ * @param {Array} generatedSections - complete generated Section collection
+ * @returns {CommandResult}
+ */
+export function applyGeneratedSectionsCommand(state, generatedSections) {
+  if (!state || !state.active || !Array.isArray(state.buffer)) {
+    return { ok: false, reason: 'no-active-editor' };
+  }
+  if (!Array.isArray(generatedSections) || generatedSections.length === 0) {
+    return { ok: false, reason: 'empty-generated-sections' };
+  }
+  // Never replace existing Sections, even if they are invalid in memory.
+  if (!Array.isArray(state.sections) || state.sections.length !== 0) {
+    return { ok: false, reason: 'sections-already-exist' };
+  }
+
+  const candidate = structuredClone(generatedSections);
+  const ids = new Set();
+  for (const section of candidate) {
+    if (!section || typeof section !== 'object' || Array.isArray(section) ||
+        typeof section.id !== 'string' || !section.id.trim()) {
+      return { ok: false, reason: 'invalid-section-id' };
+    }
+    const allowedKeys = new Set(['id', 'type', 'name', 'startChordId', 'endChordId']);
+    if (Object.keys(section).some(key => !allowedKeys.has(key))) {
+      return { ok: false, reason: 'unknown-section-key' };
+    }
+    if (ids.has(section.id)) return { ok: false, reason: 'duplicate-section-id' };
+    ids.add(section.id);
+    const check = validateSectionInvariants(section, state.buffer);
+    if (!check.valid) return { ok: false, reason: check.reason };
+    for (const key of ['type', 'name', 'startChordId', 'endChordId']) {
+      if (typeof section[key] !== 'string' || !section[key].trim()) {
+        return { ok: false, reason: `invalid-section-${key}` };
+      }
+    }
+  }
+
+  // Exactly one history snapshot for the entire generated set.
+  pushHistory(state);
+  state.sections = candidate;
+  return { ok: true, count: candidate.length };
+}
