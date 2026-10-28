@@ -4,10 +4,12 @@ on:
   pull_request:
     paths:
       - "section_save.py"
+      - "section_txn.py"
       - "js/analysisCommands.js"
       - "js/analysisSession.js"
       - "js/sectionGeneration.js"
       - "scripts/test_section_save.py"
+      - "scripts/test_section_txn.py"
       - "scripts/test-section-generation.mjs"
       - ".github/workflows/section-generation-tests.yml"
   push:
@@ -15,10 +17,12 @@ on:
       - main
     paths:
       - "section_save.py"
+      - "section_txn.py"
       - "js/analysisCommands.js"
       - "js/analysisSession.js"
       - "js/sectionGeneration.js"
       - "scripts/test_section_save.py"
+      - "scripts/test_section_txn.py"
       - "scripts/test-section-generation.mjs"
       - ".github/workflows/section-generation-tests.yml"
 
@@ -36,6 +40,9 @@ jobs:
 
       - name: Run Section-save library tests
         run: python -m unittest discover -s scripts -p "test_section_save.py" -v
+
+      - name: Run Section-save transaction tests (W2, Linux)
+        run: python -m unittest discover -s scripts -p "test_section_txn.py" -v
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
