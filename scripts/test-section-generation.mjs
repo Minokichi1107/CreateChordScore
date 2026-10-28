@@ -39,6 +39,87 @@ assert.equal(evaluateSectionGenerationEligibility({
   memoryRaw: { chords: [{ _id: 'different' }, { _id: 'c2' }] },
 }).reason, 'chords-changed-on-disk');
 
+// ---- Eligibility rejection regressions (docs/section-save-technical-design.md §8.1) ----
+// Every case starts from the eligible fixture above and breaks exactly one condition.
+function evaluate({ loadResult, expectedProjectId = 'p1', memoryRaw = analysis.raw, editorSession = null } = {}) {
+  return evaluateSectionGenerationEligibility({
+    loadResult: loadResult === undefined ? { state: 'present', analysis } : loadResult,
+    expectedProjectId,
+    memoryRaw,
+    editorSession,
+  });
+}
+function withAnalysis(patch) {
+  return { state: 'present', analysis: { ...analysis, ...patch } };
+}
+function assertRejected(result, reason, label) {
+  assert.equal(result.eligible, false, `${label}: must be rejected`);
+  assert.equal(result.reason, reason, `${label}: reason`);
+  assert.equal(result.analysis, undefined, `${label}: must not expose analysis`);
+}
+
+// §8.1 row 1: the server state must be `present` (absent / duplicate / invalid JSON / read error).
+assertRejected(evaluate({ loadResult: { state: 'absent' } }), 'read-absent', 'state absent');
+assertRejected(evaluate({ loadResult: { state: 'duplicate' } }), 'multiple-files', 'state duplicate');
+// A non-present state must win even if an analysis object is (wrongly) attached to the response.
+assertRejected(evaluate({ loadResult: { state: 'absent', analysis } }), 'read-absent', 'absent state with analysis attached');
+assertRejected(evaluate({ loadResult: { state: 'invalid-json' } }), 'read-invalid-json', 'state invalid-json');
+// Reason wording for the next two is incidental; only the rejection itself is specified.
+for (const [label, loadResult] of [['state read-error', { state: 'read-error' }], ['present without analysis', { state: 'present' }]]) {
+  const result = evaluate({ loadResult });
+  assert.equal(result.eligible, false, `${label}: must be rejected`);
+  assert.equal(result.analysis, undefined, `${label}: must not expose analysis`);
+}
+
+// §7.4 / §8.1: projectId must match the current project.
+assertRejected(evaluate({ expectedProjectId: 'other' }), 'project-id-mismatch', 'projectId mismatch');
+assertRejected(evaluate({ expectedProjectId: '' }), 'project-id-mismatch', 'empty expected projectId');
+assertRejected(evaluate({ loadResult: withAnalysis({ projectId: undefined }) }), 'project-id-mismatch', 'missing projectId');
+
+// §8.1 (F8): generatedAt must be a non-empty string; legacy files without it are not eligible.
+for (const [label, value] of [
+  ['missing', undefined], ['null', null], ['empty', ''], ['blank', '   '], ['number', 123], ['object', {}],
+]) {
+  assertRejected(evaluate({ loadResult: withAnalysis({ generatedAt: value }) }), 'generated-at-missing', `generatedAt ${label}`);
+}
+
+// §8.1: raw.sections must exist, be an array and be empty. (Missing / non-empty are covered above.)
+for (const [label, value] of [['null', null], ['object', {}], ['string', 'sections'], ['number', 0]]) {
+  assertRejected(
+    evaluate({ loadResult: withAnalysis({ raw: { ...analysis.raw, sections: value } }) }),
+    'sections-not-array',
+    `sections ${label}`,
+  );
+}
+assertRejected(evaluate({ loadResult: withAnalysis({ raw: [] }) }), 'raw-invalid', 'raw is an array');
+assertRejected(evaluate({ loadResult: withAnalysis({ raw: null }) }), 'raw-invalid', 'raw is null');
+
+// §7.4 / §8.1: every on-disk chord must carry a usable `_id` (Section references are chord IDs).
+for (const [label, chords] of [
+  ['not an array', null],
+  ['chord is null', [{ _id: 'c1' }, null]],
+  ['_id missing', [{ _id: 'c1' }, {}]],
+  ['_id empty', [{ _id: 'c1' }, { _id: '' }]],
+  ['_id blank', [{ _id: 'c1' }, { _id: '  ' }]],
+  ['_id not a string', [{ _id: 'c1' }, { _id: 2 }]],
+]) {
+  assertRejected(
+    evaluate({ loadResult: withAnalysis({ raw: { sections: [], chords } }) }),
+    'disk-chords-invalid',
+    `disk chords ${label}`,
+  );
+}
+
+// §8.1 (R6): an active editor with unsaved edits blocks generation; the other combinations do not.
+assertRejected(
+  evaluate({ editorSession: { active: true, dirty: true } }),
+  'editor-has-unsaved-edits',
+  'active editor with unsaved edits',
+);
+assert.equal(evaluate({ editorSession: { active: true, dirty: false } }).eligible, true, 'active but clean editor');
+assert.equal(evaluate({ editorSession: { active: false, dirty: true } }).eligible, true, 'inactive editor is not an editing session');
+assert.equal(evaluate({ editorSession: null }).eligible, true, 'no editor session');
+
 const initialBuffer = captureSectionGenerationBuffer([{ _id: 'c1', start: 0, end: 1 }]);
 assert.equal(hasSectionGenerationCodeEdits(initialBuffer, initialBuffer), false);
 assert.equal(hasSectionGenerationCodeEdits([{ _id: 'c1', start: 0, end: 2 }], initialBuffer), true);
