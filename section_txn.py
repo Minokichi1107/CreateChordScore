@@ -108,20 +108,37 @@ def write_journal(paths: TxnPaths, txn_id: str, record: dict[str, Any]) -> None:
         raise ValueError(f"bad journal state: {record.get('state')!r}")
     final = paths.journal(txn_id)
     part = final + ".part"
-    remove_quietly(part)
+    # A leftover .part is evidence of an earlier failure: never delete it. The exclusive
+    # create below fails (FileExistsError) when it exists, so the write stops safely.
     payload = json.dumps(record, ensure_ascii=False, indent=2).encode("utf-8")
     write_synced(part, payload)
-    os.replace(part, final)
+    os.replace(part, final)  # on failure the .part stays on disk for manual recovery
+
+
+def inspect_journal(paths: TxnPaths, txn_id: str) -> tuple[str, dict[str, Any] | None]:
+    """Classify a journal: "missing" | "ok" | "corrupt" | "invalid" | "unreadable".
+
+    Only "missing" means there is no record. Anything else must stop a new save.
+    """
+    try:
+        raw = read_bytes(paths.journal(txn_id))
+    except FileNotFoundError:
+        return "missing", None
+    except OSError:
+        return "unreadable", None
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return "corrupt", None
+    if not isinstance(value, dict) or value.get("state") not in JOURNAL_STATES:
+        return "invalid", None
+    return "ok", value
 
 
 def read_journal(paths: TxnPaths, txn_id: str) -> dict[str, Any] | None:
-    try:
-        value = json.loads(read_bytes(paths.journal(txn_id)).decode("utf-8"))
-    except (FileNotFoundError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
-    if not isinstance(value, dict) or value.get("state") not in JOURNAL_STATES:
-        return None
-    return value
+    """Compatibility wrapper: the record when it is "ok", otherwise None."""
+    status, value = inspect_journal(paths, txn_id)
+    return value if status == "ok" else None
 
 
 # ---------------------------------------------------------------------- backup
@@ -141,21 +158,40 @@ def create_backup(paths: TxnPaths, project_id: str, h0: str, data: bytes,
     os.makedirs(directory, exist_ok=True)
     final = os.path.join(directory, f"{utc_stamp(now)}_{h0[:32]}.bak")
     part = final + ".part"
+    if os.path.exists(final):
+        # Same second and same h0 name: reuse it only if it is verified; never delete it.
+        try:
+            if sha256_hex(read_bytes(final)) == h0:
+                return final
+        except OSError:
+            pass
+        raise TxnError("backup-failed", "backup name already exists and is not verified")
+    created_part = created_final = False
     try:
-        remove_quietly(part)
-        write_synced(part, data)
+        try:
+            write_synced(part, data)  # exclusive create: fails if a .bak.part exists
+        except FileExistsError as exc:
+            raise TxnError("backup-failed", "bak-part-present") from exc  # keep it, delete nothing
+        created_part = True
         os.replace(part, final)
+        created_part, created_final = False, True
         if sha256_hex(read_bytes(final)) != h0:
             raise TxnError("backup-failed", "read-back hash mismatch")
     except TxnError:
-        remove_quietly(part)
-        remove_quietly(final)
+        _discard_own_backup(part, final, created_part, created_final)
         raise
     except OSError as exc:
-        remove_quietly(part)
-        remove_quietly(final)
+        _discard_own_backup(part, final, created_part, created_final)
         raise TxnError("backup-failed", str(exc)) from exc
     return final
+
+
+def _discard_own_backup(part: str, final: str, created_part: bool, created_final: bool) -> None:
+    """Delete only the unverified files that THIS attempt created (never an existing one)."""
+    if created_part:
+        remove_quietly(part)
+    if created_final:
+        remove_quietly(final)
 
 
 # ------------------------------------------------------------ journal queries
@@ -194,6 +230,68 @@ def prune_backups(paths: TxnPaths, project_id: str, keep: int = 2) -> None:
 
 
 # ------------------------------------------------------------- the transaction
+
+VERIFY_RETRIES = 3           # S10: read the replaced file up to 3 times (provisional, unmeasured)
+VERIFY_WAIT_SECONDS = 0.1    # provisional, unmeasured
+
+
+def assert_same_volume(paths: TxnPaths) -> None:
+    """Fail closed: os.replace is only atomic on one volume. Unknown counts as not safe."""
+    try:
+        tmp_dev = os.stat(paths.tmp_dir).st_dev
+        dst_dev = os.stat(paths.analysis_dir).st_dev
+    except OSError as exc:
+        raise TxnError("volume-check-failed", str(exc)) from exc
+    if tmp_dev == 0 or dst_dev == 0:
+        raise TxnError("volume-check-failed", "st_dev is not available")
+    if tmp_dev != dst_dev:
+        raise TxnError("cross-volume", "_txn/tmp and the analysis folder are on different volumes")
+
+
+def guard_leftovers(paths: TxnPaths, project_id: str, txn_id: str) -> None:
+    """Stop a new save when an earlier failure left evidence behind. Nothing is changed.
+
+    Stops (spec DJ-JR-4 scope): an unreadable/invalid journal or any .journal.part -> every
+    project; an unsettled (prepared/indeterminate) journal or a .bak.part -> that project;
+    a tmp with no journal -> that txnId.
+    """
+    try:
+        names = sorted(os.listdir(paths.journal_dir))
+    except OSError as exc:
+        raise TxnError("journal-corrupt", f"unreadable: {exc}") from exc
+    for name in names:
+        if name.endswith(".journal.part"):
+            raise TxnError("journal-corrupt", "part-present")
+    for name in names:
+        if not name.endswith(".journal"):
+            continue
+        status, record = inspect_journal(paths, name[: -len(".journal")])
+        if status != "ok":
+            raise TxnError("journal-corrupt", status)
+        if record.get("projectId") == project_id and record["state"] in ("prepared", "indeterminate"):
+            raise TxnError("indeterminate", f"an earlier save is {record['state']}: settle it before saving again")
+    status, _ = inspect_journal(paths, txn_id)
+    if status == "missing" and os.path.exists(paths.tmp(txn_id)):
+        raise TxnError("tmp-exists", "a tmp file with this txnId exists without a journal")
+    try:
+        if any(n.endswith(".bak.part") for n in os.listdir(paths.backup_dir(project_id))):
+            raise TxnError("backup-failed", "bak-part-present")
+    except FileNotFoundError:
+        pass
+
+
+def _reject_non_finite(value: Any, where: str) -> None:
+    """NaN/Infinity would be written as invalid JSON; refuse them before anything is written."""
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, float) and (item != item or item in (float("inf"), float("-inf"))):
+            raise TxnError("not-eligible", f"non-finite-number in {where}")
+        if isinstance(item, dict):
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+
 
 def _hook(hooks: dict[str, Callable[[], None]] | None, stage: str) -> None:
     if hooks and stage in hooks:
@@ -276,10 +374,11 @@ def commit_section_save(
         raise TxnError("bad-request")
     paths = TxnPaths(analysis_dir)
     paths.ensure()
-    if project_has_state(paths, project_id, ("indeterminate",)):
-        raise TxnError("indeterminate", "an earlier save left this song in an indeterminate state")
-    if read_journal(paths, txn_id) is not None:
+    assert_same_volume(paths)
+    guard_leftovers(paths, project_id, txn_id)  # stops on any leftover; changes nothing
+    if inspect_journal(paths, txn_id)[0] != "missing":
         raise TxnError("txn-exists", "use the status query for an existing txnId")
+    _reject_non_finite(sections, "sections")
 
     # S1/S2 ----------------------------------------------------------- read
     _hook(hooks, "S1")
@@ -289,15 +388,19 @@ def commit_section_save(
         raise TxnError("conflict", "file changed since it was read")
     try:
         original = parse_analysis_bytes(source)
+        _reject_non_finite(original, "analysis file")
         # S3: candidate in memory only; generatedAt is stamped afterwards (spec §7.4 exception)
         candidate = build_section_candidate(original, project_id, sections, provenance_patch)
         stamp = generated_at or _now_iso()
         candidate["generatedAt"] = stamp
         validate_analysis_candidate(original, candidate, project_id, allow_generated_at_update=True)
         data1 = serialize_analysis_like_source(source, candidate)
+        data1.decode("utf-8")  # lone surrogates etc. must fail here, not at write time
     except SectionSaveValidationError as exc:
         reason = "not-eligible" if str(exc).startswith("not-eligible") else "validation-failed"
         raise TxnError(reason, str(exc)) from exc
+    except UnicodeError as exc:
+        raise TxnError("not-eligible", f"invalid-encoding: {exc}") from exc
     h1 = sha256_hex(data1)
 
     tmp = paths.tmp(txn_id)
@@ -310,7 +413,12 @@ def commit_section_save(
         try:
             _hook(hooks, "S4")
             write_synced(tmp, data1)
+        except FileExistsError as exc:  # not ours: keep it untouched and stop
+            raise TxnError("tmp-exists", str(exc)) from exc
         except OSError as exc:
+            # The write itself broke, so this attempt's tmp is incomplete: the only case
+            # where deleting a tmp is allowed.
+            remove_quietly(tmp)
             raise TxnError("write-failed", str(exc)) from exc
         # S5 ------------------------------------------------------ read back
         _hook(hooks, "S5")
@@ -326,8 +434,7 @@ def commit_section_save(
         except OSError as exc:
             raise TxnError("journal-failed", str(exc)) from exc
     except TxnError:
-        remove_quietly(tmp)  # nothing has touched the authoritative file yet
-        raise
+        raise  # the authoritative file is untouched; tmp and backup are kept as evidence
 
     # S8 ----------------------------------------------- re-check the original
     try:
@@ -336,8 +443,7 @@ def commit_section_save(
         if path2 != path or sha256_hex(again) != h0:
             raise TxnError("conflict", "file changed before replace")
     except TxnError as exc:
-        _finish_journal(paths, txn_id, record, "aborted")
-        remove_quietly(tmp)
+        _finish_journal(paths, txn_id, record, "aborted")  # tmp is kept
         raise TxnError(exc.reason, exc.detail, "aborted")
 
     # S9 ----------------------------------------------------------- replace
@@ -349,12 +455,21 @@ def commit_section_save(
         _settle_after_replace_error(paths, txn_id, record, resolve_fn, project_id, tmp, h0, h1, exc)
 
     # S10 ------------------------------------------------- post-replace check
-    try:
-        _hook(hooks, "S10")
-        _verify_file(path, h1, original, project_id, "post-verify-failed")
-    except TxnError as exc:
+    # Read up to VERIFY_RETRIES times; one clean read (hash == h1 and valid) is enough.
+    last_error: TxnError | None = None
+    for attempt in range(VERIFY_RETRIES):
+        try:
+            _hook(hooks, "S10")
+            _verify_file(path, h1, original, project_id, "post-verify-failed")
+            last_error = None
+            break
+        except TxnError as exc:
+            last_error = exc
+            if attempt < VERIFY_RETRIES - 1:
+                sleep_fn(VERIFY_WAIT_SECONDS)
+    if last_error is not None:
         _finish_journal(paths, txn_id, record, "indeterminate")
-        raise TxnError(exc.reason, exc.detail, "indeterminate")
+        raise TxnError(last_error.reason, last_error.detail, "indeterminate")
 
     # S11 ------------------------------------------------------- committed
     try:
@@ -364,7 +479,7 @@ def commit_section_save(
         print(f"[analysis] journal commit update failed (file is committed): {exc}")
 
     # S13 -------------------------------------------------------- cleanup
-    remove_quietly(tmp)
+    # tmp was consumed by the replace; a tmp that is somehow still here is left alone.
     prune_backups(paths, project_id)
     return {"ok": True, "txnId": txn_id, "projectId": project_id, "path": path,
             "newSha256": h1, "generatedAt": stamp, "sections": candidate["raw"]["sections"]}
@@ -391,17 +506,13 @@ def _settle_after_replace_error(paths, txn_id, record, resolve_fn, project_id, t
     if hc == h1:
         return  # replace actually happened; caller continues to S10 and commits
     if hc == h0:
-        _finish_journal(paths, txn_id, record, "aborted")
-        remove_quietly(tmp)
+        _finish_journal(paths, txn_id, record, "aborted")  # tmp is kept
         raise TxnError("replace-failed", str(exc), "aborted")
     _finish_journal(paths, txn_id, record, "indeterminate")  # tmp/backup/journal all kept
     raise TxnError("indeterminate", f"replace error and unexpected file state: {exc}", "indeterminate")
 
 
 # ------------------------------------------------ recovery and status query
-
-ORPHAN_TMP_MAX_AGE_SECONDS = 600  # spec §9.3 "一定時間経過後" (initial value, Q5)
-
 
 def _settle_prepared(paths: TxnPaths, txn_id: str, record: dict, resolve_fn) -> str:
     """Decide a `prepared` journal from the real file (never trust the journal alone).
@@ -416,14 +527,11 @@ def _settle_prepared(paths: TxnPaths, txn_id: str, record: dict, resolve_fn) -> 
         hc = sha256_hex(current)
     except (TxnError, SectionSaveValidationError, KeyError):
         hc = None
-    tmp = paths.tmp(txn_id)
     if hc is not None and hc == record.get("h1"):
         _finish_journal(paths, txn_id, record, "committed")
-        remove_quietly(tmp)
         return "committed"
     if hc is not None and hc == record.get("h0"):
-        _finish_journal(paths, txn_id, record, "aborted")
-        remove_quietly(tmp)
+        _finish_journal(paths, txn_id, record, "aborted")  # tmp is kept
         return "aborted"
     _finish_journal(paths, txn_id, record, "indeterminate")  # keep tmp/backup/journal
     return "indeterminate"
@@ -437,18 +545,8 @@ def recover(analysis_dir: str, resolve_fn, now_ts: float | None = None) -> list[
     for txn_id, record in iter_journals(paths):
         if record.get("state") == "prepared":
             log.append(f"{txn_id}: prepared -> {_settle_prepared(paths, txn_id, record, resolve_fn)}")
-    known = {txn_id for txn_id, _ in iter_journals(paths)}
-    current = now_ts if now_ts is not None else time.time()
-    for name in sorted(os.listdir(paths.tmp_dir)):
-        if not name.endswith(".tmp") or name[:-4] in known:
-            continue  # tmp that belongs to a journal is kept/handled above
-        full = os.path.join(paths.tmp_dir, name)
-        try:
-            if current - os.path.getmtime(full) >= ORPHAN_TMP_MAX_AGE_SECONDS:
-                remove_quietly(full)
-                log.append(f"{name}: orphan tmp removed")
-        except OSError:
-            pass
+    # Orphan tmp files are never deleted automatically (they may hold unsaved edits).
+    # `now_ts` is kept only so existing callers keep working.
     for line in log:
         print(f"[analysis] recovery: {line}")
     return log
