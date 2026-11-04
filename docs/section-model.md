@@ -11,6 +11,8 @@
 > まで一巡。**
 > 最終更新: Phase108完了時点
 >
+> **優先順位に関する追記（2026-11-04）：** 本書§2および§7にある「自動セクション検出は後回し・任意」という記述は、Phase98当時の優先順位を記録したもの。Sectionのデータモデル、Authority、ライフサイクル等の確定仕様は引き続き有効だが、開発優先順位は更新され、現在はGitHub Issue #78のSection設定自動化（候補提示・ユーザー確認型MVP）を最優先とする。旧記述は当時の判断履歴として残し、現在の作業順としては扱わない。詳細：[handover_section_auto_generation.md](handover/active/handover_section_auto_generation.md)。
+>
 > 関連: Section自動生成の保存・復旧（保存API・競合検出・バックアップ・復旧）の詳細設計は
 > `section-save-technical-design.md`（正式仕様）を参照する。本ファイルにはその内容を重複して保持しない。
 
