@@ -226,7 +226,17 @@ import {
   deleteSectionCommand, // Phase101-3
   reorderSectionCommand, // Phase140 #95
   updateSectionBoundaryCommand, // Phase106
+  applyGeneratedSectionsCommand, // Section自動生成（生成したSection群を1操作で適用）
 } from './analysisCommands.js';
+
+import {
+  evaluateSectionGenerationEligibility,
+  captureSectionGenerationBuffer,
+  hasSectionGenerationCodeEdits,
+} from './sectionGeneration.js';
+import { detectSectionBoundaries, measureIrregularity } from './sectionBoundaryDetection.js';
+import { createDraftFromBoundaries, buildSectionsFromDraft } from './sectionAutoGeneration.js';
+import { openSectionAutoGenerationModal } from './sectionAutoGenerationModal.js';
 
 import {
   isRecording as _recIsRecording,
@@ -3027,6 +3037,112 @@ function _isAutoSectionName(name, type) {
 }
 
 /**
+ * startSectionAutoGeneration — Section自動生成を開始する（候補の確認画面を開く）
+ *
+ * [FLOW] ディスク上のデータで適格性を確認 → 境界候補を生成 → 確認画面。
+ * 確認画面で「採用」されるまで、曲のSectionデータは一切変更しない。
+ * 採用時（_adoptGeneratedSections）に、編集状態・ディスク・コード列を再検証してから
+ * applyGeneratedSectionsCommand()（既存の一括適用）で1操作として適用する。
+ * 永続化は既存のsaveAnalysisEdit()（保存ボタン）に任せる。新しい保存経路は作らない。
+ */
+const SECTION_AUTOGEN_REASON_TEXT = {
+  'sections-already-exist': 'すでにSectionがある曲は自動生成の対象外です',
+  'sections-missing': 'この曲にはSectionの記録欄がまだありません。解析データを一度保存してから、もう一度お試しください',
+  'chords-changed-on-disk': '保存されているデータと画面のコードが一致しません。曲を開き直してください',
+  'editor-has-unsaved-edits': '未保存の編集があります。先に保存してください',
+  'disk-chords-duplicate-id': 'コードのIDが重複しているため生成できません',
+};
+
+async function _checkSectionAutoGenEligibility() {
+  const loaded = await loadAnalysisFile(project.id);
+  const loadResult = loaded
+    ? { state: 'present', analysis: { projectId: project.id, generatedAt: loaded.generatedAt, raw: loaded.raw } }
+    : { state: 'read-error' };
+  return evaluateSectionGenerationEligibility({
+    loadResult,
+    expectedProjectId: project.id,
+    memoryRaw: project.analysis?.raw,
+    editorSession: analysisEditor,
+  });
+}
+
+async function startSectionAutoGeneration() {
+  if (!isAnalysisEditing()) return;
+  const eligibility = await _checkSectionAutoGenEligibility();
+  if (!eligibility.eligible) {
+    toast(`⚠ ${SECTION_AUTOGEN_REASON_TEXT[eligibility.reason] ?? `生成できません（${eligibility.reason}）`}`);
+    return;
+  }
+
+  const vm = chartState.viewModel;
+  const model = vm?.model;
+  if (!model || model.mode === 'fallback' || !Array.isArray(vm.measures) || vm.measures.length === 0) {
+    toast('⚠ 拍・小節の情報がないため、自動生成できません');
+    return;
+  }
+  const measureCount = vm.measures.length;
+  const measureOf = (chord) => {
+    const q = model.quantize(chord.start);
+    return q.measure >= 0 && q.measure < measureCount ? q.measure : null;
+  };
+  const intervals = vm.measures.map(m => ({ start: m.startTime, end: m.endTime }));
+
+  const buffer = analysisEditor.buffer;
+  const snapshot = captureSectionGenerationBuffer(buffer);
+  const detected = detectSectionBoundaries(buffer, intervals);
+  const draft = createDraftFromBoundaries(detected.bars, detected.diagnostics);
+
+  const warnings = [];
+  const irregular = measureIrregularity(intervals);
+  if (irregular.irregularCount > 0) {
+    warnings.push(`小節の長さが不規則な箇所が${irregular.irregularCount}小節あります。区切り位置がずれる可能性があります`);
+  }
+  if (detected.bars.length === 0) warnings.push('区切りの候補が見つかりませんでした。必要なら境界を追加してください');
+
+  openSectionAutoGenerationModal({
+    openModal, mkMBtn, draft, buffer, measureOf, measureCount,
+    sectionTypes: SECTION_TYPES,
+    notes: { warnings },
+    onAdopt: finalDraft => _adoptGeneratedSections(finalDraft, snapshot, measureOf),
+  });
+}
+
+async function _adoptGeneratedSections(finalDraft, snapshot, measureOf) {
+  if (!isAnalysisEditing()) return { ok: false, message: '編集モードが終了しています。もう一度生成してください' };
+  // 候補を作った後にコード列が変わっていないか（古い候補を適用しない）
+  if (hasSectionGenerationCodeEdits(analysisEditor.buffer, snapshot)) {
+    return { ok: false, message: '候補を作った後にコードが変更されました。閉じて、もう一度生成してください' };
+  }
+  if (analysisEditor.sections.length !== 0) {
+    return { ok: false, message: 'すでにSectionがあるため適用できません' };
+  }
+  // ディスク上の状態も適用直前に再確認する（未保存の編集は無いこと・Sectionが空であること）
+  const eligibility = await _checkSectionAutoGenEligibility();
+  if (!eligibility.eligible) {
+    return { ok: false, message: SECTION_AUTOGEN_REASON_TEXT[eligibility.reason] ?? `適用できません（${eligibility.reason}）` };
+  }
+  // 待っている間にモード終了・コード変更が起きていないか、もう一度確認する
+  if (!isAnalysisEditing() || hasSectionGenerationCodeEdits(analysisEditor.buffer, snapshot)) {
+    return { ok: false, message: '確認中に編集状態が変わりました。閉じて、もう一度生成してください' };
+  }
+  const built = buildSectionsFromDraft(finalDraft, analysisEditor.buffer, measureOf);
+  if (!built.ok) return { ok: false, message: '入力内容に問題があります。赤字の内容を直してください' };
+
+  const before = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
+  const result = applyGeneratedSectionsCommand(analysisEditor, built.sections);
+  if (!result.ok) {
+    _recRecord('applyGeneratedSections', result, before, before);
+    return { ok: false, message: `適用できませんでした（${result.reason}）` };
+  }
+  const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
+  _recRecord('applyGeneratedSections', result, before, after);
+  _refreshEditorView('applyGeneratedSections');
+  toast(`✅ ${result.count}個のSectionを適用しました（保存で確定。元に戻すはUndo）`);
+  return { ok: true };
+}
+
+
+/**
  * openSectionModal — Section作成ダイアログ（Phase101-2）
  *
  * [OWNERSHIP] type一覧・name自動採番等のSection固有ロジックはこの関数が持つ。
@@ -3769,9 +3885,11 @@ function renderSectionBar() {
     <span class="sec-label">Sections</span>
     ${chipsHtml}
     <button class="sec-btn" id="sec-create-btn" title="選択中の範囲からSectionを作成" ${canCreate ? '' : 'disabled'}>＋ 作成</button>
+    <button class="sec-btn" id="sec-autogen-btn" title="${sections.length === 0 ? 'コード進行から区切り位置の候補を作成（確認してから採用）' : 'Sectionがある曲は自動生成の対象外です'}" ${sections.length === 0 ? '' : 'disabled'}>✨ 自動生成</button>
   `;
 
   document.getElementById('sec-create-btn')?.addEventListener('click', openSectionModal);
+  document.getElementById('sec-autogen-btn')?.addEventListener('click', startSectionAutoGeneration);
 
   // [Phase105] チップ本体クリック → Section選択+スクロール+Preview（Navigation）。
   // Phase102時点はPreviewトグルのみだったが、トグルOFFを廃止しNavigationを

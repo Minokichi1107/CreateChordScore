@@ -520,3 +520,15 @@
   border-radius: var(--r-sm);
   background: transparent;
 }
+
+/* Section自動生成: 候補の確認画面（既存tokenのみ使用） */
+.sag-rows { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; max-height: 50vh; overflow-y: auto; }
+.sag-row { padding: 6px 8px; border: 1px solid var(--border-ui); border-radius: var(--r-sm); background: var(--surface-overlay); }
+.sag-row-main { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sag-bar { font-family: var(--font-mono); font-size: 12px; min-width: 64px; }
+.sag-bar-in { width: 64px; }
+.sag-unit { font-size: 11px; color: var(--text-secondary); }
+.sag-name-in { flex: 1; min-width: 100px; }
+.sag-row-info { margin-top: 3px; font-size: 11px; color: var(--text-secondary); min-height: 1em; }
+.sag-warn { margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
+.sag-errors { margin-top: 8px; font-size: 12px; color: #c0392b; min-height: 1em; }

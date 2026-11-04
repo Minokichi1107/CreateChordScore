@@ -8,9 +8,13 @@ on:
       - "js/analysisCommands.js"
       - "js/analysisSession.js"
       - "js/sectionGeneration.js"
+      - "js/sectionAutoGeneration.js"
+      - "js/sectionAutoGenerationModal.js"
+      - "js/sectionBoundaryDetection.js"
       - "scripts/test_section_save.py"
       - "scripts/test_section_txn.py"
       - "scripts/test-section-generation.mjs"
+      - "scripts/test-section-auto-generation.mjs"
       - ".github/workflows/section-generation-tests.yml"
   push:
     branches:
@@ -21,9 +25,13 @@ on:
       - "js/analysisCommands.js"
       - "js/analysisSession.js"
       - "js/sectionGeneration.js"
+      - "js/sectionAutoGeneration.js"
+      - "js/sectionAutoGenerationModal.js"
+      - "js/sectionBoundaryDetection.js"
       - "scripts/test_section_save.py"
       - "scripts/test_section_txn.py"
       - "scripts/test-section-generation.mjs"
+      - "scripts/test-section-auto-generation.mjs"
       - ".github/workflows/section-generation-tests.yml"
 
 jobs:
@@ -51,3 +59,6 @@ jobs:
 
       - name: Run Section-generation command tests
         run: node scripts/test-section-generation.mjs
+
+      - name: Run Section auto-generation tests
+        run: node scripts/test-section-auto-generation.mjs
