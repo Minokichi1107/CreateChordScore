@@ -1,7 +1,12 @@
 # フェーズ進行状況
 
-> 最終更新: 2026-10-24（Phase147〜148のDocumentation Checkpointを反映）。
+> 最終更新: 2026-11-04（Section設定自動化の優先順位更新を反映）。
 > Phase124以降は固定周期ではなくDocumentation Checkpoint方式で棚卸しする運用を継続する。
+>
+> **現在の開発優先事項（2026-11-04）：Section設定自動化 #78 の試作・MVPを最優先とする。**
+> 従来の保存安全性拡張計画W2追加作業・W3〜W10は、MVPに必要と確認されるまで凍結。
+> 判断経緯と現行作業手順は [handover_section_auto_generation.md](handover/active/handover_section_auto_generation.md)、GitHub #78を参照。
+> #173はSection全体の製品構想、#130は必要な時間・小節構造上の技術的前提として維持するが、いずれも#78の開始条件にはしない。
 
 ---
 
