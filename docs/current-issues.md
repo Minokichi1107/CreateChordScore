@@ -1,10 +1,13 @@
 # 現在の課題・バックログ
 
-> 最終更新: 2026-10-24（Phase147〜148のDocumentation Checkpointを反映）。
+> 最終更新: 2026-11-04（Section設定自動化の優先順位更新を反映）。
 > 既存の未解決事項と新たに確認した残課題を、GitHub Issueの状態に合わせて整理し、
 > 解決済みの実装事項はCurrent Issuesへ残さず、対応するhandover / phase-statusへ寄せる。
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
 > 将来の新機能・構想は「5. Future Features」で管理する（README `[FILE SCOPE INVARIANT]` に準拠）。
+> **優先順位更新（2026-11-04）：Section自動生成 #78 は、旧Future Features内の「優先度低・将来構想」という位置づけを取り消し、当面の最優先作業とする。**
+> 旧P5〜P8の記述は当時の構想・分類履歴として残すが、現在の着手順を示すものではない。現行方針は [handover_section_auto_generation.md](handover/active/handover_section_auto_generation.md) と GitHub #78 を正とする。
+> #77（Section Pattern Matching）は関連するが独立した将来機能であり、#78の先行条件ではない。
 
 ---
 
