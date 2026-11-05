@@ -9,6 +9,12 @@
  * Placeholder for the Issue #130 timing-structure gate.
  * Keep this explicit seam; Phase B requires it to pass until the separate
  * timing investigation defines concrete stop conditions.
+ *
+ * [NOT IMPLEMENTED] This always returns eligible: it does NOT validate the timing
+ * structure (bar grid, downbeats, repair rules). The only timing-related stop in the
+ * UI is app.js startSectionAutoGeneration(), which refuses a 'fallback' timing model
+ * (no bar grid). 'full' and 'beat-only' models are both accepted. See
+ * docs/section-auto-mvp-design.md "タイミング構造チェックの現状".
  */
 export function evaluateTimingStructureForSectionGeneration() {
   return { eligible: true, reason: null };

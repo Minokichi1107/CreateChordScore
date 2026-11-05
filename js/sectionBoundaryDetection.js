@@ -12,7 +12,20 @@
  * behavior identical; changing it requires bumping SECTION_BOUNDARY_ALGORITHM_VERSION.
  */
 
-export const SECTION_BOUNDARY_ALGORITHM_VERSION = 'sbd-0.1';
+export const SECTION_BOUNDARY_ALGORITHM_VERSION = 'sbd-0.2';
+
+/** Window sizes (bars) of the two sequence-novelty features. */
+export const NOVELTY_WINDOWS = Object.freeze({ short: 4, long: 8 });
+
+/**
+ * Default peak-suppression radius (bars): half of the SHORT novelty window.
+ * A boundary's score is computed from the bars around it (at least +-short/2 bars
+ * overlap with its neighbours' windows), so neighbouring bars are smeared copies of the
+ * same change. A bar is a candidate only if no bar within this radius scores higher.
+ * This replaces the prototype's fixed 8-bar minimum spacing, which could not find
+ * real short Sections (the 11 evaluation songs contain 4-9 bar Sections).
+ */
+export const DEFAULT_PEAK_RADIUS = NOVELTY_WINDOWS.short / 2;
 
 const FLAT_TO_SHARP = { Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#' };
 
@@ -115,12 +128,38 @@ function roundHalfEven(x) {
 // exact/near ties go to the smaller bar index (deterministic across runtimes).
 const tieKey = v => Math.floor(v * 1e9 + 0.5);
 
-function pickTop(score, k, minDistance) {
+/** Combined boundary score per bar (sum of three max-normalized features). */
+export function computeBoundaryScores(V) {
+  const n8 = normalizeByMax(sequenceNovelty(V, NOVELTY_WINDOWS.long));
+  const n4 = normalizeByMax(sequenceNovelty(V, NOVELTY_WINDOWS.short));
+  const nr = normalizeByMax(repeatScore(V));
+  return n8.map((v, i) => v + n4[i] + nr[i]);
+}
+
+/** True if no bar within `radius` scores higher (plateaus: only the leftmost bar counts). */
+function isLocalPeak(score, b, radius) {
+  const here = tieKey(score[b]);
+  for (let d = -radius; d <= radius; d++) {
+    const j = b + d;
+    if (d === 0 || j < 0 || j >= score.length) continue;
+    const other = tieKey(score[j]);
+    if (other > here || (other === here && j < b)) return false;
+  }
+  return true;
+}
+
+/**
+ * Pick up to k boundary bars: highest scores first, each must be a local peak within
+ * `peakRadius` bars (see DEFAULT_PEAK_RADIUS); optional extra `minDistance` (default: none).
+ * Ties and near-ties (< 1e-9) go to the smaller bar index. Bars 0 and 1 are never boundaries.
+ */
+export function pickBoundaryPeaks(score, k, { peakRadius = DEFAULT_PEAK_RADIUS, minDistance = 1 } = {}) {
   const order = score.map((_, i) => i)
     .sort((a, b) => tieKey(score[b]) - tieKey(score[a]) || a - b);
   const picked = [];
   for (const b of order) {
     if (b < 2 || score[b] <= 0) continue;
+    if (!isLocalPeak(score, b, peakRadius)) continue;
     if (picked.every(x => Math.abs(b - x) >= minDistance)) picked.push(b);
     if (picked.length >= k) break;
   }
@@ -132,16 +171,15 @@ function pickTop(score, k, minDistance) {
  * @returns {{ algorithmVersion:string, barCount:number, bars:number[], diagnostics:object[] }}
  *   diagnostics are objective facts only (no probability / confidence score).
  */
-export function detectSectionBoundaries(chords, intervals, { minDistance = 8 } = {}) {
+export function detectSectionBoundaries(chords, intervals, {
+  peakRadius = DEFAULT_PEAK_RADIUS,
+  minDistance = 1, // no extra spacing rule by default (1 = distinct bars only)
+} = {}) {
   const V = buildBarVectors(chords, intervals);
   const n = V.length;
-  const nov8 = sequenceNovelty(V, 8);
-  const nov4 = sequenceNovelty(V, 4);
-  const n8 = normalizeByMax(nov8);
-  const n4 = normalizeByMax(nov4);
-  const nr = normalizeByMax(repeatScore(V));
-  const score = n8.map((v, i) => v + n4[i] + nr[i]);
-  const bars = pickTop(score, Math.max(3, roundHalfEven(n / 14)), minDistance);
+  const score = computeBoundaryScores(V);
+  const nov4 = sequenceNovelty(V, NOVELTY_WINDOWS.short);
+  const bars = pickBoundaryPeaks(score, Math.max(3, roundHalfEven(n / 14)), { peakRadius, minDistance });
 
   const diagnostics = bars.map((bar, i) => {
     const previous = i === 0 ? 0 : bars[i - 1];

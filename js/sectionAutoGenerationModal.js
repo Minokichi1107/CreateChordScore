@@ -24,6 +24,21 @@ function describeError(e) {
 }
 
 /**
+ * Starting position for a newly added boundary: the middle of the longest current
+ * section (no assumed section length). Returns null if no section has room for a split.
+ * It is only an initial value; the user edits it.
+ */
+export function suggestNewBoundaryBar(draft, measureCount) {
+  const starts = [0, ...draft.slice(1).map(d => d.startBar).filter(Number.isFinite)].sort((a, b) => a - b);
+  let best = null;
+  starts.forEach((start, i) => {
+    const size = (starts[i + 1] ?? measureCount) - start;
+    if (size >= 2 && (!best || size > best.size)) best = { start, size };
+  });
+  return best ? best.start + Math.floor(best.size / 2) : null;
+}
+
+/**
  * @param {object} p
  * @param {Function} p.openModal / p.mkMBtn - injected (same pattern as chartChordEditModal)
  * @param {Array} p.draft - from createDraftFromBoundaries()
@@ -117,11 +132,18 @@ export function openSectionAutoGenerationModal({
       redraw(); // focus returns to the list so keyboard users can keep going
     }));
     document.getElementById('sag-add')?.addEventListener('click', () => {
-      const last = draft[draft.length - 1];
-      const next = Number.isFinite(last.startBar) ? Math.min(last.startBar + 8, measureCount - 1) : 1;
-      draft.push({ candidateId: `cand-${seq++}`, startBar: next, name: '未設定', type: 'other', diagnostics: null });
+      const bar = suggestNewBoundaryBar(draft, measureCount);
+      if (bar === null) {
+        adoptMessage = '境界を追加できる余地がありません';
+        validate({ keepAdoptMessage: true });
+        return;
+      }
+      // Keep the draft ascending: insert right after the last item that starts before the new bar.
+      let at = 0;
+      draft.forEach((d, i) => { if (Number.isFinite(d.startBar) && d.startBar < bar) at = i + 1; });
+      draft.splice(at, 0, { candidateId: `cand-${seq++}`, startBar: bar, name: '未設定', type: 'other', diagnostics: null });
       redraw();
-      root.querySelector(`.sag-bar-in[data-i="${draft.length - 1}"]`)?.focus();
+      root.querySelector(`.sag-bar-in[data-i="${at}"]`)?.focus();
     });
   }
 
