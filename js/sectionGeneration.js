@@ -45,7 +45,9 @@ function sameSequence(left, right) {
  * Evaluate generation eligibility using the server-read analysis document.
  *
  * @param {object} input
- * @param {object} input.loadResult - response from the future W5 loadAnalysisForSave()
+ * @param {object} input.loadResult - the analysis document read from disk. In the current MVP it is
+ *   built in app.js from loadAnalysisFile() (no sha256); the future dedicated save API (not wired up yet)
+ *   would supply it from its own loader (W5).
  * @param {string} input.expectedProjectId - current project's ID
  * @param {object} input.memoryRaw - project.analysis.raw (not the normalized projection)
  * @param {object|null} input.editorSession - current Analysis Editor session
@@ -74,12 +76,15 @@ export function evaluateSectionGenerationEligibility({
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return fail('raw-invalid');
   }
-  // A missing `sections` property means "no Sections yet" (older data and ChordMini-fetched
-  // files never had it). The app already reads it that way everywhere (`raw.sections ?? []`
-  // in beginAnalysisEdit() and the Section markers), and saveAnalysisEdit() always writes the
-  // array. Nothing is written here: the property is only added by the user's normal save after
-  // they adopt generated Sections. A property that exists but is not an array is rejected
-  // (never silently replaced), and so are existing Sections.
+  // Spec F7 (section-save-technical-design.md v2.2, section 2.1.1): for THIS eligibility check only,
+  // a missing `sections` property counts as "no Sections yet", like `[]`.
+  // - This function reads only. It does not add the property or touch the loaded data, and the
+  //   load path does not fill it in either. The `sections` array is first written by the user's
+  //   normal save (saveAnalysisEdit()) after they adopt generated Sections.
+  // - A property that exists but is not an array (null, object, string, number, boolean) is
+  //   rejected, never replaced with `[]`. Existing Sections are rejected too.
+  // - Other code paths may treat these values differently (e.g. beginAnalysisEdit() reads
+  //   `raw.sections ?? []`, so null falls back to [] there); see docs/section-auto-mvp-design.md.
   const sectionsPropertyMissing = !Object.prototype.hasOwnProperty.call(raw, 'sections');
   if (!sectionsPropertyMissing) {
     if (!Array.isArray(raw.sections)) return fail('sections-not-array');
@@ -89,7 +94,8 @@ export function evaluateSectionGenerationEligibility({
   const diskChordIds = chordIds(raw.chords);
   if (diskChordIds === null) return fail('disk-chords-invalid');
   // Section endpoints are chord `_id` references, so duplicate IDs make them ambiguous.
-  // The server rejects this too (section_save.validate_sections: duplicate-chord-id).
+  // The future dedicated save API would reject this too (section_save.validate_sections:
+  // duplicate-chord-id; section_save.py is not wired into server.py yet).
   if (new Set(diskChordIds).size !== diskChordIds.length) return fail('disk-chords-duplicate-id');
 
   const memoryChordIds = chordIds(memoryRaw?.chords);
