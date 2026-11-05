@@ -53,6 +53,7 @@ CreateChordScoreのドキュメントは、以下の区分で管理する。
   - 設計時点の判断と、実装後に確認された結果・未確認事項は区別して記録する。
 - **セットアップ**（環境構築）
   `起動方法.txt` / `開発環境メモ.md`
+  - ローカルサーバーの待受範囲（このPCからのみ・LAN利用は未実装）：`server-network.md`
 - **レポート** — `reports/`。調査・検証・レビュー・監査レポートの索引と本文を管理する。レポートへの登録は、内容の正式決定を意味しない。
 - **handover** — `handover/`
 - **legacy** — `legacy/`
@@ -105,6 +106,8 @@ docs/
 ├── devlog.md
 ├── issue129-technical-design.md
 ├── section-save-technical-design.md
+├── section-auto-mvp-design.md
+├── server-network.md
 ├── phase136-a-technical-design.md
 ├── phase141-technical-design.md
 ├── phase142-technical-design.md

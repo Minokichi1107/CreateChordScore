@@ -105,14 +105,14 @@ Sectionのデータモデル自体は隙間・重なりを許す（`section-mode
 
 | `raw.sections` の状態 | 自動生成 | 編集画面（アプリの挙動） |
 |---|---|---|
-| キーが無い | **使える**（Sectionなしとして扱う） | 開始時に `structuredClone(raw.sections ?? [])` で `[]` になる。そのまま使える |
+| キーが無い | **使える**（Sectionなしとして扱う） | 編集開始時に `[]` として扱われる（検査を通る）。そのまま使える |
 | `[]` | **使える** | そのまま使える |
 | 1件以上の配列 | 使えない（`sections-already-exist`）。ボタンは押せない | 通常どおり開く |
-| `null` | **使えない**（`sections-not-array`） | `?? []` により `[]` に代わるため編集画面は開き、ボタンも押せる状態になる。押すと、ディスクを読んだ判定が不適格として拒否し、メッセージを出す。ファイルは変わらない |
-| オブジェクト・文字列・数値・真偽値 | **使えない** | `?? []` では置き換わらないため、編集開始後の `getSections()`→`reconcile()` で `session.sections.map is not a function` となり、**編集画面が開かない**（5種類とも再現）。自動生成の判定まで届かない。ファイルは変わらない。閲覧（Chart Mode）ではページエラーは出なかった |
+| `null` | **使えない**（編集画面を開けない） | **編集開始を拒否**する（下記「不正な `sections` の保護」）。欠落とは別扱い。ファイルは変わらない |
+| オブジェクト・文字列・数値・真偽値 | **使えない**（編集画面を開けない） | **編集開始を拒否**する（同上）。ファイルは変わらない。閲覧（Chart Mode）ではページエラーは出ない |
 
 - 欠落と空配列を同一視するのは、自動生成の適格性判定に限る。読み込み時に `sections` を補完せず、候補の表示・破棄ではファイルを書き換えない。採用後、通常の保存で初めて `sections` 配列が書かれる。不正な型を空配列に置き換えることはしない。
-- `sections` を読む箇所（`js/*.js` の検索で確認できた範囲）：編集開始（`app.js` の `structuredClone(raw.sections ?? [])`）、構造フラグの判定（`_evaluateStructureSync()`、配列以外は「変更なし」）、Chart Modeの開始線・終了線（`raw?.sections ?? []`）、自動生成の判定（`evaluateSectionGenerationEligibility()`）。「アプリ全体で `?? []` として読む」とまでは確認していない。
+- `sections` を読む箇所（`js/*.js` の検索で確認できた範囲）：編集開始（`app.js` の `evaluateAnalysisEditStart()` で型を検査し、欠落は `[]`、配列はコピー。以前は `?? []` で `null` も `[]` にしていた）、構造フラグの判定（`_evaluateStructureSync()`、配列以外は「変更なし」）、Chart Modeの開始線・終了線（`raw?.sections ?? []`）、自動生成の判定（`evaluateSectionGenerationEligibility()`）。「アプリ全体で `?? []` として読む」とまでは確認していない。
 - `sections` を書き込むのは、`js/*.js` では編集の保存（`saveAnalysisEdit()`）だけ。そのため、一度も編集を保存していない曲には欄が無い状態が生じる（提供コピーでは 231件中203件が欠落。§2.2 参照）。欠落の原因の全容（古いデータか、取得経路か）は確認していない。
 - 方式: 自動生成側の互換対応（案2）。`evaluateSectionGenerationEligibility()` は欠落を「Sectionなし」と判定するだけで、入力を書き換えない（結果の `sectionsPropertyMissing` は「欠落だったか」を返す情報で、判定には使わない）。
 - 不採用: 案1（読み込み時の正規化）は、読み込み後の全機能に影響し得て、`null` などの不正値との区別も必要になる。案3（明示的な初期化）は、未編集では「保存して閉じる」が押せないため利用者が実行できず、保存だけを目的とする書き込みが増える。
@@ -121,4 +121,15 @@ Sectionのデータモデル自体は隙間・重なりを許す（`section-mode
 
 - 現行MVP：判定はクライアント側で行い、保存は既存の `saveAnalysisEdit()` → `POST /save-analysis`（通常保存）。新しい保存経路は追加していない。
 - 将来の専用保存API（仕様書 §5〜§9）：`section_save.py`・`section_txn.py` は部品としてあるが、`server.py` からもクライアントからも呼ばれていない。専用APIの設計でも「欠落は適格」と決定済みだが、現在の `section_save.py` とそのテスト（`test_sections_missing_is_not_treated_as_empty`）は旧F7（欠落を拒否）のままで、接続時に更新が要る。`sections` 追加時のキー位置は未決。詳細は仕様書 §13.4 L-7。
-- 既知（今回の対象外）：オブジェクト・文字列・数値・真偽値の `sections` を持つデータは、編集画面を開けない。データは変更されない。
+- 修復機能は未実装（別課題）。不正な `sections` を持つデータは、修復されないまま編集できない状態になる（直す場合はJSONを直接修正する）。
+
+### 不正な `sections` の保護（2026-11-05 追加）
+
+以前は、`null` 以外の不正値では編集画面が途中で失敗して「編集中」の状態が残り、`null` では編集画面が開いて通常保存のときに `[]` に置き換わっていた。次のとおり変更した。
+
+- **編集開始の拒否**：`evaluateAnalysisEditStart()`（`canBeginAnalysisEdit()` が使う）が、`raw.sections` が「欠落」または「配列」でなければ拒否し、理由をダイアログで表示する（「元の解析データは変更していません。データの修復が必要です」）。`null` は欠落と同じに扱わない。
+- **失敗時の巻き戻し**：`beginAnalysisEdit()` は、検証とコピーを済ませてから編集状態を有効にする。初回描画で例外が出たら `resetAnalysisEditor()` で初期化して通常表示へ戻し、メッセージを出す（`active=true` のまま残さない）。
+- **保存前の検査**：`saveAnalysisEdit()` は、保存の直前にも `raw.sections` の型を検査し、非配列なら何も変更せず中止する。非配列を `[]` にして保存することはしない。
+- **保存成功後に反映**：保存内容は別オブジェクト（候補）に作り、`saveAnalysisFile()` が成功してから `project.analysis.raw`（`chords`・`sections`・`provenance`）へ反映する。保存に失敗しても、メモリ上の正本は変わらない（従来は保存前に書き換えていた）。
+- 検査関数 `checkRawSectionsShape()` は `js/analysisSession.js` にあり、値を変換・補完しない。
+- テスト：`scripts/test-analysis-sections-shape.mjs`（単体）、`scripts/e2e-invalid-sections-guard.mjs`（実アプリ。9ケース × 境界線表示ON/OFF）。

@@ -203,6 +203,7 @@ import {
   clearEditPointField,
   activateSearchIndex,
   getSections, // Phase101-1: Section Bar読み取り専用表示用
+  checkRawSectionsShape, // 保存済みsectionsの型検査（不正な型の編集開始・保存を拒否する）
   computeMutationFocusChordId, // Phase118: Undo/Redo Navigation
 } from './analysisSession.js';
 
@@ -536,12 +537,44 @@ function getCurrentChordSource() {
     : (project.analysis?.raw?.chords ?? []);
 }
 
+// 保存済みの `sections` が不正な型（null・オブジェクト・文字列・数値・真偽値）のときの案内。
+// 自動修復はしない（修復機能は別課題）。元データは変更しないことを利用者に伝える。
+const INVALID_SECTIONS_EDIT_MESSAGE =
+  '解析データの形式に問題があります。Section情報（sections）が正しい形式ではないため、編集を開始できません。' +
+  '元の解析データは変更していません。データの修復が必要です。';
+const INVALID_SECTIONS_SAVE_MESSAGE =
+  '解析データの形式に問題があります。Section情報（sections）が正しい形式ではないため、保存できません。' +
+  '元の解析データは変更していません。データの修復が必要です。';
+
+/** 長い案内を読み飛ばされないよう、ダイアログで表示する（トーストは2.5秒で消える）。 */
+function _notifyBlocking(message) {
+  toast(`⚠ ${message}`);
+  try { alert(message); } catch { /* alertが使えない環境ではトーストのみ */ }
+}
+
+/**
+ * evaluateAnalysisEditStart — 編集を開始してよいかを判定する（読み取りのみ・状態を変えない）
+ *
+ * 条件: raw.chords があること（従来どおり）、かつ raw.sections が「欠落」または「配列」
+ * であること。null を含む非配列は拒否する（null を欠落と同じに扱わない）。
+ *
+ * @returns {{ok:true}|{ok:false, reason:'no-analysis'|'sections-not-array', message:string}}
+ */
+function evaluateAnalysisEditStart() {
+  const raw = project.analysis?.raw;
+  if (!raw?.chords) return { ok: false, reason: 'no-analysis', message: '解析データがありません' };
+  if (!checkRawSectionsShape(raw).ok) {
+    return { ok: false, reason: 'sections-not-array', message: INVALID_SECTIONS_EDIT_MESSAGE };
+  }
+  return { ok: true };
+}
+
 /**
  * canBeginAnalysisEdit — 編集開始可能かどうかを判定する
- * 将来「保存中」「編集ロック中」等の条件が増えてもここに集約する。
+ * 将来「保存中」「編集ロック中」等の条件が増えてもここ（evaluateAnalysisEditStart）に集約する。
  */
 function canBeginAnalysisEdit() {
-  return !!project.analysis?.raw?.chords;
+  return evaluateAnalysisEditStart().ok;
 }
 
 /**
@@ -549,30 +582,56 @@ function canBeginAnalysisEdit() {
  *
  * analysis.raw.chords をディープコピーしてバッファを作る。
  * 以降の編集はすべて analysisEditor.buffer に対して行われる。
+ *
+ * [SAFE START] 検証（evaluateAnalysisEditStart）→ 値の準備 → 編集状態の有効化 → 初回描画
+ * の順。初回描画で例外が出た場合は、resetAnalysisEditor()（唯一のリセット窓口）で
+ * 編集状態を確実に初期化して通常表示へ戻し、利用者に失敗を伝える（active=trueのまま
+ * 残さない）。保存済みデータ（analysis.raw）はここでは一切変更しない。
  */
 function beginAnalysisEdit() {
-  if (!canBeginAnalysisEdit()) {
-    toast('解析データがありません');
+  const gate = evaluateAnalysisEditStart();
+  if (!gate.ok) {
+    if (gate.reason === 'sections-not-array') _notifyBlocking(gate.message);
+    else toast(gate.message);
     return;
   }
   if (isAnalysisEditing()) return;  // 二重開始ガード
 
-  analysisEditor.active = true;
-  analysisEditor.buffer = structuredClone(project.analysis.raw.chords);
+  // 例外が起き得る準備（コピー）は、編集状態を有効化する前に済ませる。
+  const raw = project.analysis.raw;
+  const bufferCopy = structuredClone(raw.chords);
+  // 検証済みなので、sectionsは「欠落」または「配列」のどちらか。
+  const sectionsCopy = Array.isArray(raw.sections) ? structuredClone(raw.sections) : [];
+
+  analysisEditor.buffer = bufferCopy;
   analysisEditor.history = [];
   analysisEditor.future  = [];
-  analysisEditor.sections = structuredClone(project.analysis.raw.sections ?? []);
+  analysisEditor.sections = sectionsCopy;
   // [PROVENANCE][Phase127] raw.provenanceはloadAnalysis()で必ず正規化済み
   // （normalizeProvenance()）のため、ここでは素直にコピーするだけでよい。
   // hasStructureEditはコピーしない（Phase127-F・セッション側で状態を持たず、
   // getSections()から都度導出する設計へ変更したため）。
-  analysisEditor.hasContentEdit   = project.analysis.raw.provenance.hasContentEdit;
+  analysisEditor.hasContentEdit   = raw.provenance.hasContentEdit;
   analysisEditor.dirty = false;
   analysisEditor.search = { open: false, query: '', replaceText: '', matches: [], activeIndex: null, focusRequested: false, replaceUndoPending: false };
-  setSearchMatches([]);
-  _refreshSelection([]);
+  analysisEditor.active = true;
 
-  _refreshEditorView();
+  try {
+    setSearchMatches([]);
+    _refreshSelection([]);
+    _refreshEditorView();
+  } catch (err) {
+    console.error('[beginAnalysisEdit] 編集開始に失敗しました。編集状態を初期化します:', err);
+    resetAnalysisEditor();
+    try {
+      setSelectedChordIds([]);
+      _refreshEditorView();
+    } catch (err2) {
+      console.error('[beginAnalysisEdit] 通常表示への復帰中にもエラー:', err2);
+    }
+    toast('⚠ 編集を開始できませんでした。解析データは変更していません');
+    return;
+  }
   toast('🛠 解析編集モードを開始しました');
 }
 
@@ -2757,21 +2816,47 @@ async function saveAnalysisEdit() {
     return;
   }
 
-  project.analysis.raw.chords = structuredClone(analysisEditor.buffer);
-  project.analysis.chords = sanitizeChords(project.analysis.raw.chords);
+  // [SAVE GUARD] 編集開始時の検査（evaluateAnalysisEditStart）だけに頼らず、保存の直前にも
+  // 保存済みsectionsの型を検査する。非配列を `[]` にして保存することはしない
+  // （元の値を黙って消さない）。何も変更せずに中止する。
+  if (!checkRawSectionsShape(project.analysis.raw).ok) {
+    _notifyBlocking(INVALID_SECTIONS_SAVE_MESSAGE);
+    return;
+  }
+
+  // [COMMIT AFTER PERSIST] 保存する内容は、まず「候補」として別オブジェクトに作り、
+  // 永続化（saveAnalysisFile）が成功してから project.analysis に反映する。
+  // 以前は、保存前に project.analysis.raw を書き換えていたため、保存に失敗すると
+  // メモリ上の正本だけが先に変わってしまっていた。getSections() の例外もここ（保存前）で
+  // 起きるため、その場合も正本は変わらない。
+  const savedChords = structuredClone(analysisEditor.buffer);
   const savedSections = structuredClone(getSections(analysisEditor));
-  project.analysis.raw.sections = savedSections;
-  // [PROVENANCE][Phase127-F] hasContentEditは一方向フラグの書き戻し（false→trueのみ。
-  // セッション側で既にfalse→true以外の変化は起きない設計のため単純代入でよい）。
-  project.analysis.raw.provenance.hasContentEdit   = analysisEditor.hasContentEdit;
-  // hasStructureEditは「今Sectionが存在するか」を保存の都度導出する
-  // （一方向フラグではない。作成→削除で0件に戻れば自動的にfalseへ戻る）。
-  project.analysis.raw.provenance.hasStructureEdit = savedSections.length > 0;
-  const saveResult = await saveAnalysisFile(project.id, project.analysis.raw, project.analysis.repairRule ?? null, undefined, _analysisNameHint(project));
+  const candidateRaw = {
+    ...project.analysis.raw,
+    chords: savedChords,
+    sections: savedSections,
+    provenance: {
+      ...project.analysis.raw.provenance,
+      // [PROVENANCE][Phase127-F] hasContentEditは一方向フラグの書き戻し（false→trueのみ。
+      // セッション側で既にfalse→true以外の変化は起きない設計のため単純代入でよい）。
+      hasContentEdit:   analysisEditor.hasContentEdit,
+      // hasStructureEditは「今Sectionが存在するか」を保存の都度導出する
+      // （一方向フラグではない。作成→削除で0件に戻れば自動的にfalseへ戻る）。
+      hasStructureEdit: savedSections.length > 0,
+    },
+  };
+  const saveResult = await saveAnalysisFile(project.id, candidateRaw, project.analysis.repairRule ?? null, undefined, _analysisNameHint(project));
   if (saveResult !== 'ok') {
     toast('⚠ 保存に失敗しました。編集内容は失われていません');
     return;
   }
+
+  // 永続化に成功したので、メモリ上の正本へ反映する（既存の参照を保つため、その場で更新する）。
+  project.analysis.raw.chords = savedChords;
+  project.analysis.chords = sanitizeChords(project.analysis.raw.chords);
+  project.analysis.raw.sections = savedSections;
+  project.analysis.raw.provenance.hasContentEdit   = candidateRaw.provenance.hasContentEdit;
+  project.analysis.raw.provenance.hasStructureEdit = candidateRaw.provenance.hasStructureEdit;
 
   // [PROVENANCE][Phase127] Library一覧の高速表示用に要約をproject側へ複製する。
   // 正本はanalysis.raw.provenanceのまま（[PERSISTENCE OWNERSHIP PRINCIPLE]と

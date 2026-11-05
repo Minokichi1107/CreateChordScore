@@ -112,13 +112,14 @@ try {
   const UNUSABLE = VARIANT === 'nonarray' || VARIANT === 'existing';
   if (UNUSABLE) {
     // Not eligible: the button must be unusable (or refuse) and the file must stay byte-identical.
-    // A non-array `sections` already stops the existing editor from opening (pre-existing behaviour,
-    // outside this feature), so the button may not exist. Either way nothing may change on disk.
+    // A non-array `sections` is refused when the editor tries to start (canBeginAnalysisEdit /
+    // evaluateAnalysisEditStart; details in scripts/e2e-invalid-sections-guard.mjs), so the button
+    // normally does not exist. Either way nothing may change on disk.
     const btn = page.locator('#sec-autogen-btn');
     const present = (await btn.count()) > 0;
     const disabled = present ? await btn.isDisabled() : true;
     if (present && !disabled) { await btn.click(); await page.waitForTimeout(1200); }
-    if (!present) console.log(`NOTE ${VARIANT}: editor did not open (pre-existing): ${pageErrors.join(' | ')}`);
+    if (!present) console.log(`NOTE ${VARIANT}: editor did not open (refused): ${pageErrors.join(' | ')}`);
     check(`${VARIANT}: auto-generation is not available`, disabled || (await page.locator('.sag-row').count()) === 0);
     if (present && !disabled) check(`${VARIANT}: a clear refusal message is shown`, /自動生成できません|対象外/.test(await toastText() ?? ''), await toastText());
     check(`${VARIANT}: no Section was added`, (VARIANT === 'existing' ? (await chips()) === 1 : (await page.locator('#sec-autogen-btn').count()) === 0 || (await chips()) === 0));

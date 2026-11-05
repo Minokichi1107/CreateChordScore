@@ -3,6 +3,17 @@ import http.server, socketserver, webbrowser, threading, os, sys, subprocess
 import json, re  # ★ 追加
 
 PORT = 8767
+# [UD-2] 待受アドレス。標準は「このPCからのみ」(127.0.0.1)。認証機構がないため、
+# 全インターフェース('')で待ち受けるとLAN内の他の端末からプロジェクトや保存APIに
+# 到達できてしまう。LAN公開モードは、認証・CORS・静的配信範囲の設計が済むまで
+# 実装しない（オプションも用意しない）。
+HOST = '127.0.0.1'
+# ブラウザのURLは従来どおり localhost のままにする。127.0.0.1 に変えると
+# ブラウザの「オリジン」が変わり、localStorage / IndexedDB（ライブラリ・自動保存）が
+# 別物になって、保存済みの曲が消えたように見えるため。
+_LOCAL_HOSTNAMES = ('localhost', '127.0.0.1')
+ALLOWED_HOST_HEADERS = frozenset(f'{h}:{PORT}' for h in _LOCAL_HOSTNAMES)
+ALLOWED_ORIGINS = frozenset(f'http://{h}:{PORT}' for h in _LOCAL_HOSTNAMES)
 DIR  = os.path.dirname(os.path.abspath(__file__))
 ANALYSIS_DIR = os.path.join(DIR, 'analysis')
 
@@ -78,11 +89,38 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=DIR, **kwargs)
 
     def end_headers(self):
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', '*')
+        # [UD-2] 画面とAPIは同じオリジン（このサーバー）から配信されるため、本来CORS許可は
+        # 不要。従来の `Allow-Origin: *` は、閲覧中の他のWebサイトからこのAPIを呼べて
+        # しまう（読み取り・上書き）ため廃止し、許可済みオリジンからの要求にだけ返す。
+        origin = self.headers.get('Origin') if hasattr(self, 'headers') else None
+        if origin in ALLOWED_ORIGINS:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Vary', 'Origin')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.send_header('Cache-Control', 'no-store')
         super().end_headers()
+
+    def _request_allowed(self):
+        """[UD-2] 許可していない Host / Origin の要求を 403 で拒否する（Trueなら通す）。
+
+        - Host: localhost / 127.0.0.1 のみ。外部サイトのドメインを自分のPCに向けて
+          ブラウザ経由で攻撃する手口（DNSリバインディング）を防ぐ。ヘッダーなしは通す。
+        - Origin: ブラウザが付ける送信元。許可リスト以外は拒否。ヘッダーなしは通す
+          （同一オリジンの単純なGETや、curl等の非ブラウザ）。
+        """
+        host = self.headers.get('Host')
+        origin = self.headers.get('Origin')
+        if (host is not None and host not in ALLOWED_HOST_HEADERS) or \
+           (origin is not None and origin not in ALLOWED_ORIGINS):
+            body = b'{"error":"forbidden"}'
+            self.send_response(403)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return False
+        return True
 
     def log_message(self, format, *args):
         pass
@@ -95,6 +133,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body_bytes)
 
     def do_GET(self):
+        if not self._request_allowed():
+            return
         # /analysis/{id}.json は論理URL。実ファイル名はclientに見せず、
         # resolve_analysis_file() が特定した1ファイルを返す。
         # それ以外のURLは従来どおりの静的配信。
@@ -123,11 +163,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     # ★ 追加
     def do_OPTIONS(self):
+        if not self._request_allowed():
+            return
         self.send_response(204)
         self.end_headers()
 
     # ★ 追加
     def do_POST(self):
+        if not self._request_allowed():
+            return
         if self.path == '/save-analysis':
             self._handle_save_analysis()
         elif self.path == '/rename-analysis':
@@ -334,6 +378,7 @@ url = f'http://localhost:{PORT}/index.html'
 print('=' * 52)
 print('  ChordPlayer サーバー起動中')
 print(f'  {url}')
+print(f'  このPCからのみ接続できます（待受: {HOST}:{PORT}）')
 print('  ブラウザが開かない場合は上記URLをブラウザで開いてください')
 print('  停止: Ctrl+C')
 print('=' * 52)
@@ -342,7 +387,7 @@ threading.Thread(target=open_browser, daemon=True).start()
 
 try:
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(('', PORT), Handler) as httpd:
+    with socketserver.TCPServer((HOST, PORT), Handler) as httpd:
         httpd.serve_forever()
 except KeyboardInterrupt:
     print('\nサーバーを停止しました。')
