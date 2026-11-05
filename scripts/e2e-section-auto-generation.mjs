@@ -49,7 +49,19 @@ const analysisDoc = {
   },
   repairRule: song.repairRule ?? null,
 };
-fs.writeFileSync(path.join(tmp, 'analysis', `${PROJECT_ID}.json`), JSON.stringify(analysisDoc));
+const analysisPath = path.join(tmp, 'analysis', `${PROJECT_ID}.json`);
+// VARIANT: sections state of the file under test (default 'empty').
+//   missing = no `sections` property (older data) | empty = [] | nonarray = "oops" | existing = one Section
+const VARIANT = process.env.E2E_SECTIONS ?? 'empty';
+if (VARIANT === 'missing') delete analysisDoc.raw.sections;
+else if (VARIANT === 'nonarray') analysisDoc.raw.sections = 'oops';
+else if (VARIANT === 'existing') {
+  analysisDoc.raw.sections = [{ id: 'sec-old', type: 'verse', name: '既存', startChordId: 'c001', endChordId: 'c010' }];
+  analysisDoc.raw.provenance.hasStructureEdit = true;
+}
+fs.writeFileSync(analysisPath, JSON.stringify(analysisDoc));
+const diskBytes = () => fs.readFileSync(analysisPath);
+const initialBytes = diskBytes();
 const project = JSON.parse(fs.readFileSync(path.join(tmp, 'testdata/projects/test1chordscore_project.json'), 'utf8'));
 project.id = PROJECT_ID; project.title = 'E2E'; project.hasAnalysis = true;
 const projectFile = path.join(tmp, 'e2e_project.json');
@@ -59,9 +71,10 @@ const readDisk = () => {
   const name = fs.readdirSync(path.join(tmp, 'analysis')).find(f => f.includes(PROJECT_ID) && f.endsWith('.json'));
   return JSON.parse(fs.readFileSync(path.join(tmp, 'analysis', name), 'utf8'));
 };
+const sectionsOf = doc => (Array.isArray(doc.raw.sections) ? doc.raw.sections : []);
 const integrity = doc => {
   const idx = new Map(doc.raw.chords.map((c, i) => [c._id, i]));
-  return doc.raw.sections.every(s => idx.has(s.startChordId) && idx.has(s.endChordId) && idx.get(s.startChordId) <= idx.get(s.endChordId));
+  return sectionsOf(doc).every(s => idx.has(s.startChordId) && idx.has(s.endChordId) && idx.get(s.startChordId) <= idx.get(s.endChordId));
 };
 
 const server = spawn('python3', ['server.py'], { cwd: tmp, stdio: 'ignore' });
@@ -96,8 +109,35 @@ try {
   await page.waitForTimeout(1200);
   await openEditor();
 
+  const UNUSABLE = VARIANT === 'nonarray' || VARIANT === 'existing';
+  if (UNUSABLE) {
+    // Not eligible: the button must be unusable (or refuse) and the file must stay byte-identical.
+    // A non-array `sections` already stops the existing editor from opening (pre-existing behaviour,
+    // outside this feature), so the button may not exist. Either way nothing may change on disk.
+    const btn = page.locator('#sec-autogen-btn');
+    const present = (await btn.count()) > 0;
+    const disabled = present ? await btn.isDisabled() : true;
+    if (present && !disabled) { await btn.click(); await page.waitForTimeout(1200); }
+    if (!present) console.log(`NOTE ${VARIANT}: editor did not open (pre-existing): ${pageErrors.join(' | ')}`);
+    check(`${VARIANT}: auto-generation is not available`, disabled || (await page.locator('.sag-row').count()) === 0);
+    if (present && !disabled) check(`${VARIANT}: a clear refusal message is shown`, /自動生成できません|対象外/.test(await toastText() ?? ''), await toastText());
+    check(`${VARIANT}: no Section was added`, (VARIANT === 'existing' ? (await chips()) === 1 : (await page.locator('#sec-autogen-btn').count()) === 0 || (await chips()) === 0));
+    check(`${VARIANT}: disk bytes unchanged`, diskBytes().equals(initialBytes));
+    if (VARIANT !== 'nonarray') check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
+    throw Object.assign(new Error('done'), { early: true });
+  }
+
+  // 0. preview only: showing and discarding candidates must not touch the source of truth
+  check(`${VARIANT}: starts with no Sections`, (await chips()) === 0);
+  await page.click('#sec-autogen-btn');
+  await page.waitForTimeout(1000);
+  check('candidates are shown', (await page.locator('.sag-row').count()) > 1);
+  check('disk bytes unchanged while candidates are shown', diskBytes().equals(initialBytes));
+  await page.locator('.mbtn:not(.ok)').first().click(); await page.waitForTimeout(500);
+  check('discarding candidates adds no Section', (await chips()) === 0);
+  check('disk bytes unchanged after discarding', diskBytes().equals(initialBytes));
+
   // 1. generate + adopt
-  check('starts with no Sections', (await chips()) === 0);
   await page.click('#sec-autogen-btn');
   await page.waitForTimeout(1000);
   const rows = await page.locator('.sag-row').count();
@@ -105,7 +145,7 @@ try {
   await page.waitForTimeout(1200);
   const generated = await chips();
   check('adopt applies every candidate', generated === rows && generated > 1, `rows=${rows} chips=${generated}`);
-  check('disk is untouched before saving', readDisk().raw.sections.length === 0);
+  check('disk bytes untouched before saving', diskBytes().equals(initialBytes));
 
   // 2. Undo / Redo of the whole set
   await page.click('#aep-undo'); await page.waitForTimeout(400);
@@ -118,12 +158,14 @@ try {
   await page.click('#aep-save'); await page.waitForTimeout(1500);
   check('save failure is reported', /保存に失敗/.test(await toastText() ?? ''), await toastText());
   check('edit mode and Sections survive a failed save', (await chips()) === generated && await page.locator('#aep-save').count() === 1);
-  check('disk unchanged after a failed save', readDisk().raw.sections.length === 0);
+  check('disk bytes unchanged after a failed save', diskBytes().equals(initialBytes));
   await page.unroute('**/save-analysis');
   await page.click('#aep-save'); await page.waitForTimeout(2000);
   const saved = readDisk();
   check('retry saves all Sections', saved.raw.sections.length === generated && integrity(saved), `disk=${saved.raw.sections.length}`);
   check('structure flag is set', saved.raw.provenance.hasStructureEdit === true);
+  check('saved file now has a sections array', Array.isArray(saved.raw.sections));
+  check('chords were not altered by the save', JSON.stringify(saved.raw.chords) === JSON.stringify(JSON.parse(initialBytes.toString()).raw.chords));
 
   // 4. reload: same Sections come back
   await page.reload(); await page.waitForTimeout(1500);
@@ -156,6 +198,8 @@ try {
   check('edited Sections saved and consistent', edited.raw.sections.length === generated && integrity(edited)
     && edited.raw.sections[1].name === 'Aメロ(E2E)');
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
+} catch (e) {
+  if (!e.early) { console.log('FAIL unexpected error', e); failures += 1; }
 } finally {
   await browser.close();
   stop();

@@ -3047,7 +3047,7 @@ function _isAutoSectionName(name, type) {
  */
 const SECTION_AUTOGEN_REASON_TEXT = {
   'sections-already-exist': 'すでにSectionがある曲は自動生成の対象外です',
-  'sections-missing': 'この曲にはSectionの記録欄がまだありません。解析データを一度保存してから、もう一度お試しください',
+  'sections-not-array': 'Sectionの記録が想定外の形式のため、自動生成できません（データは変更していません）',
   'chords-changed-on-disk': '保存されているデータと画面のコードが一致しません。曲を開き直してください',
   'editor-has-unsaved-edits': '未保存の編集があります。先に保存してください',
   'disk-chords-duplicate-id': 'コードのIDが重複しているため生成できません',

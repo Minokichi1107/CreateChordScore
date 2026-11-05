@@ -21,11 +21,22 @@ const eligible = evaluateSectionGenerationEligibility({
 assert.equal(eligible.eligible, true);
 assert.equal(eligible.sha256, 'a'.repeat(64));
 
-assert.equal(evaluateSectionGenerationEligibility({
-  loadResult: { state: 'present', analysis: { ...analysis, raw: { chords: analysis.raw.chords } } },
-  expectedProjectId: 'p1',
-  memoryRaw: analysis.raw,
-}).reason, 'sections-missing');
+// A missing `sections` property means "no Sections yet": eligible, and the input is not touched.
+{
+  const rawNoSections = { chords: analysis.raw.chords };
+  const diskNoSections = { ...analysis, raw: rawNoSections };
+  const before = JSON.stringify(diskNoSections);
+  const r = evaluateSectionGenerationEligibility({
+    loadResult: { state: 'present', sha256: 'b'.repeat(64), analysis: diskNoSections },
+    expectedProjectId: 'p1',
+    memoryRaw: structuredClone(rawNoSections),
+  });
+  assert.equal(r.eligible, true);
+  assert.equal(r.sectionsPropertyMissing, true);
+  assert.equal(JSON.stringify(diskNoSections), before, 'evaluation must not mutate the loaded data');
+  assert.equal(Object.prototype.hasOwnProperty.call(rawNoSections, 'sections'), false, 'no sections key is added');
+  assert.equal(eligible.sectionsPropertyMissing, false, 'sections: [] is reported as present');
+}
 
 assert.equal(evaluateSectionGenerationEligibility({
   loadResult: { state: 'present', analysis: { ...analysis, raw: { ...analysis.raw, sections: [{ id: 'old' }] } } },
@@ -83,8 +94,8 @@ for (const [label, value] of [
   assertRejected(evaluate({ loadResult: withAnalysis({ generatedAt: value }) }), 'generated-at-missing', `generatedAt ${label}`);
 }
 
-// §8.1: raw.sections must exist, be an array and be empty. (Missing / non-empty are covered above.)
-for (const [label, value] of [['null', null], ['object', {}], ['string', 'sections'], ['number', 0]]) {
+// raw.sections, when present, must be an empty array (missing is allowed, see above; non-empty is covered above).
+for (const [label, value] of [['null', null], ['object', {}], ['string', 'sections'], ['number', 0], ['false', false], ['true', true]]) {
   assertRejected(
     evaluate({ loadResult: withAnalysis({ raw: { ...analysis.raw, sections: value } }) }),
     'sections-not-array',

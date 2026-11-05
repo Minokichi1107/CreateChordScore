@@ -74,11 +74,17 @@ export function evaluateSectionGenerationEligibility({
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return fail('raw-invalid');
   }
-  if (!Object.prototype.hasOwnProperty.call(raw, 'sections')) {
-    return fail('sections-missing');
+  // A missing `sections` property means "no Sections yet" (older data and ChordMini-fetched
+  // files never had it). The app already reads it that way everywhere (`raw.sections ?? []`
+  // in beginAnalysisEdit() and the Section markers), and saveAnalysisEdit() always writes the
+  // array. Nothing is written here: the property is only added by the user's normal save after
+  // they adopt generated Sections. A property that exists but is not an array is rejected
+  // (never silently replaced), and so are existing Sections.
+  const sectionsPropertyMissing = !Object.prototype.hasOwnProperty.call(raw, 'sections');
+  if (!sectionsPropertyMissing) {
+    if (!Array.isArray(raw.sections)) return fail('sections-not-array');
+    if (raw.sections.length > 0) return fail('sections-already-exist');
   }
-  if (!Array.isArray(raw.sections)) return fail('sections-not-array');
-  if (raw.sections.length > 0) return fail('sections-already-exist');
 
   const diskChordIds = chordIds(raw.chords);
   if (diskChordIds === null) return fail('disk-chords-invalid');
@@ -98,7 +104,7 @@ export function evaluateSectionGenerationEligibility({
   const timing = evaluateTimingStructureForSectionGeneration(analysis);
   if (!timing.eligible) return fail(timing.reason || 'timing-structure-invalid');
 
-  return { eligible: true, reason: null, analysis, sha256: loadResult.sha256 };
+  return { eligible: true, reason: null, analysis, sha256: loadResult.sha256, sectionsPropertyMissing };
 }
 
 /** Capture the initial code buffer without retaining mutable references. */

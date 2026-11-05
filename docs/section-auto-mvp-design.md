@@ -51,7 +51,7 @@ Sectionのデータモデル自体は隙間・重なりを許す（`section-mode
 
 ## 既知の制約
 
-- `evaluateSectionGenerationEligibility()` は、解析ファイルに `sections` 欄が無い曲を `sections-missing` として拒否する。ChordMini取得直後でまだ保存していない曲は、一度保存して `sections: []` が入るまで自動生成できない。
+- `sections` 欄の扱いは「`sections` 未存在」と「配列以外」の節を参照。
 
 ## 最小間隔の見直し（sbd-0.1 → sbd-0.2）
 
@@ -96,4 +96,20 @@ Sectionのデータモデル自体は隙間・重なりを許す（`section-mode
 
 ## 保存ボタンについて（補足）
 
-「保存して閉じる」は、編集していない（dirtyでない）間は押せない。`sections` 欄が無い曲では、先に何か1つ編集するか、別の方法で `sections: []` を書き込む必要がある（既知の制約を参照）。
+「保存して閉じる」は、編集していない（dirtyでない）間は押せない。`sections` 欄が無い曲でも自動生成できるため、事前の保存は不要。採用すると編集済みになり、通常の保存で `sections` 配列が書き込まれる。
+
+## `sections` 未存在の曲（追加対応）
+
+| 状態 | 意味 | 自動生成 |
+|---|---|---|
+| 欄が無い | 古いデータ・ChordMini取得直後。アプリは全箇所で `?? []`（Sectionなし）として読む | 使える |
+| `[]` | Sectionなし | 使える |
+| 配列以外（null・文字列等） | 不正データ | 拒否（`sections-not-array`）。置き換えない |
+| 1件以上 | 既存Sectionあり | 拒否（`sections-already-exist`） |
+
+- 方式: 自動生成側の互換対応（案2）。`evaluateSectionGenerationEligibility()` が欄の未存在を「Sectionなし」と判定するだけで、データは一切書き換えない（結果に `sectionsPropertyMissing` を返す）。
+- 書き込みは従来どおり、採用→「保存して閉じる」（`saveAnalysisEdit()`）が配列を書く時点のみ。新しい保存経路・一括変換なし。
+- 不採用: 案1（読み込み時の正規化）は全機能に影響し、不正型との区別も必要になる。案3（明示初期化）は保存ボタンが無効のため操作が増え、保存だけが目的の書き込みになる。
+- **承認済み仕様（`section-save-technical-design.md` F7/A2「未存在を空配列と同一視しない」）からの逸脱**。ユーザー依頼により変更。凍結仕様書は編集していない。
+- 将来、専用保存API（`section_save.py`）を接続する場合、同ファイルは今も `not-eligible-sections-missing` で拒否するため、接続時に合わせて直す必要がある（今回は未接続・未変更）。
+- 既知: `sections` が配列以外のデータは、自動生成の前に既存の編集画面の起動が止まる（`session.sections.map`）。今回の対象外。データは変更されない。
