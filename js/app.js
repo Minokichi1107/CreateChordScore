@@ -127,6 +127,7 @@ import {
   initAudioEngine,
   fmt,
   setSpeed,
+  getAudioElement,
   flashLine,
 } from './audio.js';
 
@@ -227,7 +228,9 @@ import {
   deleteSectionCommand, // Phase101-3
   reorderSectionCommand, // Phase140 #95
   updateSectionBoundaryCommand, // Phase106
-  applyGeneratedSectionsCommand, // Section自動生成（生成したSection群を1操作で適用）
+  applyGeneratedSectionsCommand, // Section自動生成（生成したSection群を1操作で適用）,
+  replaceSectionsFromDraftCommand,
+
 } from './analysisCommands.js';
 
 import {
@@ -235,6 +238,14 @@ import {
   captureSectionGenerationBuffer,
   hasSectionGenerationCodeEdits,
 } from './sectionGeneration.js';
+import {
+  createReconfigurationDraft,
+  createReconfigRuntime,
+  teardownReconfigRuntime,
+  prepareDraftForAdopt,
+} from './sectionReconfiguration.js';
+import { openSectionReconfigurationModal } from './sectionReconfigurationModal.js';
+
 import { detectSectionBoundaries, measureIrregularity } from './sectionBoundaryDetection.js';
 import { createDraftFromBoundaries, buildSectionsFromDraft } from './sectionAutoGeneration.js';
 import { openSectionAutoGenerationModal } from './sectionAutoGenerationModal.js';
@@ -450,6 +461,47 @@ let _fileHandle = null;
 // [Phase86-2 Sprint B] Session Authority（buffer/history/future/selection/search）は
 // analysisSession.js へ移管。ここでは生成のみ行う（形は完全に維持。挙動変更なし）。
 const analysisEditor = createAnalysisSession();
+
+/** Phase150 Section再設定の一時状態（Project切替で破棄。Historyに載せない） */
+let _sectionReconfigRuntime = createReconfigRuntime();
+let _sectionReconfigPlayTimer = null;
+let _sectionReconfigSpaceShield = false;
+
+function discardSectionReconfiguration(opts = {}) {
+  if (_sectionReconfigPlayTimer) {
+    clearTimeout(_sectionReconfigPlayTimer);
+    _sectionReconfigPlayTimer = null;
+  }
+  const result = teardownReconfigRuntime(_sectionReconfigRuntime, opts);
+  _sectionReconfigSpaceShield = false;
+  if (result.closeModal) {
+    try { closeMod(); } catch { /* ignore */ }
+  }
+  const el = typeof getAudioElement === 'function' ? getAudioElement() : null;
+  if (el) {
+    try { el.pause(); } catch { /* ignore */ }
+  }
+  if (result.restoreAudio && el) {
+    try {
+      if (Number.isFinite(result.restoreAudio.timeSec)) {
+        el.currentTime = Math.max(0, result.restoreAudio.timeSec);
+      }
+    } catch { /* ignore */ }
+    if (Number.isFinite(result.restoreAudio.speedPct)) {
+      try { setSpeed(result.restoreAudio.speedPct); } catch { /* ignore */ }
+    }
+  }
+  return result;
+}
+
+function _cleanupAnalysisEditorForProjectSwitch() {
+  discardSectionReconfiguration({ restoreAudio: false });
+  if (typeof isAnalysisEditing === 'function' && isAnalysisEditing()) {
+    resetAnalysisEditor();
+  }
+}
+
+
 
 /**
  * resetAnalysisEditor — analysisEditor を初期状態へ戻す
@@ -3013,6 +3065,12 @@ const SECTION_TYPE_GROUPS = [
 /** 最後に使った表記グループの記憶先（アプリ全体・localStorage。曲データには保存しない） */
 const SECTION_TYPE_GROUP_STORAGE_KEY = 'cs.sectionTypeGroup';
 
+
+function _sectionTypeLabel(type, group) {
+  if (type === 'other') return group === 'jp' ? 'その他' : 'Other';
+  return SECTION_TYPES.find(t => t.value === type)?.label ?? type;
+}
+
 /** _sectionTypeGroupOf — 種類のキーから表記グループを返す（一覧に無ければ 'en'） */
 function _sectionTypeGroupOf(type) {
   return SECTION_TYPES.find(t => t.value === type)?.group ?? 'en';
@@ -3048,8 +3106,12 @@ function _defaultTypeForGroup(group) {
  * _renderSectionTypeOptions — 指定グループの<option>群のHTMLを生成する（Phase140 #104）
  */
 function _renderSectionTypeOptions(group, selectedValue) {
-  return SECTION_TYPES
-    .filter(t => t.group === group)
+  const list = SECTION_TYPES.filter(t => t.group === group).map(t => ({ ...t }));
+  const otherLabel = _sectionTypeLabel('other', group);
+  const otherIdx = list.findIndex(x => x.value === 'other');
+  if (otherIdx >= 0) list[otherIdx] = { ...list[otherIdx], label: otherLabel };
+  else list.push({ value: 'other', label: otherLabel, group });
+  return list
     .map(t => `<option value="${t.value}" ${t.value === selectedValue ? 'selected' : ''}>${t.label}</option>`)
     .join('');
 }
@@ -3148,6 +3210,134 @@ async function _checkSectionAutoGenEligibility() {
     expectedProjectId: project.id,
     memoryRaw: project.analysis?.raw,
     editorSession: analysisEditor,
+  });
+}
+
+
+/**
+ * startSectionReconfiguration — 既存SectionをDraftとして再設定UIを開く（Phase150 Stage1）
+ * 既存 analysisEditor.sections は採用まで変更しない。
+ */
+function startSectionReconfiguration() {
+  if (!isAnalysisEditing()) {
+    toast('解析編集モードで開いてください');
+    return;
+  }
+  if (_sectionReconfigRuntime.modalOpen) return;
+
+  const buffer = analysisEditor.buffer;
+  if (!Array.isArray(buffer) || buffer.length === 0) {
+    toast('コードがありません');
+    return;
+  }
+  // 現在の session sections（未保存のSection編集含む）からDraft生成。既存配列は触らない。
+  const currentSections = Array.isArray(analysisEditor.sections)
+    ? structuredClone(analysisEditor.sections)
+    : [];
+  const draft = createReconfigurationDraft({
+    projectId: project?.id ?? null,
+    buffer,
+    sections: currentSections,
+  });
+
+  const el = getAudioElement?.();
+  const speedPct = el && Number.isFinite(el.playbackRate)
+    ? Math.round(el.playbackRate * 100)
+    : 100;
+  const timeSec = el && Number.isFinite(el.currentTime) ? el.currentTime : 0;
+
+  _sectionReconfigRuntime.draft = draft;
+  _sectionReconfigRuntime.audioSnapshot = { timeSec, speedPct };
+  _sectionReconfigRuntime.modalOpen = true;
+
+  const types = typeof SECTION_TYPES !== 'undefined'
+    ? SECTION_TYPES.map(x => ({ value: x.value, label: _sectionTypeLabel(x.value, _loadSectionTypeGroup()) }))
+    : [{ value: 'other', label: 'その他' }];
+
+  openSectionReconfigurationModal({
+    openModal,
+    mkMBtn,
+    draft,
+    buffer,
+    sectionTypes: types,
+    onKeyShield: () => { _sectionReconfigSpaceShield = true; window.__csSectionReconfigSpaceShield = true; },
+    onKeyUnshield: () => { _sectionReconfigSpaceShield = false; window.__csSectionReconfigSpaceShield = false; },
+    onTestStop: () => {
+      if (_sectionReconfigPlayTimer) {
+        clearTimeout(_sectionReconfigPlayTimer);
+        _sectionReconfigPlayTimer = null;
+      }
+      try { getAudioElement()?.pause(); } catch { /* ignore */ }
+    },
+    onTestPlay: ({ startSec, endSec }) => {
+      const audio = getAudioElement?.();
+      if (!audio || !audio.src) {
+        toast('音源がありません');
+        return;
+      }
+      if (_sectionReconfigPlayTimer) {
+        clearTimeout(_sectionReconfigPlayTimer);
+        _sectionReconfigPlayTimer = null;
+      }
+      try {
+        audio.currentTime = Math.max(0, startSec);
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => {});
+        }
+        const durMs = Math.max(0, (endSec - startSec) * 1000);
+        _sectionReconfigPlayTimer = setTimeout(() => {
+          try { audio.pause(); } catch { /* ignore */ }
+          _sectionReconfigPlayTimer = null;
+        }, durMs + 30);
+      } catch (err) {
+        console.warn('[section-reconfig] test play failed', err);
+      }
+    },
+    onCancel: () => {
+      discardSectionReconfiguration({ restoreAudio: true });
+    },
+    onAdopt: async () => {
+      const prep = prepareDraftForAdopt(_sectionReconfigRuntime.draft, {
+        projectId: project?.id ?? null,
+        buffer: analysisEditor.buffer,
+        isEditing: isAnalysisEditing(),
+      });
+      if (!prep.ok) {
+        return { ok: false, message: `採用できません（${prep.reason}）` };
+      }
+      const result = replaceSectionsFromDraftCommand(analysisEditor, prep.sections);
+      if (!result.ok) {
+        return { ok: false, message: `採用できません（${result.reason}）` };
+      }
+      // clear runtime without restoring old sections; keep audio restore
+      _sectionReconfigRuntime.draft = null;
+      _sectionReconfigRuntime.modalOpen = false;
+      const snap = _sectionReconfigRuntime.audioSnapshot;
+      _sectionReconfigRuntime.audioSnapshot = null;
+      _sectionReconfigSpaceShield = false;
+      window.__csSectionReconfigSpaceShield = false;
+      if (_sectionReconfigPlayTimer) {
+        clearTimeout(_sectionReconfigPlayTimer);
+        _sectionReconfigPlayTimer = null;
+      }
+      try { getAudioElement()?.pause(); } catch { /* ignore */ }
+      if (snap) {
+        const audio = getAudioElement?.();
+        try {
+          if (audio && Number.isFinite(snap.timeSec)) audio.currentTime = Math.max(0, snap.timeSec);
+        } catch { /* ignore */ }
+        if (Number.isFinite(snap.speedPct)) {
+          try { setSpeed(snap.speedPct); } catch { /* ignore */ }
+        }
+      }
+      try {
+        _refreshEditorView?.('replaceSectionsFromDraft');
+        renderSectionBar?.();
+      } catch { /* ignore */ }
+      toast(`Sectionを${result.count}件採用しました（未保存）`);
+      return { ok: true };
+    },
   });
 }
 
@@ -3971,10 +4161,12 @@ function renderSectionBar() {
     ${chipsHtml}
     <button class="sec-btn" id="sec-create-btn" title="選択中の範囲からSectionを作成" ${canCreate ? '' : 'disabled'}>＋ 作成</button>
     <button class="sec-btn" id="sec-autogen-btn" title="${sections.length === 0 ? 'コード進行から区切り位置の候補を作成（確認してから採用）' : 'Sectionがある曲は自動生成の対象外です'}" ${sections.length === 0 ? '' : 'disabled'}>✨ 自動生成</button>
+    <button class="sec-btn" id="sec-reconfig-btn" title="既存Sectionを確認・再設定">再設定</button>
   `;
 
   document.getElementById('sec-create-btn')?.addEventListener('click', openSectionModal);
   document.getElementById('sec-autogen-btn')?.addEventListener('click', startSectionAutoGeneration);
+  document.getElementById('sec-reconfig-btn')?.addEventListener('click', () => startSectionReconfiguration());
 
   // [Phase105] チップ本体クリック → Section選択+スクロール+Preview（Navigation）。
   // Phase102時点はPreviewトグルのみだったが、トグルOFFを廃止しNavigationを
@@ -6021,6 +6213,10 @@ function updateChartModeAvailability() {
  * New Project / Load Project の共通処理
  */
 function resetProject() {
+  // [Phase150] Projectデータ破棄前に再設定Draft/Modalを落とす
+  if (typeof discardSectionReconfiguration === 'function') {
+    discardSectionReconfiguration({ restoreAudio: false });
+  }
   // Project Data（createEmptyProject 経由で invariant 保証）
   project = createEmptyProject();
   
@@ -6088,6 +6284,8 @@ async function loadProj(data){
   // generation採番は「最初の同期処理」として行う（Phase73-A確定事項）。
   // いかなる await より前に採番すること。
   // project.id をトークンにしない理由: 同一プロジェクトの連続loadを区別できないため。
+  // [Phase150] 再設定Draft/Modal/編集状態を旧Projectから持ち込まない
+  _cleanupAnalysisEditorForProjectSwitch();
   const myGeneration = ++_loadGeneration;
 
   // [Phase121] loadProj()はAnalysis Editorの外側（project全体）の切替であり、

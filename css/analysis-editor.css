@@ -532,3 +532,28 @@
 .sag-row-info { margin-top: 3px; font-size: 11px; color: var(--text-secondary); min-height: 1em; }
 .sag-warn { margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
 .sag-errors { margin-top: 8px; font-size: 12px; color: #c0392b; min-height: 1em; }
+
+/* Phase150 Section reconfiguration Stage 1 */
+.sr1-root { display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
+.sr1-section-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.sr1-sec-idx { font-weight: 600; margin-right: 8px; }
+.sr1-field { display: flex; flex-direction: column; font-size: 12px; gap: 2px; }
+.sr1-field input, .sr1-field select { min-width: 120px; }
+.sr1-chords {
+  display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto;
+  padding: 8px 4px; max-width: 100%; -webkit-overflow-scrolling: touch;
+  border: 1px solid #ddd; border-radius: 6px; background: #fafafa;
+}
+.sr1-chord {
+  flex: 0 0 auto; min-width: 2.4em; max-width: 4.5em;
+  padding: 6px 4px; font-size: 12px; line-height: 1.2;
+  border: 1px solid #ccc; border-radius: 4px; background: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: pointer;
+}
+.sr1-chord.sr1-in-sec { background: #e8f2ff; border-color: #9bb8e0; }
+.sr1-chord.sr1-boundary { border-color: #c45; border-width: 2px; }
+.sr1-chord.sr1-cursor { outline: 2px solid #246; background: #cde4ff; }
+.sr1-toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
+.sr1-play-hint, .sr1-keys-hint { font-size: 11px; color: #666; }
+.sr1-keys-hint { margin-top: 2px; }

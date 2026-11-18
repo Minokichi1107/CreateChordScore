@@ -27,6 +27,7 @@
 // @property {number} [count]             - 対象件数（成功メッセージの件数表示用。ある場合のみ）
 
 import { pushHistory, refreshSelection, getSections, validateSectionInvariants, reconcile, predictSectionImpact } from './analysisSession.js';
+import { validateGeneratedSectionSet } from './sectionSetValidation.js';
 
 /**
  * _isNoChordEntry — bufferエントリがno_chord（無音）プレースホルダーか判定
@@ -1024,6 +1025,43 @@ export function applyGeneratedSectionsCommand(state, generatedSections) {
   }
 
   // Exactly one history snapshot for the entire generated set.
+  pushHistory(state);
+  state.sections = candidate;
+  return { ok: true, count: candidate.length };
+}
+
+
+/** Phase150: adopt reconfiguration draft (may replace existing sections). */
+export function replaceSectionsFromDraftCommand(state, sections) {
+  if (!state || !state.active || !Array.isArray(state.buffer)) {
+    return { ok: false, reason: 'no-active-editor' };
+  }
+  if (!Array.isArray(sections) || sections.length === 0) {
+    return { ok: false, reason: 'empty-sections' };
+  }
+  const candidate = structuredClone(sections);
+  const ids = new Set();
+  for (const section of candidate) {
+    if (!section || typeof section !== 'object' || Array.isArray(section) ||
+        typeof section.id !== 'string' || !section.id.trim()) {
+      return { ok: false, reason: 'invalid-section-id' };
+    }
+    const allowedKeys = new Set(['id', 'type', 'name', 'startChordId', 'endChordId']);
+    if (Object.keys(section).some(key => !allowedKeys.has(key))) {
+      return { ok: false, reason: 'unknown-section-key' };
+    }
+    if (ids.has(section.id)) return { ok: false, reason: 'duplicate-section-id' };
+    ids.add(section.id);
+    for (const key of ['type', 'name', 'startChordId', 'endChordId']) {
+      if (typeof section[key] !== 'string' || !section[key].trim()) {
+        return { ok: false, reason: `invalid-section-${key}` };
+      }
+    }
+  }
+  const setCheck = validateGeneratedSectionSet(candidate, state.buffer);
+  if (!setCheck.valid) {
+    return { ok: false, reason: setCheck.errors[0]?.reason ?? 'invalid-section-set', errors: setCheck.errors };
+  }
   pushHistory(state);
   state.sections = candidate;
   return { ok: true, count: candidate.length };

@@ -8,7 +8,9 @@
  * policy for *generated sets only*; it is enforced here, not in
  * validateSectionInvariants().
  */
-import { validateSectionInvariants } from './analysisSession.js';
+import { validateGeneratedSectionSet } from './sectionSetValidation.js';
+
+export { validateGeneratedSectionSet } from './sectionSetValidation.js';
 
 export const DEFAULT_GENERATED_SECTION_TYPE = 'other';
 export const DEFAULT_GENERATED_SECTION_NAME = '未設定';
@@ -63,58 +65,8 @@ export function mapBoundariesToChordRanges(bars, buffer, measureOf) {
   return { ok: problems.length === 0, ranges, problems };
 }
 
-/**
- * Validate a *generated* Section set against the chord buffer.
- * Each Section is checked with validateSectionInvariants(); the set must be in
- * time order, non-overlapping, gap-free, and cover buffer[0]..buffer[last].
- *
- * @returns {{valid:boolean, errors:Array<{index?:number,reason:string}>}}
- */
-export function validateGeneratedSectionSet(sections, buffer) {
-  const errors = [];
-  if (!Array.isArray(sections) || sections.length === 0) {
-    return { valid: false, errors: [{ reason: 'empty-set' }] };
-  }
-  if (!Array.isArray(buffer) || buffer.length === 0) {
-    return { valid: false, errors: [{ reason: 'no-buffer' }] };
-  }
+/** validateGeneratedSectionSet — re-exported from sectionSetValidation.js (Phase150) */
 
-  const ids = new Set();
-  const spans = [];
-  sections.forEach((section, index) => {
-    if (!section || typeof section.id !== 'string' || !section.id.trim()) {
-      errors.push({ index, reason: 'invalid-section-id' }); return;
-    }
-    if (ids.has(section.id)) errors.push({ index, reason: 'duplicate-section-id' });
-    ids.add(section.id);
-    for (const key of ['type', 'name']) {
-      if (typeof section[key] !== 'string' || !section[key].trim()) {
-        errors.push({ index, reason: `invalid-section-${key}` });
-      }
-    }
-    const check = validateSectionInvariants(section, buffer);
-    if (!check.valid) { errors.push({ index, reason: check.reason }); return; }
-    spans.push({
-      index,
-      start: buffer.findIndex(c => c._id === section.startChordId),
-      end: buffer.findIndex(c => c._id === section.endChordId),
-    });
-  });
-  if (errors.length > 0) return { valid: false, errors };
-
-  if (spans[0].start !== 0) errors.push({ index: 0, reason: 'first-section-not-at-start' });
-  for (let i = 1; i < spans.length; i++) {
-    const prev = spans[i - 1];
-    const cur = spans[i];
-    if (cur.start <= prev.start) errors.push({ index: cur.index, reason: 'not-in-time-order' });
-    else if (cur.start <= prev.end) errors.push({ index: cur.index, reason: 'overlaps-previous' });
-    else if (cur.start > prev.end + 1) errors.push({ index: cur.index, reason: 'gap-before' });
-  }
-  if (spans[spans.length - 1].end !== buffer.length - 1) {
-    errors.push({ index: spans.length - 1, reason: 'last-section-not-at-end' });
-  }
-  return { valid: errors.length === 0, errors };
-}
 
 /**
  * Convert a user-editable draft into a Section array ready for

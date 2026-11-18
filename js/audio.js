@@ -187,6 +187,7 @@ _audioElement.addEventListener('play', () => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     
     if (e.code === 'Space') {
+      if (window.__csSectionReconfigSpaceShield) return;
       e.preventDefault();
       if (_audioElement.src) {
         _audioElement.paused ? _audioElement.play() : _audioElement.pause();

@@ -136,6 +136,9 @@ Section = {
 Phase140で日本式の音楽構成名を追加した。既存のEnglish typeを置き換えるものではなく、
 **English typeと日本式typeは別のtype identityとして扱う**。
 
+
+- **`other`（その他 / Other）**: 言語共通の保存値。`jp-other` は設けない。
+
 - English: `verse`, `chorus`, `bridge` など既存typeを維持
 - 日本式: `jp-intro`（イントロ）、`jp-a-melo`（Aメロ）、`jp-b-melo`（Bメロ）、`jp-sabi`（サビ）、`jp-ato-sabi`（後サビ）、`jp-kanso`（間奏）、`jp-c-melo`（Cメロ）、`jp-solo`（ソロ）、`jp-break`（ブレイク）、`jp-ochi-sabi`（落ちサビ）、`jp-dai-sabi`（大サビ）、`jp-outro`（アウトロ）
 
