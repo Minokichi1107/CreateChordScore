@@ -129,6 +129,7 @@ import {
   setSpeed,
   getAudioElement,
   flashLine,
+  setSectionReconfigSpaceShield,
 } from './audio.js';
 
 import {
@@ -243,6 +244,7 @@ import {
   createReconfigRuntime,
   teardownReconfigRuntime,
   prepareDraftForAdopt,
+  isDraftDirty,
 } from './sectionReconfiguration.js';
 import { openSectionReconfigurationModal } from './sectionReconfigurationModal.js';
 
@@ -464,38 +466,139 @@ const analysisEditor = createAnalysisSession();
 
 /** Phase150 Section再設定の一時状態（Project切替で破棄。Historyに載せない） */
 let _sectionReconfigRuntime = createReconfigRuntime();
-let _sectionReconfigPlayTimer = null;
+let _sectionReconfigPlayTimer = null; // legacy timer id (cleared for safety)
+let _sectionReconfigRaf = null;
+let _sectionReconfigTimeUpdateHandler = null;
 let _sectionReconfigSpaceShield = false;
+let _sectionReconfigStarting = false;
+let _sectionReconfigModalHandle = null;
 
-function discardSectionReconfiguration(opts = {}) {
+function _setSectionReconfigSpaceShield(on) {
+  _sectionReconfigSpaceShield = !!on;
+  try { setSectionReconfigSpaceShield(!!on); } catch { window.__csSectionReconfigSpaceShield = !!on; }
+}
+
+function _stopSectionReconfigPlaybackMonitor() {
   if (_sectionReconfigPlayTimer) {
     clearTimeout(_sectionReconfigPlayTimer);
     _sectionReconfigPlayTimer = null;
   }
-  const result = teardownReconfigRuntime(_sectionReconfigRuntime, opts);
-  _sectionReconfigSpaceShield = false;
-  if (result.closeModal) {
-    try { closeMod(); } catch { /* ignore */ }
+  if (_sectionReconfigRaf != null) {
+    cancelAnimationFrame(_sectionReconfigRaf);
+    _sectionReconfigRaf = null;
   }
-  const el = typeof getAudioElement === 'function' ? getAudioElement() : null;
-  if (el) {
-    try { el.pause(); } catch { /* ignore */ }
+  const audio = typeof getAudioElement === 'function' ? getAudioElement() : null;
+  if (audio && _sectionReconfigTimeUpdateHandler) {
+    try { audio.removeEventListener('timeupdate', _sectionReconfigTimeUpdateHandler); } catch { /* ignore */ }
   }
-  if (result.restoreAudio && el) {
+  _sectionReconfigTimeUpdateHandler = null;
+}
+
+function _startSectionReconfigPlaybackMonitor(audio, endSec) {
+  _stopSectionReconfigPlaybackMonitor();
+  const epsilon = 0.03; // seconds tolerance
+  const tick = () => {
+    if (!audio) return;
     try {
-      if (Number.isFinite(result.restoreAudio.timeSec)) {
-        el.currentTime = Math.max(0, result.restoreAudio.timeSec);
+      if (audio.paused) {
+        _sectionReconfigRaf = null;
+        return;
+      }
+      if (audio.currentTime >= endSec - epsilon) {
+        try { audio.pause(); } catch { /* ignore */ }
+        _stopSectionReconfigPlaybackMonitor();
+        return;
       }
     } catch { /* ignore */ }
-    if (Number.isFinite(result.restoreAudio.speedPct)) {
-      try { setSpeed(result.restoreAudio.speedPct); } catch { /* ignore */ }
-    }
+    _sectionReconfigRaf = requestAnimationFrame(tick);
+  };
+  _sectionReconfigTimeUpdateHandler = () => {
+    try {
+      if (audio.currentTime >= endSec - epsilon) {
+        try { audio.pause(); } catch { /* ignore */ }
+        _stopSectionReconfigPlaybackMonitor();
+      }
+    } catch { /* ignore */ }
+  };
+  try { audio.addEventListener('timeupdate', _sectionReconfigTimeUpdateHandler); } catch { /* ignore */ }
+  _sectionReconfigRaf = requestAnimationFrame(tick);
+}
+
+/** Re-entrancy guard for closeSectionReconfiguration */
+let _sectionReconfigClosing = false;
+
+/**
+ * closeSectionReconfiguration — 終了経路を一元化（cancel/esc/adopt/project-switch）
+ * 冪等。複数回呼んでも安全。
+ *
+ * 責任分担:
+ * - Modal handle.cleanup(): keydown解除・Spaceシールド解除・再生監視停止
+ * - この関数: Draft破棄・closeMod・再生位置/速度の復元方針
+ */
+function closeSectionReconfiguration(reason = 'cancel', opts = {}) {
+  if (_sectionReconfigClosing) {
+    return { reason, restoredAudio: false, skipped: true };
   }
-  return result;
+  _sectionReconfigClosing = true;
+  try {
+    const restoreAudio = opts.restoreAudio !== false && reason !== 'project-switch';
+    const snap = _sectionReconfigRuntime.audioSnapshot;
+    const wasOpen = _sectionReconfigRuntime.modalOpen || _sectionReconfigRuntime.draft != null;
+
+    // F1: always detach modal listeners before tearing down runtime
+    const handle = _sectionReconfigModalHandle;
+    _sectionReconfigModalHandle = null;
+    try {
+      if (handle && typeof handle.cleanup === 'function') handle.cleanup();
+      else if (handle && typeof handle.forceClose === 'function') {
+        // forceClose also runs onClose; suppress parent re-entry via guard
+        handle.forceClose();
+      }
+    } catch { /* ignore */ }
+
+    _stopSectionReconfigPlaybackMonitor();
+    _setSectionReconfigSpaceShield(false);
+
+    teardownReconfigRuntime(_sectionReconfigRuntime, { restoreAudio: false });
+    _sectionReconfigRuntime.closed = true;
+
+    if (wasOpen) {
+      try { closeMod(); } catch { /* ignore */ }
+    }
+
+    const el = typeof getAudioElement === 'function' ? getAudioElement() : null;
+    if (el) {
+      try { el.pause(); } catch { /* ignore */ }
+    }
+
+    if (restoreAudio && snap && el) {
+      try {
+        if (Number.isFinite(snap.timeSec)) el.currentTime = Math.max(0, snap.timeSec);
+      } catch { /* ignore */ }
+      if (Number.isFinite(snap.speedPct)) {
+        try { setSpeed(snap.speedPct); } catch { /* ignore */ }
+      }
+    } else if (reason === 'project-switch' && snap && Number.isFinite(snap.speedPct)) {
+      try { setSpeed(snap.speedPct); } catch { /* ignore */ }
+    }
+
+    return { reason, restoredAudio: !!(restoreAudio && snap) };
+  } finally {
+    _sectionReconfigClosing = false;
+  }
+}
+
+/** @deprecated use closeSectionReconfiguration */
+function discardSectionReconfiguration(opts = {}) {
+  return closeSectionReconfiguration(
+    opts.restoreAudio === false ? 'project-switch' : 'cancel',
+    { restoreAudio: opts.restoreAudio !== false }
+  );
 }
 
 function _cleanupAnalysisEditorForProjectSwitch() {
-  discardSectionReconfiguration({ restoreAudio: false });
+  // Project switch: force modal listener cleanup + no time restore
+  closeSectionReconfiguration('project-switch', { restoreAudio: false });
   if (typeof isAnalysisEditing === 'function' && isAnalysisEditing()) {
     resetAnalysisEditor();
   }
@@ -2857,7 +2960,7 @@ async function backfillContentEditProvenance() {
  *   編集モードのまま継続（データ消失防止）
  */
 async function saveAnalysisEdit() {
-  if (!isAnalysisEditing()) return;
+  if (!isAnalysisEditing()) return false;
 
   const errors = typeof validateAnalysis === 'function'
     ? validateAnalysis(analysisEditor.buffer)
@@ -2865,7 +2968,7 @@ async function saveAnalysisEdit() {
 
   if (errors.length > 0) {
     toast(`⚠ 保存できません: ${errors[0]}`);
-    return;
+    return false;
   }
 
   // [SAVE GUARD] 編集開始時の検査（evaluateAnalysisEditStart）だけに頼らず、保存の直前にも
@@ -2873,7 +2976,7 @@ async function saveAnalysisEdit() {
   // （元の値を黙って消さない）。何も変更せずに中止する。
   if (!checkRawSectionsShape(project.analysis.raw).ok) {
     _notifyBlocking(INVALID_SECTIONS_SAVE_MESSAGE);
-    return;
+    return false;
   }
 
   // [COMMIT AFTER PERSIST] 保存する内容は、まず「候補」として別オブジェクトに作り、
@@ -2900,7 +3003,7 @@ async function saveAnalysisEdit() {
   const saveResult = await saveAnalysisFile(project.id, candidateRaw, project.analysis.repairRule ?? null, undefined, _analysisNameHint(project));
   if (saveResult !== 'ok') {
     toast('⚠ 保存に失敗しました。編集内容は失われていません');
-    return;
+    return false;
   }
 
   // 永続化に成功したので、メモリ上の正本へ反映する（既存の参照を保つため、その場で更新する）。
@@ -2929,6 +3032,7 @@ async function saveAnalysisEdit() {
   renderAnalysisEditorPanel();
   renderSectionBar(); // Phase101-1
   toast('✅ 解析データを保存しました');
+  return true;
 }
 
 /**
@@ -3218,55 +3322,129 @@ async function _checkSectionAutoGenEligibility() {
  * startSectionReconfiguration — 既存SectionをDraftとして再設定UIを開く（Phase150 Stage1）
  * 既存 analysisEditor.sections は採用まで変更しない。
  */
-function startSectionReconfiguration() {
+/**
+ * startSectionReconfiguration — 既存SectionをDraftとして再設定UIを開く（Phase150 Stage1）
+ * 既存 analysisEditor.sections は採用まで変更しない。
+ */
+async function startSectionReconfiguration() {
   if (!isAnalysisEditing()) {
     toast('解析編集モードで開いてください');
     return;
   }
-  if (_sectionReconfigRuntime.modalOpen) return;
+  if (_sectionReconfigRuntime.modalOpen || _sectionReconfigStarting) return;
 
   const buffer = analysisEditor.buffer;
   if (!Array.isArray(buffer) || buffer.length === 0) {
     toast('コードがありません');
     return;
   }
-  // 現在の session sections（未保存のSection編集含む）からDraft生成。既存配列は触らない。
+
+  // 未保存コード編集: buffer と 保存済み raw.chords を比較（dirtyフラグに依存しない）
+  const savedChords = project?.analysis?.raw?.chords;
+  if (Array.isArray(savedChords) && hasSectionGenerationCodeEdits(buffer, savedChords)) {
+    const ok = window.confirm(
+      '未保存のコード編集があります。保存してからSection再設定を開始しますか？\n\n' +
+      '「保存すると元に戻す履歴はリセットされます」\n\n' +
+      'OK = 保存して続ける / キャンセル = 開始しない'
+    );
+    if (!ok) return;
+    _sectionReconfigStarting = true;
+    try {
+      const saved = await saveAnalysisEdit();
+      if (!saved) {
+        toast('保存に失敗したため、Section再設定を開始できません');
+        return;
+      }
+      // 保存成功後は編集セッションが終了している。再設定のため再開する。
+      if (!isAnalysisEditing()) {
+        beginAnalysisEdit();
+      }
+      if (!isAnalysisEditing()) {
+        toast('解析編集を再開できないため、Section再設定を開始できません');
+        return;
+      }
+    } finally {
+      _sectionReconfigStarting = false;
+    }
+  }
+
+  if (_sectionReconfigRuntime.modalOpen) return;
+
   const currentSections = Array.isArray(analysisEditor.sections)
     ? structuredClone(analysisEditor.sections)
     : [];
+
+  // Draft seed:
+  // - existing sections → keep them (never destroy until adopt)
+  // - empty → run existing boundary detection into Draft candidates
+  let seedSections = currentSections;
+  if (!seedSections.length) {
+    try {
+      const vm = chartState.viewModel;
+      const model = vm?.model;
+      if (model && model.mode !== 'fallback' && Array.isArray(vm.measures) && vm.measures.length > 0) {
+        const measureCount = vm.measures.length;
+        const measureOf = (chord) => {
+          const q = model.quantize(chord.start);
+          return q.measure >= 0 && q.measure < measureCount ? q.measure : null;
+        };
+        const intervals = vm.measures.map(m => ({ start: m.startTime, end: m.endTime }));
+        const detected = detectSectionBoundaries(buffer, intervals);
+        const autoDraft = createDraftFromBoundaries(detected.bars, detected.diagnostics);
+        const built = buildSectionsFromDraft(autoDraft, buffer, measureOf);
+        if (built.ok && built.sections.length) {
+          seedSections = built.sections;
+        }
+      }
+    } catch (err) {
+      console.warn('[section-reconfig] auto candidate seed failed', err);
+    }
+    // Fallback: single full-span section so the user can still split manually
+    if (!seedSections.length && buffer.length) {
+      seedSections = [{
+        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sec-${Date.now()}`,
+        type: 'other',
+        name: '未設定',
+        startChordId: buffer[0]._id,
+        endChordId: buffer[buffer.length - 1]._id,
+      }];
+    }
+  }
+
   const draft = createReconfigurationDraft({
     projectId: project?.id ?? null,
     buffer,
-    sections: currentSections,
+    sections: seedSections,
   });
 
+  // Snapshot then stop normal playback (modal open must not continue background play)
   const el = getAudioElement?.();
   const speedPct = el && Number.isFinite(el.playbackRate)
     ? Math.round(el.playbackRate * 100)
     : 100;
   const timeSec = el && Number.isFinite(el.currentTime) ? el.currentTime : 0;
+  try { el?.pause(); } catch { /* ignore */ }
 
   _sectionReconfigRuntime.draft = draft;
   _sectionReconfigRuntime.audioSnapshot = { timeSec, speedPct };
   _sectionReconfigRuntime.modalOpen = true;
+  _sectionReconfigRuntime.closed = false;
 
   const types = typeof SECTION_TYPES !== 'undefined'
     ? SECTION_TYPES.map(x => ({ value: x.value, label: _sectionTypeLabel(x.value, _loadSectionTypeGroup()) }))
     : [{ value: 'other', label: 'その他' }];
 
-  openSectionReconfigurationModal({
+  _sectionReconfigModalHandle = openSectionReconfigurationModal({
     openModal,
     mkMBtn,
     draft,
-    buffer,
+    buffer: analysisEditor.buffer,
     sectionTypes: types,
-    onKeyShield: () => { _sectionReconfigSpaceShield = true; window.__csSectionReconfigSpaceShield = true; },
-    onKeyUnshield: () => { _sectionReconfigSpaceShield = false; window.__csSectionReconfigSpaceShield = false; },
+    generateSectionName: (type) => _generateSectionName(type),
+    onKeyShield: () => { _setSectionReconfigSpaceShield(true); },
+    onKeyUnshield: () => { _setSectionReconfigSpaceShield(false); },
     onTestStop: () => {
-      if (_sectionReconfigPlayTimer) {
-        clearTimeout(_sectionReconfigPlayTimer);
-        _sectionReconfigPlayTimer = null;
-      }
+      _stopSectionReconfigPlaybackMonitor();
       try { getAudioElement()?.pause(); } catch { /* ignore */ }
     },
     onTestPlay: ({ startSec, endSec }) => {
@@ -3275,27 +3453,45 @@ function startSectionReconfiguration() {
         toast('音源がありません');
         return;
       }
-      if (_sectionReconfigPlayTimer) {
-        clearTimeout(_sectionReconfigPlayTimer);
-        _sectionReconfigPlayTimer = null;
-      }
+      _stopSectionReconfigPlaybackMonitor();
       try {
         audio.currentTime = Math.max(0, startSec);
         const playPromise = audio.play();
         if (playPromise && typeof playPromise.catch === 'function') {
           playPromise.catch(() => {});
         }
-        const durMs = Math.max(0, (endSec - startSec) * 1000);
-        _sectionReconfigPlayTimer = setTimeout(() => {
-          try { audio.pause(); } catch { /* ignore */ }
-          _sectionReconfigPlayTimer = null;
-        }, durMs + 30);
+        _startSectionReconfigPlaybackMonitor(audio, endSec);
       } catch (err) {
         console.warn('[section-reconfig] test play failed', err);
       }
     },
-    onCancel: () => {
-      discardSectionReconfiguration({ restoreAudio: true });
+    confirmChoice: async (message, choices) => {
+      // Native confirm: first choice = OK, second = cancel
+      const ok = window.confirm(message);
+      return ok ? (choices?.[0]?.value ?? 'discard') : (choices?.[1]?.value ?? 'stay');
+    },
+    onClose: (reason) => {
+      if (reason === 'adopt') {
+        // adopt path already applied sections; only audio restore + shield clear
+        _stopSectionReconfigPlaybackMonitor();
+        _setSectionReconfigSpaceShield(false);
+        const snap = _sectionReconfigRuntime.audioSnapshot;
+        _sectionReconfigRuntime.draft = null;
+        _sectionReconfigRuntime.modalOpen = false;
+        _sectionReconfigRuntime.audioSnapshot = null;
+        const audio = getAudioElement?.();
+        try { audio?.pause(); } catch { /* ignore */ }
+        if (snap && audio) {
+          try {
+            if (Number.isFinite(snap.timeSec)) audio.currentTime = Math.max(0, snap.timeSec);
+          } catch { /* ignore */ }
+          if (Number.isFinite(snap.speedPct)) {
+            try { setSpeed(snap.speedPct); } catch { /* ignore */ }
+          }
+        }
+        return;
+      }
+      closeSectionReconfiguration(reason || 'cancel', { restoreAudio: true });
     },
     onAdopt: async () => {
       const prep = prepareDraftForAdopt(_sectionReconfigRuntime.draft, {
@@ -3309,27 +3505,6 @@ function startSectionReconfiguration() {
       const result = replaceSectionsFromDraftCommand(analysisEditor, prep.sections);
       if (!result.ok) {
         return { ok: false, message: `採用できません（${result.reason}）` };
-      }
-      // clear runtime without restoring old sections; keep audio restore
-      _sectionReconfigRuntime.draft = null;
-      _sectionReconfigRuntime.modalOpen = false;
-      const snap = _sectionReconfigRuntime.audioSnapshot;
-      _sectionReconfigRuntime.audioSnapshot = null;
-      _sectionReconfigSpaceShield = false;
-      window.__csSectionReconfigSpaceShield = false;
-      if (_sectionReconfigPlayTimer) {
-        clearTimeout(_sectionReconfigPlayTimer);
-        _sectionReconfigPlayTimer = null;
-      }
-      try { getAudioElement()?.pause(); } catch { /* ignore */ }
-      if (snap) {
-        const audio = getAudioElement?.();
-        try {
-          if (audio && Number.isFinite(snap.timeSec)) audio.currentTime = Math.max(0, snap.timeSec);
-        } catch { /* ignore */ }
-        if (Number.isFinite(snap.speedPct)) {
-          try { setSpeed(snap.speedPct); } catch { /* ignore */ }
-        }
       }
       try {
         _refreshEditorView?.('replaceSectionsFromDraft');
@@ -4160,8 +4335,7 @@ function renderSectionBar() {
     <span class="sec-label">Sections</span>
     ${chipsHtml}
     <button class="sec-btn" id="sec-create-btn" title="選択中の範囲からSectionを作成" ${canCreate ? '' : 'disabled'}>＋ 作成</button>
-    <button class="sec-btn" id="sec-autogen-btn" title="${sections.length === 0 ? 'コード進行から区切り位置の候補を作成（確認してから採用）' : 'Sectionがある曲は自動生成の対象外です'}" ${sections.length === 0 ? '' : 'disabled'}>✨ 自動生成</button>
-    <button class="sec-btn" id="sec-reconfig-btn" title="既存Sectionを確認・再設定">再設定</button>
+    <button class="sec-btn" id="sec-setup-btn" title="Sectionを自動候補から設定・編集する">Section設定</button>
   `;
 
   document.getElementById('sec-create-btn')?.addEventListener('click', openSectionModal);
@@ -5906,8 +6080,11 @@ function handleAddChordToLine(chord) {
 // 指定がないモーダルは従来どおり closeMod() で即時に閉じる（既存モーダルの挙動は変えない）。
 let _modalRequestClose = null;
 function closeMod(){_modalRequestClose=null;mOv.classList.remove('open');mBody.innerHTML='';mBtns.innerHTML='';const box=document.getElementById('modal-box');if(box)box.style.transform='';}   // [Phase148] ドラッグ移動した位置は閉じたら必ず中央へ戻す
-function requestCloseMod(){
-  if (_modalRequestClose) { _modalRequestClose(); return; }
+function requestCloseMod(source = 'unknown'){
+  if (typeof _modalRequestClose === 'function') {
+    _modalRequestClose(source);
+    return;
+  }
   closeMod();
 }
 // [Phase83] 背景クリックで閉じる判定をclickのみからmousedown+click両方が
@@ -5916,7 +6093,7 @@ function requestCloseMod(){
 let _mOvMouseDownOnOverlay = false;
 mOv.addEventListener('mousedown', e => { _mOvMouseDownOnOverlay = (e.target === mOv); });
 mOv.addEventListener('click', e => {
-  if (e.target === mOv && _mOvMouseDownOnOverlay) requestCloseMod();
+  if (e.target === mOv && _mOvMouseDownOnOverlay) requestCloseMod('overlay');
   _mOvMouseDownOnOverlay = false;
 });
 function mkMBtn(txt,cls,fn){const b=document.createElement('button');b.className=`mbtn ${cls||''}`;b.textContent=txt;b.addEventListener('click',fn);return b;}
@@ -7006,7 +7183,7 @@ function setupEventHandlers() {
     // INPUT/TEXTAREA フォーカス中でも diagLock 解除は動作させる
     if (e.key === 'Escape') {
       if (document.getElementById('modal-ov').classList.contains('open')) {
-        requestCloseMod();
+        requestCloseMod('escape');
         return;
       }
       // [Phase101-3] Section ▼メニューはModalの次に優先する。通常の遷移では
@@ -7159,7 +7336,23 @@ function setupEventHandlers() {
     // （Phase75の単一削除に、今回初めてDelete/Backspaceキーが付いたことになる）。
     if (isAnalysisEditing()) {
       const tag = document.activeElement?.tagName;
-      const inTextInput = tag === 'INPUT' || tag === 'TEXTAREA';
+      const inTextInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+      // Phase150: Section再設定モーダル表示中は背後のEditor操作をブロック
+      if (_sectionReconfigRuntime?.modalOpen) {
+        const blockKeys =
+          e.key === 'Delete' || e.key === 'Backspace' ||
+          ((e.ctrlKey || e.metaKey) && ['x','X','v','V','z','Z','y','Y'].includes(e.key));
+        if (blockKeys && !inTextInput) {
+          e.preventDefault();
+          return;
+        }
+        // Arrow chord boundary shifts also blocked while modal open
+        if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !inTextInput) {
+          e.preventDefault();
+          return;
+        }
+      }
 
       if (!inTextInput && e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
@@ -7240,7 +7433,8 @@ function setupEventHandlers() {
     //              （選択数に関わらず全体移動を優先する）
     if (isAnalysisEditing() && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (_sectionReconfigRuntime?.modalOpen) return;
       e.preventDefault();
       const step  = e.shiftKey ? 0.5 : 0.1;
       const delta = (e.key === 'ArrowLeft') ? -step : step;

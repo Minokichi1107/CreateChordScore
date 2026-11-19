@@ -557,3 +557,17 @@
 .sr1-toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
 .sr1-play-hint, .sr1-keys-hint { font-size: 11px; color: #666; }
 .sr1-keys-hint { margin-top: 2px; }
+
+/* Phase150 Stage1 — invalid section banner */
+.sr1-invalid {
+  background: #fff3f3;
+  border: 1px solid #e99;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.sr1-invalid-title { font-weight: 600; margin-bottom: 4px; color: #a33; }
+.sr1-invalid-list { margin: 0; padding-left: 1.2em; }
+.sr1-sec-invalid { color: #a33; font-size: 12px; margin-top: 6px; }
+.sr1-danger { color: #a33; border-color: #e99; }

@@ -1,5 +1,5 @@
 /**
- * Section reconfiguration Draft (Phase150).
+ * Section reconfiguration Draft (Phase150 Stage1).
  * Independent of analysisEditor until adopt.
  */
 import { validateGeneratedSectionSet } from './sectionSetValidation.js';
@@ -30,6 +30,63 @@ export function orderSectionsOnBuffer(sections, buffer) {
     return a.i - b.i;
   });
   return rows;
+}
+
+/**
+ * Diagnose a single section against buffer.
+ * @returns {{ valid: boolean, reasons: string[], start: number, end: number, repairableByBoundary: boolean }}
+ */
+export function diagnoseDraftSection(section, buffer) {
+  const reasons = [];
+  if (!section || typeof section !== 'object') {
+    return { valid: false, reasons: ['missing-section'], start: -1, end: -1, repairableByBoundary: false };
+  }
+  if (typeof section.id !== 'string' || !section.id.trim()) reasons.push('invalid-section-id');
+  if (typeof section.type !== 'string' || !section.type.trim()) reasons.push('invalid-section-type');
+  if (typeof section.name !== 'string' || !section.name.trim()) reasons.push('invalid-section-name');
+  if (!section.startChordId) reasons.push('missing-startChordId');
+  if (!section.endChordId) reasons.push('missing-endChordId');
+  const start = chordIndex(buffer, section.startChordId);
+  const end = chordIndex(buffer, section.endChordId);
+  if (section.startChordId && start < 0) reasons.push('start-chord-not-found');
+  if (section.endChordId && end < 0) reasons.push('end-chord-not-found');
+  if (start >= 0 && end >= 0 && start > end) reasons.push('start-after-end');
+  const inv = validateSectionInvariants(section, buffer);
+  if (!inv.valid && !reasons.includes(inv.reason)) reasons.push(inv.reason);
+  const valid = reasons.length === 0 && start >= 0 && end >= 0 && start <= end;
+  // Boundary repair only possible when both chord IDs resolve and start<=end is achievable
+  const repairableByBoundary = start >= 0 && end >= 0;
+  return { valid, reasons, start, end, repairableByBoundary };
+}
+
+export function diagnoseDraftSections(draft, buffer) {
+  const sections = draft?.sections || [];
+  const idCounts = new Map();
+  for (const section of sections) {
+    const id = section?.id;
+    if (typeof id === 'string' && id.trim()) {
+      idCounts.set(id, (idCounts.get(id) || 0) + 1);
+    }
+  }
+  return sections.map((section, index) => {
+    const base = diagnoseDraftSection(section, buffer);
+    const reasons = [...base.reasons];
+    const id = section?.id;
+    if (typeof id === 'string' && id.trim() && (idCounts.get(id) || 0) > 1) {
+      if (!reasons.includes('duplicate-section-id')) reasons.push('duplicate-section-id');
+    }
+    const valid = reasons.length === 0 && base.start >= 0 && base.end >= 0 && base.start <= base.end;
+    return {
+      index,
+      id: id ?? null,
+      section,
+      start: base.start,
+      end: base.end,
+      reasons,
+      valid,
+      repairableByBoundary: base.repairableByBoundary && !reasons.includes('duplicate-section-id'),
+    };
+  });
 }
 
 export function buildDraftSectionsFromCurrent(buffer, sections, newId = () => crypto.randomUUID()) {
@@ -67,6 +124,7 @@ export function buildDraftSectionsFromCurrent(buffer, sections, newId = () => cr
     });
     gapsFilled += 1;
   }
+  // Keep invalid sections visible (do not auto-repair / drop silently)
   for (const row of ordered.filter(r => !r.valid)) {
     result.push({
       id: row.section.id, type: row.section.type, name: row.section.name,
@@ -78,16 +136,28 @@ export function buildDraftSectionsFromCurrent(buffer, sections, newId = () => cr
 
 export function createReconfigurationDraft({ projectId, buffer, sections, newId }) {
   const built = buildDraftSectionsFromCurrent(buffer, sections, newId);
+  const sectionsClone = built.sections;
   return {
     projectId: projectId ?? null,
     bufferSnapshot: structuredClone(buffer),
-    sections: built.sections,
+    sections: sectionsClone,
+    sectionsBaseline: cloneSections(sectionsClone),
     gapsFilled: built.gapsFilled,
     overlapCount: built.overlapCount,
     invalidCount: built.invalidCount,
     undoStack: [],
     redoStack: [],
   };
+}
+
+/** True if draft sections differ from the baseline taken at open time. */
+export function isDraftDirty(draft) {
+  if (!draft) return false;
+  try {
+    return JSON.stringify(draft.sections) !== JSON.stringify(draft.sectionsBaseline ?? []);
+  } catch {
+    return true;
+  }
 }
 
 function snap(draft) { return cloneSections(draft.sections); }
@@ -158,55 +228,180 @@ export function splitDraftSection(draft, sectionId, endChordIdOfFirst, buffer, n
   return { ok: true, front, back };
 }
 
-export function updateDraftSection(draft, sectionId, patch = {}) {
+export function updateDraftSection(draft, sectionId, patch = {}, opts = {}) {
   if (!draft) return { ok: false, reason: 'no-draft' };
   const idx = draft.sections.findIndex(s => s.id === sectionId);
   if (idx < 0) return { ok: false, reason: 'section-not-found' };
   pushDraftUndo(draft);
   const cur = draft.sections[idx];
-  draft.sections[idx] = {
-    ...cur,
-    ...(patch.name !== undefined ? { name: patch.name } : {}),
-    ...(patch.type !== undefined ? { type: patch.type } : {}),
-    ...(patch.startChordId !== undefined ? { startChordId: patch.startChordId } : {}),
-    ...(patch.endChordId !== undefined ? { endChordId: patch.endChordId } : {}),
-  };
+  const next = { ...cur };
+  if (patch.startChordId !== undefined) next.startChordId = patch.startChordId;
+  if (patch.endChordId !== undefined) next.endChordId = patch.endChordId;
+  if (patch.name !== undefined) {
+    next.name = patch.name;
+    // Explicit name edits lock auto type→name linking unless caller opts out
+    if (opts.fromUserNameEdit !== false) next.nameUserEdited = true;
+  }
+  if (patch.type !== undefined) {
+    next.type = patch.type;
+    // Auto-fill name when user has not manually edited it
+    if (!next.nameUserEdited && typeof opts.defaultNameForType === 'function') {
+      next.name = opts.defaultNameForType(patch.type);
+    }
+  }
+  if (patch.nameUserEdited !== undefined) next.nameUserEdited = !!patch.nameUserEdited;
+  draft.sections[idx] = next;
   return { ok: true };
 }
 
-/** B-method: set end of section at sectionIndex to chord index; shift following boundaries. */
+/**
+ * Delete a draft section (typically invalid / unrepairable). Draft-only.
+ * Does not auto-fill gaps; adopt validation will reject incomplete coverage.
+ */
+/**
+ * Delete exactly one draft section by array index (safe with duplicate IDs).
+ * @param {object} draft
+ * @param {number} sectionIndex
+ */
+export function deleteDraftSectionAt(draft, sectionIndex) {
+  if (!draft) return { ok: false, reason: 'no-draft' };
+  if (!Number.isInteger(sectionIndex) || sectionIndex < 0 || sectionIndex >= draft.sections.length) {
+    return { ok: false, reason: 'bad-index' };
+  }
+  pushDraftUndo(draft);
+  draft.sections = draft.sections.slice(0, sectionIndex).concat(draft.sections.slice(sectionIndex + 1));
+  return { ok: true };
+}
+
+/** @deprecated Prefer deleteDraftSectionAt — ID filter removes all duplicates. */
+export function deleteDraftSection(draft, sectionId) {
+  if (!draft) return { ok: false, reason: 'no-draft' };
+  const idx = draft.sections.findIndex(s => s.id === sectionId);
+  if (idx < 0) return { ok: false, reason: 'section-not-found' };
+  return deleteDraftSectionAt(draft, idx);
+}
+
+/**
+ * Set end of section at draft.sections[sectionIndex] to endChordIndex (B-method).
+ *
+ * Rules (Phase150 Stage1 fix):
+ * - Shared boundary with the next time-ordered valid neighbour only.
+ * - Moving A's end left/right adjusts only B's start by the same shared boundary
+ *   (B.start = A.end + 1). No cascade to later sections.
+ * - Reject if A or B would become shorter than 1 chord.
+ * - Reject if move would cross beyond B's current end (must move B first).
+ * - Last section's end is fixed at buffer end; left/right moves rejected.
+ * - Local overlap repair: A may end just before B.start without changing B's range
+ *   when they currently overlap and the new end is strictly before B.start.
+ * - Invalid sections are not rewritten by this operation; operate on valid pairs only.
+ */
 export function setDraftSectionEndByChordIndex(draft, sectionIndex, endChordIndex, buffer) {
   if (!draft || !Array.isArray(buffer)) return { ok: false, reason: 'bad-args' };
   if (sectionIndex < 0 || sectionIndex >= draft.sections.length) return { ok: false, reason: 'bad-index' };
   if (endChordIndex < 0 || endChordIndex >= buffer.length) return { ok: false, reason: 'bad-chord' };
-  const ordered = orderSectionsOnBuffer(draft.sections, buffer).filter(r => r.valid);
-  if (ordered.length !== draft.sections.length) return { ok: false, reason: 'invalid-present' };
-  // work on ordered list by time
-  const secs = ordered.map(r => ({ ...r.section, _s: r.start, _e: r.end }));
-  if (sectionIndex >= secs.length) return { ok: false, reason: 'bad-index' };
-  const start = secs[sectionIndex]._s;
-  if (endChordIndex < start) return { ok: false, reason: 'end-before-start' };
-  // last section must end at buffer end when adopting; while editing allow intermediate
-  pushDraftUndo(draft);
-  secs[sectionIndex]._e = endChordIndex;
-  secs[sectionIndex].endChordId = buffer[endChordIndex]._id;
-  // If next section starts before or at new end, push next start to end+1
-  for (let i = sectionIndex + 1; i < secs.length; i++) {
-    const minStart = secs[i - 1]._e + 1;
-    if (minStart >= buffer.length) {
-      // drop remaining sections — keep for user fix
-      break;
+
+  const target = draft.sections[sectionIndex];
+  const allDiag = diagnoseDraftSections(draft, buffer);
+  const diag = allDiag[sectionIndex];
+  if (!diag || !diag.valid) return { ok: false, reason: 'section-invalid', details: diag?.reasons };
+
+  const aStart = diag.start;
+  const aEnd = diag.end;
+  if (endChordIndex < aStart) return { ok: false, reason: 'end-before-start' };
+
+  // Immediate neighbour in buffer time order (includes invalids that have any chord span).
+  // Sort key: start if known, else end if known, else stable index (keeps unresolved near place).
+  const positioned = allDiag
+    .map(r => ({
+      ...r,
+      sortKey: r.start >= 0 ? r.start : (r.end >= 0 ? r.end : Number.MAX_SAFE_INTEGER),
+    }))
+    .slice()
+    .sort((a, b) => a.sortKey - b.sortKey || a.index - b.index);
+  const ordPos = positioned.findIndex(r => r.index === sectionIndex);
+  if (ordPos < 0) return { ok: false, reason: 'section-not-in-order' };
+
+  const isLast = ordPos === positioned.length - 1;
+  if (isLast) {
+    // Last section's song-end is fixed: cannot move end past / short of song end as a
+    // pure end-move. BUT placing a boundary *inside* the last section must SPLIT it.
+    if (endChordIndex === aEnd) return { ok: true, noop: true };
+    if (endChordIndex < aStart) return { ok: false, reason: 'end-before-start' };
+    if (endChordIndex >= aEnd) {
+      // Would extend beyond current last end (song end) — refuse
+      return { ok: false, reason: 'last-section-end-fixed' };
     }
-    if (secs[i]._s < minStart) {
-      secs[i]._s = minStart;
-      secs[i].startChordId = buffer[minStart]._id;
-      if (secs[i]._e < secs[i]._s) {
-        secs[i]._e = secs[i]._s;
-        secs[i].endChordId = buffer[secs[i]._e]._id;
-      }
-    }
+    // Split last section at endChordIndex: front keeps id; back gets new id
+    const newStart = endChordIndex + 1;
+    if (newStart > aEnd) return { ok: false, reason: 'section-too-short' };
+    pushDraftUndo(draft);
+    const cur = draft.sections[sectionIndex];
+    const front = {
+      ...cur,
+      endChordId: buffer[endChordIndex]._id,
+    };
+    const back = {
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sec-${Date.now()}`,
+      type: cur.type,
+      name: cur.name,
+      startChordId: buffer[newStart]._id,
+      endChordId: buffer[aEnd]._id,
+      // inherit nameUserEdited so type→name linking stays consistent for both halves
+      ...(cur.nameUserEdited ? { nameUserEdited: true } : {}),
+    };
+    const next = draft.sections.slice();
+    next.splice(sectionIndex, 1, front, back);
+    draft.sections = next;
+    return { ok: true, split: true };
   }
-  draft.sections = secs.map(({ _s, _e, ...s }) => s);
+
+  // F5: fully unlocated invalid sections must not be guessed into the timeline.
+  // If any exist, shared-boundary moves (which need a safe neighbour) are refused.
+  const hasUnlocatedInvalid = allDiag.some(
+    r => !r.valid && r.start < 0 && r.end < 0
+  );
+  if (hasUnlocatedInvalid) {
+    return { ok: false, reason: 'unlocated-invalid-section' };
+  }
+
+  const nextRow = positioned[ordPos + 1];
+  // Never skip an invalid neighbour to rewrite a later section
+  if (!nextRow.valid) {
+    return { ok: false, reason: 'neighbour-invalid', details: nextRow.reasons };
+  }
+  const bStart = nextRow.start;
+  const bEnd = nextRow.end;
+
+  // Local overlap repair: allow ending strictly before current B.start without moving B
+  if (aEnd >= bStart && endChordIndex < bStart) {
+    // A shrinks to clear overlap; B unchanged
+    if (endChordIndex < aStart) return { ok: false, reason: 'end-before-start' };
+    // A must remain >= 1 chord
+    if (endChordIndex < aStart) return { ok: false, reason: 'section-too-short' };
+    pushDraftUndo(draft);
+    draft.sections[sectionIndex] = { ...draft.sections[sectionIndex], endChordId: buffer[endChordIndex]._id };
+    return { ok: true, localOverlapRepair: true };
+  }
+
+  // Shared-boundary move: new B.start = endChordIndex + 1
+  const newBStart = endChordIndex + 1;
+  if (newBStart >= buffer.length) return { ok: false, reason: 'no-room-for-next' };
+  // A at least 1 chord: endChordIndex >= aStart (already)
+  // B at least 1 chord: newBStart <= bEnd
+  if (newBStart > bEnd) return { ok: false, reason: 'crosses-next-section-end' };
+  if (endChordIndex < aStart) return { ok: false, reason: 'section-too-short' };
+
+  // If not currently overlapping/adjacent in a simple way, still only touch A and B
+  pushDraftUndo(draft);
+  const bIdx = nextRow.index;
+  draft.sections[sectionIndex] = {
+    ...draft.sections[sectionIndex],
+    endChordId: buffer[endChordIndex]._id,
+  };
+  draft.sections[bIdx] = {
+    ...draft.sections[bIdx],
+    startChordId: buffer[newBStart]._id,
+  };
   return { ok: true };
 }
 
@@ -228,6 +423,18 @@ export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
     if (!section || typeof section !== 'object') return { ok: false, reason: 'invalid-section' };
     if (Object.keys(section).some(k => !ALLOWED.has(k))) return { ok: false, reason: 'unknown-section-key' };
   }
+  // Reject if any diagnosed-invalid section remains (includes duplicate ids)
+  {
+    const list = diagnoseDraftSections({ sections }, buffer);
+    const bad = list.filter(d => !d.valid);
+    if (bad.length) {
+      return {
+        ok: false,
+        reason: 'invalid-section-remaining',
+        errors: bad.map(d => ({ id: d.id, index: d.index, reasons: d.reasons })),
+      };
+    }
+  }
   const check = validateGeneratedSectionSet(sections, buffer);
   if (!check.valid) {
     return { ok: false, reason: check.errors[0]?.reason ?? 'invalid-section-set', errors: check.errors };
@@ -236,7 +443,7 @@ export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
 }
 
 export function createReconfigRuntime() {
-  return { draft: null, audioSnapshot: null, modalOpen: false };
+  return { draft: null, audioSnapshot: null, modalOpen: false, closed: false };
 }
 
 export function teardownReconfigRuntime(runtime, opts = {}) {
@@ -247,6 +454,7 @@ export function teardownReconfigRuntime(runtime, opts = {}) {
   runtime.draft = null;
   runtime.audioSnapshot = null;
   runtime.modalOpen = false;
+  runtime.closed = true;
   return {
     hadDraft, closeModal, pauseAudio: true,
     restoreAudio: restoreAudio && snap ? snap : null,
@@ -256,11 +464,11 @@ export function teardownReconfigRuntime(runtime, opts = {}) {
 
 /** Indices for UI: for each draft section, start/end chord index on buffer. */
 export function draftSectionChordSpans(draft, buffer) {
-  return orderSectionsOnBuffer(draft?.sections || [], buffer).map(r => ({
-    id: r.section?.id,
-    start: r.start,
-    end: r.end,
-    valid: r.valid,
-    section: r.section,
-  }));
+  // Preserve draft.sections array order for UI indexing (not re-sorted).
+  return (draft?.sections || []).map((section, i) => {
+    const start = chordIndex(buffer, section?.startChordId);
+    const end = chordIndex(buffer, section?.endChordId);
+    const valid = start >= 0 && end >= 0 && start <= end;
+    return { id: section?.id, start, end, valid, section, i };
+  });
 }
