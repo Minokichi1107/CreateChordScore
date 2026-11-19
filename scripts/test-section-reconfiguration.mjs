@@ -383,4 +383,49 @@ const st = (b, sections = []) => ({
 }
 
 
+
+// --- name soft-lock related Draft behavior (modal clears soft lock after apply) ---
+{
+  const b = buf(4);
+  const draft = createReconfigurationDraft({
+    projectId: 'p',
+    buffer: b,
+    sections: [
+      { id: 's0', type: 'other', name: '未設定', startChordId: 'k0', endChordId: 'k1' },
+      { id: 's1', type: 'verse', name: 'Verse', startChordId: 'k2', endChordId: 'k3' },
+    ],
+  });
+  const undoBefore = draft.undoStack.length;
+  // Simulate "typed then reverted to same name": no updateDraftSection → no undo growth
+  assert.equal(draft.sections[0].name, '未設定');
+  assert.equal(draft.undoStack.length, undoBefore);
+  assert.equal(!!draft.sections[0].nameUserEdited, false);
+
+  // Commit a real name change
+  updateDraftSection(draft, 's0', { name: 'サビ' }, { fromUserNameEdit: true });
+  assert.equal(draft.sections[0].name, 'サビ');
+  assert.equal(draft.sections[0].nameUserEdited, true);
+  assert.equal(draft.undoStack.length, undoBefore + 1);
+
+  // Type change with nameUserEdited: must not auto-rename
+  updateDraftSection(draft, 's0', { type: 'chorus' }, {
+    defaultNameForType: () => 'Chorus',
+  });
+  assert.equal(draft.sections[0].type, 'chorus');
+  assert.equal(draft.sections[0].name, 'サビ'); // not overwritten
+
+  // After undo of type+name chain: restore stepwise
+  assert.equal(undoDraft(draft), true); // undo type
+  assert.equal(undoDraft(draft), true); // undo name
+  assert.equal(draft.sections[0].name, '未設定');
+  assert.equal(!!draft.sections[0].nameUserEdited, false);
+
+  // Type change without nameUserEdited: auto-name applies
+  updateDraftSection(draft, 's0', { type: 'chorus' }, {
+    defaultNameForType: () => 'Chorus',
+  });
+  assert.equal(draft.sections[0].name, 'Chorus');
+}
+
+
 console.log('test-section-reconfiguration: ok');

@@ -229,9 +229,11 @@ export function openSectionReconfigurationModal(p) {
     }
     if (Object.keys(patch).length) {
       updateDraftSection(draft, sec.id, patch, opts);
-      // Name/type committed into Draft (with undo). Soft lock no longer needed.
-      if (patch.name !== undefined) nameInputSoftLock = false;
     }
+    // Always clear soft lock after processing the name field for this section.
+    // Even when the typed value equals the Draft name (no patch.name / no undo),
+    // the lock must not carry over to another section or block later auto-naming.
+    nameInputSoftLock = false;
   }
 
   /** Live type change: update name immediately when not user-edited */
