@@ -12,6 +12,8 @@ import {
   isDraftDirty,
   undoDraft,
   redoDraft,
+  splitDraftAtChordIndex,
+  mergeDraftWithPrevious,
 } from './sectionReconfiguration.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch =>
@@ -46,6 +48,11 @@ const REASON_LABEL = {
   'section-not-in-order': '有効な隣接Sectionとして扱えません',
   'neighbour-invalid': '直後のSectionが不正なため境界を移動できません',
   'unlocated-invalid-section': '位置を特定できない不正Sectionがあるため境界を移動できません',
+  'split-not-inside': '分割位置がSection内部ではありません',
+  'no-previous-section': '結合する前のSectionがありません',
+  'sections-overlap': 'Sectionが重複しているため結合できません',
+  'gap-between-sections': 'Section間に隙間があるため結合できません',
+  'incomplete-section-fields': '名称または種類が未設定のSectionがあります',
 };
 
 /**
@@ -67,14 +74,23 @@ export function openSectionReconfigurationModal(p) {
   const {
     openModal, mkMBtn, draft, buffer, sectionTypes,
     onAdopt, onClose, onTestPlay, onTestStop, onKeyShield, onKeyUnshield, confirmChoice,
-    generateSectionName,
+    generateSectionName, formatChord,
   } = p;
 
   let sectionIdx = 0;
   /** UI-only: name field typed this visit; not written to Draft until change/blur. */
   let nameInputSoftLock = false;
-  let cursor = 0;
-  let playStartOffset = 1;
+  /** Play candidate (click/arrow); not boundary. */
+  let playCandidate = 0;
+  /** Confirmed play start chord index. */
+  let playConfirmed = 0;
+  /** Number of chords to play (1..8). */
+  let playChordCount = 4;
+  let isPlaying = false;
+  /** 'normal' | 'split' */
+  let uiMode = 'normal';
+  /** Chord index for split front-end (within current section). */
+  let splitCandidate = null;
   let busy = false;
   let message = '';
   let root = null;
@@ -86,35 +102,57 @@ export function openSectionReconfigurationModal(p) {
     return draftSectionChordSpans(draft, buffer);
   }
 
-  function ensureCursorInSection() {
+  function currentSpan() {
     const sp = spans();
-    if (!sp.length) { cursor = 0; return; }
+    if (!sp.length) return null;
     if (sectionIdx >= sp.length) sectionIdx = sp.length - 1;
     if (sectionIdx < 0) sectionIdx = 0;
-    const s = sp[sectionIdx];
-    if (!s.valid) return;
-    if (cursor < s.start || cursor > s.end) cursor = s.end;
+    return sp[sectionIdx] || null;
+  }
+
+  function ensurePlayInSection() {
+    const s = currentSpan();
+    if (!s || s.start < 0) { playCandidate = 0; playConfirmed = 0; return; }
+    if (playCandidate < s.start || playCandidate > s.end) playCandidate = s.start;
+    if (playConfirmed < s.start || playConfirmed > s.end) playConfirmed = s.start;
+  }
+
+  function resetPlayToSectionStart() {
+    const s = currentSpan();
+    if (!s || s.start < 0) { playCandidate = 0; playConfirmed = 0; return; }
+    playCandidate = s.start;
+    playConfirmed = s.start;
   }
 
   function chordLabel(c) {
     if (!c) return '?';
+    if (typeof formatChord === 'function') {
+      try { return formatChord(c); } catch { /* fall through */ }
+    }
     if (c.chord) return String(c.chord);
     return '(空)';
   }
 
   function invalidBannerHtml() {
-    const issues = diagnoseDraftSections(draft, buffer).filter(x => !x.valid);
-    if (!issues.length) return '';
-    const lines = issues.map(x => {
-      const labels = x.reasons.map(r => REASON_LABEL[r] || r).join('、');
+    const list = diagnoseDraftSections(draft, buffer);
+    const structural = list.filter(x => !x.structurallyValid);
+    const incomplete = list.filter(x => x.structurallyValid && !x.complete);
+    if (!structural.length && !incomplete.length) return '';
+    const lines = [];
+    for (const x of structural) {
+      const labels = (x.structuralReasons || x.reasons).map(r => REASON_LABEL[r] || r).join('、');
       const repair = x.repairableByBoundary
         ? '（境界の調整で修復できる場合があります）'
         : '（削除が必要です）';
-      return `<li data-invalid-index="${x.index}">Section ${x.index + 1}: ${esc(labels)}${repair}</li>`;
-    }).join('');
+      lines.push(`<li data-invalid-index="${x.index}">Section ${x.index + 1}: ${esc(labels)}${repair}</li>`);
+    }
+    for (const x of incomplete) {
+      const labels = (x.completenessReasons || []).map(r => REASON_LABEL[r] || r).join('、');
+      lines.push(`<li data-incomplete-index="${x.index}">Section ${x.index + 1}: ${esc(labels || '名称または種類が未設定')}（採用前に入力してください）</li>`);
+    }
     return `<div class="sr1-invalid" role="alert">
-      <div class="sr1-invalid-title">不正なSectionがあります。採用前に解消してください。</div>
-      <ul class="sr1-invalid-list">${lines}</ul>
+      <div class="sr1-invalid-title">修正が必要なSectionがあります。</div>
+      <ul class="sr1-invalid-list">${lines.join('')}</ul>
     </div>`;
   }
 
@@ -145,50 +183,71 @@ export function openSectionReconfigurationModal(p) {
   function chordsHtml() {
     const sp = spans();
     const active = sp[sectionIdx];
-    const boundaryEnds = new Set(sp.filter(s => s.valid).map(s => s.end));
+    const structOk = active && active.start >= 0 && active.end >= active.start;
+    const boundaryEnds = new Set(sp.filter(s => s.start >= 0 && s.end >= s.start).map(s => s.end));
     return `<div class="sr1-chords" tabindex="0" role="listbox" aria-label="コード進行">
       ${buffer.map((c, i) => {
-        const inSec = active?.valid && i >= active.start && i <= active.end;
-        const isCursor = i === cursor;
+        const inSec = structOk && i >= active.start && i <= active.end;
+        const isPlayCand = i === playCandidate;
+        const isPlayConf = i === playConfirmed;
+        const isSplitCand = uiMode === 'split' && splitCandidate === i;
         const isBoundary = boundaryEnds.has(i);
         const cls = [
           'sr1-chord',
           inSec ? 'sr1-in-sec' : '',
-          isCursor ? 'sr1-cursor' : '',
+          isPlayCand ? 'sr1-play-cand' : '',
+          isPlayConf ? 'sr1-play-conf' : '',
+          isSplitCand ? 'sr1-split-cand' : '',
           isBoundary ? 'sr1-boundary' : '',
         ].filter(Boolean).join(' ');
-        return `<button type="button" class="${cls}" data-i="${i}" role="option" aria-selected="${isCursor}">${esc(chordLabel(c))}</button>`;
+        return `<button type="button" class="${cls}" data-i="${i}" role="option" aria-selected="${isPlayCand}">${esc(chordLabel(c))}</button>`;
       }).join('')}
     </div>`;
   }
 
   function playHintHtml() {
-    const sp = spans()[sectionIdx];
-    if (!sp?.valid) return '';
-    const startIdx = Math.max(sp.start, Math.min(sp.end, sp.end - playStartOffset));
-    return `<div class="sr1-play-hint">テスト再生: コード ${startIdx + 1} → Section終端（開始位置は［再生開始←→］で変更）</div>`;
+    const sp = currentSpan();
+    if (!sp || sp.start < 0) return '';
+    const endIdx = Math.min(sp.end, playConfirmed + playChordCount - 1);
+    const modeNote = uiMode === 'split'
+      ? '<div class="sr1-mode-banner">分割位置を選択中 — 前半の最後のコードをクリックし「分割実行」</div>'
+      : '';
+    return `${modeNote}<div class="sr1-play-hint">再生: コード ${playConfirmed + 1} から ${playChordCount} コード（候補 ${playCandidate + 1}）／終了見込み コード ${endIdx + 1}</div>`;
   }
 
   function bodyHtml() {
+    const canUndo = (draft.undoStack?.length || 0) > 0;
+    const canRedo = (draft.redoStack?.length || 0) > 0;
     return `
       <div id="sr1-root" class="sr1-root">
         <div class="modal-caption modal-section">
-          コードの最後を選んで「ここを区切り」または Enter で確定します。シングルクリックは選択のみです。採用するまで曲の Section は変わりません。
+          コードクリックで再生位置候補を選び「再生位置決定」で確定。区切りは「ここを区切り」。採用するまで曲の Section は変わりません。
         </div>
         ${invalidBannerHtml()}
         ${sectionPanelHtml()}
         ${playHintHtml()}
         ${chordsHtml()}
+        <div class="sr1-toolbar sr1-play-row">
+          <button type="button" class="sec-btn" id="sr1-play-left" title="再生位置候補を左へ">←</button>
+          <button type="button" class="sec-btn" id="sr1-play-confirm">再生位置決定</button>
+          <button type="button" class="sec-btn" id="sr1-play-right" title="再生位置候補を右へ">→</button>
+          <button type="button" class="sec-btn" id="sr1-play">テスト再生</button>
+          <label class="sr1-field">再生コード数
+            <input type="number" class="mi sr1-play-count" min="1" max="8" value="${playChordCount}" />
+          </label>
+        </div>
         <div class="sr1-toolbar">
           <button type="button" class="sec-btn" id="sr1-prev-sec">← Section</button>
           <button type="button" class="sec-btn" id="sr1-next-sec">Section →</button>
           <button type="button" class="sec-btn" id="sr1-set-end">ここを区切り（B）</button>
-          <button type="button" class="sec-btn" id="sr1-play">テスト再生</button>
-          <button type="button" class="sec-btn" id="sr1-play-earlier">再生開始←</button>
-          <button type="button" class="sec-btn" id="sr1-play-later">再生開始→</button>
+          <button type="button" class="sec-btn" id="sr1-split">${uiMode === 'split' ? '分割実行' : '分割'}</button>
+          <button type="button" class="sec-btn" id="sr1-split-cancel" ${uiMode === 'split' ? '' : 'hidden'}>分割キャンセル</button>
+          <button type="button" class="sec-btn" id="sr1-merge">前のSectionと結合</button>
+          <button type="button" class="sec-btn" id="sr1-undo" ${canUndo ? '' : 'disabled'}>Undo</button>
+          <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
         <div id="sr1-msg" class="sag-errors" role="status">${esc(message)}</div>
-        <div class="sr1-keys-hint">←→:コード　Tab/Shift+Tab:Section　Space:再生　Enter:区切り確定　Esc:閉じる</div>
+        <div class="sr1-keys-hint">←→:再生候補　Tab/Shift+Tab:Section　Space:再生　Enter:区切り　Esc:閉じる／分割キャンセル</div>
       </div>`;
   }
 
@@ -206,7 +265,7 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function scrollCursorIntoView() {
-    root?.querySelector('.sr1-cursor')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    root?.querySelector('.sr1-play-cand, .sr1-play-conf, .sr1-split-cand')?.scrollIntoView({ block: 'nearest', inline: 'center' });
   }
 
   function applyNameTypeFromInputs() {
@@ -259,11 +318,16 @@ export function openSectionReconfigurationModal(p) {
 
   function setEndAtCursor() {
     applyNameTypeFromInputs();
-    const r = setDraftSectionEndByChordIndex(draft, sectionIdx, cursor, buffer);
+    // Boundary uses confirmed play candidate as the last chord of current section (B-method)
+    const r = setDraftSectionEndByChordIndex(draft, sectionIdx, playCandidate, buffer);
     if (!r.ok) {
       message = `区切りを設定できません（${REASON_LABEL[r.reason] || r.reason}）`;
     } else {
-      message = '';
+      message = r.split ? '最終Sectionを分割しました（後半の名称・種類を入力してください）' : '';
+      if (r.split) {
+        sectionIdx = sectionIdx + 1;
+        resetPlayToSectionStart();
+      }
     }
     fullRedraw();
   }
@@ -273,37 +337,130 @@ export function openSectionReconfigurationModal(p) {
     if (!sec) return;
     const diagList = diagnoseDraftSections(draft, buffer);
     const diag = diagList[sectionIdx];
-    if (!diag || diag.valid) {
-      message = '有効なSectionの削除はStage1では行いません';
+    if (!diag || diag.structurallyValid) {
+      message = '構造的に有効なSectionの削除はStage1では行いません';
       fullRedraw();
       return;
     }
-    // Delete by index so duplicate IDs only remove this row
     const r = deleteDraftSectionAt(draft, sectionIdx);
     if (!r.ok) {
       message = `削除できません（${REASON_LABEL[r.reason] || r.reason}）`;
     } else {
       message = '不正SectionをDraftから削除しました';
       if (sectionIdx >= draft.sections.length) sectionIdx = Math.max(0, draft.sections.length - 1);
+      resetPlayToSectionStart();
     }
     fullRedraw();
   }
 
   function testPlay() {
     applyNameTypeFromInputs();
-    const sp = spans()[sectionIdx];
-    if (!sp?.valid) return;
-    const startIdx = Math.max(sp.start, Math.min(sp.end, sp.end - playStartOffset));
+    const sp = currentSpan();
+    if (!sp || sp.start < 0) return;
+    ensurePlayInSection();
+    const startIdx = playConfirmed;
+    const endIdx = Math.min(sp.end, startIdx + playChordCount - 1);
     const c0 = buffer[startIdx];
-    const c1 = buffer[sp.end];
+    const c1 = buffer[endIdx];
     const startSec = Number(c0?.start);
+    // Stop at end of the last chord in the play range (not past section end)
     const endSec = Number(c1?.end ?? c1?.start);
     if (!Number.isFinite(startSec) || !Number.isFinite(endSec)) {
       message = 'このコードに再生用の時刻がありません';
       fullRedraw();
       return;
     }
-    onTestPlay?.({ startSec, endSec });
+    isPlaying = true;
+    playCandidate = playConfirmed; // show start while playing
+    fullRedraw();
+    onTestPlay?.({
+      startSec,
+      endSec,
+      onEnded: () => {
+        isPlaying = false;
+        playCandidate = playConfirmed;
+        if (!closed) fullRedraw();
+      },
+    });
+  }
+
+  function stopPlayIfNeeded() {
+    if (!isPlaying) return;
+    isPlaying = false;
+    onTestStop?.();
+  }
+
+  function enterSplitMode() {
+    applyNameTypeFromInputs();
+    uiMode = 'split';
+    splitCandidate = playCandidate;
+    message = '分割位置を選択中です';
+    fullRedraw();
+  }
+
+  function cancelSplitMode() {
+    uiMode = 'normal';
+    splitCandidate = null;
+    message = '';
+    fullRedraw();
+  }
+
+  function executeSplit() {
+    applyNameTypeFromInputs();
+    if (splitCandidate == null) {
+      message = '分割位置を選択してください';
+      fullRedraw();
+      return;
+    }
+    const r = splitDraftAtChordIndex(draft, sectionIdx, splitCandidate, buffer);
+    if (!r.ok) {
+      message = `分割できません（${REASON_LABEL[r.reason] || r.reason}）`;
+      fullRedraw();
+      return;
+    }
+    uiMode = 'normal';
+    splitCandidate = null;
+    sectionIdx = r.backIndex;
+    resetPlayToSectionStart();
+    message = '分割しました。後半Sectionの名称・種類を入力してください';
+    fullRedraw();
+  }
+
+  async function mergeWithPrevious() {
+    applyNameTypeFromInputs();
+    const list = diagnoseDraftSections(draft, buffer);
+    const cur = list[sectionIdx];
+    if (!cur || !cur.structurallyValid) {
+      message = '現在のSectionを結合できません';
+      fullRedraw();
+      return;
+    }
+    const positioned = list.filter(r => r.structurallyValid && r.start >= 0)
+      .slice().sort((a, b) => a.start - b.start || a.index - b.index);
+    const ord = positioned.findIndex(r => r.index === sectionIdx);
+    if (ord <= 0) {
+      message = '前のSectionがありません';
+      fullRedraw();
+      return;
+    }
+    const prev = positioned[ord - 1];
+    const prevSec = draft.sections[prev.index];
+    const curSec = draft.sections[sectionIdx];
+    const msg = `次のSectionを結合しますか？\n\n前: ${prevSec.name || '(名称未設定)'} [${prev.start + 1}〜${prev.end + 1}]\n現在: ${curSec.name || '(名称未設定)'} [${cur.start + 1}〜${cur.end + 1}]`;
+    const choice = await (confirmChoice
+      ? confirmChoice(msg, [{ label: '結合', value: 'ok' }, { label: 'キャンセル', value: 'cancel' }])
+      : (window.confirm(msg.replace(/\\n/g, '\n')) ? 'ok' : 'cancel'));
+    if (choice !== 'ok') return;
+    const r = mergeDraftWithPrevious(draft, sectionIdx, buffer);
+    if (!r.ok) {
+      message = `結合できません（${REASON_LABEL[r.reason] || r.reason}）`;
+      fullRedraw();
+      return;
+    }
+    sectionIdx = r.mergedIndex;
+    resetPlayToSectionStart();
+    message = '結合しました';
+    fullRedraw();
   }
 
   /** Listener / playback / shield only — does not touch parent Draft state. */
@@ -363,23 +520,29 @@ export function openSectionReconfigurationModal(p) {
     const tag = (e.target && e.target.tagName) || '';
     const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 
-    // Esc — always handled here (capture). Outside click does not use this path.
+    // Esc — cancel split mode first; otherwise close path
     if (e.code === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
+      if (uiMode === 'split') {
+        cancelSplitMode();
+        return;
+      }
       requestClose('esc').then(() => {});
       return;
     }
 
-    // F4: Tab / Shift+Tab move section even when focus is in name/type fields
+    // Tab / Shift+Tab move section even when focus is in name/type fields
     if (e.code === 'Tab') {
       e.preventDefault();
       e.stopPropagation();
       applyNameTypeFromInputs();
       nameInputSoftLock = false;
+      stopPlayIfNeeded();
+      if (uiMode === 'split') cancelSplitMode();
       if (e.shiftKey) sectionIdx = Math.max(0, sectionIdx - 1);
       else sectionIdx = Math.min(Math.max(0, draft.sections.length - 1), sectionIdx + 1);
-      ensureCursorInSection();
+      resetPlayToSectionStart();
       fullRedraw();
       return;
     }
@@ -407,14 +570,18 @@ export function openSectionReconfigurationModal(p) {
     if (e.code === 'ArrowLeft') {
       e.preventDefault();
       e.stopPropagation();
-      cursor = Math.max(0, cursor - 1);
+      const sp = currentSpan();
+      if (sp && sp.start >= 0) playCandidate = Math.max(sp.start, playCandidate - 1);
+      else playCandidate = Math.max(0, playCandidate - 1);
       fullRedraw();
       return;
     }
     if (e.code === 'ArrowRight') {
       e.preventDefault();
       e.stopPropagation();
-      cursor = Math.min(buffer.length - 1, cursor + 1);
+      const sp = currentSpan();
+      if (sp && sp.end >= 0) playCandidate = Math.min(sp.end, playCandidate + 1);
+      else playCandidate = Math.min(buffer.length - 1, playCandidate + 1);
       fullRedraw();
       return;
     }
@@ -445,31 +612,69 @@ export function openSectionReconfigurationModal(p) {
     if (!root) return;
     root.querySelectorAll('.sr1-chord').forEach(btn => {
       btn.addEventListener('click', () => {
-        cursor = Number(btn.dataset.i);
+        const i = Number(btn.dataset.i);
+        if (uiMode === 'split') {
+          splitCandidate = i;
+          message = `分割位置: コード ${i + 1}`;
+          fullRedraw();
+          return;
+        }
+        // Play candidate only — does not change Section boundary
+        playCandidate = i;
         fullRedraw();
       });
     });
     root.querySelector('#sr1-prev-sec')?.addEventListener('click', () => {
       applyNameTypeFromInputs();
+      stopPlayIfNeeded();
+      if (uiMode === 'split') cancelSplitMode();
       sectionIdx = Math.max(0, sectionIdx - 1);
-      ensureCursorInSection();
+      resetPlayToSectionStart();
       fullRedraw();
     });
     root.querySelector('#sr1-next-sec')?.addEventListener('click', () => {
       applyNameTypeFromInputs();
+      stopPlayIfNeeded();
+      if (uiMode === 'split') cancelSplitMode();
       sectionIdx = Math.min(Math.max(0, draft.sections.length - 1), sectionIdx + 1);
-      ensureCursorInSection();
+      resetPlayToSectionStart();
       fullRedraw();
     });
     root.querySelector('#sr1-set-end')?.addEventListener('click', setEndAtCursor);
     root.querySelector('#sr1-play')?.addEventListener('click', testPlay);
-    root.querySelector('#sr1-play-earlier')?.addEventListener('click', () => {
-      playStartOffset = Math.min(playStartOffset + 1, 20);
+    root.querySelector('#sr1-play-left')?.addEventListener('click', () => {
+      const sp = currentSpan();
+      if (sp && sp.start >= 0) playCandidate = Math.max(sp.start, playCandidate - 1);
       fullRedraw();
     });
-    root.querySelector('#sr1-play-later')?.addEventListener('click', () => {
-      playStartOffset = Math.max(0, playStartOffset - 1);
+    root.querySelector('#sr1-play-right')?.addEventListener('click', () => {
+      const sp = currentSpan();
+      if (sp && sp.end >= 0) playCandidate = Math.min(sp.end, playCandidate + 1);
       fullRedraw();
+    });
+    root.querySelector('#sr1-play-confirm')?.addEventListener('click', () => {
+      playConfirmed = playCandidate;
+      message = `再生位置をコード ${playConfirmed + 1} に確定`;
+      fullRedraw();
+    });
+    root.querySelector('.sr1-play-count')?.addEventListener('change', (ev) => {
+      let n = Number(ev.target.value);
+      if (!Number.isFinite(n)) n = 4;
+      playChordCount = Math.max(1, Math.min(8, Math.round(n)));
+      ev.target.value = String(playChordCount);
+      fullRedraw();
+    });
+    root.querySelector('#sr1-split')?.addEventListener('click', () => {
+      if (uiMode === 'split') executeSplit();
+      else enterSplitMode();
+    });
+    root.querySelector('#sr1-split-cancel')?.addEventListener('click', cancelSplitMode);
+    root.querySelector('#sr1-merge')?.addEventListener('click', () => { mergeWithPrevious(); });
+    root.querySelector('#sr1-undo')?.addEventListener('click', () => {
+      if (undoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
+    });
+    root.querySelector('#sr1-redo')?.addEventListener('click', () => {
+      if (redoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
     });
     root.querySelector('#sr1-delete-sec')?.addEventListener('click', deleteCurrentInvalid);
     root.querySelector('.sr1-name')?.addEventListener('change', () => applyNameTypeFromInputs());
@@ -482,7 +687,7 @@ export function openSectionReconfigurationModal(p) {
     });
   }
 
-  ensureCursorInSection();
+  resetPlayToSectionStart();
   onKeyShield?.();
   keyHandler = onKeyDown;
 

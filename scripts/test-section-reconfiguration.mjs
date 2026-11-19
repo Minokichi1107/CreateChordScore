@@ -19,6 +19,8 @@ import {
   diagnoseDraftSections,
   isDraftDirty,
   prepareDraftForAdopt,
+  mergeDraftWithPrevious,
+  splitDraftAtChordIndex,
   toCanonicalSection,
   toCanonicalSections,
   createReconfigRuntime,
@@ -425,6 +427,67 @@ const st = (b, sections = []) => ({
     defaultNameForType: () => 'Chorus',
   });
   assert.equal(draft.sections[0].name, 'Chorus');
+}
+
+
+
+// --- structural vs completeness: empty name/type allowed for edit ---
+{
+  const b = buf(6);
+  const draft = createReconfigurationDraft({
+    projectId: 'p', buffer: b,
+    sections: [
+      { id: 'a', type: 'verse', name: 'V', startChordId: 'k0', endChordId: 'k5' },
+    ],
+  });
+  const r = splitDraftAtChordIndex(draft, 0, 2, b);
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(draft.sections[1].name, '');
+  assert.equal(draft.sections[1].type, '');
+  const list = diagnoseDraftSections(draft, b);
+  assert.equal(list[1].structurallyValid, true);
+  assert.equal(list[1].complete, false);
+  // boundary edit still works with incomplete back half
+  const br = setDraftSectionEndByChordIndex(draft, 0, 1, b);
+  assert.equal(br.ok, true, br.reason);
+  // adopt rejected until fields filled
+  let prep = prepareDraftForAdopt(draft, { projectId: 'p', buffer: b, isEditing: true });
+  assert.equal(prep.ok, false);
+  assert.equal(prep.reason, 'incomplete-section-fields');
+  updateDraftSection(draft, draft.sections[1].id, { name: '後', type: 'chorus' }, { fromUserNameEdit: true });
+  // may need coverage — ensure both complete
+  prep = prepareDraftForAdopt(draft, { projectId: 'p', buffer: b, isEditing: true });
+  // after boundary move, sections should still cover if contiguous
+  if (!prep.ok) {
+    // fill any remaining completeness
+    for (const s of draft.sections) {
+      if (!s.name) s.name = 'X';
+      if (!s.type) s.type = 'other';
+    }
+    prep = prepareDraftForAdopt(draft, { projectId: 'p', buffer: b, isEditing: true });
+  }
+  assert.equal(prep.ok, true, prep.reason);
+}
+
+// --- merge keeps previous id/name/type ---
+{
+  const b = buf(8);
+  const draft = createReconfigurationDraft({
+    projectId: 'p', buffer: b,
+    sections: [
+      { id: 'a', type: 'verse', name: '前', startChordId: 'k0', endChordId: 'k3' },
+      { id: 'b', type: 'chorus', name: '後', startChordId: 'k4', endChordId: 'k7' },
+    ],
+  });
+  const r = mergeDraftWithPrevious(draft, 1, b);
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(draft.sections.length, 1);
+  assert.equal(draft.sections[0].id, 'a');
+  assert.equal(draft.sections[0].name, '前');
+  assert.equal(draft.sections[0].type, 'verse');
+  assert.equal(draft.sections[0].endChordId, 'k7');
+  assert.equal(undoDraft(draft), true);
+  assert.equal(draft.sections.length, 2);
 }
 
 

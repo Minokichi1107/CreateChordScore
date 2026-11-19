@@ -494,33 +494,42 @@ function _stopSectionReconfigPlaybackMonitor() {
   _sectionReconfigTimeUpdateHandler = null;
 }
 
-function _startSectionReconfigPlaybackMonitor(audio, endSec) {
+function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded) {
   _stopSectionReconfigPlaybackMonitor();
   const epsilon = 0.03; // seconds tolerance
+  let ended = false;
+  const finish = () => {
+    if (ended) return;
+    ended = true;
+    try { audio.pause(); } catch { /* ignore */ }
+    _stopSectionReconfigPlaybackMonitor();
+    try { onEnded?.(); } catch { /* ignore */ }
+  };
   const tick = () => {
-    if (!audio) return;
+    if (!audio || ended) return;
     try {
       if (audio.paused) {
+        // Natural / external pause: clean up monitor without treating as range-end
         _sectionReconfigRaf = null;
+        _stopSectionReconfigPlaybackMonitor();
+        try { onEnded?.(); } catch { /* ignore */ }
         return;
       }
       if (audio.currentTime >= endSec - epsilon) {
-        try { audio.pause(); } catch { /* ignore */ }
-        _stopSectionReconfigPlaybackMonitor();
+        finish();
         return;
       }
     } catch { /* ignore */ }
     _sectionReconfigRaf = requestAnimationFrame(tick);
   };
   _sectionReconfigTimeUpdateHandler = () => {
+    if (ended) return;
     try {
-      if (audio.currentTime >= endSec - epsilon) {
-        try { audio.pause(); } catch { /* ignore */ }
-        _stopSectionReconfigPlaybackMonitor();
-      }
+      if (audio.currentTime >= endSec - epsilon) finish();
     } catch { /* ignore */ }
   };
   try { audio.addEventListener('timeupdate', _sectionReconfigTimeUpdateHandler); } catch { /* ignore */ }
+  try { audio.addEventListener('ended', finish, { once: true }); } catch { /* ignore */ }
   _sectionReconfigRaf = requestAnimationFrame(tick);
 }
 
@@ -3441,13 +3450,26 @@ async function startSectionReconfiguration() {
     buffer: analysisEditor.buffer,
     sectionTypes: types,
     generateSectionName: (type) => _generateSectionName(type),
+    formatChord: (c) => {
+      try {
+        const capo = (typeof getCapo === 'function') ? getCapo() : 0;
+        const raw = c?.chord != null ? String(c.chord) : '';
+        if (!raw) return '(空)';
+        return toDisplayChord(toReadableChord(raw), capo);
+      } catch {
+        return c?.chord != null ? String(c.chord) : '(空)';
+      }
+    },
+    onTestPlayEnded: () => {
+      // optional hook for modal to restore play UI state
+    },
     onKeyShield: () => { _setSectionReconfigSpaceShield(true); },
     onKeyUnshield: () => { _setSectionReconfigSpaceShield(false); },
     onTestStop: () => {
       _stopSectionReconfigPlaybackMonitor();
       try { getAudioElement()?.pause(); } catch { /* ignore */ }
     },
-    onTestPlay: ({ startSec, endSec }) => {
+    onTestPlay: ({ startSec, endSec, onEnded }) => {
       const audio = getAudioElement?.();
       if (!audio || !audio.src) {
         toast('音源がありません');
@@ -3458,11 +3480,12 @@ async function startSectionReconfiguration() {
         audio.currentTime = Math.max(0, startSec);
         const playPromise = audio.play();
         if (playPromise && typeof playPromise.catch === 'function') {
-          playPromise.catch(() => {});
+          playPromise.catch(() => { try { onEnded?.(); } catch { /* ignore */ } });
         }
-        _startSectionReconfigPlaybackMonitor(audio, endSec);
+        _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded);
       } catch (err) {
         console.warn('[section-reconfig] test play failed', err);
+        try { onEnded?.(); } catch { /* ignore */ }
       }
     },
     confirmChoice: async (message, choices) => {
@@ -3500,6 +3523,13 @@ async function startSectionReconfiguration() {
         isEditing: isAnalysisEditing(),
       });
       if (!prep.ok) {
+        if (prep.reason === 'incomplete-section-fields' && Array.isArray(prep.errors)) {
+          const detail = prep.errors.map(e => {
+            const rs = (e.reasons || []).join(',');
+            return `Section${(e.index ?? 0) + 1}${rs ? '(' + rs + ')' : ''}`;
+          }).join(', ');
+          return { ok: false, message: `名称または種類が未設定です: ${detail}` };
+        }
         return { ok: false, message: `採用できません（${prep.reason}）` };
       }
       const result = replaceSectionsFromDraftCommand(analysisEditor, prep.sections);

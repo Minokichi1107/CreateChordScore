@@ -571,3 +571,11 @@
 .sr1-invalid-list { margin: 0; padding-left: 1.2em; }
 .sr1-sec-invalid { color: #a33; font-size: 12px; margin-top: 6px; }
 .sr1-danger { color: #a33; border-color: #e99; }
+
+/* Phase150 Stage1 play / split markers */
+.sr1-chord.sr1-play-cand { outline: 2px dashed #2a6; background: #e8ffe8; }
+.sr1-chord.sr1-play-conf { box-shadow: inset 0 -3px 0 #185; }
+.sr1-chord.sr1-split-cand { outline: 2px solid #c60; background: #fff3e0; }
+.sr1-mode-banner { font-size: 12px; color: #c60; font-weight: 600; margin: 4px 0; }
+.sr1-sec-incomplete { font-size: 12px; color: #666; margin-top: 4px; }
+.sr1-play-row { align-items: center; }
