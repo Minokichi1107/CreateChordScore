@@ -438,15 +438,24 @@ export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
     return { ok: false, reason: 'project-mismatch' };
   }
   if (isDraftBufferStale(draft, buffer)) return { ok: false, reason: 'buffer-stale' };
-  // Separate Draft UI metadata from canonical Section data before validation/return.
-  // Draft rows may carry nameUserEdited etc.; those must not reach history/persistence.
-  const sections = toCanonicalSections(draft.sections);
+  // 1) Inspect Draft rows BEFORE canonical projection so unknown keys are visible.
+  //    ALLOWED keys and known DRAFT_ONLY_KEYS (e.g. nameUserEdited) are permitted;
+  //    any other key is rejected as unknown-section-key.
+  const draftRows = Array.isArray(draft.sections) ? draft.sections : [];
+  for (const section of draftRows) {
+    if (!section || typeof section !== 'object') return { ok: false, reason: 'invalid-section' };
+    for (const key of Object.keys(section)) {
+      if (ALLOWED.has(key) || DRAFT_ONLY_KEYS.has(key)) continue;
+      return { ok: false, reason: 'unknown-section-key', key };
+    }
+  }
+  // 2) Project to canonical Section shape (drops DRAFT_ONLY_KEYS).
+  const sections = toCanonicalSections(draftRows);
   for (const section of sections) {
     if (!section || typeof section !== 'object') return { ok: false, reason: 'invalid-section' };
-    const keys = Object.keys(section);
-    if (keys.some(k => !ALLOWED.has(k))) return { ok: false, reason: 'unknown-section-key' };
-    // Extra safety: reject if any DRAFT_ONLY key somehow survived projection
-    if (keys.some(k => DRAFT_ONLY_KEYS.has(k))) return { ok: false, reason: 'draft-metadata-leak' };
+    if (Object.keys(section).some(k => !ALLOWED.has(k))) {
+      return { ok: false, reason: 'unknown-section-key' };
+    }
   }
   // Reject if any diagnosed-invalid section remains (includes duplicate ids)
   {

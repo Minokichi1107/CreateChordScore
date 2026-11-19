@@ -334,4 +334,53 @@ const st = (b, sections = []) => ({
 }
 
 
+
+// --- adopt: inspect keys before projection; DRAFT_ONLY allowed; unknown rejected ---
+{
+  const b = buf(4);
+  const draft = createReconfigurationDraft({
+    projectId: 'p',
+    buffer: b,
+    sections: [
+      { id: 's0', type: 'other', name: 'A', startChordId: 'k0', endChordId: 'k1' },
+      { id: 's1', type: 'other', name: 'B', startChordId: 'k2', endChordId: 'k3' },
+    ],
+  });
+  draft.sections[0].nameUserEdited = true;
+  draft.sections[0].unexpectedMeta = 'leak';
+  let prep = prepareDraftForAdopt(draft, { projectId: 'p', buffer: b, isEditing: true });
+  assert.equal(prep.ok, false);
+  assert.equal(prep.reason, 'unknown-section-key');
+
+  delete draft.sections[0].unexpectedMeta;
+  prep = prepareDraftForAdopt(draft, { projectId: 'p', buffer: b, isEditing: true });
+  assert.equal(prep.ok, true, prep.reason);
+  assert.equal('nameUserEdited' in prep.sections[0], false);
+  assert.equal(prep.sections[0].name, 'A');
+}
+
+// --- nameUserEdited participates in Draft undo snapshots ---
+{
+  const b = buf(4);
+  const draft = createReconfigurationDraft({
+    projectId: 'p',
+    buffer: b,
+    sections: [
+      { id: 's0', type: 'other', name: '未設定', startChordId: 'k0', endChordId: 'k1' },
+      { id: 's1', type: 'other', name: '未設定', startChordId: 'k2', endChordId: 'k3' },
+    ],
+  });
+  assert.equal(!!draft.sections[0].nameUserEdited, false);
+  updateDraftSection(draft, 's0', { name: 'サビ' }, { fromUserNameEdit: true });
+  assert.equal(draft.sections[0].name, 'サビ');
+  assert.equal(draft.sections[0].nameUserEdited, true);
+  assert.equal(undoDraft(draft), true);
+  assert.equal(draft.sections[0].name, '未設定');
+  assert.equal(!!draft.sections[0].nameUserEdited, false);
+  assert.equal(redoDraft(draft), true);
+  assert.equal(draft.sections[0].name, 'サビ');
+  assert.equal(draft.sections[0].nameUserEdited, true);
+}
+
+
 console.log('test-section-reconfiguration: ok');

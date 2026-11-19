@@ -71,6 +71,8 @@ export function openSectionReconfigurationModal(p) {
   } = p;
 
   let sectionIdx = 0;
+  /** UI-only: name field typed this visit; not written to Draft until change/blur. */
+  let nameInputSoftLock = false;
   let cursor = 0;
   let playStartOffset = 1;
   let busy = false;
@@ -221,15 +223,15 @@ export function openSectionReconfigurationModal(p) {
     if (typeEl && typeEl.value !== sec.type) {
       patch.type = typeEl.value;
       // Only auto-rename when the user has not locked the name
-      if (!sec.nameUserEdited && typeof generateSectionName === 'function') {
+      if (!sec.nameUserEdited && !nameInputSoftLock && typeof generateSectionName === 'function') {
         opts.defaultNameForType = generateSectionName;
-        // If name input still shows the previous auto name, allow type to drive a new name
-        if (nameEl && !sec.nameUserEdited) {
-          // leave name out of patch; updateDraftSection fills via defaultNameForType
-        }
       }
     }
-    if (Object.keys(patch).length) updateDraftSection(draft, sec.id, patch, opts);
+    if (Object.keys(patch).length) {
+      updateDraftSection(draft, sec.id, patch, opts);
+      // Name/type committed into Draft (with undo). Soft lock no longer needed.
+      if (patch.name !== undefined) nameInputSoftLock = false;
+    }
   }
 
   /** Live type change: update name immediately when not user-edited */
@@ -242,12 +244,13 @@ export function openSectionReconfigurationModal(p) {
     if (newType === sec.type) return;
     const opts = {};
     const patch = { type: newType };
-    if (!sec.nameUserEdited && typeof generateSectionName === 'function') {
+    const nameLocked = !!sec.nameUserEdited || nameInputSoftLock;
+    if (!nameLocked && typeof generateSectionName === 'function') {
       opts.defaultNameForType = generateSectionName;
     }
     updateDraftSection(draft, sec.id, patch, opts);
     // Reflect new name into the input without marking as user-edited again
-    if (nameEl && !draft.sections[sectionIdx].nameUserEdited) {
+    if (nameEl && !draft.sections[sectionIdx].nameUserEdited && !nameInputSoftLock) {
       nameEl.value = draft.sections[sectionIdx].name;
     }
   }
@@ -371,6 +374,7 @@ export function openSectionReconfigurationModal(p) {
       e.preventDefault();
       e.stopPropagation();
       applyNameTypeFromInputs();
+      nameInputSoftLock = false;
       if (e.shiftKey) sectionIdx = Math.max(0, sectionIdx - 1);
       else sectionIdx = Math.min(Math.max(0, draft.sections.length - 1), sectionIdx + 1);
       ensureCursorInSection();
@@ -382,12 +386,12 @@ export function openSectionReconfigurationModal(p) {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
-        if (undoDraft(draft)) fullRedraw();
+        if (undoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
       }
       if ((e.ctrlKey || e.metaKey) && ((e.key === 'y' || e.key === 'Y') || (e.shiftKey && (e.key === 'z' || e.key === 'Z')))) {
         e.preventDefault();
         e.stopPropagation();
-        if (redoDraft(draft)) fullRedraw();
+        if (redoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
       }
       return;
     }
@@ -427,9 +431,9 @@ export function openSectionReconfigurationModal(p) {
       e.preventDefault();
       e.stopPropagation();
       if ((e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
-        if (undoDraft(draft)) fullRedraw();
+        if (undoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
       } else if ((e.key === 'y' || e.key === 'Y') || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
-        if (redoDraft(draft)) fullRedraw();
+        if (redoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
       }
     }
   }
@@ -469,9 +473,10 @@ export function openSectionReconfigurationModal(p) {
     root.querySelector('.sr1-name')?.addEventListener('change', () => applyNameTypeFromInputs());
     root.querySelector('.sr1-type')?.addEventListener('change', () => onTypeChangeLive());
     root.querySelector('.sr1-name')?.addEventListener('input', () => {
-      // Soft-lock auto type→name without pushing Draft undo on every keystroke
-      const sec = draft.sections[sectionIdx];
-      if (sec) sec.nameUserEdited = true;
+      // Soft-lock auto type→name in UI only. Do NOT mutate Draft.sections here —
+      // nameUserEdited is committed on change/blur via applyNameTypeFromInputs
+      // (single undo entry). Avoids dirtying undo baselines on every keystroke.
+      nameInputSoftLock = true;
     });
   }
 
