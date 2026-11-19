@@ -4339,8 +4339,11 @@ function renderSectionBar() {
   `;
 
   document.getElementById('sec-create-btn')?.addEventListener('click', openSectionModal);
-  document.getElementById('sec-autogen-btn')?.addEventListener('click', startSectionAutoGeneration);
-  document.getElementById('sec-reconfig-btn')?.addEventListener('click', () => startSectionReconfiguration());
+  // Phase150: unified entry — single Section設定 button opens reconfiguration flow
+  // (auto-seed when no sections; keep existing when present). Old autogen/reconfig IDs removed.
+  document.getElementById('sec-setup-btn')?.addEventListener('click', () => {
+    startSectionReconfiguration();
+  });
 
   // [Phase105] チップ本体クリック → Section選択+スクロール+Preview（Navigation）。
   // Phase102時点はPreviewトグルのみだったが、トグルOFFを廃止しNavigationを

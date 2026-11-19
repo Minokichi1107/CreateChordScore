@@ -19,6 +19,8 @@ import {
   diagnoseDraftSections,
   isDraftDirty,
   prepareDraftForAdopt,
+  toCanonicalSection,
+  toCanonicalSections,
   createReconfigRuntime,
   teardownReconfigRuntime,
   draftSectionChordSpans,
@@ -296,6 +298,39 @@ const st = (b, sections = []) => ({
     defaultNameForType: () => 'Aメロ',
   });
   assert.equal(draft.sections[0].name, '手動名', 'user name must not be overwritten');
+}
+
+
+
+// --- P1-2: nameUserEdited is Draft-only; adopt strips it ---
+{
+  const b = buf(4);
+  const draft = createReconfigurationDraft({
+    projectId: 'p',
+    buffer: b,
+    sections: [
+      { id: 's0', type: 'other', name: '未設定', startChordId: 'k0', endChordId: 'k1' },
+      { id: 's1', type: 'other', name: '未設定', startChordId: 'k2', endChordId: 'k3' },
+    ],
+  });
+  updateDraftSection(draft, 's0', { name: '手動サビ' }, { fromUserNameEdit: true });
+  assert.equal(draft.sections[0].nameUserEdited, true);
+  assert.equal(draft.sections[0].name, '手動サビ');
+  updateDraftSection(draft, 's0', { name: '未設定' }, { fromUserNameEdit: true });
+  assert.equal(draft.sections[0].name, '未設定');
+  assert.equal(draft.sections[0].nameUserEdited, true);
+
+  const prep = prepareDraftForAdopt(draft, { projectId: 'p', buffer: b, isEditing: true });
+  assert.equal(prep.ok, true, prep.reason);
+  assert.ok(prep.sections.every(s => !('nameUserEdited' in s)));
+  assert.ok(prep.sections.every(s => Object.keys(s).every(k => ['id','type','name','startChordId','endChordId'].includes(k))));
+  assert.equal(prep.sections[0].name, '未設定');
+  assert.equal(prep.sections[0].type, 'other');
+  assert.equal(prep.sections[0].id, 's0');
+  assert.equal(draft.sections[0].nameUserEdited, true);
+  const can = toCanonicalSection(draft.sections[0]);
+  assert.equal('nameUserEdited' in can, false);
+  assert.equal(can.name, '未設定');
 }
 
 

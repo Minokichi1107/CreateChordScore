@@ -8,12 +8,32 @@ import { validateSectionInvariants } from './analysisSession.js';
 export const RECONFIG_GAP_TYPE = 'other';
 export const RECONFIG_GAP_NAME = 'その他';
 const ALLOWED = new Set(['id', 'type', 'name', 'startChordId', 'endChordId']);
+/** Draft/UI-only keys that must never enter canonical Section snapshots. */
+const DRAFT_ONLY_KEYS = new Set(['nameUserEdited']);
 
 function chordIndex(buffer, id) {
   return buffer.findIndex(c => c && c._id === id);
 }
 function cloneSections(sections) {
   return structuredClone(Array.isArray(sections) ? sections : []);
+}
+
+/**
+ * Project a Draft section row onto the canonical Section shape (ALLOWED keys only).
+ * Drops Draft/UI metadata such as nameUserEdited. Does not mutate the input.
+ */
+export function toCanonicalSection(section) {
+  if (!section || typeof section !== 'object') return section;
+  const out = {};
+  for (const key of ALLOWED) {
+    if (section[key] !== undefined) out[key] = section[key];
+  }
+  return out;
+}
+
+/** Map Draft sections to canonical Section objects for adopt / persistence. */
+export function toCanonicalSections(sections) {
+  return (Array.isArray(sections) ? sections : []).map(toCanonicalSection);
 }
 
 export function orderSectionsOnBuffer(sections, buffer) {
@@ -418,10 +438,15 @@ export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
     return { ok: false, reason: 'project-mismatch' };
   }
   if (isDraftBufferStale(draft, buffer)) return { ok: false, reason: 'buffer-stale' };
-  const sections = cloneSections(draft.sections);
+  // Separate Draft UI metadata from canonical Section data before validation/return.
+  // Draft rows may carry nameUserEdited etc.; those must not reach history/persistence.
+  const sections = toCanonicalSections(draft.sections);
   for (const section of sections) {
     if (!section || typeof section !== 'object') return { ok: false, reason: 'invalid-section' };
-    if (Object.keys(section).some(k => !ALLOWED.has(k))) return { ok: false, reason: 'unknown-section-key' };
+    const keys = Object.keys(section);
+    if (keys.some(k => !ALLOWED.has(k))) return { ok: false, reason: 'unknown-section-key' };
+    // Extra safety: reject if any DRAFT_ONLY key somehow survived projection
+    if (keys.some(k => DRAFT_ONLY_KEYS.has(k))) return { ok: false, reason: 'draft-metadata-leak' };
   }
   // Reject if any diagnosed-invalid section remains (includes duplicate ids)
   {
