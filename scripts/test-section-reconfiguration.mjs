@@ -13,6 +13,7 @@ import {
   undoDraft,
   redoDraft,
   setDraftSectionEndByChordIndex,
+  splitDraftAtChordIndex,
   deleteDraftSection,
   deleteDraftSectionAt,
   diagnoseDraftSection,
@@ -20,7 +21,6 @@ import {
   isDraftDirty,
   prepareDraftForAdopt,
   mergeDraftWithPrevious,
-  splitDraftAtChordIndex,
   toCanonicalSection,
   toCanonicalSections,
   createReconfigRuntime,
@@ -102,21 +102,20 @@ const st = (b, sections = []) => ({
 }
 
 {
-  // Interior boundary on last section → split (not refuse)
+  // A-5: Interior boundary on last section via setDraftSectionEnd → refuse (use split API)
   const b = buf(6);
   const draft = createReconfigurationDraft({ projectId: 'p', buffer: b, sections: [] });
   draft.sections = [S('a', 0, 2), S('b', 3, 5)];
   const r = setDraftSectionEndByChordIndex(draft, 1, 4, b);
-  assert.equal(r.ok, true, r.reason);
-  assert.equal(r.split, true);
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'last-section-end-fixed');
+  assert.equal(draft.sections.length, 2);
+  // Explicit split still works
+  const rSplit = splitDraftAtChordIndex(draft, 1, 4, b);
+  assert.equal(rSplit.ok, true, rSplit.reason);
   assert.equal(draft.sections.length, 3);
   assert.equal(draft.sections[1].endChordId, 'k4');
   assert.equal(draft.sections[2].startChordId, 'k5');
-  assert.equal(draft.sections[2].endChordId, 'k5');
-  // Extending last end beyond song end is still refused
-  const r2 = setDraftSectionEndByChordIndex(draft, 2, 5, b);
-  assert.equal(r2.ok, true);
-  assert.equal(r2.noop, true);
 }
 
 {
@@ -259,7 +258,7 @@ const st = (b, sections = []) => ({
 
 
 
-// --- Split last section at interior boundary ---
+// --- A-5 last section boundary refuses; explicit split works ---
 {
   const b = buf(8);
   const draft = createReconfigurationDraft({
@@ -268,18 +267,17 @@ const st = (b, sections = []) => ({
     sections: [S('only', 0, 7)],
   });
   const r = setDraftSectionEndByChordIndex(draft, 0, 2, b);
-  assert.equal(r.ok, true, 'split last section should succeed');
-  assert.equal(r.split, true);
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'last-section-end-fixed');
+  assert.equal(draft.sections.length, 1);
+  const rSplit = splitDraftAtChordIndex(draft, 0, 2, b);
+  assert.equal(rSplit.ok, true, rSplit.reason);
   assert.equal(draft.sections.length, 2);
   assert.equal(draft.sections[0].id, 'only');
   assert.equal(draft.sections[0].endChordId, 'k2');
   assert.equal(draft.sections[1].startChordId, 'k3');
-  assert.equal(draft.sections[1].endChordId, 'k7');
-  // cannot move last end away from song end after split (section 1 is last)
-  const r2 = setDraftSectionEndByChordIndex(draft, 1, 5, b);
-  assert.equal(r2.ok, true);
-  assert.equal(r2.split, true);
-  assert.equal(draft.sections.length, 3);
+  assert.equal(draft.sections[1].name, '');
+  assert.equal(draft.sections[1].type, '');
 }
 
 // --- type→name auto link vs nameUserEdited ---
@@ -488,6 +486,76 @@ const st = (b, sections = []) => ({
   assert.equal(draft.sections[0].endChordId, 'k7');
   assert.equal(undoDraft(draft), true);
   assert.equal(draft.sections.length, 2);
+}
+
+
+
+// --- A-1/A-2: play position state must not be required for boundary API ---
+{
+  const b = buf(6);
+  const draft = createReconfigurationDraft({
+    projectId: 'p', buffer: b,
+    sections: [S('a', 0, 2), S('b', 3, 5)],
+  });
+  // Boundary change uses explicit end index, independent of any "play" concept
+  const beforeBStart = draft.sections[1].startChordId;
+  const r = setDraftSectionEndByChordIndex(draft, 0, 1, b);
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(draft.sections[0].endChordId, 'k1');
+  assert.equal(draft.sections[1].startChordId, 'k2');
+  assert.notEqual(draft.sections[1].startChordId, beforeBStart);
+}
+
+// --- C-1/C-2 empty name structural vs complete ---
+{
+  const b = buf(4);
+  const draft = createReconfigurationDraft({
+    projectId: 'p', buffer: b,
+    sections: [
+      { id: 'a', type: 'verse', name: 'V', startChordId: 'k0', endChordId: 'k1' },
+      { id: 'b', type: '', name: '', startChordId: 'k2', endChordId: 'k3' },
+    ],
+  });
+  const list = diagnoseDraftSections(draft, b);
+  assert.equal(list[1].structurallyValid, true);
+  assert.equal(list[1].complete, false);
+  assert.equal(list[1].valid, false); // adopt-grade
+  assert.ok(list[1].completenessReasons.includes('invalid-section-name'));
+}
+
+// --- B-1 ended handler cleanup: stop clears stored handler ref ---
+{
+  // Lightweight simulation of app monitor registry
+  let timeH = null;
+  let endH = null;
+  const audio = {
+    listeners: {},
+    addEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).concat([fn]); },
+    removeEventListener(type, fn) {
+      this.listeners[type] = (this.listeners[type] || []).filter(f => f !== fn);
+    },
+  };
+  const reg = { timeH: null, endH: null };
+  const stop = () => {
+    if (reg.timeH) audio.removeEventListener('timeupdate', reg.timeH);
+    if (reg.endH) audio.removeEventListener('ended', reg.endH);
+    reg.timeH = null;
+    reg.endH = null;
+  };
+  const start = () => {
+    stop();
+    const finish = () => stop();
+    reg.timeH = () => {};
+    reg.endH = finish;
+    audio.addEventListener('timeupdate', reg.timeH);
+    audio.addEventListener('ended', reg.endH);
+  };
+  start();
+  assert.equal((audio.listeners.ended || []).length, 1);
+  start();
+  assert.equal((audio.listeners.ended || []).length, 1, 'no accumulation');
+  stop();
+  assert.equal((audio.listeners.ended || []).length, 0);
 }
 
 

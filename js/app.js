@@ -469,6 +469,7 @@ let _sectionReconfigRuntime = createReconfigRuntime();
 let _sectionReconfigPlayTimer = null; // legacy timer id (cleared for safety)
 let _sectionReconfigRaf = null;
 let _sectionReconfigTimeUpdateHandler = null;
+let _sectionReconfigEndedHandler = null;
 let _sectionReconfigSpaceShield = false;
 let _sectionReconfigStarting = false;
 let _sectionReconfigModalHandle = null;
@@ -491,7 +492,11 @@ function _stopSectionReconfigPlaybackMonitor() {
   if (audio && _sectionReconfigTimeUpdateHandler) {
     try { audio.removeEventListener('timeupdate', _sectionReconfigTimeUpdateHandler); } catch { /* ignore */ }
   }
+  if (audio && _sectionReconfigEndedHandler) {
+    try { audio.removeEventListener('ended', _sectionReconfigEndedHandler); } catch { /* ignore */ }
+  }
   _sectionReconfigTimeUpdateHandler = null;
+  _sectionReconfigEndedHandler = null;
 }
 
 function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded) {
@@ -529,7 +534,9 @@ function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded) {
     } catch { /* ignore */ }
   };
   try { audio.addEventListener('timeupdate', _sectionReconfigTimeUpdateHandler); } catch { /* ignore */ }
-  try { audio.addEventListener('ended', finish, { once: true }); } catch { /* ignore */ }
+  // Keep a stable reference so stop can always remove the listener (avoid accumulation)
+  _sectionReconfigEndedHandler = finish;
+  try { audio.addEventListener('ended', _sectionReconfigEndedHandler); } catch { /* ignore */ }
   _sectionReconfigRaf = requestAnimationFrame(tick);
 }
 
@@ -3473,6 +3480,7 @@ async function startSectionReconfiguration() {
       const audio = getAudioElement?.();
       if (!audio || !audio.src) {
         toast('音源がありません');
+        try { onEnded?.(); } catch { /* ignore */ }
         return;
       }
       _stopSectionReconfigPlaybackMonitor();

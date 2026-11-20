@@ -389,34 +389,10 @@ export function setDraftSectionEndByChordIndex(draft, sectionIndex, endChordInde
 
   const isLast = ordPos === positioned.length - 1;
   if (isLast) {
-    // Last section's song-end is fixed: cannot move end past / short of song end as a
-    // pure end-move. BUT placing a boundary *inside* the last section must SPLIT it.
+    // Last section end is fixed at song end. Boundary tool must not implicitly split.
+    // Use splitDraftAtChordIndex for intentional splits.
     if (endChordIndex === aEnd) return { ok: true, noop: true };
-    if (endChordIndex < aStart) return { ok: false, reason: 'end-before-start' };
-    if (endChordIndex >= aEnd) {
-      // Would extend beyond current last end (song end) — refuse
-      return { ok: false, reason: 'last-section-end-fixed' };
-    }
-    // Split last section at endChordIndex: front keeps id; back gets new id
-    const newStart = endChordIndex + 1;
-    if (newStart > aEnd) return { ok: false, reason: 'section-too-short' };
-    pushDraftUndo(draft);
-    const cur = draft.sections[sectionIndex];
-    const front = {
-      ...cur,
-      endChordId: buffer[endChordIndex]._id,
-    };
-    const back = {
-      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sec-${Date.now()}`,
-      type: '',
-      name: '',
-      startChordId: buffer[newStart]._id,
-      endChordId: buffer[aEnd]._id,
-    };
-    const next = draft.sections.slice();
-    next.splice(sectionIndex, 1, front, back);
-    draft.sections = next;
-    return { ok: true, split: true };
+    return { ok: false, reason: 'last-section-end-fixed' };
   }
 
   // F5: fully unlocated invalid sections must not be guessed into the timeline.

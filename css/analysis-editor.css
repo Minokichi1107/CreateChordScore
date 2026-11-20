@@ -579,3 +579,6 @@
 .sr1-mode-banner { font-size: 12px; color: #c60; font-weight: 600; margin: 4px 0; }
 .sr1-sec-incomplete { font-size: 12px; color: #666; margin-top: 4px; }
 .sr1-play-row { align-items: center; }
+
+.sr1-chord.sr1-bound-cand { outline: 2px solid #36c; background: #e8f0ff; }
+.sr1-mode-boundary { color: #36c; }
