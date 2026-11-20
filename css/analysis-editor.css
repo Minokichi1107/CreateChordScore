@@ -640,10 +640,10 @@
 .sr1-chord {
   position: relative;
   flex: 0 0 auto;
-  min-width: 1.8em;
-  max-width: 6.5em;
-  padding: 6px 7px;
-  font-size: 12px;
+  min-width: 2.2em;
+  max-width: 7em;
+  padding: 8px 9px;
+  font-size: 13px;
   font-family: var(--font-mono, monospace);
   line-height: 1.2;
   border: 1px solid var(--border-ui, #ccc);
@@ -674,7 +674,9 @@
   z-index: 1;
 }
 .sr1-chord.sr1-split-cand {
-  outline: 2px solid var(--sr1-split);
+  outline: 2px solid var(--sr1-bound);
+  background: var(--sr1-bound-soft);
+  z-index: 1;
 }
 .sr1-chord.sr1-boundary {
   border-color: var(--sr1-bound);
@@ -699,8 +701,9 @@
   background: var(--sr1-bound);
 }
 .sr1-mark-split {
-  left: 2px;
-  background: var(--sr1-split);
+  right: 2px;
+  left: auto;
+  background: var(--sr1-bound);
 }
 
 /* Operation panels */
@@ -750,6 +753,11 @@
   gap: 6px;
   align-items: center;
 }
+.sr1-btn-split-primary {
+  background: var(--sr1-bound) !important;
+  color: #fff !important;
+  border-color: var(--sr1-bound) !important;
+}
 .sr1-btn-play-primary {
   background: var(--sr1-play) !important;
   color: #fff !important;
@@ -786,10 +794,8 @@
   margin: 0;
   padding: 4px 8px;
   border-radius: 4px;
-  color: var(--sr1-split);
-  background: color-mix(in srgb, var(--sr1-split) 12%, transparent);
 }
-.sr1-mode-boundary {
+.sr1-mode-split {
   color: var(--sr1-bound);
   background: var(--sr1-bound-soft);
 }
