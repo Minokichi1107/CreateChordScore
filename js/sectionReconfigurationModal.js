@@ -217,18 +217,18 @@ export function openSectionReconfigurationModal(p) {
     const kind = classifySectionDiagForUi(diag);
     let invalidNote = '';
     if (kind === 'structural-invalid') {
-      invalidNote = `<div class="sr1-sec-invalid">このSectionは構造的に不正です: ${esc((diag.structuralReasons || diag.reasons || []).map(r => REASON_LABEL[r] || r).join('、'))}</div>
-       <button type="button" class="sec-btn sr1-danger" id="sr1-delete-sec">この不正Sectionを削除</button>`;
+      invalidNote = `<div class="sr1-sec-invalid">構造的に不正: ${esc((diag.structuralReasons || diag.reasons || []).map(r => REASON_LABEL[r] || r).join('、'))}
+       <button type="button" class="sec-btn sr1-danger" id="sr1-delete-sec">削除</button></div>`;
     } else if (kind === 'incomplete-fields') {
-      invalidNote = `<div class="sr1-sec-incomplete">名称または種類が未設定です（Draft編集は継続できます。採用前に入力してください）</div>`;
+      invalidNote = `<div class="sr1-sec-incomplete">名称・種類が未設定（採用前に入力）</div>`;
     }
     return `
       <div class="sr1-section-meta">
-        <div class="sr1-sec-idx">Section ${sectionIdx + 1} / ${draft.sections.length}</div>
-        <label class="sr1-field">名前
+        <span class="sr1-sec-idx">Section ${sectionIdx + 1} / ${draft.sections.length}</span>
+        <label class="sr1-field sr1-field-inline">名前
           <input type="text" class="mi sr1-name" value="${esc(sec.name)}" autocomplete="off" />
         </label>
-        <label class="sr1-field">種類
+        <label class="sr1-field sr1-field-inline">種類
           <select class="mi sr1-type">${typeOpts}</select>
         </label>
         ${invalidNote}
@@ -240,7 +240,8 @@ export function openSectionReconfigurationModal(p) {
     const active = sp[sectionIdx];
     const structOk = active && active.start >= 0 && active.end >= active.start;
     const boundaryEnds = new Set(sp.filter(s => s.start >= 0 && s.end >= s.start).map(s => s.end));
-    return `<div class="sr1-chords" tabindex="0" role="listbox" aria-label="コード進行">
+    return `<div class="sr1-chords-wrap">
+      <div class="sr1-chords" tabindex="0" role="listbox" aria-label="コード進行">
       ${buffer.map((c, i) => {
         const inSec = structOk && i >= active.start && i <= active.end;
         const isPlayCand = i === playCandidate;
@@ -257,58 +258,85 @@ export function openSectionReconfigurationModal(p) {
           isSplitCand ? 'sr1-split-cand' : '',
           isBoundary ? 'sr1-boundary' : '',
         ].filter(Boolean).join(' ');
-        return `<button type="button" class="${cls}" data-i="${i}" role="option" aria-selected="${isPlayCand}">${esc(chordLabel(c))}</button>`;
+        const markers = [
+          isPlayConf || isPlayCand ? '<span class="sr1-mark sr1-mark-play" aria-hidden="true"></span>' : '',
+          isBoundCand ? '<span class="sr1-mark sr1-mark-bound" aria-hidden="true"></span>' : '',
+          isSplitCand ? '<span class="sr1-mark sr1-mark-split" aria-hidden="true"></span>' : '',
+        ].join('');
+        return `<button type="button" class="${cls}" data-i="${i}" role="option" aria-selected="${isPlayCand}"><span class="sr1-chord-label">${esc(chordLabel(c))}</span>${markers}</button>`;
       }).join('')}
+      </div>
     </div>`;
   }
 
   function playHintHtml() {
     const sp = currentSpan();
-    if (!sp || sp.start < 0) return '';
-    const endIdx = Math.min(sp.end, playConfirmed + playChordCount - 1);
+    const endIdx = (sp && sp.start >= 0)
+      ? Math.min(sp.end, playConfirmed + playChordCount - 1)
+      : playConfirmed;
     let modeNote = '';
     if (uiMode === 'split') {
       modeNote = '<div class="sr1-mode-banner" role="status">分割位置を選択中 — 前半の最後のコードをクリックし「分割実行」。Escでキャンセル</div>';
     } else if (uiMode === 'boundary') {
-      modeNote = '<div class="sr1-mode-banner sr1-mode-boundary" role="status">境界選択中 — 現在のSectionに含める最後のコードを選び「境界を確定」。Escでキャンセル</div>';
+      modeNote = '<div class="sr1-mode-banner sr1-mode-boundary" role="status">境界選択中 — Sectionに含める最後のコードを選び「境界を確定」。Escでキャンセル</div>';
     }
-    return `${modeNote}<div class="sr1-play-hint">再生: コード ${playConfirmed + 1} から ${playChordCount} コード（候補 ${playCandidate + 1}）／終了見込み コード ${endIdx + 1}</div>`;
+    const sec = draft.sections[sectionIdx];
+    const secLabel = sec ? (sec.name || '（名称未設定）') : '';
+    return `${modeNote}
+      <div class="sr1-status-bar">
+        <span class="sr1-status-play">再生 ${playChordCount}コード · 開始 #${playConfirmed + 1}（候補 #${playCandidate + 1}）→ #${endIdx + 1}</span>
+        <span class="sr1-status-sec">Section ${sectionIdx + 1}/${draft.sections.length} ${esc(secLabel)}</span>
+        <span class="sr1-legend"><span class="sr1-leg-play"></span>再生位置 <span class="sr1-leg-bound"></span>境界候補</span>
+      </div>`;
   }
 
   function bodyHtml() {
     const canUndo = (draft.undoStack?.length || 0) > 0;
     const canRedo = (draft.redoStack?.length || 0) > 0;
+    const boundActive = uiMode === 'boundary';
     return `
       <div id="sr1-root" class="sr1-root">
-        <div class="modal-caption modal-section">
-          コードクリックで再生位置候補を選び「再生位置決定」で確定。区切りは「ここを区切り」。採用するまで曲の Section は変わりません。
-        </div>
-        ${invalidBannerHtml()}
+        <p class="sr1-lead">コード進行を確認し、再生位置と Section 境界を設定します。採用するまで保存済み Section は変わりません。</p>
         ${sectionPanelHtml()}
+        ${invalidBannerHtml()}
         ${playHintHtml()}
         ${chordsHtml()}
-        <div class="sr1-toolbar sr1-play-row">
-          <button type="button" class="sec-btn" id="sr1-play-left" title="再生位置候補を左へ">←</button>
-          <button type="button" class="sec-btn" id="sr1-play-confirm">再生位置決定</button>
-          <button type="button" class="sec-btn" id="sr1-play-right" title="再生位置候補を右へ">→</button>
-          <button type="button" class="sec-btn" id="sr1-play">テスト再生</button>
-          <label class="sr1-field">再生コード数
-            <input type="number" class="mi sr1-play-count" min="1" max="8" value="${playChordCount}" />
-          </label>
+        <div class="sr1-panels">
+          <section class="sr1-panel sr1-panel-play" aria-label="再生位置の設定">
+            <h4 class="sr1-panel-title">再生位置の設定</h4>
+            <p class="sr1-panel-desc">コードをクリックして開始位置を選び、「再生位置決定」で確定します。</p>
+            <div class="sr1-panel-actions">
+              <button type="button" class="sec-btn" id="sr1-play-left" title="再生位置候補を左へ">←</button>
+              <button type="button" class="sec-btn" id="sr1-play-right" title="再生位置候補を右へ">→</button>
+              <button type="button" class="sec-btn sr1-btn-play-primary" id="sr1-play-confirm">再生位置決定</button>
+              <button type="button" class="sec-btn" id="sr1-play">テスト再生</button>
+              <label class="sr1-field sr1-field-inline">コード数
+                <input type="number" class="mi sr1-play-count" min="1" max="8" value="${playChordCount}" />
+              </label>
+            </div>
+          </section>
+          <section class="sr1-panel sr1-panel-bound ${boundActive ? 'is-active' : ''}" aria-label="Section境界の設定">
+            <h4 class="sr1-panel-title">Section 境界の設定</h4>
+            <p class="sr1-panel-desc">${boundActive
+              ? '境界候補（オレンジ）を選び「境界を確定」してください。'
+              : '「ここを区切り」で境界選択モードに入り、Section に含める最後のコードを選びます。'}</p>
+            <div class="sr1-panel-actions">
+              <button type="button" class="sec-btn" id="sr1-set-end">${boundActive ? '境界を確定' : 'ここを区切り'}</button>
+              <button type="button" class="sec-btn" id="sr1-boundary-cancel" ${boundActive ? '' : 'hidden'}>キャンセル</button>
+            </div>
+          </section>
         </div>
-        <div class="sr1-toolbar">
+        <div class="sr1-aux-toolbar" aria-label="構造編集">
           <button type="button" class="sec-btn" id="sr1-prev-sec">← Section</button>
           <button type="button" class="sec-btn" id="sr1-next-sec">Section →</button>
-          <button type="button" class="sec-btn" id="sr1-set-end">${uiMode === 'boundary' ? '境界を確定' : 'ここを区切り'}</button>
-          <button type="button" class="sec-btn" id="sr1-boundary-cancel" ${uiMode === 'boundary' ? '' : 'hidden'}>境界キャンセル</button>
           <button type="button" class="sec-btn" id="sr1-split">${uiMode === 'split' ? '分割実行' : '分割'}</button>
           <button type="button" class="sec-btn" id="sr1-split-cancel" ${uiMode === 'split' ? '' : 'hidden'}>分割キャンセル</button>
-          <button type="button" class="sec-btn" id="sr1-merge">前のSectionと結合</button>
+          <button type="button" class="sec-btn" id="sr1-merge">前と結合</button>
           <button type="button" class="sec-btn" id="sr1-undo" ${canUndo ? '' : 'disabled'}>Undo</button>
           <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
-        <div id="sr1-msg" class="sag-errors" role="status">${esc(message)}</div>
-        <div class="sr1-keys-hint">←→:再生候補　Tab/Shift+Tab:Section　Space:再生　Enter:区切り　Esc:閉じる／分割キャンセル</div>
+        <div id="sr1-msg" class="sag-errors sr1-msg" role="status">${esc(message)}</div>
+        <p class="sr1-keys-hint">←→ 候補移動 · Space 再生 · Tab Section · Enter 確定 · Esc キャンセル／閉じる</p>
       </div>`;
   }
 
