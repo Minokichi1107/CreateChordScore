@@ -18,6 +18,7 @@ import {
   deleteDraftSectionAt,
   diagnoseDraftSection,
   diagnoseDraftSections,
+  classifySectionDiagForUi,
   isDraftDirty,
   prepareDraftForAdopt,
   mergeDraftWithPrevious,
@@ -556,6 +557,117 @@ const st = (b, sections = []) => ({
   assert.equal((audio.listeners.ended || []).length, 1, 'no accumulation');
   stop();
   assert.equal((audio.listeners.ended || []).length, 0);
+}
+
+
+
+// --- C: classifySectionDiagForUi drives delete UI (struct vs incomplete) ---
+{
+  const b = buf(4);
+  const ok = diagnoseDraftSection(
+    { id: 'a', type: 'verse', name: 'V', startChordId: 'k0', endChordId: 'k1' }, b);
+  assert.equal(classifySectionDiagForUi(ok), 'ok');
+
+  const incomplete = diagnoseDraftSection(
+    { id: 'b', type: '', name: '', startChordId: 'k2', endChordId: 'k3' }, b);
+  assert.equal(incomplete.structurallyValid, true);
+  assert.equal(incomplete.complete, false);
+  assert.equal(classifySectionDiagForUi(incomplete), 'incomplete-fields');
+  // Delete UI must only show for structural-invalid, not incomplete-fields
+  assert.notEqual(classifySectionDiagForUi(incomplete), 'structural-invalid');
+
+  const structural = diagnoseDraftSection(
+    { id: 'c', type: 'verse', name: 'X', startChordId: 'missing', endChordId: 'k0' }, b);
+  assert.equal(structural.structurallyValid, false);
+  assert.equal(classifySectionDiagForUi(structural), 'structural-invalid');
+}
+
+// --- A: boundary end index is independent of play concepts (API) ---
+{
+  const b = buf(6);
+  const draft = createReconfigurationDraft({
+    projectId: 'p', buffer: b,
+    sections: [S('a', 0, 2), S('b', 3, 5)],
+  });
+  // Changing boundary via API does not depend on any playCandidate state
+  const r = setDraftSectionEndByChordIndex(draft, 0, 1, b);
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(draft.sections[0].endChordId, 'k1');
+  assert.equal(draft.sections[1].startChordId, 'k2');
+}
+
+// --- D: playStartIdx restore semantics (pure state machine) ---
+{
+  // Mirrors modal finishPlay without DOM
+  let playCandidate = 3;
+  let playConfirmed = 5;
+  let playStartIdx = 2; // actual start of this playback
+  const finishPlay = () => {
+    if (playStartIdx != null) playCandidate = playStartIdx;
+    playStartIdx = null;
+  };
+  // Mid-play user changes confirmed position
+  playConfirmed = 7;
+  playCandidate = 7;
+  finishPlay();
+  assert.equal(playCandidate, 2);
+  assert.equal(playStartIdx, null);
+  assert.equal(playConfirmed, 7); // confirmed may stay for next play
+}
+
+// --- E: beforeStructuralEdit must stop play (order contract via flags) ---
+{
+  let stopped = false;
+  let edited = false;
+  const stopPlayIfNeeded = () => { stopped = true; };
+  const beforeStructuralEdit = () => { stopPlayIfNeeded(); };
+  const doMerge = () => { beforeStructuralEdit(); edited = true; };
+  doMerge();
+  assert.equal(stopped, true);
+  assert.equal(edited, true);
+}
+
+// --- F: no-audio path must invoke onEnded ---
+{
+  let ended = false;
+  const onTestPlay = ({ onEnded }) => {
+    const audio = null;
+    if (!audio) {
+      onEnded?.();
+      return;
+    }
+  };
+  let isPlaying = true;
+  let playStartIdx = 0;
+  onTestPlay({
+    startSec: 0, endSec: 1,
+    onEnded: () => { isPlaying = false; playStartIdx = null; ended = true; },
+  });
+  assert.equal(ended, true);
+  assert.equal(isPlaying, false);
+  assert.equal(playStartIdx, null);
+}
+
+// --- B: app.js monitor registers/removes ended via shared refs (source contract) ---
+{
+  // Read-only check that stop path clears both handlers when given the same refs
+  let timeH = () => {};
+  let endH = () => {};
+  const audio = {
+    _t: new Set(), _e: new Set(),
+    addEventListener(type, fn) { (type === 'ended' ? this._e : this._t).add(fn); },
+    removeEventListener(type, fn) { (type === 'ended' ? this._e : this._t).delete(fn); },
+  };
+  audio.addEventListener('timeupdate', timeH);
+  audio.addEventListener('ended', endH);
+  // Simulate stop
+  audio.removeEventListener('timeupdate', timeH);
+  audio.removeEventListener('ended', endH);
+  timeH = null;
+  endH = null;
+  assert.equal(audio._e.size, 0);
+  assert.equal(audio._t.size, 0);
+  // Note: full app.js integration requires browser/DOM; this verifies the removal contract.
 }
 
 

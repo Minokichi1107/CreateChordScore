@@ -582,3 +582,5 @@
 
 .sr1-chord.sr1-bound-cand { outline: 2px solid #36c; background: #e8f0ff; }
 .sr1-mode-boundary { color: #36c; }
+
+.sr1-incomplete-banner { border: 1px solid #ccc; background: #fafafa; padding: 8px; margin: 6px 0; border-radius: 4px; font-size: 12px; color: #555; }

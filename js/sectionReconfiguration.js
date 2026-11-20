@@ -62,6 +62,18 @@ export function orderSectionsOnBuffer(sections, buffer) {
  */
 const COMPLETENESS_REASONS = new Set(['invalid-section-name', 'invalid-section-type']);
 
+
+/**
+ * UI classification for a diagnoseDraftSections() row.
+ * structural-invalid → show delete; incomplete-fields → soft notice; ok → nothing.
+ */
+export function classifySectionDiagForUi(diag) {
+  if (!diag) return 'structural-invalid';
+  if (diag.structurallyValid === false) return 'structural-invalid';
+  if (diag.complete === false) return 'incomplete-fields';
+  return 'ok';
+}
+
 export function diagnoseDraftSection(section, buffer) {
   const structural = [];
   const completeness = [];

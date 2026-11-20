@@ -9,6 +9,7 @@ import {
   deleteDraftSectionAt,
   diagnoseDraftSection,
   diagnoseDraftSections,
+  classifySectionDiagForUi,
   isDraftDirty,
   undoDraft,
   redoDraft,
@@ -173,8 +174,13 @@ export function openSectionReconfigurationModal(p) {
       const labels = (x.completenessReasons || []).map(r => REASON_LABEL[r] || r).join('、');
       lines.push(`<li data-incomplete-index="${x.index}">Section ${x.index + 1}: ${esc(labels || '名称または種類が未設定')}（採用前に入力してください）</li>`);
     }
-    return `<div class="sr1-invalid" role="alert">
-      <div class="sr1-invalid-title">修正が必要なSectionがあります。</div>
+    const hasStructural = structural.length > 0;
+    const title = hasStructural
+      ? '構造的に不正なSectionがあります。採用前に解消してください。'
+      : '名称または種類が未設定のSectionがあります（編集は継続できます）。';
+    const boxClass = hasStructural ? 'sr1-invalid' : 'sr1-incomplete-banner';
+    return `<div class="${boxClass}" role="status">
+      <div class="sr1-invalid-title">${title}</div>
       <ul class="sr1-invalid-list">${lines.join('')}</ul>
     </div>`;
   }
@@ -187,9 +193,14 @@ export function openSectionReconfigurationModal(p) {
     const typeOpts = (sectionTypes || []).map(t =>
       `<option value="${esc(t.value)}" ${t.value === sec.type ? 'selected' : ''}>${esc(t.label)}</option>`
     ).join('');
-    const invalidNote = diag.valid ? '' :
-      `<div class="sr1-sec-invalid">このSectionは不正です: ${esc((diag.reasons || []).map(r => REASON_LABEL[r] || r).join('、'))}</div>
+    const kind = classifySectionDiagForUi(diag);
+    let invalidNote = '';
+    if (kind === 'structural-invalid') {
+      invalidNote = `<div class="sr1-sec-invalid">このSectionは構造的に不正です: ${esc((diag.structuralReasons || diag.reasons || []).map(r => REASON_LABEL[r] || r).join('、'))}</div>
        <button type="button" class="sec-btn sr1-danger" id="sr1-delete-sec">この不正Sectionを削除</button>`;
+    } else if (kind === 'incomplete-fields') {
+      invalidNote = `<div class="sr1-sec-incomplete">名称または種類が未設定です（Draft編集は継続できます。採用前に入力してください）</div>`;
+    }
     return `
       <div class="sr1-section-meta">
         <div class="sr1-sec-idx">Section ${sectionIdx + 1} / ${draft.sections.length}</div>
@@ -744,6 +755,7 @@ export function openSectionReconfigurationModal(p) {
       applyNameTypeFromInputs();
       stopPlayIfNeeded();
       if (uiMode === 'split') cancelSplitMode();
+      if (uiMode === 'boundary') cancelBoundaryMode();
       sectionIdx = Math.max(0, sectionIdx - 1);
       resetPlayToSectionStart();
       fullRedraw();
@@ -752,6 +764,7 @@ export function openSectionReconfigurationModal(p) {
       applyNameTypeFromInputs();
       stopPlayIfNeeded();
       if (uiMode === 'split') cancelSplitMode();
+      if (uiMode === 'boundary') cancelBoundaryMode();
       sectionIdx = Math.min(Math.max(0, draft.sections.length - 1), sectionIdx + 1);
       resetPlayToSectionStart();
       fullRedraw();
