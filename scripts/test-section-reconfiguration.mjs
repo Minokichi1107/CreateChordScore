@@ -30,6 +30,7 @@ import {
 } from '../js/sectionReconfiguration.js';
 import { replaceSectionsFromDraftCommand, applyGeneratedSectionsCommand } from '../js/analysisCommands.js';
 import { undoBuffer } from '../js/analysisSession.js';
+import { buildDraftIssueBannersHtml } from '../js/sectionReconfigurationModal.js';
 
 const buf = (n = 4) => Array.from({ length: n }, (_, i) => ({
   _id: `k${i}`, chord: ['C', 'G', 'Am', 'F'][i % 4], start: i * 2, end: i * 2 + 2,
@@ -670,5 +671,39 @@ const st = (b, sections = []) => ({
   // Note: full app.js integration requires browser/DOM; this verifies the removal contract.
 }
 
+
+
+// --- Banner HTML: structural / incomplete independent ---
+{
+  const none = buildDraftIssueBannersHtml([]);
+  assert.equal(none, '');
+
+  const structuralOnly = buildDraftIssueBannersHtml([
+    { index: 0, structurallyValid: false, complete: false, structuralReasons: ['start-chord-not-found'], reasons: ['start-chord-not-found'], repairableByBoundary: false },
+  ]);
+  assert.match(structuralOnly, /sr1-invalid/);
+  assert.doesNotMatch(structuralOnly, /sr1-incomplete-banner/);
+  assert.match(structuralOnly, /data-invalid-index="0"/);
+
+  const incompleteOnly = buildDraftIssueBannersHtml([
+    { index: 1, structurallyValid: true, complete: false, completenessReasons: ['invalid-section-name'], reasons: ['invalid-section-name'] },
+  ]);
+  assert.match(incompleteOnly, /sr1-incomplete-banner/);
+  assert.doesNotMatch(incompleteOnly, /class="sr1-invalid"/);
+  assert.match(incompleteOnly, /data-incomplete-index="1"/);
+
+  const both = buildDraftIssueBannersHtml([
+    { index: 0, structurallyValid: false, complete: false, structuralReasons: ['start-after-end'], reasons: ['start-after-end'], repairableByBoundary: true },
+    { index: 1, structurallyValid: true, complete: false, completenessReasons: ['invalid-section-type'], reasons: ['invalid-section-type'] },
+  ]);
+  assert.match(both, /sr1-invalid/);
+  assert.match(both, /sr1-incomplete-banner/);
+  assert.match(both, /data-invalid-index="0"/);
+  assert.match(both, /data-incomplete-index="1"/);
+  // incomplete must not appear inside the structural banner list only — both banners present as separate divs
+  const invPos = both.indexOf('sr1-invalid');
+  const incPos = both.indexOf('sr1-incomplete-banner');
+  assert.ok(invPos >= 0 && incPos >= 0 && invPos !== incPos);
+}
 
 console.log('test-section-reconfiguration: ok');

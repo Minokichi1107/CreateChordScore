@@ -71,6 +71,48 @@ const REASON_LABEL = {
  * @param {()=>void} [p.onKeyUnshield]
  * @param {(msg:string, choices:{label:string,value:string}[])=>Promise<string>} [p.confirmChoice]
  */
+
+/**
+ * Build independent HTML banners for structural vs incomplete draft issues.
+ * Pure (no DOM): returns '' | one banner | two banners concatenated.
+ * @param {Array} diagList rows from diagnoseDraftSections()
+ * @param {{ reasonLabel?: Record<string,string>, escapeHtml?: (s:any)=>string }} [opts]
+ */
+export function buildDraftIssueBannersHtml(diagList, opts = {}) {
+  const escFn = opts.escapeHtml || (s => String(s ?? '').replace(/[&<>"']/g, ch =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])));
+  const RL = opts.reasonLabel || {};
+  const label = (r) => RL[r] || r;
+  const list = Array.isArray(diagList) ? diagList : [];
+  const structural = list.filter(x => x && x.structurallyValid === false);
+  const incomplete = list.filter(x => x && x.structurallyValid !== false && x.complete === false);
+  const parts = [];
+  if (structural.length) {
+    const lines = structural.map(x => {
+      const labels = (x.structuralReasons || x.reasons || []).map(label).join('、');
+      const repair = x.repairableByBoundary
+        ? '（境界の調整で修復できる場合があります）'
+        : '（削除が必要です）';
+      return `<li data-invalid-index="${x.index}">Section ${x.index + 1}: ${escFn(labels)}${repair}</li>`;
+    }).join('');
+    parts.push(`<div class="sr1-invalid" role="alert">
+      <div class="sr1-invalid-title">構造的に不正なSectionがあります。採用前に解消してください。</div>
+      <ul class="sr1-invalid-list">${lines}</ul>
+    </div>`);
+  }
+  if (incomplete.length) {
+    const lines = incomplete.map(x => {
+      const labels = (x.completenessReasons || []).map(label).join('、');
+      return `<li data-incomplete-index="${x.index}">Section ${x.index + 1}: ${escFn(labels || '名称または種類が未設定')}（採用前に入力してください）</li>`;
+    }).join('');
+    parts.push(`<div class="sr1-incomplete-banner" role="status">
+      <div class="sr1-invalid-title">名称または種類が未設定のSectionがあります（編集は継続できます）。</div>
+      <ul class="sr1-invalid-list">${lines}</ul>
+    </div>`);
+  }
+  return parts.join('');
+}
+
 export function openSectionReconfigurationModal(p) {
   const {
     openModal, mkMBtn, draft, buffer, sectionTypes,
@@ -158,31 +200,10 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function invalidBannerHtml() {
-    const list = diagnoseDraftSections(draft, buffer);
-    const structural = list.filter(x => !x.structurallyValid);
-    const incomplete = list.filter(x => x.structurallyValid && !x.complete);
-    if (!structural.length && !incomplete.length) return '';
-    const lines = [];
-    for (const x of structural) {
-      const labels = (x.structuralReasons || x.reasons).map(r => REASON_LABEL[r] || r).join('、');
-      const repair = x.repairableByBoundary
-        ? '（境界の調整で修復できる場合があります）'
-        : '（削除が必要です）';
-      lines.push(`<li data-invalid-index="${x.index}">Section ${x.index + 1}: ${esc(labels)}${repair}</li>`);
-    }
-    for (const x of incomplete) {
-      const labels = (x.completenessReasons || []).map(r => REASON_LABEL[r] || r).join('、');
-      lines.push(`<li data-incomplete-index="${x.index}">Section ${x.index + 1}: ${esc(labels || '名称または種類が未設定')}（採用前に入力してください）</li>`);
-    }
-    const hasStructural = structural.length > 0;
-    const title = hasStructural
-      ? '構造的に不正なSectionがあります。採用前に解消してください。'
-      : '名称または種類が未設定のSectionがあります（編集は継続できます）。';
-    const boxClass = hasStructural ? 'sr1-invalid' : 'sr1-incomplete-banner';
-    return `<div class="${boxClass}" role="status">
-      <div class="sr1-invalid-title">${title}</div>
-      <ul class="sr1-invalid-list">${lines.join('')}</ul>
-    </div>`;
+    return buildDraftIssueBannersHtml(diagnoseDraftSections(draft, buffer), {
+      reasonLabel: REASON_LABEL,
+      escapeHtml: esc,
+    });
   }
 
   function sectionPanelHtml() {
