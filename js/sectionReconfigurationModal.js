@@ -407,18 +407,19 @@ export function openSectionReconfigurationModal(p) {
         ${chordsHtml()}
         <div class="sr1-panels">
           <section class="sr1-panel sr1-panel-play ${!splitOn ? 'is-active' : ''}" aria-label="再生位置">
-            <h4 class="sr1-panel-title">再生位置${!splitOn ? ' <span class="sr1-active-tag">操作中</span>' : ''}</h4>
+            <h4 class="sr1-panel-title">再生位置${!splitOn ? '<span class="sr1-active-tag" aria-label="操作中">操作中</span>' : ''}</h4>
             <div class="sr1-panel-actions">
               <button type="button" class="sec-btn" id="sr1-play-left" title="再生位置を左へ">←</button>
               <button type="button" class="sec-btn" id="sr1-play-right" title="再生位置を右へ">→</button>
               <button type="button" class="sec-btn" id="sr1-play">テスト再生</button>
-              <label class="sr1-field sr1-field-inline">長さ（コード数）
+              <label class="sr1-play-count-field">
+                <span class="sr1-play-count-label">長さ（コード数）</span>
                 <input type="number" class="mi sr1-play-count" min="1" max="8" value="${playChordCount}" />
               </label>
             </div>
           </section>
           <section class="sr1-panel sr1-panel-bound ${splitOn ? 'is-active' : ''}" aria-label="分割位置">
-            <h4 class="sr1-panel-title">分割位置${splitOn ? ' <span class="sr1-active-tag">操作中</span>' : ''}</h4>
+            <h4 class="sr1-panel-title">分割位置${splitOn ? '<span class="sr1-active-tag" aria-label="操作中">操作中</span>' : ''}</h4>
             <div class="sr1-panel-actions">
               <button type="button" class="sec-btn" id="sr1-split-left" title="分割位置を左へ" ${splitOn ? '' : 'disabled'}>←</button>
               <button type="button" class="sec-btn" id="sr1-split-right" title="分割位置を右へ" ${splitOn ? '' : 'disabled'}>→</button>
