@@ -499,10 +499,14 @@ function _stopSectionReconfigPlaybackMonitor() {
   _sectionReconfigEndedHandler = null;
 }
 
-function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded) {
+function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime) {
   _stopSectionReconfigPlaybackMonitor();
   const epsilon = 0.03; // seconds tolerance
   let ended = false;
+  const reportTime = () => {
+    if (!onTime || !audio) return;
+    try { onTime(audio.currentTime); } catch { /* ignore */ }
+  };
   const finish = () => {
     if (ended) return;
     ended = true;
@@ -520,6 +524,7 @@ function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded) {
         try { onEnded?.(); } catch { /* ignore */ }
         return;
       }
+      reportTime();
       if (audio.currentTime >= endSec - epsilon) {
         finish();
         return;
@@ -530,6 +535,7 @@ function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded) {
   _sectionReconfigTimeUpdateHandler = () => {
     if (ended) return;
     try {
+      reportTime();
       if (audio.currentTime >= endSec - epsilon) finish();
     } catch { /* ignore */ }
   };
@@ -3476,7 +3482,7 @@ async function startSectionReconfiguration() {
       _stopSectionReconfigPlaybackMonitor();
       try { getAudioElement()?.pause(); } catch { /* ignore */ }
     },
-    onTestPlay: ({ startSec, endSec, onEnded }) => {
+    onTestPlay: ({ startSec, endSec, onEnded, onTime }) => {
       const audio = getAudioElement?.();
       if (!audio || !audio.src) {
         toast('音源がありません');
@@ -3490,7 +3496,7 @@ async function startSectionReconfiguration() {
         if (playPromise && typeof playPromise.catch === 'function') {
           playPromise.catch(() => { try { onEnded?.(); } catch { /* ignore */ } });
         }
-        _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded);
+        _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime);
       } catch (err) {
         console.warn('[section-reconfig] test play failed', err);
         try { onEnded?.(); } catch { /* ignore */ }

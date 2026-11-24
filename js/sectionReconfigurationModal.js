@@ -140,8 +140,14 @@ export function openSectionReconfigurationModal(p) {
   let splitCandidate = null;
   /** Candidate at the moment split-position mode was entered; restored on cancel / play mode. */
   let splitCandidateAtModeEnter = null;
+  /**
+   * Split position = start chord index of the *new* (back) Section.
+   * executeSplit maps to splitDraftAtChordIndex(..., endChordIndex = splitCandidate - 1).
+   */
   /** Chord grid column count (PC base 6; responsive 3–4). */
   let gridCols = 6;
+  /** Live playback highlight: buffer index of chord currently sounding (null if not playing). */
+  let playingChordIdx = null;
   let busy = false;
   let message = '';
   let root = null;
@@ -166,8 +172,10 @@ export function openSectionReconfigurationModal(p) {
     if (!s || s.start < 0) { playCandidate = 0; playConfirmed = 0; return; }
     if (playCandidate < s.start || playCandidate > s.end) playCandidate = s.start;
     playConfirmed = playCandidate;
-    if (splitCandidate != null && (splitCandidate < s.start || splitCandidate >= s.end)) {
-      splitCandidate = Math.max(s.start, Math.min(s.end - 1, splitCandidate));
+    if (splitCandidate != null) {
+      const c = clampSplitCandidate(splitCandidate);
+      // clampSplitCandidate is defined below; only adjust when out of range
+      if (c != null) splitCandidate = c;
     }
   }
 
@@ -181,6 +189,54 @@ export function openSectionReconfigurationModal(p) {
     playConfirmed = playCandidate;
   }
 
+  /** Valid split positions: first chord of back half → indices (start+1) .. end inclusive. */
+  function clampSplitCandidate(idx) {
+    const s = currentSpan();
+    if (!s || s.start < 0 || s.end <= s.start) return null;
+    return Math.max(s.start + 1, Math.min(s.end, idx));
+  }
+
+  function chordIndexAtTime(tSec) {
+    if (!Number.isFinite(tSec) || !buffer.length) return null;
+    for (let i = 0; i < buffer.length; i++) {
+      const start = Number(buffer[i]?.start);
+      if (!Number.isFinite(start)) continue;
+      let end = Number(buffer[i]?.end);
+      if (!Number.isFinite(end)) {
+        const next = Number(buffer[i + 1]?.start);
+        end = Number.isFinite(next) ? next : start + 1e6;
+      }
+      if (tSec >= start && tSec < end) return i;
+    }
+    // After last chord start
+    const last = buffer.length - 1;
+    const ls = Number(buffer[last]?.start);
+    if (Number.isFinite(ls) && tSec >= ls) return last;
+    return null;
+  }
+
+  function updatePlayingHighlight(idx) {
+    if (!root) root = document.getElementById('sr1-root');
+    if (!root) return;
+    root.querySelectorAll('.sr1-chord.sr1-playing').forEach((el) => {
+      el.classList.remove('sr1-playing');
+      el.querySelector('.sr1-mark-playing')?.remove();
+    });
+    if (idx == null || idx < 0) return;
+    const btn = root.querySelector(`.sr1-chord[data-i="${idx}"]`);
+    if (!btn) return;
+    btn.classList.add('sr1-playing');
+    if (!btn.querySelector('.sr1-mark-playing')) {
+      const mark = document.createElement('span');
+      mark.className = 'sr1-mark sr1-mark-playing';
+      mark.setAttribute('aria-hidden', 'true');
+      btn.appendChild(mark);
+    }
+    try {
+      btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    } catch { /* ignore */ }
+  }
+
   function resetPlayToSectionStart() {
     const s = currentSpan();
     if (!s || s.start < 0) { playCandidate = 0; playConfirmed = 0; return; }
@@ -189,9 +245,11 @@ export function openSectionReconfigurationModal(p) {
 
   function stopPlayIfNeeded() {
     if (!isPlaying && playStartIdx == null) {
+      playingChordIdx = null;
       onTestStop?.();
       return;
     }
+    playingChordIdx = null;
     isPlaying = false;
     playStartIdx = null;
     onTestStop?.();
@@ -295,17 +353,20 @@ export function openSectionReconfigurationModal(p) {
         const inSec = structOk && i >= active.start && i <= active.end;
         const isPlay = i === playCandidate;
         const isSplitCand = uiMode === 'split' && splitCandidate === i;
+        const isPlayingChord = playingChordIdx === i;
         const isBoundary = boundaryEnds.has(i);
         const cls = [
           'sr1-chord',
           inSec ? 'sr1-in-sec' : '',
           isPlay ? 'sr1-play-cand sr1-play-conf' : '',
           isSplitCand ? 'sr1-split-cand' : '',
+          isPlayingChord ? 'sr1-playing' : '',
           isBoundary ? 'sr1-boundary' : '',
         ].filter(Boolean).join(' ');
         const markers = [
           isPlay ? '<span class="sr1-mark sr1-mark-play" aria-hidden="true"></span>' : '',
           isSplitCand ? '<span class="sr1-mark sr1-mark-split" aria-hidden="true"></span>' : '',
+          isPlayingChord ? '<span class="sr1-mark sr1-mark-playing" aria-hidden="true"></span>' : '',
         ].join('');
         cells.push(
           `<button type="button" class="${cls}" data-i="${i}" role="option" aria-selected="${isPlay}">` +
@@ -346,7 +407,7 @@ export function openSectionReconfigurationModal(p) {
         ${chordsHtml()}
         <div class="sr1-panels">
           <section class="sr1-panel sr1-panel-play ${!splitOn ? 'is-active' : ''}" aria-label="再生位置">
-            <h4 class="sr1-panel-title">再生位置</h4>
+            <h4 class="sr1-panel-title">再生位置${!splitOn ? ' <span class="sr1-active-tag">操作中</span>' : ''}</h4>
             <div class="sr1-panel-actions">
               <button type="button" class="sec-btn" id="sr1-play-left" title="再生位置を左へ">←</button>
               <button type="button" class="sec-btn" id="sr1-play-right" title="再生位置を右へ">→</button>
@@ -357,7 +418,7 @@ export function openSectionReconfigurationModal(p) {
             </div>
           </section>
           <section class="sr1-panel sr1-panel-bound ${splitOn ? 'is-active' : ''}" aria-label="分割位置">
-            <h4 class="sr1-panel-title">分割位置</h4>
+            <h4 class="sr1-panel-title">分割位置${splitOn ? ' <span class="sr1-active-tag">操作中</span>' : ''}</h4>
             <div class="sr1-panel-actions">
               <button type="button" class="sec-btn" id="sr1-split-left" title="分割位置を左へ" ${splitOn ? '' : 'disabled'}>←</button>
               <button type="button" class="sec-btn" id="sr1-split-right" title="分割位置を右へ" ${splitOn ? '' : 'disabled'}>→</button>
@@ -486,17 +547,28 @@ export function openSectionReconfigurationModal(p) {
     playStartIdx = startIdx;
     isPlaying = true;
     playCandidate = startIdx;
+    playingChordIdx = startIdx;
     fullRedraw();
     const finishPlay = () => {
       isPlaying = false;
+      playingChordIdx = null;
       if (playStartIdx != null) playCandidate = playStartIdx;
       playStartIdx = null;
       if (!closed) fullRedraw();
+      else updatePlayingHighlight(null);
     };
     onTestPlay?.({
       startSec,
       endSec,
       onEnded: finishPlay,
+      onTime: (tSec) => {
+        if (closed || !isPlaying) return;
+        const idx = chordIndexAtTime(tSec);
+        if (idx !== playingChordIdx) {
+          playingChordIdx = idx;
+          updatePlayingHighlight(idx);
+        }
+      },
     });
   }
 
@@ -504,32 +576,38 @@ export function openSectionReconfigurationModal(p) {
     stopPlayIfNeeded();
     applyNameTypeFromInputs();
     const sp = currentSpan();
-    // splitDraftAtChordIndex: endChordIndex is last chord of front half
+    // splitCandidate = start of back Section (next-section start). Front ends at splitCandidate-1.
     if (!sp || sp.start < 0 || sp.end <= sp.start) {
       message = 'この Section は分割できません';
       fullRedraw();
       return;
     }
-    const preferred = Math.min(Math.max(playCandidate, sp.start), sp.end - 1);
-    // Re-entering keeps current candidate if already in mode; first enter snapshots baseline
+    // Keep existing split position when switching modes; do not derive from play position.
+    let next = splitCandidate != null ? clampSplitCandidate(splitCandidate) : null;
+    if (next == null) {
+      // Default: mid-section start of back half (not play position)
+      next = clampSplitCandidate(Math.floor((sp.start + sp.end + 1) / 2));
+    }
     if (uiMode !== 'split') {
-      splitCandidate = preferred;
-      splitCandidateAtModeEnter = preferred;
+      splitCandidate = next;
+      splitCandidateAtModeEnter = next;
     } else if (splitCandidate == null) {
-      splitCandidate = preferred;
-      splitCandidateAtModeEnter = preferred;
+      splitCandidate = next;
+      splitCandidateAtModeEnter = next;
+    } else {
+      splitCandidate = clampSplitCandidate(splitCandidate);
     }
     uiMode = 'split';
-    message = '分割位置を変更できます（「分割」で実行）';
+    message = '分割位置は次のSectionの開始コードです（「分割」で実行）';
     fullRedraw();
   }
 
   /** Move candidate only while already in split-position mode. Does not enter mode. */
   function moveSplitCandidate(delta) {
     if (uiMode !== 'split' || splitCandidate == null) return;
-    const sp = currentSpan();
-    if (!sp || sp.start < 0) return;
-    splitCandidate = Math.max(sp.start, Math.min(sp.end - 1, splitCandidate + delta));
+    const next = clampSplitCandidate(splitCandidate + delta);
+    if (next == null) return;
+    splitCandidate = next;
     fullRedraw();
   }
 
@@ -564,7 +642,9 @@ export function openSectionReconfigurationModal(p) {
       fullRedraw();
       return;
     }
-    const r = splitDraftAtChordIndex(draft, sectionIdx, splitCandidate, buffer);
+    // UI stores next-section start; API wants last chord of front half
+    const endChordIndex = splitCandidate - 1;
+    const r = splitDraftAtChordIndex(draft, sectionIdx, endChordIndex, buffer);
     if (!r.ok) {
       message = `分割できません（${REASON_LABEL[r.reason] || r.reason}）`;
       fullRedraw();
@@ -765,13 +845,14 @@ export function openSectionReconfigurationModal(p) {
       btn.addEventListener('click', () => {
         const i = Number(btn.dataset.i);
         if (uiMode === 'split') {
-          const sp = currentSpan();
-          if (sp && sp.start >= 0) {
-            splitCandidate = Math.max(sp.start, Math.min(sp.end - 1, i));
-          } else {
-            splitCandidate = i;
+          const next = clampSplitCandidate(i);
+          if (next == null) {
+            message = 'この位置では分割できません';
+            fullRedraw();
+            return;
           }
-          message = `分割位置: コード ${splitCandidate + 1}（ここまでが前半）`;
+          splitCandidate = next;
+          message = `分割位置: コード ${splitCandidate + 1}（ここから次のSection）`;
           fullRedraw();
           return;
         }
