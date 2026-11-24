@@ -766,7 +766,7 @@ body:not([data-theme="dark"]) .sr1-root {
   padding: 4px 4px 4px 6px;
   max-width: 100%;
   flex: 0 0 auto;
-  overflow: hidden;
+  overflow: hidden; /* clip any sub-pixel bleed of partial rows */
   box-sizing: border-box;
   position: relative;
   z-index: 0;
@@ -782,12 +782,11 @@ body:not([data-theme="dark"]) .sr1-root {
   max-height: calc(3 * var(--sr1-row-h) + 2 * var(--sr1-row-gap));
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 1px 12px 1px 1px;
+  padding: 0 12px 0 0;
   box-sizing: border-box;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  /* Row snapping is handled in JS (1 row at a time). CSS scroll-snap can jump by viewport. */
   overscroll-behavior-y: contain;
 }
 .sr1-chord-row {

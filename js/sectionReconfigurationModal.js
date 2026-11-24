@@ -346,8 +346,8 @@ export function openSectionReconfigurationModal(p) {
   }
 
   /**
-   * One scroll step = distance between consecutive row tops (height + gap).
-   * Prefer offsetTop delta so we never treat the full 3-row viewport as one step.
+   * Distance between consecutive row tops (= one scroll step).
+   * Measured from layout, not from CSS variables (border/padding can differ).
    */
   function chordGridRowStep(grid) {
     const rows = chordGridRows(grid);
@@ -363,20 +363,38 @@ export function openSectionReconfigurationModal(p) {
     return 41;
   }
 
-  /** Max scrollTop so the viewport still shows up to 3 full rows (not a half row). */
-  function maxChordGridScrollTop(grid, step) {
-    const n = chordGridRows(grid).length;
-    if (step <= 0 || n <= 3) return 0;
-    return (n - 3) * step;
+  /**
+   * Size the viewport to exactly 3 full measured rows so content never sits mid-row.
+   */
+  function layoutChordGridViewport(grid) {
+    if (!grid) return 0;
+    const rows = chordGridRows(grid);
+    if (!rows.length) return 0;
+    const step = chordGridRowStep(grid);
+    const h = rows[0].offsetHeight;
+    const gap = Math.max(0, step - h);
+    // 3 rows + 2 gaps between them
+    const viewH = Math.round(3 * h + 2 * gap);
+    grid.style.height = `${viewH}px`;
+    grid.style.maxHeight = `${viewH}px`;
+    // Keep CSS vars in sync for any dependent styles
+    grid.style.setProperty('--sr1-row-h', `${h}px`);
+    grid.style.setProperty('--sr1-row-gap', `${gap}px`);
+    return step;
   }
 
   function setChordGridFirstRow(grid, firstRow) {
     if (!grid) return;
-    const step = chordGridRowStep(grid);
+    const rows = chordGridRows(grid);
+    if (!rows.length) return;
+    const step = layoutChordGridViewport(grid) || chordGridRowStep(grid);
     if (step <= 0) return;
-    const maxFirst = Math.max(0, chordGridRows(grid).length - 3);
-    const fr = Math.max(0, Math.min(maxFirst, firstRow));
-    grid.scrollTop = fr * step;
+    const maxFirst = Math.max(0, rows.length - 3);
+    const fr = Math.max(0, Math.min(maxFirst, Math.round(firstRow)));
+    // Align using the real offset of that row (avoids mid-row stops)
+    const base = rows[0].offsetTop;
+    const target = rows[fr].offsetTop - base;
+    grid.scrollTop = target;
     gridScrollRow = fr;
   }
 
@@ -392,13 +410,10 @@ export function openSectionReconfigurationModal(p) {
   function scrollChordGridByRows(deltaRows) {
     const grid = getChordGridEl();
     if (!grid || !deltaRows) return;
-    const step = chordGridRowStep(grid);
-    if (step <= 0) return;
-    const first = Math.round(grid.scrollTop / step);
-    setChordGridFirstRow(grid, first + deltaRows);
+    setChordGridFirstRow(grid, gridScrollRow + deltaRows);
   }
 
-  /** Keep chord index visible within the 3-row window (row-aligned, 1-row steps). */
+  /** Keep chord index visible within the 3-row window (row-aligned). */
   function ensureChordRowVisible(idx) {
     const grid = getChordGridEl();
     if (!grid || idx == null || idx < 0) return;
@@ -409,40 +424,49 @@ export function openSectionReconfigurationModal(p) {
     const rows = chordGridRows(grid);
     const ri = rows.indexOf(row);
     if (ri < 0) return;
-    const step = chordGridRowStep(grid);
-    if (step <= 0) return;
-    const first = Math.round(grid.scrollTop / step);
+    const first = gridScrollRow;
     const last = first + 2;
     if (ri < first) setChordGridFirstRow(grid, ri);
     else if (ri > last) setChordGridFirstRow(grid, ri - 2);
   }
 
   function bindChordGridScroll(grid) {
-    if (!grid || grid.dataset.sr1RowScrollBound === '1') return;
+    if (!grid) return;
+    // Always re-measure viewport (row height can change with theme/font)
+    layoutChordGridViewport(grid);
+    if (grid.dataset.sr1RowScrollBound === '1') {
+      setChordGridFirstRow(grid, gridScrollRow);
+      return;
+    }
     grid.dataset.sr1RowScrollBound = '1';
-    // Restore preserved first row
     setChordGridFirstRow(grid, gridScrollRow);
+
     grid.addEventListener('wheel', (e) => {
       e.preventDefault();
       e.stopPropagation();
       const dy = e.deltaY;
       if (dy === 0 && e.deltaX === 0) return;
-      // Exactly one row per event (ignore large deltaY magnitude)
       const dir = dy > 0 || (dy === 0 && e.deltaX > 0) ? 1 : -1;
       scrollChordGridByRows(dir);
     }, { passive: false });
-    // Touchpad / scrollbar: after user finishes, snap to a row (never leave mid-row)
+
+    // Scrollbar / touch: snap to a whole row when scrolling settles
     let snapTimer = null;
     let snapping = false;
+    const doSnap = () => {
+      if (snapping) return;
+      snapping = true;
+      snapChordGridToRow(grid);
+      requestAnimationFrame(() => { snapping = false; });
+    };
     grid.addEventListener('scroll', () => {
       if (snapping) return;
       if (snapTimer) clearTimeout(snapTimer);
-      snapTimer = setTimeout(() => {
-        snapping = true;
-        snapChordGridToRow(grid);
-        snapping = false;
-      }, 50);
+      snapTimer = setTimeout(doSnap, 30);
     }, { passive: true });
+    if ('onscrollend' in grid) {
+      grid.addEventListener('scrollend', doSnap);
+    }
   }
 
   function chordsHtml() {
