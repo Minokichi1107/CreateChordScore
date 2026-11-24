@@ -383,15 +383,11 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function playHintHtml() {
-    const sp = currentSpan();
-    const endIdx = (sp && sp.start >= 0)
-      ? Math.min(sp.end, playConfirmed + playChordCount - 1)
-      : playConfirmed;
-    let modeNote = '';
+    // Always reserve one banner row so mode switch does not resize the modal.
     if (uiMode === 'split') {
-      modeNote = '<div class="sr1-mode-banner sr1-mode-split" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で開始時の位置に戻します</div>';
+      return '<div class="sr1-mode-banner sr1-mode-split is-on" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で開始時の位置に戻します</div>';
     }
-    return `${modeNote}`;
+    return '<div class="sr1-mode-banner sr1-mode-banner-slot" aria-hidden="true">&nbsp;</div>';
   }
 
   function bodyHtml() {
@@ -599,7 +595,8 @@ export function openSectionReconfigurationModal(p) {
       splitCandidate = clampSplitCandidate(splitCandidate);
     }
     uiMode = 'split';
-    message = '分割位置は次のSectionの開始コードです（「分割」で実行）';
+    // Keep message area reserved; avoid toggling a long status line that resizes the modal.
+    if (!message) message = '';
     fullRedraw();
   }
 
