@@ -312,9 +312,11 @@ export function openSectionReconfigurationModal(p) {
       <div class="sr1-header">
         <div class="sr1-header-row">
           <span class="sr1-sec-idx">Section ${sectionIdx + 1} / ${draft.sections.length}</span>
+          <span class="sr1-vsep" aria-hidden="true"></span>
           <label class="sr1-field sr1-field-inline">名前
             <input type="text" class="mi sr1-name" value="${esc(sec.name)}" autocomplete="off" />
           </label>
+          <span class="sr1-vsep" aria-hidden="true"></span>
           <label class="sr1-field sr1-field-inline">種類
             <select class="mi sr1-type">${typeOpts}</select>
           </label>
@@ -403,11 +405,13 @@ export function openSectionReconfigurationModal(p) {
         ${chordsHtml()}
         <div class="sr1-panels">
           <section class="sr1-panel sr1-panel-play ${!splitOn ? 'is-active' : ''}" data-sr1-mode="play" role="button" tabindex="0" aria-label="再生位置パネル（クリックで切替）">
-            <h4 class="sr1-panel-title"><span class="sr1-ico" aria-hidden="true">▶</span>再生位置${!splitOn ? '<span class="sr1-active-tag" aria-label="操作中">✓ 選択中</span>' : ''}</h4>
+            <h4 class="sr1-panel-title"><span class="sr1-ico" aria-hidden="true">▶</span>再生位置<span class="sr1-vsep" aria-hidden="true"></span>${!splitOn ? '<span class="sr1-active-tag" aria-label="操作中">✓ 選択中</span>' : ''}</h4>
             <div class="sr1-panel-actions">
               <button type="button" class="sec-btn" id="sr1-play-left" title="再生位置を左へ">←</button>
               <button type="button" class="sec-btn" id="sr1-play-right" title="再生位置を右へ">→</button>
+              <span class="sr1-vsep" aria-hidden="true"></span>
               <button type="button" class="sec-btn" id="sr1-play">テスト再生</button>
+              <span class="sr1-vsep" aria-hidden="true"></span>
               <label class="sr1-play-count-field">
                 <span class="sr1-play-count-label">長さ（コード数）</span>
                 <input type="number" class="mi sr1-play-count" min="1" max="8" value="${playChordCount}" />
@@ -415,10 +419,11 @@ export function openSectionReconfigurationModal(p) {
             </div>
           </section>
           <section class="sr1-panel sr1-panel-bound ${splitOn ? 'is-active' : ''}" data-sr1-mode="split" role="button" tabindex="0" aria-label="分割位置パネル（クリックで切替）">
-            <h4 class="sr1-panel-title"><span class="sr1-ico" aria-hidden="true">✂</span>分割位置${splitOn ? '<span class="sr1-active-tag" aria-label="操作中">✓ 選択中</span>' : ''}</h4>
+            <h4 class="sr1-panel-title"><span class="sr1-ico" aria-hidden="true">✂</span>分割位置<span class="sr1-vsep" aria-hidden="true"></span>${splitOn ? '<span class="sr1-active-tag" aria-label="操作中">✓ 選択中</span>' : ''}</h4>
             <div class="sr1-panel-actions">
               <button type="button" class="sec-btn" id="sr1-split-left" title="分割位置を左へ" ${splitOn ? '' : 'disabled'}>←</button>
               <button type="button" class="sec-btn" id="sr1-split-right" title="分割位置を右へ" ${splitOn ? '' : 'disabled'}>→</button>
+              <span class="sr1-vsep" aria-hidden="true"></span>
               <button type="button" class="sec-btn" id="sr1-split-edit">分割位置を変更</button>
               <button type="button" class="sec-btn sr1-btn-split-primary" id="sr1-split-exec" ${canSplitExec ? '' : 'disabled'}>分割</button>
               <button type="button" class="sec-btn" id="sr1-split-cancel" ${splitOn ? '' : 'disabled'}>キャンセル</button>
@@ -433,7 +438,7 @@ export function openSectionReconfigurationModal(p) {
           <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
         <div id="sr1-msg" class="sag-errors sr1-msg" role="status">${esc(message)}</div>
-        <p class="sr1-keys-hint"><span class="sr1-ico" aria-hidden="true">ℹ</span> クリックで位置選択 · ←→ 移動 · Space 再生 · Esc 分割キャンセル／閉じる</p>
+        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> クリックで位置選択 · ←→ 移動 · Space 再生 · Esc 分割キャンセル／閉じる</p>
       </div>`;
   }
 
