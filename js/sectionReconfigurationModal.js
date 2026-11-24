@@ -406,7 +406,7 @@ export function openSectionReconfigurationModal(p) {
         ${playHintHtml()}
         ${chordsHtml()}
         <div class="sr1-panels">
-          <section class="sr1-panel sr1-panel-play ${!splitOn ? 'is-active' : ''}" aria-label="再生位置">
+          <section class="sr1-panel sr1-panel-play ${!splitOn ? 'is-active' : ''}" data-sr1-mode="play" role="button" tabindex="0" aria-label="再生位置パネル（クリックで切替）">
             <h4 class="sr1-panel-title">再生位置${!splitOn ? '<span class="sr1-active-tag" aria-label="操作中">操作中</span>' : ''}</h4>
             <div class="sr1-panel-actions">
               <button type="button" class="sec-btn" id="sr1-play-left" title="再生位置を左へ">←</button>
@@ -418,7 +418,7 @@ export function openSectionReconfigurationModal(p) {
               </label>
             </div>
           </section>
-          <section class="sr1-panel sr1-panel-bound ${splitOn ? 'is-active' : ''}" aria-label="分割位置">
+          <section class="sr1-panel sr1-panel-bound ${splitOn ? 'is-active' : ''}" data-sr1-mode="split" role="button" tabindex="0" aria-label="分割位置パネル（クリックで切替）">
             <h4 class="sr1-panel-title">分割位置${splitOn ? '<span class="sr1-active-tag" aria-label="操作中">操作中</span>' : ''}</h4>
             <div class="sr1-panel-actions">
               <button type="button" class="sec-btn" id="sr1-split-left" title="分割位置を左へ" ${splitOn ? '' : 'disabled'}>←</button>
@@ -897,6 +897,25 @@ export function openSectionReconfigurationModal(p) {
     root.querySelector('#sr1-mode-play')?.addEventListener('click', () => enterPlayMode());
     root.querySelector('#sr1-mode-split')?.addEventListener('click', () => enterSplitMode());
     root.querySelector('#sr1-split-edit')?.addEventListener('click', () => enterSplitMode());
+    // Panel surface click also switches mode (buttons inside still work)
+    root.querySelector('.sr1-panel-play')?.addEventListener('click', () => {
+      if (uiMode !== 'normal') enterPlayMode();
+    });
+    root.querySelector('.sr1-panel-bound')?.addEventListener('click', () => {
+      if (uiMode !== 'split') enterSplitMode();
+    });
+    root.querySelector('.sr1-panel-play')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (uiMode !== 'normal') enterPlayMode();
+      }
+    });
+    root.querySelector('.sr1-panel-bound')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (uiMode !== 'split') enterSplitMode();
+      }
+    });
     root.querySelector('#sr1-split-exec')?.addEventListener('click', () => executeSplit());
     root.querySelector('#sr1-split-left')?.addEventListener('click', () => moveSplitCandidate(-1));
     root.querySelector('#sr1-split-right')?.addEventListener('click', () => moveSplitCandidate(1));
