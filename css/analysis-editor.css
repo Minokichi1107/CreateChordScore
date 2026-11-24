@@ -787,7 +787,7 @@ body:not([data-theme="dark"]) .sr1-root {
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scroll-snap-type: y mandatory;
+  /* Row snapping is handled in JS (1 row at a time). CSS scroll-snap can jump by viewport. */
   overscroll-behavior-y: contain;
 }
 .sr1-chord-row {
@@ -800,8 +800,6 @@ body:not([data-theme="dark"]) .sr1-root {
   flex: 0 0 var(--sr1-row-h);
   padding-right: 2px;
   box-sizing: border-box;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
 }
 .sr1-row-num {
   flex: 0 0 1.6em;

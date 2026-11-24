@@ -341,47 +341,64 @@ export function openSectionReconfigurationModal(p) {
     return document.querySelector('#sr1-root .sr1-chord-grid');
   }
 
-  /** Row height + gap used as one scroll step. */
-  function chordGridRowStep(grid) {
-    if (!grid) return 41;
-    const row = grid.querySelector('.sr1-chord-row');
-    if (!row) return 41;
-    const st = getComputedStyle(grid);
-    const gap = parseFloat(st.rowGap || st.gap) || 0;
-    return row.getBoundingClientRect().height + gap;
+  function chordGridRows(grid) {
+    return grid ? Array.from(grid.querySelectorAll('.sr1-chord-row')) : [];
   }
 
+  /**
+   * One scroll step = distance between consecutive row tops (height + gap).
+   * Prefer offsetTop delta so we never treat the full 3-row viewport as one step.
+   */
+  function chordGridRowStep(grid) {
+    const rows = chordGridRows(grid);
+    if (rows.length >= 2) {
+      const d = rows[1].offsetTop - rows[0].offsetTop;
+      if (d > 0) return d;
+    }
+    if (rows.length >= 1) {
+      const st = getComputedStyle(grid);
+      const gap = parseFloat(st.rowGap || st.gap) || 5;
+      return rows[0].offsetHeight + gap;
+    }
+    return 41;
+  }
+
+  /** Max scrollTop so the viewport still shows up to 3 full rows (not a half row). */
   function maxChordGridScrollTop(grid, step) {
-    const max = Math.max(0, grid.scrollHeight - grid.clientHeight);
-    if (step <= 0) return max;
-    // Snap max to a row boundary so the last view still shows full rows when possible.
-    return Math.floor(max / step + 1e-6) * step;
+    const n = chordGridRows(grid).length;
+    if (step <= 0 || n <= 3) return 0;
+    return (n - 3) * step;
+  }
+
+  function setChordGridFirstRow(grid, firstRow) {
+    if (!grid) return;
+    const step = chordGridRowStep(grid);
+    if (step <= 0) return;
+    const maxFirst = Math.max(0, chordGridRows(grid).length - 3);
+    const fr = Math.max(0, Math.min(maxFirst, firstRow));
+    grid.scrollTop = fr * step;
+    gridScrollRow = fr;
   }
 
   function snapChordGridToRow(grid) {
     if (!grid) return;
     const step = chordGridRowStep(grid);
     if (step <= 0) return;
-    const maxTop = maxChordGridScrollTop(grid, step);
-    let top = Math.round(grid.scrollTop / step) * step;
-    top = Math.max(0, Math.min(top, maxTop));
-    if (Math.abs(grid.scrollTop - top) > 0.5) grid.scrollTop = top;
-    gridScrollRow = step > 0 ? Math.round(grid.scrollTop / step) : 0;
+    const first = Math.round(grid.scrollTop / step);
+    setChordGridFirstRow(grid, first);
   }
 
+  /** Move the 3-row window by deltaRows (typically ±1). */
   function scrollChordGridByRows(deltaRows) {
     const grid = getChordGridEl();
     if (!grid || !deltaRows) return;
     const step = chordGridRowStep(grid);
     if (step <= 0) return;
-    const maxTop = maxChordGridScrollTop(grid, step);
-    let top = Math.round(grid.scrollTop / step) * step + deltaRows * step;
-    top = Math.max(0, Math.min(top, maxTop));
-    grid.scrollTop = top;
-    gridScrollRow = Math.round(top / step);
+    const first = Math.round(grid.scrollTop / step);
+    setChordGridFirstRow(grid, first + deltaRows);
   }
 
-  /** Keep chord index visible within the 3-row window (row-aligned). */
+  /** Keep chord index visible within the 3-row window (row-aligned, 1-row steps). */
   function ensureChordRowVisible(idx) {
     const grid = getChordGridEl();
     if (!grid || idx == null || idx < 0) return;
@@ -389,44 +406,42 @@ export function openSectionReconfigurationModal(p) {
     if (!btn) return;
     const row = btn.closest('.sr1-chord-row');
     if (!row) return;
-    const rows = Array.from(grid.querySelectorAll('.sr1-chord-row'));
+    const rows = chordGridRows(grid);
     const ri = rows.indexOf(row);
     if (ri < 0) return;
     const step = chordGridRowStep(grid);
     if (step <= 0) return;
     const first = Math.round(grid.scrollTop / step);
     const last = first + 2;
-    let nextFirst = first;
-    if (ri < first) nextFirst = ri;
-    else if (ri > last) nextFirst = Math.max(0, ri - 2);
-    else return;
-    const maxTop = maxChordGridScrollTop(grid, step);
-    const top = Math.min(nextFirst * step, maxTop);
-    grid.scrollTop = top;
-    gridScrollRow = Math.round(top / step);
+    if (ri < first) setChordGridFirstRow(grid, ri);
+    else if (ri > last) setChordGridFirstRow(grid, ri - 2);
   }
 
   function bindChordGridScroll(grid) {
     if (!grid || grid.dataset.sr1RowScrollBound === '1') return;
     grid.dataset.sr1RowScrollBound = '1';
-    // Restore preserved row
-    const step0 = chordGridRowStep(grid);
-    if (step0 > 0) {
-      const maxTop = maxChordGridScrollTop(grid, step0);
-      grid.scrollTop = Math.min(gridScrollRow * step0, maxTop);
-    }
+    // Restore preserved first row
+    setChordGridFirstRow(grid, gridScrollRow);
     grid.addEventListener('wheel', (e) => {
-      // One row per notch; always end on a row boundary.
       e.preventDefault();
+      e.stopPropagation();
       const dy = e.deltaY;
       if (dy === 0 && e.deltaX === 0) return;
+      // Exactly one row per event (ignore large deltaY magnitude)
       const dir = dy > 0 || (dy === 0 && e.deltaX > 0) ? 1 : -1;
       scrollChordGridByRows(dir);
     }, { passive: false });
+    // Touchpad / scrollbar: after user finishes, snap to a row (never leave mid-row)
     let snapTimer = null;
+    let snapping = false;
     grid.addEventListener('scroll', () => {
+      if (snapping) return;
       if (snapTimer) clearTimeout(snapTimer);
-      snapTimer = setTimeout(() => snapChordGridToRow(grid), 40);
+      snapTimer = setTimeout(() => {
+        snapping = true;
+        snapChordGridToRow(grid);
+        snapping = false;
+      }, 50);
     }, { passive: true });
   }
 
