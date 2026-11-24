@@ -549,11 +549,11 @@
   --sr1-card-border: var(--border-ui, #4a5160);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   max-width: 100%;
   min-width: 0;
   min-height: 0;
-  padding: 2px 2px 6px;
+  padding: 0 0 4px;
   color: var(--text-primary);
 }
 /* Light themes: solid soft backgrounds without alpha washes on text */
@@ -571,21 +571,20 @@ body:not([data-theme="dark"]) .sr1-root {
 
 .sr1-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  padding: 8px 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 6px 8px;
   border-radius: var(--r-md, 8px);
   background: var(--sr1-play-bg);
   border: 1px solid var(--sr1-play);
   color: var(--sr1-panel-fg);
 }
-.sr1-header-left {
+.sr1-header-top {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 14px;
+  gap: 8px 10px;
   min-width: 0;
 }
 .sr1-sec-idx {
@@ -617,13 +616,22 @@ body:not([data-theme="dark"]) .sr1-root {
   background: var(--surface-base, var(--sr1-card-bg));
   border: 1px solid var(--sr1-card-border);
 }
+/* Mode toggle: always a single horizontal pair — never wrap mid-control */
 .sr1-mode-toggle {
-  display: inline-flex;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: 100%;
+  white-space: nowrap;
 }
 .sr1-mode-btn {
   display: inline-flex;
+  flex: 0 0 auto;
+  flex-shrink: 0;
   align-items: center;
   gap: 6px;
   font-size: 13px;
@@ -634,6 +642,7 @@ body:not([data-theme="dark"]) .sr1-root {
   background: var(--sr1-card-bg);
   color: var(--sr1-panel-fg);
   cursor: pointer;
+  white-space: nowrap;
 }
 .sr1-mode-btn.is-active.sr1-mode-play {
   border-color: var(--sr1-play);
@@ -671,7 +680,7 @@ body:not([data-theme="dark"]) .sr1-root {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: calc(3 * 48px + 2 * 8px);
+  max-height: calc(3 * 42px + 2 * 6px);
   overflow-y: auto;
   overflow-x: hidden;
   /* Extra right padding: scrollbar gutter + card margin from edge */
@@ -685,7 +694,7 @@ body:not([data-theme="dark"]) .sr1-root {
   display: flex;
   align-items: stretch;
   gap: 6px;
-  min-height: 46px;
+  min-height: 40px;
   /* Keep last cell clear of the scrollbar track */
   padding-right: 2px;
   box-sizing: border-box;
@@ -710,8 +719,8 @@ body:not([data-theme="dark"]) .sr1-root {
 .sr1-chord {
   position: relative;
   min-width: 0;
-  min-height: 44px;
-  padding: 8px 6px;
+  min-height: 38px;
+  padding: 6px 5px;
   font-size: 13px;
   font-family: var(--font-mono, ui-monospace, monospace);
   line-height: 1.25;
@@ -725,7 +734,7 @@ body:not([data-theme="dark"]) .sr1-root {
   text-overflow: ellipsis;
 }
 .sr1-chord-spacer {
-  min-height: 44px;
+  min-height: 38px;
   visibility: hidden;
   pointer-events: none;
 }
@@ -797,15 +806,16 @@ body:not([data-theme="dark"]) .sr1-chord.sr1-playing {
 .sr1-panels {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
   align-items: stretch;
-  max-width: 640px;
+  max-width: 600px;
   margin: 0 auto;
   width: 100%;
+  flex-shrink: 0;
 }
 .sr1-panel {
   border-radius: var(--r-md, 8px);
-  padding: 8px 10px;
+  padding: 6px 8px;
   /* Default = inactive outline (white / light) — visible on both themes */
   border: 1px solid #ffffff;
   min-width: 0;
@@ -1019,13 +1029,13 @@ body:not([data-theme="dark"]) .sr1-invalid {
 }
 
 #modal-box:has(.sr1-root) {
-  /* ~80% visual footprint vs previous 920/92vh without transform:scale */
-  max-width: min(760px, 92vw);
-  width: min(760px, 92vw);
-  max-height: min(78vh, 720px);
+  /* Further compact: fit op panels + footer without clipping */
+  max-width: min(700px, 90vw);
+  width: min(700px, 90vw);
+  max-height: min(72vh, 640px);
   display: flex;
   flex-direction: column;
-  padding: 14px 16px 12px;
+  padding: 10px 12px 8px;
   box-sizing: border-box;
 }
 #modal-box:has(.sr1-root) #m-body {

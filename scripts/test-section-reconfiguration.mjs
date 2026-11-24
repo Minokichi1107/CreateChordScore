@@ -706,4 +706,36 @@ const st = (b, sections = []) => ({
   assert.ok(invPos >= 0 && incPos >= 0 && invPos !== incPos);
 }
 
+
+// --- Split position: focused chord becomes start of new (back) Section ---
+{
+  const buffer = [];
+  for (let i = 0; i < 6; i++) {
+    buffer.push({ _id: `c${i}`, chord: String.fromCharCode(65 + i), start: i, end: i + 1 });
+  }
+  const sections = [{ id: 's1', type: 'verse', name: 'A', startChordId: 'c0', endChordId: 'c5' }];
+  // UI stores splitCandidate = index of first chord of back half (e.g. D = 3)
+  // executeSplit maps endChordIndex = splitCandidate - 1 into splitDraftAtChordIndex
+  const splitCandidate = 3; // D
+  const endChordIndex = splitCandidate - 1;
+  const draft = createReconfigurationDraft({ projectId: 'split-map', buffer, sections });
+  const r = splitDraftAtChordIndex(draft, 0, endChordIndex, buffer);
+  assert(r.ok, 'split at D should succeed');
+  const spans = draftSectionChordSpans(draft, buffer);
+  assert(spans.length === 2, 'two sections after split');
+  assert(spans[0].start === 0 && spans[0].end === 2, `front 0..2 got ${spans[0].start}..${spans[0].end}`);
+  assert(spans[1].start === 3 && spans[1].end === 5, `back 3..5 got ${spans[1].start}..${spans[1].end}`);
+  assert(draft.sections[r.backIndex].startChordId === 'c3', 'back starts at focused chord D');
+  assert(r.backIndex === 1, 'select back section after split');
+  // Edge: first interior chord C as new start
+  const d2 = createReconfigurationDraft({ projectId: 'split-map2', buffer, sections: structuredClone(sections) });
+  const r2 = splitDraftAtChordIndex(d2, 0, 1, buffer); // candidate C=2 → end=1
+  assert(r2.ok && draftSectionChordSpans(d2, buffer)[1].start === 2, 'C becomes back start');
+  // Edge: last chord as new start (front keeps all but last)
+  const d3 = createReconfigurationDraft({ projectId: 'split-map3', buffer, sections: structuredClone(sections) });
+  const r3 = splitDraftAtChordIndex(d3, 0, 4, buffer); // candidate F=5 → end=4
+  assert(r3.ok && draftSectionChordSpans(d3, buffer)[1].start === 5, 'F becomes back start');
+  console.log('splitCandidate maps to next-section start: ok');
+}
+
 console.log('test-section-reconfiguration: ok');

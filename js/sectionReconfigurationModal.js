@@ -310,7 +310,7 @@ export function openSectionReconfigurationModal(p) {
     const splitOn = uiMode === 'split';
     return `
       <div class="sr1-header">
-        <div class="sr1-header-left">
+        <div class="sr1-header-top">
           <span class="sr1-sec-idx">Section ${sectionIdx + 1} / ${draft.sections.length}</span>
           <label class="sr1-field sr1-field-inline">名前
             <input type="text" class="mi sr1-name" value="${esc(sec.name)}" autocomplete="off" />
