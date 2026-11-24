@@ -772,11 +772,14 @@ body:not([data-theme="dark"]) .sr1-root {
   z-index: 0;
 }
 .sr1-chord-grid {
+  --sr1-row-h: 36px;
+  --sr1-row-gap: 5px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  /* Compact 3-row viewport (mock-like density) */
-  max-height: calc(3 * 36px + 2 * 5px);
+  gap: var(--sr1-row-gap);
+  /* Fixed viewport of exactly 3 full rows; scroll moves one row at a time */
+  height: calc(3 * var(--sr1-row-h) + 2 * var(--sr1-row-gap));
+  max-height: calc(3 * var(--sr1-row-h) + 2 * var(--sr1-row-gap));
   overflow-y: auto;
   overflow-x: hidden;
   padding: 1px 12px 1px 1px;
@@ -784,15 +787,21 @@ body:not([data-theme="dark"]) .sr1-root {
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior-y: contain;
 }
 .sr1-chord-row {
   display: flex;
   align-items: stretch;
   gap: 5px;
-  min-height: 36px;
-  flex: 0 0 auto;
+  height: var(--sr1-row-h);
+  min-height: var(--sr1-row-h);
+  max-height: var(--sr1-row-h);
+  flex: 0 0 var(--sr1-row-h);
   padding-right: 2px;
   box-sizing: border-box;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 .sr1-row-num {
   flex: 0 0 1.6em;
@@ -814,9 +823,11 @@ body:not([data-theme="dark"]) .sr1-root {
 .sr1-chord {
   position: relative;
   min-width: 0;
-  min-height: 34px;
+  min-height: 32px;
+  height: 100%;
   padding: 4px 4px;
   font-size: 13px;
+  box-sizing: border-box;
   font-family: var(--font-mono, ui-monospace, monospace);
   line-height: 1.25;
   border: 1px solid var(--sr1-card-border);
@@ -829,7 +840,8 @@ body:not([data-theme="dark"]) .sr1-root {
   text-overflow: ellipsis;
 }
 .sr1-chord-spacer {
-  min-height: 34px;
+  min-height: 32px;
+  height: 100%;
   visibility: hidden;
   pointer-events: none;
 }

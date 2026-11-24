@@ -150,6 +150,9 @@ export function openSectionReconfigurationModal(p) {
   let playingChordIdx = null;
   let busy = false;
   let message = '';
+  /** First visible grid row index (0-based); preserved across redraw. */
+  let gridScrollRow = 0;
+
   let root = null;
   let closed = false;
   let keyHandler = null;
@@ -333,6 +336,100 @@ export function openSectionReconfigurationModal(p) {
       </div>`;
   }
 
+
+  function getChordGridEl() {
+    return document.querySelector('#sr1-root .sr1-chord-grid');
+  }
+
+  /** Row height + gap used as one scroll step. */
+  function chordGridRowStep(grid) {
+    if (!grid) return 41;
+    const row = grid.querySelector('.sr1-chord-row');
+    if (!row) return 41;
+    const st = getComputedStyle(grid);
+    const gap = parseFloat(st.rowGap || st.gap) || 0;
+    return row.getBoundingClientRect().height + gap;
+  }
+
+  function maxChordGridScrollTop(grid, step) {
+    const max = Math.max(0, grid.scrollHeight - grid.clientHeight);
+    if (step <= 0) return max;
+    // Snap max to a row boundary so the last view still shows full rows when possible.
+    return Math.floor(max / step + 1e-6) * step;
+  }
+
+  function snapChordGridToRow(grid) {
+    if (!grid) return;
+    const step = chordGridRowStep(grid);
+    if (step <= 0) return;
+    const maxTop = maxChordGridScrollTop(grid, step);
+    let top = Math.round(grid.scrollTop / step) * step;
+    top = Math.max(0, Math.min(top, maxTop));
+    if (Math.abs(grid.scrollTop - top) > 0.5) grid.scrollTop = top;
+    gridScrollRow = step > 0 ? Math.round(grid.scrollTop / step) : 0;
+  }
+
+  function scrollChordGridByRows(deltaRows) {
+    const grid = getChordGridEl();
+    if (!grid || !deltaRows) return;
+    const step = chordGridRowStep(grid);
+    if (step <= 0) return;
+    const maxTop = maxChordGridScrollTop(grid, step);
+    let top = Math.round(grid.scrollTop / step) * step + deltaRows * step;
+    top = Math.max(0, Math.min(top, maxTop));
+    grid.scrollTop = top;
+    gridScrollRow = Math.round(top / step);
+  }
+
+  /** Keep chord index visible within the 3-row window (row-aligned). */
+  function ensureChordRowVisible(idx) {
+    const grid = getChordGridEl();
+    if (!grid || idx == null || idx < 0) return;
+    const btn = grid.querySelector(`.sr1-chord[data-i="${idx}"]`);
+    if (!btn) return;
+    const row = btn.closest('.sr1-chord-row');
+    if (!row) return;
+    const rows = Array.from(grid.querySelectorAll('.sr1-chord-row'));
+    const ri = rows.indexOf(row);
+    if (ri < 0) return;
+    const step = chordGridRowStep(grid);
+    if (step <= 0) return;
+    const first = Math.round(grid.scrollTop / step);
+    const last = first + 2;
+    let nextFirst = first;
+    if (ri < first) nextFirst = ri;
+    else if (ri > last) nextFirst = Math.max(0, ri - 2);
+    else return;
+    const maxTop = maxChordGridScrollTop(grid, step);
+    const top = Math.min(nextFirst * step, maxTop);
+    grid.scrollTop = top;
+    gridScrollRow = Math.round(top / step);
+  }
+
+  function bindChordGridScroll(grid) {
+    if (!grid || grid.dataset.sr1RowScrollBound === '1') return;
+    grid.dataset.sr1RowScrollBound = '1';
+    // Restore preserved row
+    const step0 = chordGridRowStep(grid);
+    if (step0 > 0) {
+      const maxTop = maxChordGridScrollTop(grid, step0);
+      grid.scrollTop = Math.min(gridScrollRow * step0, maxTop);
+    }
+    grid.addEventListener('wheel', (e) => {
+      // One row per notch; always end on a row boundary.
+      e.preventDefault();
+      const dy = e.deltaY;
+      if (dy === 0 && e.deltaX === 0) return;
+      const dir = dy > 0 || (dy === 0 && e.deltaX > 0) ? 1 : -1;
+      scrollChordGridByRows(dir);
+    }, { passive: false });
+    let snapTimer = null;
+    grid.addEventListener('scroll', () => {
+      if (snapTimer) clearTimeout(snapTimer);
+      snapTimer = setTimeout(() => snapChordGridToRow(grid), 40);
+    }, { passive: true });
+  }
+
   function chordsHtml() {
     const sp = spans();
     const active = sp[sectionIdx];
@@ -444,6 +541,12 @@ export function openSectionReconfigurationModal(p) {
 
   function fullRedraw() {
     if (closed) return;
+    // Remember current first visible row before DOM replace.
+    const prevGrid = getChordGridEl();
+    if (prevGrid) {
+      const step = chordGridRowStep(prevGrid);
+      if (step > 0) gridScrollRow = Math.round(prevGrid.scrollTop / step);
+    }
     const host = document.getElementById('sr1-root');
     if (!host) return;
     const wrap = document.createElement('div');
@@ -452,11 +555,15 @@ export function openSectionReconfigurationModal(p) {
     host.replaceWith(next);
     root = next;
     bind();
-    scrollCursorIntoView();
+    bindChordGridScroll(getChordGridEl());
+    // Keep active cursor in the 3-row window without free scrollIntoView (breaks row snap).
+    const focusIdx = uiMode === 'split' && splitCandidate != null ? splitCandidate : playCandidate;
+    ensureChordRowVisible(focusIdx);
   }
 
   function scrollCursorIntoView() {
-    root?.querySelector('.sr1-play-cand, .sr1-split-cand')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const focusIdx = uiMode === 'split' && splitCandidate != null ? splitCandidate : playCandidate;
+    ensureChordRowVisible(focusIdx);
   }
 
   function applyNameTypeFromInputs() {
@@ -882,6 +989,7 @@ export function openSectionReconfigurationModal(p) {
     });
     root.querySelector('#sr1-play')?.addEventListener('click', testPlay);
     root.querySelector('#sr1-play-left')?.addEventListener('click', () => {
+      // scroll sync after move in handler below
       setPlayPos(playCandidate - 1);
       fullRedraw();
     });
