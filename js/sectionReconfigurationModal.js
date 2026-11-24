@@ -337,135 +337,101 @@ export function openSectionReconfigurationModal(p) {
   }
 
 
-  function getChordGridEl() {
-    return document.querySelector('#sr1-root .sr1-chord-grid');
+
+  function totalChordGridRows() {
+    const cols = gridCols || 6;
+    return Math.max(1, Math.ceil((buffer?.length || 0) / cols));
   }
 
-  function chordGridRows(grid) {
-    return grid ? Array.from(grid.querySelectorAll('.sr1-chord-row')) : [];
+  function clampGridScrollRow(r) {
+    const maxFirst = Math.max(0, totalChordGridRows() - 3);
+    const n = Math.round(Number(r) || 0);
+    return Math.max(0, Math.min(maxFirst, n));
   }
 
-  /**
-   * Distance between consecutive row tops (= one scroll step).
-   * Measured from layout, not from CSS variables (border/padding can differ).
-   */
-  function chordGridRowStep(grid) {
-    const rows = chordGridRows(grid);
-    if (rows.length >= 2) {
-      const d = rows[1].offsetTop - rows[0].offsetTop;
-      if (d > 0) return d;
-    }
-    if (rows.length >= 1) {
-      const st = getComputedStyle(grid);
-      const gap = parseFloat(st.rowGap || st.gap) || 5;
-      return rows[0].offsetHeight + gap;
-    }
-    return 41;
+  /** Windowed grid: only 3 rows in DOM — no native mid-row scroll possible. */
+  function shiftGridScrollRow(delta) {
+    const next = clampGridScrollRow(gridScrollRow + delta);
+    if (next === gridScrollRow) return false;
+    gridScrollRow = next;
+    return true;
   }
 
-  /**
-   * Size the viewport to exactly 3 full measured rows so content never sits mid-row.
-   */
-  function layoutChordGridViewport(grid) {
-    if (!grid) return 0;
-    const rows = chordGridRows(grid);
-    if (!rows.length) return 0;
-    const step = chordGridRowStep(grid);
-    const h = rows[0].offsetHeight;
-    const gap = Math.max(0, step - h);
-    // 3 rows + 2 gaps between them
-    const viewH = Math.round(3 * h + 2 * gap);
-    grid.style.height = `${viewH}px`;
-    grid.style.maxHeight = `${viewH}px`;
-    // Keep CSS vars in sync for any dependent styles
-    grid.style.setProperty('--sr1-row-h', `${h}px`);
-    grid.style.setProperty('--sr1-row-gap', `${gap}px`);
-    return step;
-  }
-
-  function setChordGridFirstRow(grid, firstRow) {
-    if (!grid) return;
-    const rows = chordGridRows(grid);
-    if (!rows.length) return;
-    const step = layoutChordGridViewport(grid) || chordGridRowStep(grid);
-    if (step <= 0) return;
-    const maxFirst = Math.max(0, rows.length - 3);
-    const fr = Math.max(0, Math.min(maxFirst, Math.round(firstRow)));
-    // Align using the real offset of that row (avoids mid-row stops)
-    const base = rows[0].offsetTop;
-    const target = rows[fr].offsetTop - base;
-    grid.scrollTop = target;
-    gridScrollRow = fr;
-  }
-
-  function snapChordGridToRow(grid) {
-    if (!grid) return;
-    const step = chordGridRowStep(grid);
-    if (step <= 0) return;
-    const first = Math.round(grid.scrollTop / step);
-    setChordGridFirstRow(grid, first);
-  }
-
-  /** Move the 3-row window by deltaRows (typically ±1). */
-  function scrollChordGridByRows(deltaRows) {
-    const grid = getChordGridEl();
-    if (!grid || !deltaRows) return;
-    setChordGridFirstRow(grid, gridScrollRow + deltaRows);
-  }
-
-  /** Keep chord index visible within the 3-row window (row-aligned). */
   function ensureChordRowVisible(idx) {
-    const grid = getChordGridEl();
-    if (!grid || idx == null || idx < 0) return;
-    const btn = grid.querySelector(`.sr1-chord[data-i="${idx}"]`);
-    if (!btn) return;
-    const row = btn.closest('.sr1-chord-row');
-    if (!row) return;
-    const rows = chordGridRows(grid);
-    const ri = rows.indexOf(row);
-    if (ri < 0) return;
+    if (idx == null || idx < 0) return;
+    const cols = gridCols || 6;
+    const row = Math.floor(idx / cols);
     const first = gridScrollRow;
     const last = first + 2;
-    if (ri < first) setChordGridFirstRow(grid, ri);
-    else if (ri > last) setChordGridFirstRow(grid, ri - 2);
+    if (row < first) {
+      gridScrollRow = clampGridScrollRow(row);
+      refreshChordGridOnly();
+    } else if (row > last) {
+      gridScrollRow = clampGridScrollRow(row - 2);
+      refreshChordGridOnly();
+    }
   }
 
-  function bindChordGridScroll(grid) {
-    if (!grid) return;
-    // Always re-measure viewport (row height can change with theme/font)
-    layoutChordGridViewport(grid);
-    if (grid.dataset.sr1RowScrollBound === '1') {
-      setChordGridFirstRow(grid, gridScrollRow);
+  function refreshChordGridOnly() {
+    if (!root || closed) return;
+    const host = root.querySelector('.sr1-chords-wrap');
+    if (!host) {
+      fullRedraw();
       return;
     }
-    grid.dataset.sr1RowScrollBound = '1';
-    setChordGridFirstRow(grid, gridScrollRow);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = chordsHtml();
+    const next = tmp.firstElementChild;
+    if (!next) return;
+    host.replaceWith(next);
+    bindChordGridInteractions(root);
+  }
 
-    grid.addEventListener('wheel', (e) => {
+  function bindChordGridInteractions(scope) {
+    const rootEl = scope || root || document.getElementById('sr1-root');
+    if (!rootEl) return;
+    const wrap = rootEl.querySelector('.sr1-chords-wrap');
+    if (!wrap) return;
+
+    // Chord click (re-bind after window refresh)
+    wrap.querySelectorAll('.sr1-chord').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = Number(btn.dataset.i);
+        if (uiMode === 'split') {
+          const next = clampSplitCandidate(i);
+          if (next == null) {
+            message = 'この位置では分割できません';
+            fullRedraw();
+            return;
+          }
+          splitCandidate = next;
+          message = `分割位置: コード ${splitCandidate + 1}（ここから次のSection）`;
+          fullRedraw();
+          return;
+        }
+        setPlayPos(i);
+        fullRedraw();
+      });
+    });
+
+    if (wrap.dataset.sr1WindowScrollBound === '1') return;
+    wrap.dataset.sr1WindowScrollBound = '1';
+
+    wrap.addEventListener('wheel', (e) => {
       e.preventDefault();
       e.stopPropagation();
       const dy = e.deltaY;
       if (dy === 0 && e.deltaX === 0) return;
       const dir = dy > 0 || (dy === 0 && e.deltaX > 0) ? 1 : -1;
-      scrollChordGridByRows(dir);
+      if (shiftGridScrollRow(dir)) refreshChordGridOnly();
     }, { passive: false });
 
-    // Scrollbar / touch: snap to a whole row when scrolling settles
-    let snapTimer = null;
-    let snapping = false;
-    const doSnap = () => {
-      if (snapping) return;
-      snapping = true;
-      snapChordGridToRow(grid);
-      requestAnimationFrame(() => { snapping = false; });
-    };
-    grid.addEventListener('scroll', () => {
-      if (snapping) return;
-      if (snapTimer) clearTimeout(snapTimer);
-      snapTimer = setTimeout(doSnap, 30);
-    }, { passive: true });
-    if ('onscrollend' in grid) {
-      grid.addEventListener('scrollend', doSnap);
+    const scroller = wrap.querySelector('.sr1-grid-scroller');
+    if (scroller) {
+      scroller.addEventListener('input', () => {
+        gridScrollRow = clampGridScrollRow(scroller.value);
+        refreshChordGridOnly();
+      });
     }
   }
 
@@ -477,9 +443,12 @@ export function openSectionReconfigurationModal(p) {
     gridCols = computeGridCols();
     const cols = gridCols;
     const n = buffer.length;
-    const rows = Math.max(1, Math.ceil(n / cols));
+    const rowsTotal = Math.max(1, Math.ceil(n / cols));
+    gridScrollRow = clampGridScrollRow(gridScrollRow);
+    const startR = gridScrollRow;
+    const endR = Math.min(rowsTotal, startR + 3);
     const rowHtml = [];
-    for (let r = 0; r < rows; r++) {
+    for (let r = startR; r < endR; r++) {
       const cells = [];
       for (let c = 0; c < cols; c++) {
         const i = r * cols + c;
@@ -512,13 +481,26 @@ export function openSectionReconfigurationModal(p) {
         );
       }
       rowHtml.push(
-        `<div class="sr1-chord-row" role="presentation">` +
+        `<div class="sr1-chord-row" role="presentation" data-row="${r}">` +
         `<span class="sr1-row-num" aria-hidden="true">${r + 1}</span>` +
         `<div class="sr1-chord-row-cells" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${cells.join('')}</div></div>`
       );
     }
-    return `<div class="sr1-chords-wrap"><div class="sr1-chord-grid" tabindex="0" role="listbox" aria-label="コード進行">${rowHtml.join('')}</div></div>`;
+    // Pad to always 3 row slots when near end (keeps layout height stable)
+    while (rowHtml.length < 3 && rowsTotal > 0) {
+      rowHtml.push(
+        `<div class="sr1-chord-row sr1-chord-row-empty" role="presentation" aria-hidden="true">` +
+        `<span class="sr1-row-num"></span>` +
+        `<div class="sr1-chord-row-cells" style="grid-template-columns:repeat(${cols},minmax(0,1fr))"></div></div>`
+      );
+    }
+    const maxFirst = Math.max(0, rowsTotal - 3);
+    const scroller = maxFirst > 0
+      ? `<input type="range" class="sr1-grid-scroller" min="0" max="${maxFirst}" value="${gridScrollRow}" step="1" aria-label="コード進行の表示行を移動" />`
+      : '';
+    return `<div class="sr1-chords-wrap"><div class="sr1-chord-grid sr1-chord-grid--windowed" tabindex="0" role="listbox" aria-label="コード進行">${rowHtml.join('')}</div>${scroller}</div>`;
   }
+
 
   function playHintHtml() {
     // Always reserve one banner row so mode switch does not resize the modal.
@@ -580,12 +562,7 @@ export function openSectionReconfigurationModal(p) {
 
   function fullRedraw() {
     if (closed) return;
-    // Remember current first visible row before DOM replace.
-    const prevGrid = getChordGridEl();
-    if (prevGrid) {
-      const step = chordGridRowStep(prevGrid);
-      if (step > 0) gridScrollRow = Math.round(prevGrid.scrollTop / step);
-    }
+    gridScrollRow = clampGridScrollRow(gridScrollRow);
     const host = document.getElementById('sr1-root');
     if (!host) return;
     const wrap = document.createElement('div');
@@ -594,8 +571,6 @@ export function openSectionReconfigurationModal(p) {
     host.replaceWith(next);
     root = next;
     bind();
-    bindChordGridScroll(getChordGridEl());
-    // Keep active cursor in the 3-row window without free scrollIntoView (breaks row snap).
     const focusIdx = uiMode === 'split' && splitCandidate != null ? splitCandidate : playCandidate;
     ensureChordRowVisible(focusIdx);
   }
@@ -990,26 +965,7 @@ export function openSectionReconfigurationModal(p) {
   function bind() {
     root = document.getElementById('sr1-root');
     if (!root) return;
-    root.querySelectorAll('.sr1-chord').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const i = Number(btn.dataset.i);
-        if (uiMode === 'split') {
-          const next = clampSplitCandidate(i);
-          if (next == null) {
-            message = 'この位置では分割できません';
-            fullRedraw();
-            return;
-          }
-          splitCandidate = next;
-          message = `分割位置: コード ${splitCandidate + 1}（ここから次のSection）`;
-          fullRedraw();
-          return;
-        }
-        // Normal: blue play position moves immediately (no confirm)
-        setPlayPos(i);
-        fullRedraw();
-      });
-    });
+    bindChordGridInteractions(root);
     root.querySelector('#sr1-prev-sec')?.addEventListener('click', () => {
       applyNameTypeFromInputs();
       stopPlayIfNeeded();

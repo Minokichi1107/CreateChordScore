@@ -766,10 +766,14 @@ body:not([data-theme="dark"]) .sr1-root {
   padding: 4px 4px 4px 6px;
   max-width: 100%;
   flex: 0 0 auto;
-  overflow: hidden; /* clip any sub-pixel bleed of partial rows */
+  overflow: hidden;
   box-sizing: border-box;
   position: relative;
   z-index: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 4px;
 }
 .sr1-chord-grid {
   --sr1-row-h: 36px;
@@ -777,17 +781,30 @@ body:not([data-theme="dark"]) .sr1-root {
   display: flex;
   flex-direction: column;
   gap: var(--sr1-row-gap);
-  /* Fixed viewport of exactly 3 full rows; scroll moves one row at a time */
-  height: calc(3 * var(--sr1-row-h) + 2 * var(--sr1-row-gap));
-  max-height: calc(3 * var(--sr1-row-h) + 2 * var(--sr1-row-gap));
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0 12px 0 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Windowed mode: exactly 3 rows in the DOM — no native overflow scroll */
+  height: auto;
+  max-height: none;
+  overflow: hidden;
+  padding: 0 4px 0 0;
   box-sizing: border-box;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  overscroll-behavior-y: contain;
+}
+.sr1-chord-grid--windowed {
+  overflow: hidden;
+}
+/* Vertical range acts as a 1-row-step scroller */
+.sr1-grid-scroller {
+  flex: 0 0 14px;
+  width: 14px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  height: auto;
+  align-self: stretch;
+  accent-color: var(--sr1-play, #4d8dff);
 }
 .sr1-chord-row {
   display: flex;
