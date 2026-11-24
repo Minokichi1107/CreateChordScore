@@ -138,6 +138,10 @@ export function openSectionReconfigurationModal(p) {
   let uiMode = 'normal';
   /** Chord index: last chord of front half when splitting (splitDraftAtChordIndex). */
   let splitCandidate = null;
+  /** Candidate at the moment split-position mode was entered; restored on cancel / play mode. */
+  let splitCandidateAtModeEnter = null;
+  /** Chord grid column count (PC base 6; responsive 3–4). */
+  let gridCols = 6;
   let busy = false;
   let message = '';
   let root = null;
@@ -215,6 +219,19 @@ export function openSectionReconfigurationModal(p) {
     });
   }
 
+  function computeGridCols() {
+    // PC base 6; narrow ~3–4. Prefer host width when available.
+    let w = 900;
+    try {
+      const host = document.getElementById('sr1-root') || document.getElementById('m-body');
+      if (host && host.clientWidth) w = host.clientWidth;
+      else if (typeof window !== 'undefined' && window.innerWidth) w = window.innerWidth;
+    } catch (_) { /* ignore */ }
+    if (w < 480) return 3;
+    if (w < 720) return 4;
+    return 6;
+  }
+
   function sectionPanelHtml() {
     const sec = draft.sections[sectionIdx];
     if (!sec) return '<p class="sag-errors">Section がありません</p>';
@@ -231,15 +248,27 @@ export function openSectionReconfigurationModal(p) {
     } else if (kind === 'incomplete-fields') {
       invalidNote = `<div class="sr1-sec-incomplete">名称・種類が未設定（採用前に入力）</div>`;
     }
+    const playOn = uiMode === 'normal';
+    const splitOn = uiMode === 'split';
     return `
-      <div class="sr1-section-meta">
-        <span class="sr1-sec-idx">Section ${sectionIdx + 1} / ${draft.sections.length}</span>
-        <label class="sr1-field sr1-field-inline">名前
-          <input type="text" class="mi sr1-name" value="${esc(sec.name)}" autocomplete="off" />
-        </label>
-        <label class="sr1-field sr1-field-inline">種類
-          <select class="mi sr1-type">${typeOpts}</select>
-        </label>
+      <div class="sr1-header">
+        <div class="sr1-header-left">
+          <span class="sr1-sec-idx">Section ${sectionIdx + 1} / ${draft.sections.length}</span>
+          <label class="sr1-field sr1-field-inline">名前
+            <input type="text" class="mi sr1-name" value="${esc(sec.name)}" autocomplete="off" />
+          </label>
+          <label class="sr1-field sr1-field-inline">種類
+            <select class="mi sr1-type">${typeOpts}</select>
+          </label>
+        </div>
+        <div class="sr1-mode-toggle" role="group" aria-label="操作対象">
+          <button type="button" class="sr1-mode-btn sr1-mode-play ${playOn ? 'is-active' : ''}" id="sr1-mode-play" aria-pressed="${playOn}">
+            <span class="sr1-leg-play"></span>再生位置
+          </button>
+          <button type="button" class="sr1-mode-btn sr1-mode-split ${splitOn ? 'is-active' : ''}" id="sr1-mode-split" aria-pressed="${splitOn}">
+            <span class="sr1-leg-bound"></span>分割位置
+          </button>
+        </div>
         ${invalidNote}
       </div>`;
   }
@@ -249,9 +278,20 @@ export function openSectionReconfigurationModal(p) {
     const active = sp[sectionIdx];
     const structOk = active && active.start >= 0 && active.end >= active.start;
     const boundaryEnds = new Set(sp.filter(s => s.start >= 0 && s.end >= s.start).map(s => s.end));
-    return `<div class="sr1-chords-wrap">
-      <div class="sr1-chords" tabindex="0" role="listbox" aria-label="コード進行">
-      ${buffer.map((c, i) => {
+    gridCols = computeGridCols();
+    const cols = gridCols;
+    const n = buffer.length;
+    const rows = Math.max(1, Math.ceil(n / cols));
+    const rowHtml = [];
+    for (let r = 0; r < rows; r++) {
+      const cells = [];
+      for (let c = 0; c < cols; c++) {
+        const i = r * cols + c;
+        if (i >= n) {
+          cells.push('<span class="sr1-chord-spacer" aria-hidden="true"></span>');
+          continue;
+        }
+        const chord = buffer[i];
         const inSec = structOk && i >= active.start && i <= active.end;
         const isPlay = i === playCandidate;
         const isSplitCand = uiMode === 'split' && splitCandidate === i;
@@ -267,10 +307,18 @@ export function openSectionReconfigurationModal(p) {
           isPlay ? '<span class="sr1-mark sr1-mark-play" aria-hidden="true"></span>' : '',
           isSplitCand ? '<span class="sr1-mark sr1-mark-split" aria-hidden="true"></span>' : '',
         ].join('');
-        return `<button type="button" class="${cls}" data-i="${i}" role="option" aria-selected="${isPlay}"><span class="sr1-chord-label">${esc(chordLabel(c))}</span>${markers}</button>`;
-      }).join('')}
-      </div>
-    </div>`;
+        cells.push(
+          `<button type="button" class="${cls}" data-i="${i}" role="option" aria-selected="${isPlay}">` +
+          `<span class="sr1-chord-label">${esc(chordLabel(chord))}</span>${markers}</button>`
+        );
+      }
+      rowHtml.push(
+        `<div class="sr1-chord-row" role="presentation">` +
+        `<span class="sr1-row-num" aria-hidden="true">${r + 1}</span>` +
+        `<div class="sr1-chord-row-cells" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${cells.join('')}</div></div>`
+      );
+    }
+    return `<div class="sr1-chords-wrap"><div class="sr1-chord-grid" tabindex="0" role="listbox" aria-label="コード進行">${rowHtml.join('')}</div></div>`;
   }
 
   function playHintHtml() {
@@ -280,63 +328,54 @@ export function openSectionReconfigurationModal(p) {
       : playConfirmed;
     let modeNote = '';
     if (uiMode === 'split') {
-      modeNote = '<div class="sr1-mode-banner sr1-mode-split" role="status">分割位置を選択中 — オレンジの位置が前半の最後のコードになります。Escでキャンセル</div>';
+      modeNote = '<div class="sr1-mode-banner sr1-mode-split" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で開始時の位置に戻します</div>';
     }
-    const sec = draft.sections[sectionIdx];
-    const secLabel = sec ? (sec.name || '（名称未設定）') : '';
-    return `${modeNote}
-      <div class="sr1-status-bar">
-        <span class="sr1-status-play">再生 ${playChordCount}コード · 開始 #${playConfirmed + 1} → #${endIdx + 1}</span>
-        <span class="sr1-status-sec">Section ${sectionIdx + 1}/${draft.sections.length} ${esc(secLabel)}</span>
-        <span class="sr1-legend"><span class="sr1-leg-play"></span>再生位置 <span class="sr1-leg-bound"></span>分割位置</span>
-      </div>`;
+    return `${modeNote}`;
   }
 
   function bodyHtml() {
     const canUndo = (draft.undoStack?.length || 0) > 0;
     const canRedo = (draft.redoStack?.length || 0) > 0;
+    const splitOn = uiMode === 'split';
+    const canSplitExec = splitOn && splitCandidate != null;
     return `
       <div id="sr1-root" class="sr1-root">
-        <p class="sr1-lead">コード進行を確認し、再生位置と分割位置を設定してください。採用するまで保存済み Section は変わりません。</p>
         ${sectionPanelHtml()}
         ${invalidBannerHtml()}
         ${playHintHtml()}
         ${chordsHtml()}
         <div class="sr1-panels">
-          <section class="sr1-panel sr1-panel-play" aria-label="再生位置の設定">
-            <h4 class="sr1-panel-title">再生位置の設定</h4>
-            <p class="sr1-panel-desc">コードをクリックすると再生開始位置がすぐに変わります。Space でテスト再生します。</p>
+          <section class="sr1-panel sr1-panel-play ${!splitOn ? 'is-active' : ''}" aria-label="再生位置">
+            <h4 class="sr1-panel-title">再生位置</h4>
             <div class="sr1-panel-actions">
               <button type="button" class="sec-btn" id="sr1-play-left" title="再生位置を左へ">←</button>
               <button type="button" class="sec-btn" id="sr1-play-right" title="再生位置を右へ">→</button>
               <button type="button" class="sec-btn" id="sr1-play">テスト再生</button>
-              <label class="sr1-field sr1-field-inline">コード数
+              <label class="sr1-field sr1-field-inline">長さ（コード数）
                 <input type="number" class="mi sr1-play-count" min="1" max="8" value="${playChordCount}" />
               </label>
             </div>
           </section>
-          <section class="sr1-panel sr1-panel-bound ${uiMode === 'split' ? 'is-active' : ''}" aria-label="分割位置の設定">
-            <h4 class="sr1-panel-title">分割位置の設定</h4>
-            <p class="sr1-panel-desc">${uiMode === 'split'
-              ? 'オレンジが前半の最後のコードです。「分割」で確定、「キャンセル」で中止します。'
-              : '現在の Section を途中で分ける位置を選びます。通常の終端は次の Section 開始で決まります。'}</p>
+          <section class="sr1-panel sr1-panel-bound ${splitOn ? 'is-active' : ''}" aria-label="分割位置">
+            <h4 class="sr1-panel-title">分割位置</h4>
             <div class="sr1-panel-actions">
-              <button type="button" class="sec-btn" id="sr1-split-left" title="分割位置を左へ">←</button>
-              <button type="button" class="sec-btn" id="sr1-split-right" title="分割位置を右へ">→</button>
-              <button type="button" class="sec-btn sr1-btn-split-primary" id="sr1-split">${uiMode === 'split' ? '分割' : '分割位置を選ぶ'}</button>
-              <button type="button" class="sec-btn" id="sr1-split-cancel" ${uiMode === 'split' ? '' : 'hidden'}>キャンセル</button>
+              <button type="button" class="sec-btn" id="sr1-split-left" title="分割位置を左へ" ${splitOn ? '' : 'disabled'}>←</button>
+              <button type="button" class="sec-btn" id="sr1-split-right" title="分割位置を右へ" ${splitOn ? '' : 'disabled'}>→</button>
+              <button type="button" class="sec-btn" id="sr1-split-edit">分割位置を変更</button>
+              <button type="button" class="sec-btn sr1-btn-split-primary" id="sr1-split-exec" ${canSplitExec ? '' : 'disabled'}>分割</button>
+              <button type="button" class="sec-btn" id="sr1-split-cancel" ${splitOn ? '' : 'disabled'}>キャンセル</button>
             </div>
           </section>
         </div>
         <div class="sr1-aux-toolbar" aria-label="構造編集">
-          <button type="button" class="sec-btn" id="sr1-prev-sec">← Section</button>
-          <button type="button" class="sec-btn" id="sr1-next-sec">Section →</button>
-          <button type="button" class="sec-btn" id="sr1-merge">前と結合</button>
+          <button type="button" class="sec-btn" id="sr1-prev-sec" ${sectionIdx <= 0 ? 'disabled' : ''}>← Section</button>
+          <button type="button" class="sec-btn" id="sr1-next-sec" ${sectionIdx >= draft.sections.length - 1 ? 'disabled' : ''}>Section →</button>
+          <button type="button" class="sec-btn" id="sr1-merge" ${sectionIdx <= 0 ? 'disabled' : ''}>前と結合</button>
           <button type="button" class="sec-btn" id="sr1-undo" ${canUndo ? '' : 'disabled'}>Undo</button>
           <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
         <div id="sr1-msg" class="sag-errors sr1-msg" role="status">${esc(message)}</div>
-        <p class="sr1-keys-hint">クリックで再生位置 · ←→ 移動 · Space 再生 · Tab Section · Esc 分割キャンセル／閉じる</p>
+        <p class="sr1-keys-hint">クリックで位置選択 · ←→ 移動 · Space 再生 · Esc 分割キャンセル／閉じる</p>
       </div>`;
   }
 
@@ -354,7 +393,7 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function scrollCursorIntoView() {
-    root?.querySelector('.sr1-play-cand, .sr1-split-cand')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    root?.querySelector('.sr1-play-cand, .sr1-split-cand')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   function applyNameTypeFromInputs() {
@@ -464,25 +503,29 @@ export function openSectionReconfigurationModal(p) {
   function enterSplitMode() {
     stopPlayIfNeeded();
     applyNameTypeFromInputs();
-    uiMode = 'split';
     const sp = currentSpan();
     // splitDraftAtChordIndex: endChordIndex is last chord of front half
-    if (sp && sp.start >= 0 && sp.end > sp.start) {
-      const preferred = Math.min(Math.max(playCandidate, sp.start), sp.end - 1);
-      splitCandidate = preferred;
-    } else {
-      splitCandidate = null;
+    if (!sp || sp.start < 0 || sp.end <= sp.start) {
       message = 'この Section は分割できません';
-      uiMode = 'normal';
       fullRedraw();
       return;
     }
-    message = '分割位置を選択中です';
+    const preferred = Math.min(Math.max(playCandidate, sp.start), sp.end - 1);
+    // Re-entering keeps current candidate if already in mode; first enter snapshots baseline
+    if (uiMode !== 'split') {
+      splitCandidate = preferred;
+      splitCandidateAtModeEnter = preferred;
+    } else if (splitCandidate == null) {
+      splitCandidate = preferred;
+      splitCandidateAtModeEnter = preferred;
+    }
+    uiMode = 'split';
+    message = '分割位置を変更できます（「分割」で実行）';
     fullRedraw();
   }
 
+  /** Move candidate only while already in split-position mode. Does not enter mode. */
   function moveSplitCandidate(delta) {
-    if (uiMode !== 'split') enterSplitMode();
     if (uiMode !== 'split' || splitCandidate == null) return;
     const sp = currentSpan();
     if (!sp || sp.start < 0) return;
@@ -490,17 +533,26 @@ export function openSectionReconfigurationModal(p) {
     fullRedraw();
   }
 
-  function onSplitPrimary() {
-    if (uiMode !== 'split') {
-      enterSplitMode();
-      return;
-    }
-    executeSplit();
-  }
-
+  /** Cancel split-position editing: restore candidate at mode enter, leave mode. No Section change. */
   function cancelSplitMode() {
+    if (uiMode === 'split') {
+      splitCandidate = splitCandidateAtModeEnter;
+    }
     uiMode = 'normal';
     splitCandidate = null;
+    splitCandidateAtModeEnter = null;
+    message = '';
+    fullRedraw();
+  }
+
+  /** Switch to play mode; same cancel semantics for pending split-position edits. */
+  function enterPlayMode() {
+    if (uiMode === 'split') {
+      splitCandidate = splitCandidateAtModeEnter;
+      splitCandidate = null;
+      splitCandidateAtModeEnter = null;
+    }
+    uiMode = 'normal';
     message = '';
     fullRedraw();
   }
@@ -520,6 +572,7 @@ export function openSectionReconfigurationModal(p) {
     }
     uiMode = 'normal';
     splitCandidate = null;
+    splitCandidateAtModeEnter = null;
     sectionIdx = r.backIndex;
     resetPlayToSectionStart();
     message = '分割しました。後半Sectionの名称・種類を入力してください';
@@ -759,10 +812,13 @@ export function openSectionReconfigurationModal(p) {
       ev.target.value = String(playChordCount);
       fullRedraw();
     });
-    root.querySelector('#sr1-split')?.addEventListener('click', onSplitPrimary);
+    root.querySelector('#sr1-mode-play')?.addEventListener('click', () => enterPlayMode());
+    root.querySelector('#sr1-mode-split')?.addEventListener('click', () => enterSplitMode());
+    root.querySelector('#sr1-split-edit')?.addEventListener('click', () => enterSplitMode());
+    root.querySelector('#sr1-split-exec')?.addEventListener('click', () => executeSplit());
     root.querySelector('#sr1-split-left')?.addEventListener('click', () => moveSplitCandidate(-1));
     root.querySelector('#sr1-split-right')?.addEventListener('click', () => moveSplitCandidate(1));
-    root.querySelector('#sr1-split-cancel')?.addEventListener('click', cancelSplitMode);
+    root.querySelector('#sr1-split-cancel')?.addEventListener('click', () => cancelSplitMode());
     root.querySelector('#sr1-merge')?.addEventListener('click', () => { mergeWithPrevious(); });
     root.querySelector('#sr1-undo')?.addEventListener('click', () => {
       beforeStructuralEdit();
