@@ -131,6 +131,7 @@ export function openSectionReconfigurationModal(p) {
   let selectedSectionId = draft.sections[sectionIdx]?.id ?? null;
   let splitContext = initialSplitContext ? { ...initialSplitContext } : null;
   const returnToOverviewOnSplit = initialSplitContext?.returnTo === 2;
+  let lastHistoryAction = null;
   /** UI-only: name field typed this visit; not written to Draft until change/blur. */
   let nameInputSoftLock = false;
   /**
@@ -324,6 +325,7 @@ export function openSectionReconfigurationModal(p) {
 
   /** Stop playback before any Draft structure mutation. */
   function beforeStructuralEdit() {
+    lastHistoryAction = null;
     stopPlayIfNeeded();
     applyNameTypeFromInputs();
   }
@@ -708,6 +710,7 @@ export function openSectionReconfigurationModal(p) {
       }
     }
     if (Object.keys(patch).length) {
+      lastHistoryAction = null;
       updateDraftSection(draft, sec.id, patch, opts);
     }
     // Always clear soft lock after processing the name field for this section.
@@ -927,7 +930,7 @@ export function openSectionReconfigurationModal(p) {
     splitCandidateAtModeEnter = null;
     message = '';
     if (opts.returnToOverview === true && returnToOverviewOnSplit) {
-      onReturnToOverview?.({ reason: 'split-cancel', sectionId: selectedSectionId });
+      onReturnToOverview?.({ reason: 'split-cancel', sectionId: selectedSectionId, historyAction: lastHistoryAction });
       return;
     }
     fullRedraw();
@@ -978,7 +981,7 @@ export function openSectionReconfigurationModal(p) {
     resetPlayToSectionStart();
     message = '分割しました。後半Sectionの名称・種類を入力してください';
     if (returnToOverviewOnSplit) {
-      onReturnToOverview?.({ reason: 'split-success', sectionId: selectedSectionId });
+      onReturnToOverview?.({ reason: 'split-success', sectionId: selectedSectionId, historyAction: lastHistoryAction });
       return;
     }
     fullRedraw();
@@ -1078,13 +1081,13 @@ export function openSectionReconfigurationModal(p) {
         e.preventDefault();
         e.stopPropagation();
         beforeStructuralEdit();
-        if (undoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
+        if (undoDraft(draft)) { lastHistoryAction = 'undo'; nameInputSoftLock = false; fullRedraw(); }
       }
       if ((e.ctrlKey || e.metaKey) && ((e.key === 'y' || e.key === 'Y') || (e.shiftKey && (e.key === 'z' || e.key === 'Z')))) {
         e.preventDefault();
         e.stopPropagation();
         beforeStructuralEdit();
-        if (redoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
+        if (redoDraft(draft)) { lastHistoryAction = 'redo'; nameInputSoftLock = false; fullRedraw(); }
       }
       return;
     }
@@ -1126,10 +1129,10 @@ export function openSectionReconfigurationModal(p) {
       e.stopPropagation();
       if ((e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
         beforeStructuralEdit();
-        if (undoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
+        if (undoDraft(draft)) { lastHistoryAction = 'undo'; nameInputSoftLock = false; fullRedraw(); }
       } else if ((e.key === 'y' || e.key === 'Y') || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
         beforeStructuralEdit();
-        if (redoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
+        if (redoDraft(draft)) { lastHistoryAction = 'redo'; nameInputSoftLock = false; fullRedraw(); }
       }
     }
   }
@@ -1207,7 +1210,7 @@ export function openSectionReconfigurationModal(p) {
     root.querySelector('#sr1-return-overview')?.addEventListener('click', () => {
       applyNameTypeFromInputs();
       stopPlayIfNeeded();
-      onReturnToOverview?.({ reason: 'back-to-overview', sectionId: selectedSectionId });
+      onReturnToOverview?.({ reason: 'back-to-overview', sectionId: selectedSectionId, historyAction: lastHistoryAction });
     });
     root.querySelector('#sr1-close')?.addEventListener('click', () => { requestClose('external').then(() => {}); });
     root.querySelector('#sr1-undo')?.addEventListener('click', () => {
