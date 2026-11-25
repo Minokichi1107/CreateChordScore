@@ -589,7 +589,10 @@ export function openSectionReconfigurationModal(p) {
   function playHintHtml() {
     // Always reserve one banner row so mode switch does not resize the modal.
     if (uiMode === 'split') {
-      return '<div class="sr1-mode-banner sr1-mode-split is-on" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で開始時の位置に戻します</div>';
+      return '<div class="sr1-mode-banner sr1-mode-split is-on" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で全Section一覧へ戻ります</div>';
+    }
+    if (uiMode === 'boundary') {
+      return '<div class="sr1-mode-banner sr1-mode-boundary is-on" role="status">境界位置の変更中 — 「境界を変更」で確定、「キャンセル」で元に戻します</div>';
     }
     return '<div class="sr1-mode-banner sr1-mode-banner-slot" aria-hidden="true">&nbsp;</div>';
   }
@@ -598,9 +601,15 @@ export function openSectionReconfigurationModal(p) {
     const canUndo = (draft.undoStack?.length || 0) > 0;
     const canRedo = (draft.redoStack?.length || 0) > 0;
     const splitOn = uiMode === 'split';
+    const boundaryOn = uiMode === 'boundary';
     const canSplitExec = splitOn && splitCandidate != null;
+    const canBoundaryExec = boundaryOn && boundaryCandidate != null;
     return `
       <div id="sr1-root" class="sr1-root">
+        <div class="sr1-stage-nav">
+          <button type="button" class="sec-btn" id="sr1-return-overview">← 全Section一覧へ</button>
+          <button type="button" class="sec-btn sr1-close-btn" id="sr1-close" aria-label="閉じる">✕</button>
+        </div>
         ${sectionPanelHtml()}
         ${invalidBannerHtml()}
         ${playHintHtml()}
@@ -620,32 +629,40 @@ export function openSectionReconfigurationModal(p) {
               </label>
             </div>
           </section>
-          <section class="sr1-panel sr1-panel-bound ${splitOn ? 'is-active' : ''}" data-sr1-mode="split" role="button" tabindex="0" aria-label="分割位置パネル（クリックで切替）">
-            <h4 class="sr1-panel-title"><span class="sr1-ico" aria-hidden="true">✂</span>分割位置<span class="sr1-vsep" aria-hidden="true"></span>${splitOn ? '<span class="sr1-active-tag" aria-label="操作中">✓ 選択中</span>' : ''}</h4>
+          <section class="sr1-panel sr1-panel-bound ${splitOn || boundaryOn ? 'is-active' : ''}" data-sr1-mode="${boundaryOn ? 'boundary' : 'split'}" role="button" tabindex="0" aria-label="${boundaryOn ? '境界位置' : '分割位置'}パネル（クリックで切替）">
+            <h4 class="sr1-panel-title"><span class="sr1-ico" aria-hidden="true">${boundaryOn ? '↔' : '✂'}</span>${boundaryOn ? '境界位置' : '分割位置'}<span class="sr1-vsep" aria-hidden="true"></span>${splitOn || boundaryOn ? '<span class="sr1-active-tag" aria-label="操作中">✓ 選択中</span>' : ''}</h4>
             <div class="sr1-panel-actions">
-              <button type="button" class="sec-btn" id="sr1-split-left" title="分割位置を左へ" ${splitOn ? '' : 'disabled'}>←</button>
-              <button type="button" class="sec-btn" id="sr1-split-right" title="分割位置を右へ" ${splitOn ? '' : 'disabled'}>→</button>
-              <span class="sr1-vsep" aria-hidden="true"></span>
-              <button type="button" class="sec-btn" id="sr1-split-edit">分割位置を変更</button>
-              <button type="button" class="sec-btn sr1-btn-split-primary" id="sr1-split-exec" ${canSplitExec ? '' : 'disabled'}>分割</button>
-              <button type="button" class="sec-btn" id="sr1-split-cancel" ${splitOn ? '' : 'disabled'}>キャンセル</button>
+              ${boundaryOn ? `
+                <button type="button" class="sec-btn" id="sr1-boundary-left" title="境界位置を左へ">←</button>
+                <button type="button" class="sec-btn" id="sr1-boundary-right" title="境界位置を右へ">→</button>
+                <span class="sr1-vsep" aria-hidden="true"></span>
+                <button type="button" class="sec-btn sr1-btn-split-primary" id="sr1-boundary-exec" ${canBoundaryExec ? '' : 'disabled'}>境界を変更</button>
+                <button type="button" class="sec-btn" id="sr1-boundary-cancel">キャンセル</button>
+              ` : `
+                <button type="button" class="sec-btn" id="sr1-split-left" title="分割位置を左へ" ${splitOn ? '' : 'disabled'}>←</button>
+                <button type="button" class="sec-btn" id="sr1-split-right" title="分割位置を右へ" ${splitOn ? '' : 'disabled'}>→</button>
+                <span class="sr1-vsep" aria-hidden="true"></span>
+                <button type="button" class="sec-btn" id="sr1-split-edit">分割位置を変更</button>
+                <button type="button" class="sec-btn sr1-btn-split-primary" id="sr1-split-exec" ${canSplitExec ? '' : 'disabled'}>分割</button>
+                <button type="button" class="sec-btn" id="sr1-split-cancel" ${splitOn ? '' : 'disabled'}>キャンセル</button>
+              `}
             </div>
           </section>
         </div>
         <div class="sr1-aux-toolbar" aria-label="構造編集">
           <button type="button" class="sec-btn" id="sr1-prev-sec" ${sectionIdx <= 0 ? 'disabled' : ''}>← Section</button>
           <button type="button" class="sec-btn" id="sr1-next-sec" ${sectionIdx >= draft.sections.length - 1 ? 'disabled' : ''}>Section →</button>
-          <button type="button" class="sec-btn" id="sr1-merge" ${sectionIdx <= 0 ? 'disabled' : ''}>前と結合</button>
           <button type="button" class="sec-btn" id="sr1-undo" ${canUndo ? '' : 'disabled'}>Undo</button>
           <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
         <div id="sr1-msg" class="sag-errors sr1-msg" role="status">${esc(message)}</div>
-        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> クリックで位置選択 · ←→ 移動 · Space 再生 · Esc 分割キャンセル／閉じる</p>
+        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> クリックで位置選択 · ←→ 移動 · Space 再生 · Esc 分割キャンセル／境界編集キャンセル／閉じる</p>
       </div>`;
   }
 
   function fullRedraw() {
     if (closed) return;
+    syncSectionSelection();
     gridScrollRow = clampGridScrollRow(gridScrollRow);
     const host = document.getElementById('sr1-root');
     if (!host) return;
@@ -665,6 +682,7 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function applyNameTypeFromInputs() {
+    syncSectionSelection();
     const nameEl = root?.querySelector('.sr1-name');
     const typeEl = root?.querySelector('.sr1-type');
     const sec = draft.sections[sectionIdx];
@@ -729,6 +747,8 @@ export function openSectionReconfigurationModal(p) {
     } else {
       message = '不正SectionをDraftから削除しました';
       if (sectionIdx >= draft.sections.length) sectionIdx = Math.max(0, draft.sections.length - 1);
+      selectedSectionId = null;
+      syncSectionSelection();
       resetPlayToSectionStart();
     }
     fullRedraw();
@@ -761,7 +781,7 @@ export function openSectionReconfigurationModal(p) {
       playingChordIdx = null;
       if (playStartIdx != null) playCandidate = playStartIdx;
       playStartIdx = null;
-      if (!closed) fullRedraw();
+      if (!closed && (typeof isCurrent !== 'function' || isCurrent())) fullRedraw();
       else updatePlayingHighlight(null);
     };
     onTestPlay?.({
@@ -769,7 +789,7 @@ export function openSectionReconfigurationModal(p) {
       endSec,
       onEnded: finishPlay,
       onTime: (tSec) => {
-        if (closed || !isPlaying) return;
+        if (closed || (typeof isCurrent === 'function' && !isCurrent()) || !isPlaying) return;
         const idx = chordIndexAtTime(tSec);
         if (idx !== playingChordIdx) {
           playingChordIdx = idx;
@@ -780,6 +800,7 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function enterSplitMode() {
+    if (uiMode === 'boundary') cancelBoundaryMode();
     stopPlayIfNeeded();
     applyNameTypeFromInputs();
     const sp = currentSpan();
@@ -810,6 +831,60 @@ export function openSectionReconfigurationModal(p) {
     fullRedraw();
   }
 
+  function enterBoundaryMode() {
+    stopPlayIfNeeded();
+    applyNameTypeFromInputs();
+    if (!canEditCurrentBoundary()) {
+      message = 'このSectionの境界は変更できません（次のSectionが不正、または最後のSectionです）';
+      fullRedraw();
+      return;
+    }
+    const sp = currentSpan();
+    boundaryCandidate = sp?.end ?? null;
+    boundaryCandidateAtModeEnter = boundaryCandidate;
+    uiMode = 'boundary';
+    message = '';
+    fullRedraw();
+  }
+
+  function moveBoundaryCandidate(delta) {
+    if (uiMode !== 'boundary' || boundaryCandidate == null) return;
+    const next = clampBoundaryCandidate(boundaryCandidate + delta);
+    if (next == null) return;
+    boundaryCandidate = next;
+    fullRedraw();
+  }
+
+  function cancelBoundaryMode() {
+    if (uiMode !== 'boundary') return;
+    boundaryCandidate = null;
+    boundaryCandidateAtModeEnter = null;
+    uiMode = 'normal';
+    message = '';
+    fullRedraw();
+  }
+
+  function executeBoundaryChange() {
+    beforeStructuralEdit();
+    if (boundaryCandidate == null) {
+      message = '境界位置を選択してください';
+      fullRedraw();
+      return;
+    }
+    const r = setDraftSectionEndByChordIndex(draft, sectionIdx, boundaryCandidate, buffer);
+    if (!r.ok) {
+      message = `境界を変更できません（${REASON_LABEL[r.reason] || r.reason}）`;
+      fullRedraw();
+      return;
+    }
+    boundaryCandidate = null;
+    boundaryCandidateAtModeEnter = null;
+    uiMode = 'normal';
+    resetPlayToSectionStart();
+    message = r.noop ? '境界に変更はありません' : 'Section境界を変更しました';
+    fullRedraw();
+  }
+
   /** Move candidate only while already in split-position mode. Does not enter mode. */
   function moveSplitCandidate(delta) {
     if (uiMode !== 'split' || splitCandidate == null) return;
@@ -820,14 +895,16 @@ export function openSectionReconfigurationModal(p) {
   }
 
   /** Cancel split-position editing: restore candidate at mode enter, leave mode. No Section change. */
-  function cancelSplitMode() {
-    if (uiMode === 'split') {
-      splitCandidate = splitCandidateAtModeEnter;
-    }
+  function cancelSplitMode(opts = {}) {
+    if (uiMode === 'split') splitCandidate = splitCandidateAtModeEnter;
     uiMode = 'normal';
     splitCandidate = null;
     splitCandidateAtModeEnter = null;
     message = '';
+    if (opts.returnToOverview === true && splitContext?.returnTo === 2) {
+      onReturnToOverview?.({ reason: 'split-cancel', sectionId: selectedSectionId });
+      return;
+    }
     fullRedraw();
   }
 
@@ -837,6 +914,10 @@ export function openSectionReconfigurationModal(p) {
       splitCandidate = splitCandidateAtModeEnter;
       splitCandidate = null;
       splitCandidateAtModeEnter = null;
+    }
+    if (uiMode === 'boundary') {
+      boundaryCandidate = null;
+      boundaryCandidateAtModeEnter = null;
     }
     uiMode = 'normal';
     message = '';
@@ -852,7 +933,14 @@ export function openSectionReconfigurationModal(p) {
     }
     // UI stores next-section start; API wants last chord of front half
     const endChordIndex = splitCandidate - 1;
-    const r = splitDraftAtChordIndex(draft, sectionIdx, endChordIndex, buffer);
+    const r = splitDraftAtChordIndex(
+      draft,
+      sectionIdx,
+      endChordIndex,
+      buffer,
+      undefined,
+      { inheritBackMeta: splitContext?.inheritBackMeta === true },
+    );
     if (!r.ok) {
       message = `分割できません（${REASON_LABEL[r.reason] || r.reason}）`;
       fullRedraw();
@@ -861,9 +949,13 @@ export function openSectionReconfigurationModal(p) {
     uiMode = 'normal';
     splitCandidate = null;
     splitCandidateAtModeEnter = null;
-    sectionIdx = r.backIndex;
+    selectSectionIndex(r.backIndex, { clearSplitContext: false });
     resetPlayToSectionStart();
     message = '分割しました。後半Sectionの名称・種類を入力してください';
+    if (splitContext?.returnTo === 2) {
+      onReturnToOverview?.({ reason: 'split-success', sectionId: selectedSectionId });
+      return;
+    }
     fullRedraw();
   }
 
@@ -938,7 +1030,7 @@ export function openSectionReconfigurationModal(p) {
       if (!opts.skipConfirm && isDraftDirty(draft)) {
         const choice = confirmChoice
           ? await confirmChoice('Section設定の変更を破棄して閉じますか？', [
-              { label: '破棄して閉じる', value: 'discard' },
+              { label: '変更を破棄して閉じる', value: 'discard' },
               { label: '編集を続ける', value: 'stay' },
             ])
           : (window.confirm('Section設定の変更を破棄して閉じますか？') ? 'discard' : 'stay');
@@ -957,7 +1049,7 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function onKeyDown(e) {
-    if (closed || !document.getElementById('sr1-root')) return;
+    if (closed || (typeof isCurrent === 'function' && !isCurrent()) || !document.getElementById('sr1-root')) return;
     const tag = (e.target && e.target.tagName) || '';
     const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 
@@ -966,7 +1058,11 @@ export function openSectionReconfigurationModal(p) {
       e.preventDefault();
       e.stopPropagation();
       if (uiMode === 'split') {
-        cancelSplitMode();
+        cancelSplitMode({ returnToOverview: splitContext?.returnTo === 2 });
+        return;
+      }
+      if (uiMode === 'boundary') {
+        cancelBoundaryMode();
         return;
       }
       requestClose('esc').then(() => {});
@@ -980,9 +1076,10 @@ export function openSectionReconfigurationModal(p) {
       applyNameTypeFromInputs();
       nameInputSoftLock = false;
       stopPlayIfNeeded();
-      if (uiMode === 'split') cancelSplitMode();
-      if (e.shiftKey) sectionIdx = Math.max(0, sectionIdx - 1);
-      else sectionIdx = Math.min(Math.max(0, draft.sections.length - 1), sectionIdx + 1);
+      if (uiMode === 'split') cancelSplitMode({ returnToOverview: false });
+      if (uiMode === 'boundary') cancelBoundaryMode();
+      if (e.shiftKey) selectSectionIndex(sectionIdx - 1);
+      else selectSectionIndex(sectionIdx + 1);
       resetPlayToSectionStart();
       fullRedraw();
       return;
@@ -1053,16 +1150,18 @@ export function openSectionReconfigurationModal(p) {
     root.querySelector('#sr1-prev-sec')?.addEventListener('click', () => {
       applyNameTypeFromInputs();
       stopPlayIfNeeded();
-      if (uiMode === 'split') cancelSplitMode();
-      sectionIdx = Math.max(0, sectionIdx - 1);
+      if (uiMode === 'split') cancelSplitMode({ returnToOverview: false });
+      if (uiMode === 'boundary') cancelBoundaryMode();
+      selectSectionIndex(sectionIdx - 1);
       resetPlayToSectionStart();
       fullRedraw();
     });
     root.querySelector('#sr1-next-sec')?.addEventListener('click', () => {
       applyNameTypeFromInputs();
       stopPlayIfNeeded();
-      if (uiMode === 'split') cancelSplitMode();
-      sectionIdx = Math.min(Math.max(0, draft.sections.length - 1), sectionIdx + 1);
+      if (uiMode === 'split') cancelSplitMode({ returnToOverview: false });
+      if (uiMode === 'boundary') cancelBoundaryMode();
+      selectSectionIndex(sectionIdx + 1);
       resetPlayToSectionStart();
       fullRedraw();
     });
@@ -1084,6 +1183,7 @@ export function openSectionReconfigurationModal(p) {
       fullRedraw();
     });
     root.querySelector('#sr1-mode-play')?.addEventListener('click', () => enterPlayMode());
+    root.querySelector('#sr1-mode-boundary')?.addEventListener('click', () => enterBoundaryMode());
     root.querySelector('#sr1-mode-split')?.addEventListener('click', () => enterSplitMode());
     root.querySelector('#sr1-split-edit')?.addEventListener('click', () => enterSplitMode());
     // Panel surface click also switches mode (buttons inside still work)
@@ -1091,7 +1191,7 @@ export function openSectionReconfigurationModal(p) {
       if (uiMode !== 'normal') enterPlayMode();
     });
     root.querySelector('.sr1-panel-bound')?.addEventListener('click', () => {
-      if (uiMode !== 'split') enterSplitMode();
+      if (uiMode !== 'split' && uiMode !== 'boundary') enterSplitMode();
     });
     root.querySelector('.sr1-panel-play')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -1105,11 +1205,20 @@ export function openSectionReconfigurationModal(p) {
         if (uiMode !== 'split') enterSplitMode();
       }
     });
+    root.querySelector('#sr1-boundary-exec')?.addEventListener('click', () => executeBoundaryChange());
+    root.querySelector('#sr1-boundary-left')?.addEventListener('click', () => moveBoundaryCandidate(-1));
+    root.querySelector('#sr1-boundary-right')?.addEventListener('click', () => moveBoundaryCandidate(1));
+    root.querySelector('#sr1-boundary-cancel')?.addEventListener('click', () => cancelBoundaryMode());
     root.querySelector('#sr1-split-exec')?.addEventListener('click', () => executeSplit());
     root.querySelector('#sr1-split-left')?.addEventListener('click', () => moveSplitCandidate(-1));
     root.querySelector('#sr1-split-right')?.addEventListener('click', () => moveSplitCandidate(1));
-    root.querySelector('#sr1-split-cancel')?.addEventListener('click', () => cancelSplitMode());
-    root.querySelector('#sr1-merge')?.addEventListener('click', () => { mergeWithPrevious(); });
+    root.querySelector('#sr1-split-cancel')?.addEventListener('click', () => cancelSplitMode({ returnToOverview: splitContext?.returnTo === 2 }));
+    root.querySelector('#sr1-return-overview')?.addEventListener('click', () => {
+      applyNameTypeFromInputs();
+      stopPlayIfNeeded();
+      onReturnToOverview?.({ reason: 'back-to-overview', sectionId: selectedSectionId });
+    });
+    root.querySelector('#sr1-close')?.addEventListener('click', () => { requestClose('external').then(() => {}); });
     root.querySelector('#sr1-undo')?.addEventListener('click', () => {
       beforeStructuralEdit();
       if (undoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
@@ -1138,10 +1247,7 @@ export function openSectionReconfigurationModal(p) {
     body: bodyHtml(),
     // Outside click must not close. Escape may be routed here with source==='escape'.
     onRequestClose: (source) => {
-      if (source === 'overlay' || source == null || source === 'unknown') {
-        return; // outside click / unknown — ignore
-      }
-      if (source === 'escape') {
+      if (source === 'overlay' || source === 'escape') {
         requestClose('esc').then((ok) => {
           // closeMod is performed by parent closeSectionReconfiguration onClose path
         });
@@ -1149,7 +1255,7 @@ export function openSectionReconfigurationModal(p) {
     },
     onOpen: () => {
       // F1: if already closed (e.g. project switch during 80ms delay), do not register
-      if (closed) return;
+      if (closed || (typeof isCurrent === 'function' && !isCurrent())) return;
       root = document.getElementById('sr1-root');
       bind();
       if (keyHandler) document.addEventListener('keydown', keyHandler, true);
@@ -1188,6 +1294,18 @@ export function openSectionReconfigurationModal(p) {
    * - forceClose(): cleanup + onClose('external') for project switch
    */
   return {
+    suspend: () => {
+      if (closed) return { sectionId: selectedSectionId };
+      applyNameTypeFromInputs();
+      stopPlayIfNeeded();
+      if (keyHandler) {
+        document.removeEventListener('keydown', keyHandler, true);
+        keyHandler = null;
+      }
+      // Keep the global Space shield active while Stage2 replaces this modal.
+      closed = true;
+      return { sectionId: selectedSectionId };
+    },
     cleanup: () => {
       if (closed && !keyHandler) return;
       closed = true;
