@@ -843,6 +843,10 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function enterBoundaryMode() {
+    if (uiMode === 'split') {
+      splitCandidate = null;
+      splitCandidateAtModeEnter = null;
+    }
     stopPlayIfNeeded();
     applyNameTypeFromInputs();
     if (!canEditCurrentBoundary()) {
