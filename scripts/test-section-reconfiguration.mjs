@@ -507,6 +507,9 @@ const st = (b, sections = []) => ({
       { id: 'earlier', type: 'verse', name: '前', startChordId: 'k0', endChordId: 'k3' },
     ],
   });
+  // Draft arrays are normally normalized at creation; reverse here to exercise
+  // a later chronological Section stored at array index 0.
+  draft.sections.reverse();
   const ordered = orderedValidSections(draft.sections, b);
   assert.deepEqual(ordered.map(row => row.section.id), ['earlier', 'later']);
   assert.deepEqual(ordered.map(row => row.index), [1, 0]);
