@@ -758,7 +758,8 @@ body:not([data-theme="dark"]) .sr1-root {
   background: var(--sr1-play-bg);
   color: var(--sr1-play);
 }
-.sr1-mode-btn.is-active.sr1-mode-split {
+.sr1-mode-btn.is-active.sr1-mode-split,
+.sr1-mode-btn.is-active.sr1-mode-boundary {
   border-color: var(--sr1-bound);
   background: var(--sr1-bound-bg);
   color: var(--sr1-bound);
@@ -1138,7 +1139,8 @@ body[data-theme="dark"] .sr1-btn-split-primary {
   align-items: center;
 }
 .sr1-mode-banner.is-on,
-.sr1-mode-banner.sr1-mode-split {
+.sr1-mode-banner.sr1-mode-split,
+.sr1-mode-banner.sr1-mode-boundary {
   color: var(--sr1-bound);
   background: var(--sr1-bound-bg);
   border: 1px solid var(--sr1-bound);
