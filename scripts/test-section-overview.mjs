@@ -8,6 +8,7 @@ import {
   detectPickupMeasure,
   getDisplayMeasureNumber,
 } from '../js/chartmode.js';
+import { openSectionOverviewModal } from '../js/sectionOverviewModal.js';
 import {
   buildSectionOverview,
   canMergeWithPrevious,
@@ -36,6 +37,8 @@ const timingFor = (beats, measures) => ({
     },
   },
 });
+assert.equal(typeof openSectionOverviewModal, 'function', 'Stage2 modal module imports');
+
 const regularMeasures = [
   { startTime: 0, endTime: 4 },
   { startTime: 4, endTime: 8 },
