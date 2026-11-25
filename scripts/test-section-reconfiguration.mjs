@@ -536,6 +536,8 @@ const st = (b, sections = []) => ({
       nameUserEdited: true, startChordId: 'k0', endChordId: 'k5',
     }],
   });
+  // nameUserEdited is Draft-only metadata, so seed it after canonical Draft creation.
+  draft.sections[0].nameUserEdited = true;
   const r = splitDraftAtChordIndex(draft, 0, 2, b, undefined, { inheritBackMeta: true });
   assert.equal(r.ok, true, r.reason);
   const back = draft.sections[r.backIndex];
