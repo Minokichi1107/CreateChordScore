@@ -61,8 +61,10 @@ export function openSectionOverviewModal(p) {
     onKeyUnshield,
     confirmChoice,
     isCurrent,
+    initialHistoryAction = null,
   } = p;
 
+  let pendingInitialHistoryAction = initialHistoryAction;
   let root = null;
   let closed = false;
   let closing = false;
@@ -263,11 +265,13 @@ export function openSectionOverviewModal(p) {
       const changed = diff.added.length || diff.changed.length || diff.removed.length;
       if (changed) {
         highlightIds = new Set([...diff.added, ...diff.changed]);
-        const changeMessage = inferChangeMessage(diff, before, after, opts.historyAction ?? null);
+        const historyAction = opts.historyAction ?? pendingInitialHistoryAction ?? null;
+        const changeMessage = inferChangeMessage(diff, before, after, historyAction);
         message = changeMessage;
         scheduleHighlightClear();
       }
     }
+    pendingInitialHistoryAction = null;
     runtime.view.lastSeenSigs = after;
     overview = buildSectionOverview(draft, buffer, timing);
     const oldScroll = root?.querySelector('#s2-scroll')?.scrollTop;
