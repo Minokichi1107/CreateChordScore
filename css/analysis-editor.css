@@ -570,6 +570,22 @@ body:not([data-theme="dark"]) .sr1-root {
   --sr1-card-border: #cfd5e0;
 }
 
+.sr1-stage-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.sr1-stage-nav .sec-btn {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.sr1-stage-nav .sr1-close-btn {
+  min-width: 36px;
+  padding-inline: 8px;
+}
 .sr1-header {
   display: flex;
   flex-direction: column;
@@ -878,7 +894,8 @@ body:not([data-theme="dark"]) .sr1-root {
   background: var(--sr1-play-bg);
   z-index: 1;
 }
-.sr1-chord.sr1-split-cand {
+.sr1-chord.sr1-split-cand,
+.sr1-chord.sr1-boundary-edit-cand {
   outline: 2px solid var(--sr1-bound);
   outline-offset: 1px;
   background: var(--sr1-bound-bg);
@@ -913,7 +930,8 @@ body:not([data-theme="dark"]) .sr1-chord.sr1-playing {
   background: var(--sr1-play);
   box-shadow: 0 0 0 1px var(--sr1-card-bg);
 }
-.sr1-mark-split {
+.sr1-mark-split,
+.sr1-mark-boundary-edit {
   right: 5px;
   background: var(--sr1-bound);
 }
