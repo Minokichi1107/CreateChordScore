@@ -733,6 +733,7 @@ export function openSectionReconfigurationModal(p) {
     if (!nameLocked && typeof generateSectionName === 'function') {
       opts.defaultNameForType = generateSectionName;
     }
+    lastHistoryAction = null;
     updateDraftSection(draft, sec.id, patch, opts);
     // Reflect new name into the input without marking as user-edited again
     if (nameEl && !draft.sections[sectionIdx].nameUserEdited && !nameInputSoftLock) {
