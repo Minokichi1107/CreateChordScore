@@ -108,7 +108,7 @@ export function formatSectionBeatValue(value) {
   const nearest = nearestFraction(fraction);
 
   if (nearest.value >= 1 - EPS) whole += 1;
-  const fractionText = nearest.value <= EPS
+  const fractionText = nearest.value <= EPS || nearest.value >= 1 - EPS
     ? ''
     : `${nearest.numerator}/${nearest.denominator}`;
   if (!fractionText) return `${sign}${whole}`;
@@ -124,7 +124,7 @@ function formatBeatOrdinal(position) {
   const nearest = nearestFraction(absolute - whole);
   if (nearest.value >= 1 - EPS) whole += 1;
   const ordinal = whole + 1;
-  const fractionText = nearest.value <= EPS
+  const fractionText = nearest.value <= EPS || nearest.value >= 1 - EPS
     ? ''
     : `と${nearest.numerator}/${nearest.denominator}`;
   return `${sign}${ordinal}${fractionText}`;
