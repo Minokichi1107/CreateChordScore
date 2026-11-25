@@ -14,7 +14,6 @@ import {
   undoDraft,
   redoDraft,
   splitDraftAtChordIndex,
-  mergeDraftWithPrevious,
 } from './sectionReconfiguration.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch =>
@@ -972,43 +971,6 @@ export function openSectionReconfigurationModal(p) {
       onReturnToOverview?.({ reason: 'split-success', sectionId: selectedSectionId });
       return;
     }
-    fullRedraw();
-  }
-
-  async function mergeWithPrevious() {
-    beforeStructuralEdit();
-    const list = diagnoseDraftSections(draft, buffer);
-    const cur = list[sectionIdx];
-    if (!cur || !cur.structurallyValid) {
-      message = '現在のSectionを結合できません';
-      fullRedraw();
-      return;
-    }
-    const positioned = list.filter(r => r.structurallyValid && r.start >= 0)
-      .slice().sort((a, b) => a.start - b.start || a.index - b.index);
-    const ord = positioned.findIndex(r => r.index === sectionIdx);
-    if (ord <= 0) {
-      message = '前のSectionがありません';
-      fullRedraw();
-      return;
-    }
-    const prev = positioned[ord - 1];
-    const prevSec = draft.sections[prev.index];
-    const curSec = draft.sections[sectionIdx];
-    const msg = `次のSectionを結合しますか？\n\n前: ${prevSec.name || '(名称未設定)'} [${prev.start + 1}〜${prev.end + 1}]\n現在: ${curSec.name || '(名称未設定)'} [${cur.start + 1}〜${cur.end + 1}]`;
-    const choice = await (confirmChoice
-      ? confirmChoice(msg, [{ label: '結合', value: 'ok' }, { label: 'キャンセル', value: 'cancel' }])
-      : (window.confirm(msg.replace(/\\n/g, '\n')) ? 'ok' : 'cancel'));
-    if (choice !== 'ok') return;
-    const r = mergeDraftWithPrevious(draft, sectionIdx, buffer);
-    if (!r.ok) {
-      message = `結合できません（${REASON_LABEL[r.reason] || r.reason}）`;
-      fullRedraw();
-      return;
-    }
-    sectionIdx = r.mergedIndex;
-    resetPlayToSectionStart();
-    message = '結合しました';
     fullRedraw();
   }
 
