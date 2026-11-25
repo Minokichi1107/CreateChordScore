@@ -22,6 +22,7 @@ import {
   isDraftDirty,
   prepareDraftForAdopt,
   mergeDraftWithPrevious,
+  orderedValidSections,
   toCanonicalSection,
   toCanonicalSections,
   createReconfigRuntime,
@@ -182,12 +183,18 @@ const st = (b, sections = []) => ({
 
 {
   const rt = createReconfigRuntime();
+  assert.equal(rt.view, 'overview');
+  assert.equal(rt.splitContext, null);
   rt.draft = createReconfigurationDraft({ projectId: 'old', buffer: buf(), sections: [S('a', 0, 3)] });
   rt.modalOpen = true;
+  rt.view = 'stage1';
+  rt.splitContext = { sectionId: 'a' };
   rt.audioSnapshot = { timeSec: 1, speedPct: 100 };
   const r = teardownReconfigRuntime(rt, { restoreAudio: false });
   assert.equal(r.adopt, false);
   assert.equal(rt.draft, null);
+  assert.equal(rt.view, 'overview');
+  assert.equal(rt.splitContext, null);
 }
 
 {
@@ -490,7 +497,50 @@ const st = (b, sections = []) => ({
   assert.equal(draft.sections.length, 2);
 }
 
+// --- Stage2: chronological previous must not depend on Draft array order ---
+{
+  const b = buf(8);
+  const draft = createReconfigurationDraft({
+    projectId: 'p', buffer: b,
+    sections: [
+      { id: 'later', type: 'chorus', name: '後', startChordId: 'k4', endChordId: 'k7' },
+      { id: 'earlier', type: 'verse', name: '前', startChordId: 'k0', endChordId: 'k3' },
+    ],
+  });
+  const ordered = orderedValidSections(draft.sections, b);
+  assert.deepEqual(ordered.map(row => row.section.id), ['earlier', 'later']);
+  assert.deepEqual(ordered.map(row => row.index), [1, 0]);
 
+  // The selected row is array index 0, but its chronological predecessor is index 1.
+  const r = mergeDraftWithPrevious(draft, 0, b);
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(draft.sections.length, 1);
+  assert.equal(draft.sections[0].id, 'earlier');
+  assert.equal(draft.sections[0].name, '前');
+  assert.equal(draft.sections[0].endChordId, 'k7');
+  assert.equal(undoDraft(draft), true);
+  assert.equal(draft.sections.length, 2);
+  assert.equal(draft.sections[0].id, 'later', 'undo restores original array order');
+}
+
+// --- Stage2: split can explicitly inherit the source Section metadata ---
+{
+  const b = buf(6);
+  const draft = createReconfigurationDraft({
+    projectId: 'p', buffer: b,
+    sections: [{
+      id: 'source', type: 'chorus', name: 'サビ',
+      nameUserEdited: true, startChordId: 'k0', endChordId: 'k5',
+    }],
+  });
+  const r = splitDraftAtChordIndex(draft, 0, 2, b, undefined, { inheritBackMeta: true });
+  assert.equal(r.ok, true, r.reason);
+  const back = draft.sections[r.backIndex];
+  assert.equal(back.type, 'chorus');
+  assert.equal(back.name, 'サビ');
+  assert.equal(back.nameUserEdited, true);
+  assert.notEqual(back.id, 'source');
+}
 
 // --- A-1/A-2: play position state must not be required for boundary API ---
 {
