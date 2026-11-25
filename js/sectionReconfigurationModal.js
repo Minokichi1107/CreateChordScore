@@ -118,9 +118,19 @@ export function openSectionReconfigurationModal(p) {
     openModal, mkMBtn, draft, buffer, sectionTypes,
     onAdopt, onClose, onTestPlay, onTestStop, onKeyShield, onKeyUnshield, confirmChoice,
     generateSectionName, formatChord,
+    initial = null, splitContext: initialSplitContext = null,
+    onReturnToOverview, onSplitContextClear, isCurrent,
   } = p;
 
-  let sectionIdx = 0;
+  const requestedIndex = Number.isInteger(initial?.sectionIndex) ? initial.sectionIndex : 0;
+  const requestedIdIndex = initial?.sectionId
+    ? draft.sections.findIndex(section => section?.id === initial.sectionId)
+    : -1;
+  let sectionIdx = requestedIdIndex >= 0
+    ? requestedIdIndex
+    : Math.max(0, Math.min(Math.max(0, draft.sections.length - 1), requestedIndex));
+  let selectedSectionId = draft.sections[sectionIdx]?.id ?? null;
+  let splitContext = initialSplitContext ? { ...initialSplitContext } : null;
   /** UI-only: name field typed this visit; not written to Draft until change/blur. */
   let nameInputSoftLock = false;
   /**
@@ -134,11 +144,12 @@ export function openSectionReconfigurationModal(p) {
   /** Number of chords to play (1..8). */
   let playChordCount = 4;
   let isPlaying = false;
-  /** 'normal' | 'split' — orange marker is split-only (no independent boundary mode). */
+  /** 'normal' | 'boundary' | 'split'. */
   let uiMode = 'normal';
-  /** Chord index: last chord of front half when splitting (splitDraftAtChordIndex). */
+  let boundaryCandidate = null;
+  let boundaryCandidateAtModeEnter = null;
+  /** First chord of the new back Section when splitting. */
   let splitCandidate = null;
-  /** Candidate at the moment split-position mode was entered; restored on cancel / play mode. */
   let splitCandidateAtModeEnter = null;
   /**
    * Split position = start chord index of the *new* (back) Section.
@@ -158,11 +169,41 @@ export function openSectionReconfigurationModal(p) {
   let keyHandler = null;
   let closing = false; // re-entrancy guard
 
+  function clearSplitContext() {
+    if (!splitContext) return;
+    splitContext = null;
+    onSplitContextClear?.();
+  }
+
+  function syncSectionSelection() {
+    if (selectedSectionId != null) {
+      const found = draft.sections.findIndex(section => section?.id === selectedSectionId);
+      if (found >= 0) {
+        sectionIdx = found;
+        return;
+      }
+    }
+    const nextIndex = Math.max(0, Math.min(Math.max(0, draft.sections.length - 1), sectionIdx));
+    const nextId = draft.sections[nextIndex]?.id ?? null;
+    if (splitContext && nextId !== splitContext.sectionId) clearSplitContext();
+    sectionIdx = nextIndex;
+    selectedSectionId = nextId;
+  }
+
+  function selectSectionIndex(index, opts = {}) {
+    const nextIndex = Math.max(0, Math.min(Math.max(0, draft.sections.length - 1), Math.round(Number(index) || 0)));
+    const nextId = draft.sections[nextIndex]?.id ?? null;
+    if (opts.clearSplitContext !== false && splitContext && nextId !== splitContext.sectionId) clearSplitContext();
+    sectionIdx = nextIndex;
+    selectedSectionId = nextId;
+  }
+
   function spans() {
     return draftSectionChordSpans(draft, buffer);
   }
 
   function currentSpan() {
+    syncSectionSelection();
     const sp = spans();
     if (!sp.length) return null;
     if (sectionIdx >= sp.length) sectionIdx = sp.length - 1;
@@ -197,6 +238,29 @@ export function openSectionReconfigurationModal(p) {
     const s = currentSpan();
     if (!s || s.start < 0 || s.end <= s.start) return null;
     return Math.max(s.start + 1, Math.min(s.end, idx));
+  }
+
+  function canEditCurrentBoundary() {
+    const diagnostics = diagnoseDraftSections(draft, buffer);
+    const current = diagnostics[sectionIdx];
+    if (!current?.structurallyValid) return false;
+    const positioned = diagnostics
+      .map(row => ({
+        ...row,
+        sortKey: row.start >= 0 ? row.start : (row.end >= 0 ? row.end : Number.MAX_SAFE_INTEGER),
+      }))
+      .sort((a, b) => a.sortKey - b.sortKey || a.index - b.index);
+    const orderIndex = positioned.findIndex(row => row.index === sectionIdx);
+    return orderIndex >= 0
+      && orderIndex < positioned.length - 1
+      && positioned[orderIndex + 1]?.structurallyValid === true;
+  }
+
+  function clampBoundaryCandidate(idx) {
+    const sp = currentSpan();
+    if (!sp || sp.start < 0 || sp.end < sp.start || !canEditCurrentBoundary()) return null;
+    const max = Math.max(sp.start, buffer.length - 2);
+    return Math.max(sp.start, Math.min(max, Math.round(Number(idx) || 0)));
   }
 
   function chordIndexAtTime(tSec) {
@@ -310,7 +374,9 @@ export function openSectionReconfigurationModal(p) {
       invalidNote = `<div class="sr1-sec-incomplete">名称・種類が未設定（採用前に入力）</div>`;
     }
     const playOn = uiMode === 'normal';
+    const boundaryOn = uiMode === 'boundary';
     const splitOn = uiMode === 'split';
+    const boundaryAvailable = canEditCurrentBoundary();
     return `
       <div class="sr1-header">
         <div class="sr1-header-row">
@@ -326,6 +392,9 @@ export function openSectionReconfigurationModal(p) {
           <div class="sr1-mode-toggle" role="group" aria-label="操作対象">
             <button type="button" class="sr1-mode-btn sr1-mode-play ${playOn ? 'is-active' : ''}" id="sr1-mode-play" aria-pressed="${playOn}">
               <span class="sr1-ico" aria-hidden="true">▶</span>再生位置
+            </button>
+            <button type="button" class="sr1-mode-btn sr1-mode-boundary ${boundaryOn ? 'is-active' : ''}" id="sr1-mode-boundary" aria-pressed="${boundaryOn}" ${boundaryAvailable ? '' : 'disabled'}>
+              <span class="sr1-ico" aria-hidden="true">↔</span>境界位置
             </button>
             <button type="button" class="sr1-mode-btn sr1-mode-split ${splitOn ? 'is-active' : ''}" id="sr1-mode-split" aria-pressed="${splitOn}">
               <span class="sr1-ico" aria-hidden="true">✂</span>分割位置
@@ -409,6 +478,18 @@ export function openSectionReconfigurationModal(p) {
           fullRedraw();
           return;
         }
+        if (uiMode === 'boundary') {
+          const next = clampBoundaryCandidate(i);
+          if (next == null) {
+            message = 'この位置には境界を設定できません';
+            fullRedraw();
+            return;
+          }
+          boundaryCandidate = next;
+          message = `境界位置: コード ${boundaryCandidate + 1}（ここまでが現在のSection）`;
+          fullRedraw();
+          return;
+        }
         setPlayPos(i);
         fullRedraw();
       });
@@ -460,6 +541,7 @@ export function openSectionReconfigurationModal(p) {
         const inSec = structOk && i >= active.start && i <= active.end;
         const isPlay = i === playCandidate;
         const isSplitCand = uiMode === 'split' && splitCandidate === i;
+        const isBoundaryCand = uiMode === 'boundary' && boundaryCandidate === i;
         const isPlayingChord = playingChordIdx === i;
         const isBoundary = boundaryEnds.has(i);
         const cls = [
@@ -467,12 +549,14 @@ export function openSectionReconfigurationModal(p) {
           inSec ? 'sr1-in-sec' : '',
           isPlay ? 'sr1-play-cand sr1-play-conf' : '',
           isSplitCand ? 'sr1-split-cand' : '',
+          isBoundaryCand ? 'sr1-boundary-edit-cand' : '',
           isPlayingChord ? 'sr1-playing' : '',
           isBoundary ? 'sr1-boundary' : '',
         ].filter(Boolean).join(' ');
         const markers = [
           isPlay ? '<span class="sr1-mark sr1-mark-play" aria-hidden="true"></span>' : '',
           isSplitCand ? '<span class="sr1-mark sr1-mark-split" aria-hidden="true"></span>' : '',
+          isBoundaryCand ? '<span class="sr1-mark sr1-mark-boundary-edit" aria-hidden="true"></span>' : '',
           isPlayingChord ? '<span class="sr1-mark sr1-mark-playing" aria-hidden="true"></span>' : '',
         ].join('');
         cells.push(
