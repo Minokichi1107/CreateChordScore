@@ -5,6 +5,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createTimingModel } from '../js/timing.js';
 import {
+  detectPickupMeasure,
+  getDisplayMeasureNumber,
+} from '../js/chartmode.js';
+import {
   buildSectionOverview,
   canMergeWithPrevious,
   diffSections,
@@ -41,6 +45,22 @@ const regularTiming = timingFor(
   Array.from({ length: 12 }, (_, i) => i),
   regularMeasures,
 );
+
+{
+  const pickupMeasures = [
+    { startTime: 0, endTime: 1, isLeading: true },
+    { startTime: 1, endTime: 5, isLeading: false },
+  ];
+  assert.equal(detectPickupMeasure(pickupMeasures), true);
+  assert.equal(detectPickupMeasure([
+    { startTime: 0, endTime: 4, isLeading: false },
+    { startTime: 4, endTime: 8, isLeading: false },
+  ]), false);
+  assert.equal(getDisplayMeasureNumber(0, true), 0);
+  assert.equal(getDisplayMeasureNumber(1, true), 1);
+  assert.equal(getDisplayMeasureNumber(0, false), 1);
+  assert.equal(getDisplayMeasureNumber(1, false), 2);
+}
 
 {
   const b = buffer();
