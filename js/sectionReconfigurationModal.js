@@ -130,6 +130,7 @@ export function openSectionReconfigurationModal(p) {
     : Math.max(0, Math.min(Math.max(0, draft.sections.length - 1), requestedIndex));
   let selectedSectionId = draft.sections[sectionIdx]?.id ?? null;
   let splitContext = initialSplitContext ? { ...initialSplitContext } : null;
+  const returnToOverviewOnSplit = initialSplitContext?.returnTo === 2;
   /** UI-only: name field typed this visit; not written to Draft until change/blur. */
   let nameInputSoftLock = false;
   /**
@@ -588,7 +589,7 @@ export function openSectionReconfigurationModal(p) {
   function playHintHtml() {
     // Always reserve one banner row so mode switch does not resize the modal.
     if (uiMode === 'split') {
-      const cancelText = splitContext?.returnTo === 2
+      const cancelText = returnToOverviewOnSplit
         ? '全Section一覧へ戻ります'
         : '開始時の位置に戻します';
       return `<div class="sr1-mode-banner sr1-mode-split is-on" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で${cancelText}</div>`;
@@ -878,7 +879,16 @@ export function openSectionReconfigurationModal(p) {
       return;
     }
     const current = currentSpan();
-    if (current && boundaryCandidate === current.end) {
+    const diagnostics = diagnoseDraftSections(draft, buffer);
+    const positioned = diagnostics
+      .map(row => ({
+        ...row,
+        sortKey: row.start >= 0 ? row.start : (row.end >= 0 ? row.end : Number.MAX_SAFE_INTEGER),
+      }))
+      .sort((a, b) => a.sortKey - b.sortKey || a.index - b.index);
+    const orderIndex = positioned.findIndex(row => row.index === sectionIdx);
+    const nextRow = orderIndex >= 0 ? positioned[orderIndex + 1] : null;
+    if (current && boundaryCandidate === current.end && nextRow?.start === boundaryCandidate + 1) {
       boundaryCandidate = null;
       boundaryCandidateAtModeEnter = null;
       uiMode = 'normal';
@@ -916,7 +926,7 @@ export function openSectionReconfigurationModal(p) {
     splitCandidate = null;
     splitCandidateAtModeEnter = null;
     message = '';
-    if (opts.returnToOverview === true && splitContext?.returnTo === 2) {
+    if (opts.returnToOverview === true && returnToOverviewOnSplit) {
       onReturnToOverview?.({ reason: 'split-cancel', sectionId: selectedSectionId });
       return;
     }
@@ -967,7 +977,7 @@ export function openSectionReconfigurationModal(p) {
     selectSectionIndex(r.backIndex, { clearSplitContext: false });
     resetPlayToSectionStart();
     message = '分割しました。後半Sectionの名称・種類を入力してください';
-    if (splitContext?.returnTo === 2) {
+    if (returnToOverviewOnSplit) {
       onReturnToOverview?.({ reason: 'split-success', sectionId: selectedSectionId });
       return;
     }
@@ -1036,7 +1046,7 @@ export function openSectionReconfigurationModal(p) {
       e.preventDefault();
       e.stopPropagation();
       if (uiMode === 'split') {
-        cancelSplitMode({ returnToOverview: splitContext?.returnTo === 2 });
+        cancelSplitMode({ returnToOverview: returnToOverviewOnSplit });
         return;
       }
       if (uiMode === 'boundary') {
@@ -1193,7 +1203,7 @@ export function openSectionReconfigurationModal(p) {
     root.querySelector('#sr1-split-exec')?.addEventListener('click', () => executeSplit());
     root.querySelector('#sr1-split-left')?.addEventListener('click', () => moveSplitCandidate(-1));
     root.querySelector('#sr1-split-right')?.addEventListener('click', () => moveSplitCandidate(1));
-    root.querySelector('#sr1-split-cancel')?.addEventListener('click', () => cancelSplitMode({ returnToOverview: splitContext?.returnTo === 2 }));
+    root.querySelector('#sr1-split-cancel')?.addEventListener('click', () => cancelSplitMode({ returnToOverview: returnToOverviewOnSplit }));
     root.querySelector('#sr1-return-overview')?.addEventListener('click', () => {
       applyNameTypeFromInputs();
       stopPlayIfNeeded();
