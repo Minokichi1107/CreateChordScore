@@ -118,16 +118,16 @@ export function formatSectionBeatValue(value) {
 
 function formatBeatOrdinal(position) {
   if (!finite(position)) return '—';
-  const sign = position < 0 ? '−' : '';
-  const absolute = Math.abs(position);
-  let whole = Math.floor(absolute + EPS);
-  const nearest = nearestFraction(absolute - whole);
+  let whole = Math.floor(position + EPS);
+  const fraction = position - whole;
+  const nearest = nearestFraction(fraction);
   if (nearest.value >= 1 - EPS) whole += 1;
   const ordinal = whole + 1;
+  const sign = ordinal < 0 ? '−' : '';
   const fractionText = nearest.value <= EPS || nearest.value >= 1 - EPS
     ? ''
     : `と${nearest.numerator}/${nearest.denominator}`;
-  return `${sign}${ordinal}${fractionText}`;
+  return `${sign}${Math.abs(ordinal)}${fractionText}`;
 }
 
 function formatSeconds(seconds) {
