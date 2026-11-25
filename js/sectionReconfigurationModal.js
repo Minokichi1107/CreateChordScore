@@ -589,7 +589,10 @@ export function openSectionReconfigurationModal(p) {
   function playHintHtml() {
     // Always reserve one banner row so mode switch does not resize the modal.
     if (uiMode === 'split') {
-      return '<div class="sr1-mode-banner sr1-mode-split is-on" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で全Section一覧へ戻ります</div>';
+      const cancelText = splitContext?.returnTo === 2
+        ? '全Section一覧へ戻ります'
+        : '開始時の位置に戻します';
+      return `<div class="sr1-mode-banner sr1-mode-split is-on" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で${cancelText}</div>`;
     }
     if (uiMode === 'boundary') {
       return '<div class="sr1-mode-banner sr1-mode-boundary is-on" role="status">境界位置の変更中 — 「境界を変更」で確定、「キャンセル」で元に戻します</div>';
@@ -672,12 +675,16 @@ export function openSectionReconfigurationModal(p) {
     host.replaceWith(next);
     root = next;
     bind();
-    const focusIdx = uiMode === 'split' && splitCandidate != null ? splitCandidate : playCandidate;
+    const focusIdx = uiMode === 'split' && splitCandidate != null
+      ? splitCandidate
+      : (uiMode === 'boundary' && boundaryCandidate != null ? boundaryCandidate : playCandidate);
     ensureChordRowVisible(focusIdx);
   }
 
   function scrollCursorIntoView() {
-    const focusIdx = uiMode === 'split' && splitCandidate != null ? splitCandidate : playCandidate;
+    const focusIdx = uiMode === 'split' && splitCandidate != null
+      ? splitCandidate
+      : (uiMode === 'boundary' && boundaryCandidate != null ? boundaryCandidate : playCandidate);
     ensureChordRowVisible(focusIdx);
   }
 
@@ -868,6 +875,15 @@ export function openSectionReconfigurationModal(p) {
     beforeStructuralEdit();
     if (boundaryCandidate == null) {
       message = '境界位置を選択してください';
+      fullRedraw();
+      return;
+    }
+    const current = currentSpan();
+    if (current && boundaryCandidate === current.end) {
+      boundaryCandidate = null;
+      boundaryCandidateAtModeEnter = null;
+      uiMode = 'normal';
+      message = '境界に変更はありません';
       fullRedraw();
       return;
     }
@@ -1113,6 +1129,8 @@ export function openSectionReconfigurationModal(p) {
       const delta = e.code === 'ArrowLeft' ? -1 : 1;
       if (uiMode === 'split') {
         moveSplitCandidate(delta);
+      } else if (uiMode === 'boundary') {
+        moveBoundaryCandidate(delta);
       } else {
         setPlayPos(playCandidate + delta);
         fullRedraw();
@@ -1123,6 +1141,7 @@ export function openSectionReconfigurationModal(p) {
       e.preventDefault();
       e.stopPropagation();
       if (uiMode === 'split') executeSplit();
+      else if (uiMode === 'boundary') executeBoundaryChange();
       return;
     }
     if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -1248,9 +1267,7 @@ export function openSectionReconfigurationModal(p) {
     // Outside click must not close. Escape may be routed here with source==='escape'.
     onRequestClose: (source) => {
       if (source === 'overlay' || source === 'escape') {
-        requestClose('esc').then((ok) => {
-          // closeMod is performed by parent closeSectionReconfiguration onClose path
-        });
+        requestClose(source === 'escape' ? 'esc' : 'external').then(() => {});
       }
     },
     onOpen: () => {
