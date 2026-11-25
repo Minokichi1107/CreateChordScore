@@ -641,6 +641,8 @@ export function teardownReconfigRuntime(runtime, opts = {}) {
   runtime.draft = null;
   runtime.audioSnapshot = null;
   runtime.modalOpen = false;
+  runtime.view = 'overview';
+  runtime.splitContext = null;
   runtime.closed = true;
   return {
     hadDraft, closeModal, pauseAudio: true,
