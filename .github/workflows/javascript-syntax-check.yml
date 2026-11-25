@@ -41,6 +41,9 @@ jobs:
           echo "::group::Phase150 Section reconfiguration Draft tests"
           node scripts/test-section-reconfiguration.mjs
           echo "::endgroup::"
+          echo "::group::Phase150 Section overview projection tests"
+          node scripts/test-section-overview.mjs
+          echo "::endgroup::"
           echo "::group::Phase146 local anchor timing regression tests"
           node scripts/test-phase146-timing.mjs
           echo "::endgroup::"
