@@ -847,7 +847,7 @@ export function openSectionReconfigurationModal(p) {
       return;
     }
     const sp = currentSpan();
-    boundaryCandidate = sp?.end ?? null;
+    boundaryCandidate = sp ? clampBoundaryCandidate(sp.end) : null;
     boundaryCandidateAtModeEnter = boundaryCandidate;
     uiMode = 'boundary';
     message = '';
