@@ -2,6 +2,8 @@
  * Phase150 Stage2 — Section overview projection tests
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createTimingModel } from '../js/timing.js';
 import {
   buildSectionOverview,
   canMergeWithPrevious,
@@ -159,6 +161,68 @@ const regularTiming = timingFor(
   assert.equal(result.rows[0].real.totalBeats, null);
   assert.equal(result.rows[0].view.lengthLabel, '—');
   assert.equal(result.rows[0].view.secondsLabel, '約4秒', 'seconds remain available without valid beat mapping');
+}
+
+// Real anonymized song fixtures: 11 songs / 117 human-labelled Section ranges.
+{
+  const fixtureUrl = new URL('./fixtures/section-boundary/songs.json', import.meta.url);
+  const fixture = JSON.parse(readFileSync(fixtureUrl, 'utf8'));
+  let checkedSections = 0;
+
+  for (const song of fixture.songs) {
+    const [numerator, denominator] = song.timeSignature.split('/').map(Number);
+    const model = createTimingModel({
+      beats: song.beats,
+      downbeats: song.downbeats,
+      timeSignature: { numerator, denominator },
+      resolutionPerBeat: 2,
+      quantizeMode: 'nearest',
+      anticipationWindow: 0.5,
+      audioDuration: song.chords.at(-1)?.end ?? null,
+      repairRule: song.repairRule ?? null,
+    });
+    const measures = Array.from({ length: model.measureCount }, (_, index) => ({
+      ...model.getMeasure(index),
+      index,
+    }));
+    const buffer = song.chords.map((chord, index) => ({
+      ...chord,
+      _id: `${song.id}-c${index}`,
+    }));
+    const starts = song.sectionStartChordIndices;
+    const sections = starts.map((startIdx, index) => {
+      const endIdx = index + 1 < starts.length ? starts[index + 1] - 1 : buffer.length - 1;
+      return {
+        id: `${song.id}-s${index}`,
+        type: 'verse',
+        name: `Section ${index + 1}`,
+        startChordId: buffer[startIdx]._id,
+        endChordId: buffer[endIdx]._id,
+      };
+    });
+    const draft = { sections };
+    const before = structuredClone(draft);
+    const result = buildSectionOverview(draft, buffer, {
+      model,
+      measures,
+      beats: song.beats,
+    });
+
+    assert.equal(result.rows.length, sections.length, `${song.id}: all labelled Sections projected`);
+    assert.equal(result.invalidRows.length, 0, `${song.id}: fixture Section ranges are structurally valid`);
+    for (const row of result.rows) {
+      assert.ok(Number.isFinite(row.real.seconds) && row.real.seconds > 0, `${song.id}/${row.id}: positive duration`);
+      assert.ok(Number.isFinite(row.real.bStart), `${song.id}/${row.id}: start beat coordinate`);
+      assert.ok(Number.isFinite(row.real.bEnd), `${song.id}/${row.id}: end beat coordinate`);
+      assert.ok(Number.isFinite(row.real.totalBeats) && row.real.totalBeats > 0, `${song.id}/${row.id}: positive total beats`);
+      checkedSections++;
+    }
+    assert.deepEqual(draft, before, `${song.id}: projection is read-only`);
+  }
+
+  assert.equal(fixture.songs.length, 11);
+  assert.equal(checkedSections, 117);
+  console.log(`real fixture projection: ${fixture.songs.length} songs / ${checkedSections} Sections: ok`);
 }
 
 console.log('test-section-overview: ok');
