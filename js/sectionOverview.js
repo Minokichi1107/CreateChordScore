@@ -152,7 +152,9 @@ function getMeasures(timing) {
 }
 
 function resolveMeasureContext(time, timing, measures, beatAt, isPickup, snapTol) {
-  if (!finite(time) || !timing?.model || !measures.length) return { label: '—', estimated: false };
+  if (!finite(time) || !timing?.model || !measures.length || typeof beatAt !== 'function') {
+    return { label: '—', estimated: false };
+  }
   const bTime = beatAt(time);
   if (!bTime) return { label: '—', estimated: false };
 
@@ -385,9 +387,7 @@ export function buildSectionOverview(draft, buffer, timing, opts = {}) {
     const lengthLabel = totalBeats == null
       ? '—'
       : `${estimated ? '約' : ''}${labels.lengthLabel}`;
-    const lengthSub = labels.lengthSub
-      ? `${estimated ? '（推定・' : ''}${labels.lengthSub.slice(1, -1)}${estimated ? '）' : '）'}`
-      : null;
+    const lengthSub = labels.lengthSub;
 
     return {
       draftIndex: diag.index,
