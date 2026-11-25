@@ -89,15 +89,20 @@ export function openSectionOverviewModal(p) {
     return captureSignatures(draft.sections);
   }
 
-  function showMessage(text) {
-    message = text || '';
+  function scheduleHighlightClear() {
     if (clearTimer) clearTimeout(clearTimer);
     clearTimer = setTimeout(() => {
       if (!isActive()) return;
+      clearTimer = null;
       message = '';
       highlightIds = new Set();
       render({ skipDiff: true });
     }, 3200);
+  }
+
+  function showMessage(text) {
+    message = text || '';
+    scheduleHighlightClear();
   }
 
   function inferChangeMessage(diff, before, after, historyAction = null) {
@@ -259,16 +264,8 @@ export function openSectionOverviewModal(p) {
       if (changed) {
         highlightIds = new Set([...diff.added, ...diff.changed]);
         const changeMessage = inferChangeMessage(diff, before, after, opts.historyAction ?? null);
-        if (changeMessage) showMessage(changeMessage);
-        else if (clearTimer) clearTimeout(clearTimer);
-        if (!clearTimer) {
-          clearTimer = setTimeout(() => {
-            if (!isActive()) return;
-            message = '';
-            highlightIds = new Set();
-            render({ skipDiff: true });
-          }, 3200);
-        }
+        message = changeMessage;
+        scheduleHighlightClear();
       }
     }
     runtime.view.lastSeenSigs = after;
