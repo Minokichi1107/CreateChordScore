@@ -53,6 +53,20 @@ export function orderSectionsOnBuffer(sections, buffer) {
 }
 
 /**
+ * Return structurally valid Draft sections in chronological buffer order.
+ * Each row retains its original Draft array index for safe mutation.
+ */
+export function orderedValidSections(sections, buffer, diagnostics = null) {
+  const list = Array.isArray(diagnostics)
+    ? diagnostics
+    : diagnoseDraftSections({ sections: Array.isArray(sections) ? sections : [] }, buffer);
+  return list
+    .filter(row => row.structurallyValid && row.start >= 0 && row.end >= row.start)
+    .slice()
+    .sort((a, b) => a.start - b.start || a.end - b.end || a.index - b.index);
+}
+
+/**
  * Diagnose a single section against buffer.
  * @returns {{ valid: boolean, reasons: string[], start: number, end: number, repairableByBoundary: boolean }}
  */
@@ -470,45 +484,51 @@ export function isDraftBufferStale(draft, buffer) {
  */
 export function mergeDraftWithPrevious(draft, sectionIndex, buffer) {
   if (!draft || !Array.isArray(buffer)) return { ok: false, reason: 'bad-args' };
-  if (!Number.isInteger(sectionIndex) || sectionIndex <= 0 || sectionIndex >= draft.sections.length) {
-    return { ok: false, reason: 'no-previous-section' };
+  if (!Number.isInteger(sectionIndex) || sectionIndex < 0 || sectionIndex >= draft.sections.length) {
+    return { ok: false, reason: 'bad-index' };
   }
   const list = diagnoseDraftSections(draft, buffer);
   const cur = list[sectionIndex];
   if (!cur || !cur.structurallyValid) return { ok: false, reason: 'section-invalid', details: cur?.structuralReasons };
-  const positioned = list
-    .filter(r => r.structurallyValid && r.start >= 0 && r.end >= 0)
-    .slice()
-    .sort((a, b) => a.start - b.start || a.end - b.end || a.index - b.index);
+
+  // "Previous" means previous in buffer time, not previous in draft.sections array.
+  const positioned = orderedValidSections(draft.sections, buffer, list);
   const ordPos = positioned.findIndex(r => r.index === sectionIndex);
-  if (ordPos <= 0) return { ok: false, reason: 'no-previous-section' };
+  if (ordPos < 0) return { ok: false, reason: 'section-not-in-order' };
+  if (ordPos === 0) return { ok: false, reason: 'no-previous-section' };
   const prev = positioned[ordPos - 1];
   if (cur.start !== prev.end + 1) {
     // Allow merge only when adjacent (no gap/overlap)
     if (cur.start <= prev.end) return { ok: false, reason: 'sections-overlap' };
     return { ok: false, reason: 'gap-between-sections' };
   }
+
   pushDraftUndo(draft);
   const prevSec = draft.sections[prev.index];
   const merged = {
     ...prevSec,
-    endChordId: draft.sections[sectionIndex].endChordId,
+    endChordId: cur.section.endChordId,
   };
-  // Remove current, replace previous with merged (handle index order)
-  const next = draft.sections.slice();
-  const hi = Math.max(prev.index, sectionIndex);
-  const lo = Math.min(prev.index, sectionIndex);
-  next.splice(hi, 1);
-  next[lo] = merged;
+  // Replace both original rows with one merged row at their earliest array position.
+  const insertAt = Math.min(prev.index, sectionIndex);
+  const next = draft.sections.filter((_, i) => i !== prev.index && i !== sectionIndex);
+  next.splice(insertAt, 0, merged);
   draft.sections = next;
-  return { ok: true, mergedIndex: lo, merged };
+  return { ok: true, mergedIndex: insertAt, merged, previousIndex: prev.index, currentIndex: sectionIndex };
 }
 
 /**
  * Split section at sectionIndex so endChordIndex is the last chord of the front half.
  * Back half: new id, empty name/type.
  */
-export function splitDraftAtChordIndex(draft, sectionIndex, endChordIndex, buffer, newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sec-${Date.now()}`)) {
+export function splitDraftAtChordIndex(
+  draft,
+  sectionIndex,
+  endChordIndex,
+  buffer,
+  newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sec-${Date.now()}`),
+  options = {},
+) {
   if (!draft || !Array.isArray(buffer)) return { ok: false, reason: 'bad-args' };
   if (!Number.isInteger(sectionIndex) || sectionIndex < 0 || sectionIndex >= draft.sections.length) {
     return { ok: false, reason: 'bad-index' };
@@ -528,12 +548,14 @@ export function splitDraftAtChordIndex(draft, sectionIndex, endChordIndex, buffe
     endChordId: buffer[endChordIndex]._id,
     ...(section.nameUserEdited ? { nameUserEdited: true } : {}),
   };
+  const inheritBackMeta = options?.inheritBackMeta === true;
   const back = {
     id: newId(),
-    type: '',
-    name: '',
+    type: inheritBackMeta ? section.type : '',
+    name: inheritBackMeta ? section.name : '',
     startChordId: buffer[endChordIndex + 1]._id,
     endChordId: buffer[aEnd]._id,
+    ...(inheritBackMeta && section.nameUserEdited ? { nameUserEdited: true } : {}),
   };
   pushDraftUndo(draft);
   const next = draft.sections.slice();
@@ -600,7 +622,15 @@ export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
 }
 
 export function createReconfigRuntime() {
-  return { draft: null, audioSnapshot: null, modalOpen: false, closed: false };
+  // Stage2 overview is the entry view; Stage1 is opened as an editing sub-view.
+  return {
+    draft: null,
+    audioSnapshot: null,
+    modalOpen: false,
+    closed: false,
+    view: 'overview',
+    splitContext: null,
+  };
 }
 
 export function teardownReconfigRuntime(runtime, opts = {}) {
