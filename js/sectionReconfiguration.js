@@ -622,13 +622,19 @@ export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
 }
 
 export function createReconfigRuntime() {
-  // Stage2 overview is the entry view; Stage1 is opened as an editing sub-view.
+  // Runtime is shared by both stages. Section reconfiguration opens at Stage2.
   return {
     draft: null,
     audioSnapshot: null,
     modalOpen: false,
     closed: false,
-    view: 'overview',
+    view: {
+      stage: 2,
+      sectionId: null,
+      scrollTop: 0,
+      lastSeenSigs: null,
+      token: 0,
+    },
     splitContext: null,
   };
 }
@@ -641,7 +647,7 @@ export function teardownReconfigRuntime(runtime, opts = {}) {
   runtime.draft = null;
   runtime.audioSnapshot = null;
   runtime.modalOpen = false;
-  runtime.view = 'overview';
+  runtime.view = null;
   runtime.splitContext = null;
   runtime.closed = true;
   return {
