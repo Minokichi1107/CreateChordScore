@@ -183,7 +183,9 @@ const st = (b, sections = []) => ({
 
 {
   const rt = createReconfigRuntime();
-  assert.equal(rt.view, 'overview');
+  assert.deepEqual(rt.view, {
+    stage: 2, sectionId: null, scrollTop: 0, lastSeenSigs: null, token: 0,
+  });
   assert.equal(rt.splitContext, null);
   rt.draft = createReconfigurationDraft({ projectId: 'old', buffer: buf(), sections: [S('a', 0, 3)] });
   rt.modalOpen = true;
@@ -193,7 +195,7 @@ const st = (b, sections = []) => ({
   const r = teardownReconfigRuntime(rt, { restoreAudio: false });
   assert.equal(r.adopt, false);
   assert.equal(rt.draft, null);
-  assert.equal(rt.view, 'overview');
+  assert.equal(rt.view, null);
   assert.equal(rt.splitContext, null);
 }
 
