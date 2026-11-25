@@ -3489,7 +3489,10 @@ function switchSectionReconfigStage(stage, options = {}) {
       formatChord: _formatSectionReconfigChord,
       initial: { sectionId, mode: 'normal' },
       splitContext: _sectionReconfigRuntime.splitContext,
-      onReturnToOverview: state => switchSectionReconfigStage(2, { sectionId: state?.sectionId }),
+      onReturnToOverview: state => switchSectionReconfigStage(2, {
+        sectionId: state?.sectionId,
+        historyAction: state?.historyAction ?? null,
+      }),
       onSplitContextClear: () => { _sectionReconfigRuntime.splitContext = null; },
       onTestPlay: ({ startSec, endSec, onEnded, onTime }) => {
         const audio = getAudioElement?.();
@@ -3532,6 +3535,7 @@ function switchSectionReconfigStage(stage, options = {}) {
     runtime: _sectionReconfigRuntime,
     timing: _sectionReconfigTiming(),
     typeLabel: type => _sectionTypeLabel(type, _loadSectionTypeGroup()),
+    initialHistoryAction: options.historyAction ?? null,
     onEditSplit: id => switchSectionReconfigStage(1, { sectionId: id }),
   });
   return true;
