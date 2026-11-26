@@ -7,6 +7,7 @@ import {
   undoDraft,
   redoDraft,
   isDraftDirty,
+  canAdjustBoundaryWithNext,
 } from './sectionReconfiguration.js';
 import {
   buildSectionOverview,
@@ -54,6 +55,7 @@ export function openSectionOverviewModal(p) {
     sectionTypes = [],
     typeLabel,
     onEditSplit,
+    onAdjustBoundary,
     onAdopt,
     onClose,
     onTestStop,
@@ -200,6 +202,18 @@ export function openSectionOverviewModal(p) {
       </div>`;
   }
 
+  function boundaryButtonHtml(prevId, nextId, eligibility) {
+    const disabled = !eligibility?.ok;
+    const reason = disabled ? reasonText(eligibility?.reason) : '隣接するSectionの境界を調整';
+    return `
+      <div class="s2-boundary-row">
+        <button type="button" class="s2-boundary-btn" data-s2-boundary-prev="${esc(prevId)}" data-s2-boundary-next="${esc(nextId)}" title="${esc(reason)}" ${disabled ? 'disabled' : ''}>
+          境界調整
+        </button>
+        ${disabled ? `<span class="s2-boundary-reason">${esc(reason)}</span>` : ''}
+      </div>`;
+  }
+
   function listHtml() {
     const rows = overview.rows || [];
     const invalidRows = overview.invalidRows || [];
@@ -207,8 +221,11 @@ export function openSectionOverviewModal(p) {
       const card = cardHtml(row, index, false);
       if (index >= rows.length - 1) return card;
       const next = rows[index + 1];
-      const eligibility = canMergeWithPrevious(draft, buffer, next.id);
-      return card + mergeButtonHtml(next.id, eligibility.prevId, eligibility, false);
+      const mergeEligibility = canMergeWithPrevious(draft, buffer, next.id);
+      const boundaryEligibility = canAdjustBoundaryWithNext(draft, buffer, row.id);
+      return card
+        + mergeButtonHtml(next.id, mergeEligibility.prevId, mergeEligibility, false)
+        + boundaryButtonHtml(row.id, next.id, boundaryEligibility);
     }).join('');
 
     const invalidHtml = invalidRows.map((row, index) => {
@@ -236,6 +253,11 @@ export function openSectionOverviewModal(p) {
     return `
       <div class="s2-root" id="s2-root">
         <div class="s2-toolbar">
+          <div class="s2-heading">
+            <strong>全Section確認</strong>
+            <span class="s2-total">全 ${(overview.rows?.length || 0) + (overview.invalidRows?.length || 0)} Sections</span>
+            <span class="s2-draft-badge">Draft編集中</span>
+          </div>
           <div class="s2-history">
             <button type="button" class="sec-btn" id="s2-undo" ${canUndo ? '' : 'disabled'} aria-label="元に戻す">↶ Undo</button>
             <button type="button" class="sec-btn" id="s2-redo" ${canRedo ? '' : 'disabled'} aria-label="やり直す">↷ Redo</button>
@@ -313,6 +335,20 @@ export function openSectionOverviewModal(p) {
         onEditSplit?.(sectionId);
       });
     });
+    root.querySelectorAll('[data-s2-boundary-prev]').forEach(button => {
+      button.addEventListener('click', () => {
+        const prevId = button.dataset.s2BoundaryPrev;
+        const nextId = button.dataset.s2BoundaryNext;
+        const eligibility = canAdjustBoundaryWithNext(draft, buffer, prevId);
+        if (!eligibility.ok || eligibility.nextId !== nextId) {
+          showMessage(reasonText(eligibility.reason));
+          render({ skipDiff: true });
+          return;
+        }
+        saveScrollTop();
+        onAdjustBoundary?.(prevId, nextId);
+      });
+    });
     root.querySelectorAll('[data-s2-merge]').forEach(button => {
       button.addEventListener('click', () => {
         const sectionId = button.dataset.s2Merge;
@@ -386,7 +422,7 @@ export function openSectionOverviewModal(p) {
   render();
   onKeyShield?.();
   openModal({
-    title: 'Section一覧',
+    title: '全Section確認',
     body: bodyHtml(),
     onRequestClose: source => {
       if (source === 'overlay' || source === 'escape') {

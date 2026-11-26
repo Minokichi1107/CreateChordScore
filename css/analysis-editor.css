@@ -1426,9 +1426,34 @@ body:not([data-theme="dark"]) .sr1-invalid {
   display: flex;
   justify-content: space-between;
 }
-.s2-merge-row {
+.s2-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.s2-heading > strong {
+  font-size: 14px;
+}
+.s2-total {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.s2-draft-badge {
+  border: 1px solid var(--sr1-card-border);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+.s2-merge-row,
+.s2-boundary-row {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 8px;
   padding: 1px 0;
 }
 .s2-merge-btn {
@@ -1448,6 +1473,29 @@ body:not([data-theme="dark"]) .sr1-invalid {
 .s2-merge-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+.s2-boundary-btn {
+  border: 1px solid var(--sr1-bound);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sr1-bound);
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.s2-boundary-btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--sr1-bound) 9%, transparent);
+}
+.s2-boundary-btn:disabled {
+  border-color: var(--sr1-card-border);
+  color: var(--text-secondary);
+  opacity: .55;
+  cursor: not-allowed;
+}
+.s2-boundary-reason {
+  color: var(--text-secondary);
+  font-size: 10px;
 }
 .s2-invalid-group {
   margin-top: 16px;
