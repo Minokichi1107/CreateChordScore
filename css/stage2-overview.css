@@ -486,3 +486,18 @@
   height: 1.2em;
   margin: 0 3px;
 }
+
+/* Phase150: Stage1 chord panel vertical spacing */
+#modal-box:has(.sr1-root) .sr1-root {
+  gap: 10px;
+}
+#modal-box:has(.sr1-root) .sr1-chords-wrap {
+  margin: 6px 0 8px;
+  padding: 8px 6px 8px 8px;
+}
+#modal-box:has(.sr1-root) .sr1-header-row {
+  margin-bottom: 2px;
+}
+#modal-box:has(.sr1-root) .sr1-panels {
+  margin-top: 4px;
+}
