@@ -857,7 +857,12 @@ const st = (b, sections = []) => ({
 
 {
   const b = buf(8);
-  const make = (sections) => createReconfigurationDraft({ projectId: 'boundary-invalid', buffer: b, sections });
+  const make = (sections) => {
+    const draft = createReconfigurationDraft({ projectId: 'boundary-invalid', buffer: b, sections });
+    // Bypass the creation-time gap filler to exercise malformed Draft states directly.
+    draft.sections = structuredClone(sections);
+    return draft;
+  };
   const gap = make([S('a', 0, 2), S('b', 4, 7)]);
   assert.equal(canAdjustBoundaryWithNext(gap, b, 'a').reason, 'gap');
   const overlap = make([S('a', 0, 4), S('b', 4, 7)]);
