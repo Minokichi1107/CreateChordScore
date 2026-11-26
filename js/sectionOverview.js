@@ -387,11 +387,9 @@ export function buildSectionOverview(draft, buffer, timing, opts = {}) {
     const startPosition = resolveMeasureContext(tStart, timing, measures, beatAt, isPickup, startSnapTol);
     const labels = makeLengthLabels(displayTotalBeats, breakdown);
     const estimated = !!(startBeat?.extrapolated || endBeat?.extrapolated);
-    const hasPartialMeasure = finite(breakdown.leadBeats) && breakdown.leadBeats > EPS
-      || finite(breakdown.tailBeats) && breakdown.tailBeats > EPS;
     const lengthLabel = totalBeats == null
       ? '—'
-      : `${estimated || hasPartialMeasure ? '約' : ''}${labels.lengthLabel}`;
+      : `${estimated ? '約' : ''}${labels.lengthLabel}`;
     const lengthSub = labels.lengthSub;
 
     return {
