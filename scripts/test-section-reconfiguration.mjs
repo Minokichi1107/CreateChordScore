@@ -558,6 +558,30 @@ const st = (b, sections = []) => ({
   assert.notEqual(back.id, 'source');
 }
 
+// --- Auto-generated category names are numbered when a Section is split ---
+{
+  const b = buf(6);
+  const draft = createReconfigurationDraft({
+    projectId: 'auto-name-split',
+    buffer: b,
+    sections: [{
+      id: 'intro',
+      type: 'intro',
+      name: 'イントロ',
+      startChordId: 'k0',
+      endChordId: 'k5',
+    }],
+  });
+  const r = splitDraftAtChordIndex(draft, 0, 2, b, undefined, {
+    inheritBackMeta: true,
+    defaultNameForType: type => type === 'intro' ? 'イントロ 2' : type,
+  });
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(draft.sections[r.frontIndex].name, 'イントロ');
+  assert.equal(draft.sections[r.backIndex].name, 'イントロ 2');
+  assert.equal(draft.sections[r.backIndex].nameUserEdited, undefined);
+}
+
 // --- A-1/A-2: play position state must not be required for boundary API ---
 {
   const b = buf(6);
