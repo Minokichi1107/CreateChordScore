@@ -47,7 +47,7 @@ assert.match(stage1ModalSource, /if \(inField\) \{[\s\S]*?return;[\s\S]*?if \(e\
 assert.match(stage1ModalSource, /updatePlayingHighlight\(null\);/, 'playback end updates highlight without rebuilding the name input');
 assert.match(stage1ModalSource, /isAutoSectionName: isAutoSectionNameFn, getSectionNameBase/, 'auto-name detection uses the authoritative naming rule');
 const appSource = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-assert.match(appSource, /SECTION_TYPES\.some\(item => \{/, 'legacy auto names are recognized across JP/EN category labels');
+assert.match(appSource, /SECTION_TYPES\.find\(entry => entry\.value === type\)/, 'legacy auto-name inference is restricted to the current category');
 
 const buf = (n = 4) => Array.from({ length: n }, (_, i) => ({
   _id: `k${i}`, chord: ['C', 'G', 'Am', 'F'][i % 4], start: i * 2, end: i * 2 + 2,
@@ -963,6 +963,7 @@ const st = (b, sections = []) => ({
   assert.equal(result.ok, true);
   assert.equal(split.sections[1].type, 'jp-a-melo', 'split inherits source category');
   assert.equal(split.sections[1].name, 'Aメロ 2', 'split receives a new automatic name');
+  assert.equal(split.sections[1].nameUserEdited, undefined, 'generated split name remains auto-linked');
 }
 
 const stage1Source = readFileSync(new URL('../js/sectionReconfigurationModal.js', import.meta.url), 'utf8');
