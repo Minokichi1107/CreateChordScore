@@ -641,10 +641,15 @@ export function splitDraftAtChordIndex(
     ...(section.nameUserEdited ? { nameUserEdited: true } : {}),
   };
   const inheritBackMeta = options?.inheritBackMeta === true;
+  const autoBackName = inheritBackMeta
+    && section.nameUserEdited !== true
+    && typeof options?.defaultNameForType === 'function';
   const back = {
     id: newId(),
     type: inheritBackMeta ? section.type : '',
-    name: inheritBackMeta ? section.name : '',
+    name: autoBackName
+      ? options.defaultNameForType(section.type)
+      : (inheritBackMeta ? section.name : ''),
     startChordId: buffer[endChordIndex + 1]._id,
     endChordId: buffer[aEnd]._id,
     ...(inheritBackMeta && section.nameUserEdited ? { nameUserEdited: true } : {}),
