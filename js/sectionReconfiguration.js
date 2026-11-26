@@ -651,7 +651,7 @@ export function splitDraftAtChordIndex(
       : (inheritBackMeta ? section.name : ''),
     startChordId: buffer[endChordIndex + 1]._id,
     endChordId: buffer[aEnd]._id,
-    ...(inheritBackMeta && section.nameUserEdited ? { nameUserEdited: true } : {}),
+    ...(inheritBackMeta && !autoBackName && section.nameUserEdited ? { nameUserEdited: true } : {}),
   };
   pushDraftUndo(draft);
   const next = draft.sections.slice();
