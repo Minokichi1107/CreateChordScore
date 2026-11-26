@@ -41,6 +41,7 @@ export function openSectionBoundaryAdjustModal(p) {
   let rangeStart = initialRangeStart;
   let rangeEnd = initialRangeEnd;
   let rangeEditTarget = 'start';
+  let interactionMode = 'boundary';
   let playing = false;
   let localPlayGeneration = 0;
   const currentPlayGeneration = () => runtime
@@ -72,36 +73,29 @@ export function openSectionBoundaryAdjustModal(p) {
       || '種類未設定';
     return { name, type };
   }
-  function boundaryListHtml() {
-    const items = [];
-    for (let i = pair.prevStartIdx; i <= pair.nextEndIdx - 1; i++) {
-      const selected = i === candidate;
-      const current = i === originalBoundary;
-      items.push(`
-        <button type="button" class="sba-chord ${selected ? 'is-boundary' : ''} ${current ? 'is-current-boundary' : ''}" data-sba-candidate="${i}" aria-pressed="${selected}">
-          <span class="sba-chord-name">${esc(chordLabel(i))}</span>
-          ${selected ? `<span class="sba-boundary-caption">${current ? '現在の境界' : '変更候補：ここまでが前Section'}</span>` : (current ? '<span class="sba-current-caption">現在の境界</span>' : '')}
-        </button>`);
-    }
-    return items.join('');
-  }
-  function rangeChordsHtml() {
+  function timelineChordsHtml() {
     const items = [];
     for (let index = pair.prevStartIdx; index <= pair.nextEndIdx; index++) {
-      if (index === candidate + 1) {
-        items.push('<span class="sba-range-boundary" aria-label="ここから次のSection">次のSection →</span>');
-      }
       const inRange = index >= rangeStart && index <= rangeEnd;
       const isStart = index === rangeStart;
       const isEnd = index === rangeEnd;
+      const isCandidate = index === candidate;
+      const isCurrentBoundary = index === originalBoundary;
+      const boundaryMode = interactionMode === 'boundary';
+      const rangeCaption = isStart ? '試聴開始' : (isEnd ? '試聴終了' : '');
+      const boundaryCaption = isCandidate
+        ? (isCurrentBoundary ? '現在の境界' : 'ここまでが前のSection')
+        : (isCurrentBoundary ? '現在の境界' : '');
+      const caption = boundaryMode ? boundaryCaption : rangeCaption;
       items.push(`
         <button type="button"
-          class="sba-range-chord ${inRange ? 'is-in-range' : ''} ${isStart ? 'is-range-start' : ''} ${isEnd ? 'is-range-end' : ''}"
-          data-sba-range-index="${index}"
-          aria-pressed="${inRange}"
+          class="sba-timeline-chord ${inRange ? 'is-in-range' : ''} ${isStart ? 'is-range-start' : ''} ${isEnd ? 'is-range-end' : ''} ${isCandidate ? 'is-boundary-candidate' : ''} ${isCurrentBoundary ? 'is-current-boundary' : ''}"
+          data-sba-timeline-index="${index}"
+          aria-pressed="${boundaryMode ? isCandidate : inRange}"
+          ${boundaryMode && index >= pair.nextEndIdx ? 'disabled' : ''}
           title="${esc(chordLabel(index))}">
           <span>${esc(chordLabel(index))}</span>
-          ${isStart ? '<small>開始</small>' : (isEnd ? '<small>終了</small>' : '')}
+          ${caption ? `<small>${caption}</small>` : ''}
         </button>`);
     }
     return items.join('');
@@ -132,18 +126,17 @@ export function openSectionBoundaryAdjustModal(p) {
           </div>
           <span>コードを選ぶと、そのコードまでが前のSection、次のコードからが次のSectionになります。</span>
         </div>
-        <div class="sba-boundary-list" role="group" aria-label="境界位置">${boundaryListHtml()}</div>
-        <section class="sba-audition" aria-label="試聴範囲の設定">
-          <div class="sba-audition-head">
-            <strong>試聴範囲</strong>
-            <span>境界の前後を聴いて、切れ目が自然か確認します。</span>
-          </div>
-          <div class="sba-range-targets" role="group" aria-label="試聴範囲の選択">
-            <strong class="sba-range-step">${rangeEditTarget === 'start' ? '① 試聴を始めたいコードを選んでください' : '② 試聴を終えたいコードを選んでください'}</strong>
-            <button type="button" class="sec-btn" id="sba-range-reset">範囲を選び直す</button>
+        <section class="sba-timeline-panel" aria-label="コード進行と境界・試聴範囲">
+          <div class="sba-timeline-toolbar">
+            <button type="button" class="sec-btn ${interactionMode === 'boundary' ? 'is-active' : ''}" data-sba-mode="boundary" aria-pressed="${interactionMode === 'boundary'}">境界を選ぶ</button>
+            <button type="button" class="sec-btn ${interactionMode === 'range' ? 'is-active' : ''}" data-sba-mode="range" aria-pressed="${interactionMode === 'range'}">試聴範囲を選ぶ</button>
+            <strong class="sba-range-step">${interactionMode === 'boundary'
+              ? '前のSectionに含める最後のコードを選択'
+              : (rangeEditTarget === 'start' ? '① 試聴を始めたいコードを選択' : '② 試聴を終えたいコードを選択')}</strong>
+            ${interactionMode === 'range' ? '<button type="button" class="sec-btn" id="sba-range-reset">範囲を選び直す</button>' : ''}
             <button type="button" class="sec-btn" id="sba-play" ${playable ? '' : 'disabled'}>${playing ? '■ 停止' : '▶ 試聴'}</button>
           </div>
-          <div class="sba-range-chords" role="group" aria-label="コード進行から試聴範囲を選択">${rangeChordsHtml()}</div>
+          <div class="sba-timeline" role="group" aria-label="コード進行">${timelineChordsHtml()}</div>
           <div class="sba-range-summary">試聴範囲：${Array.from({ length: rangeEnd - rangeStart + 1 }, (_, offset) => esc(chordLabel(rangeStart + offset))).join(' → ')}（${rangeEnd - rangeStart + 1}コード）</div>
         </section>
         ${!inRange() ? `
@@ -230,14 +223,28 @@ export function openSectionBoundaryAdjustModal(p) {
     root.querySelectorAll('[data-sba-candidate]').forEach(button => {
       button.addEventListener('click', () => setCandidate(Number(button.dataset.sbaCandidate)));
     });
+    root.querySelectorAll('[data-sba-mode]').forEach(button => {
+      button.addEventListener('click', () => {
+        const nextMode = button.dataset.sbaMode === 'range' ? 'range' : 'boundary';
+        if (nextMode === interactionMode) return;
+        invalidatePlayback();
+        interactionMode = nextMode;
+        rangeEditTarget = 'start';
+        render();
+      });
+    });
     root.querySelector('#sba-range-reset')?.addEventListener('click', () => {
       rangeEditTarget = 'start';
       setRange(initialRangeStart, initialRangeEnd);
       render();
     });
-    root.querySelectorAll('[data-sba-range-index]').forEach(button => {
+    root.querySelectorAll('[data-sba-timeline-index]').forEach(button => {
       button.addEventListener('click', () => {
-        const index = Number(button.dataset.sbaRangeIndex);
+        const index = Number(button.dataset.sbaTimelineIndex);
+        if (interactionMode === 'boundary') {
+          setCandidate(index);
+          return;
+        }
         if (rangeEditTarget === 'start') {
           rangeEditTarget = 'end';
           setRange(index, Math.max(index, rangeEnd));
