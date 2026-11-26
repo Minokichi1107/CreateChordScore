@@ -221,6 +221,7 @@ const regularTiming = timingFor(
     b,
     timing,
   );
+  assert.equal(result.rows[0].real.totalBeats, 136.4, 'raw beat span remains available for comparison');
   assert.equal(result.rows[0].real.measures.leadBeats, 0.5);
   assert.equal(result.rows[0].real.measures.fullMeasures, 34);
   assert.equal(result.rows[0].view.lengthLabel, '約136と1/2拍');
