@@ -3436,7 +3436,7 @@ function _sectionReconfigTiming() {
 
 function switchSectionReconfigStage(stage, options = {}) {
   if (!_sectionReconfigRuntime.modalOpen || !_sectionReconfigRuntime.draft) return false;
-  if (stage !== 1 && stage !== 2 && stage !== 3) return false;
+  if (stage !== 1 && stage !== 2) return false;
 
   const previousView = _sectionReconfigRuntime.view && typeof _sectionReconfigRuntime.view === 'object'
     ? _sectionReconfigRuntime.view
@@ -3474,51 +3474,6 @@ function switchSectionReconfigStage(stage, options = {}) {
     isCurrent,
   };
 
-  if (stage === 3) {
-    const prevId = options.prevId ?? previousView.boundaryPrevId ?? null;
-    const nextId = options.nextId ?? previousView.boundaryNextId ?? null;
-    if (!prevId || !nextId) return false;
-    _sectionReconfigRuntime.view = {
-      ...previousView,
-      stage: 3,
-      sectionId: prevId,
-      boundaryPrevId: prevId,
-      boundaryNextId: nextId,
-      token,
-    };
-    _sectionReconfigRuntime.splitContext = null;
-    _sectionReconfigModalHandle = openSectionBoundaryAdjustModal({
-      ...common,
-      prevId,
-      nextId,
-      formatChord: _formatSectionReconfigChord,
-      onReturnToOverview: () => switchSectionReconfigStage(2, { sectionId: prevId }),
-      onApply: ({ prevId: a, nextId: b, endChordIndex }) =>
-        adjustSharedBoundary(_sectionReconfigRuntime.draft, a, b, endChordIndex, analysisEditor.buffer),
-      onTestPlay: ({ startSec, endSec, onEnded, onTime }) => {
-        const audio = getAudioElement?.();
-        if (!audio || !audio.src) {
-          toast('音源がありません');
-          try { onEnded?.(); } catch { /* ignore */ }
-          return;
-        }
-        _stopSectionReconfigPlaybackMonitor();
-        try {
-          audio.currentTime = Math.max(0, startSec);
-          const playPromise = audio.play();
-          if (playPromise && typeof playPromise.catch === 'function') {
-            playPromise.catch(() => { try { onEnded?.(); } catch { /* ignore */ } });
-          }
-          _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime);
-        } catch (err) {
-          console.warn('[section-reconfig] boundary test play failed', err);
-          try { onEnded?.(); } catch { /* ignore */ }
-        }
-      },
-    });
-    return true;
-  }
-
   if (stage === 1) {
     const sectionId = options.sectionId ?? oldState.sectionId ?? previousView.sectionId
       ?? _sectionReconfigRuntime.draft.sections[0]?.id ?? null;
@@ -3538,6 +3493,8 @@ function switchSectionReconfigStage(stage, options = {}) {
     _sectionReconfigModalHandle = openSectionReconfigurationModal({
       ...common,
       generateSectionName: type => _generateSectionName(type),
+      isAutoSectionName: (name, type) => _isAutoSectionName(name, type),
+      getSectionNameBase: type => SECTION_TYPES.find(item => item.value === type)?.label ?? _sectionTypeLabel(type, _loadSectionTypeGroup()),
       formatChord: _formatSectionReconfigChord,
       initial: { sectionId, mode: 'normal' },
       splitContext: _sectionReconfigRuntime.splitContext,
@@ -3592,7 +3549,6 @@ function switchSectionReconfigStage(stage, options = {}) {
       sectionId: id,
       returnToOverviewOnSplit: true,
     }),
-    onAdjustBoundary: (prevId, nextId) => switchSectionReconfigStage(3, { prevId, nextId }),
     onTestPlay: ({ startSec, endSec, onEnded, onTime }) => {
       const audio = getAudioElement?.();
       if (!audio || !audio.src) {
@@ -3741,7 +3697,8 @@ async function startSectionReconfiguration() {
     token: previousToken,
   };
   _sectionReconfigRuntime.splitContext = null;
-  switchSectionReconfigStage(1, { initial: true, sectionId: initialSectionId });
+  // First setup begins in Stage1; an existing saved Section structure begins in Stage2.
+  switchSectionReconfigStage(currentSections.length ? 2 : 1, { initial: true, sectionId: initialSectionId });
 }
 
 async function startSectionAutoGeneration() {
