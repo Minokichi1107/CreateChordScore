@@ -40,6 +40,12 @@ const timingFor = (beats, measures) => ({
 });
 assert.equal(typeof openSectionOverviewModal, 'function', 'Stage2 modal module imports');
 
+// Stage2 UX regression checks: no ambiguous comparison gauge or separate boundary modal.
+const overviewModalSource = readFileSync(new URL('../js/sectionOverviewModal.js', import.meta.url), 'utf8');
+assert.match(overviewModalSource, /s2-card-start/, 'human-readable Section start position is rendered');
+assert.doesNotMatch(overviewModalSource, /data-s2-boundary-prev/, 'Stage2 does not expose a separate boundary-adjustment action');
+assert.doesNotMatch(overviewModalSource, /s2-compare-track/, 'unclear length-comparison gauge is not rendered');
+
 const regularMeasures = [
   { startTime: 0, endTime: 4 },
   { startTime: 4, endTime: 8 },
