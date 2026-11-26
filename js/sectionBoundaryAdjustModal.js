@@ -36,8 +36,10 @@ export function openSectionBoundaryAdjustModal(p) {
   let message = '';
   const originalBoundary = pair.prevEndIdx;
   let candidate = originalBoundary;
-  let rangeStart = Math.max(0, Math.min(pair.prevEndIdx - 2, buffer.length - 4));
-  let rangeEnd = Math.min(buffer.length - 1, rangeStart + 3);
+  const initialRangeStart = Math.max(0, Math.min(pair.prevEndIdx - 2, buffer.length - 4));
+  const initialRangeEnd = Math.min(buffer.length - 1, initialRangeStart + 3);
+  let rangeStart = initialRangeStart;
+  let rangeEnd = initialRangeEnd;
   let rangeEditTarget = 'start';
   let playing = false;
   let localPlayGeneration = 0;
@@ -99,7 +101,7 @@ export function openSectionBoundaryAdjustModal(p) {
           aria-pressed="${inRange}"
           title="${esc(chordLabel(index))}">
           <span>${esc(chordLabel(index))}</span>
-          ${isStart ? '<small>試聴開始</small>' : (isEnd ? '<small>試聴終了</small>' : '')}
+          ${isStart ? '<small>開始</small>' : (isEnd ? '<small>終了</small>' : '')}
         </button>`);
     }
     return items.join('');
@@ -136,9 +138,9 @@ export function openSectionBoundaryAdjustModal(p) {
             <strong>試聴範囲</strong>
             <span>境界の前後を聴いて、切れ目が自然か確認します。</span>
           </div>
-          <div class="sba-range-targets" role="group" aria-label="試聴範囲の選択対象">
-            <button type="button" class="sec-btn sba-range-target ${rangeEditTarget === 'start' ? 'is-active' : ''}" data-sba-range-target="start" aria-pressed="${rangeEditTarget === 'start'}">開始位置を選ぶ</button>
-            <button type="button" class="sec-btn sba-range-target ${rangeEditTarget === 'end' ? 'is-active' : ''}" data-sba-range-target="end" aria-pressed="${rangeEditTarget === 'end'}">終了位置を選ぶ</button>
+          <div class="sba-range-targets" role="group" aria-label="試聴範囲の選択">
+            <strong class="sba-range-step">${rangeEditTarget === 'start' ? '① 試聴を始めたいコードを選んでください' : '② 試聴を終えたいコードを選んでください'}</strong>
+            <button type="button" class="sec-btn" id="sba-range-reset">範囲を選び直す</button>
             <button type="button" class="sec-btn" id="sba-play" ${playable ? '' : 'disabled'}>${playing ? '■ 停止' : '▶ 試聴'}</button>
           </div>
           <div class="sba-range-chords" role="group" aria-label="コード進行から試聴範囲を選択">${rangeChordsHtml()}</div>
@@ -228,20 +230,22 @@ export function openSectionBoundaryAdjustModal(p) {
     root.querySelectorAll('[data-sba-candidate]').forEach(button => {
       button.addEventListener('click', () => setCandidate(Number(button.dataset.sbaCandidate)));
     });
-    root.querySelectorAll('[data-sba-range-target]').forEach(button => {
-      button.addEventListener('click', () => {
-        rangeEditTarget = button.dataset.sbaRangeTarget === 'end' ? 'end' : 'start';
-        render();
-      });
+    root.querySelector('#sba-range-reset')?.addEventListener('click', () => {
+      rangeEditTarget = 'start';
+      setRange(initialRangeStart, initialRangeEnd);
+      render();
     });
     root.querySelectorAll('[data-sba-range-index]').forEach(button => {
       button.addEventListener('click', () => {
         const index = Number(button.dataset.sbaRangeIndex);
         if (rangeEditTarget === 'start') {
+          rangeEditTarget = 'end';
           setRange(index, Math.max(index, rangeEnd));
         } else {
-          setRange(Math.min(index, rangeStart), index);
+          rangeEditTarget = 'start';
+          setRange(Math.min(rangeStart, index), Math.max(rangeStart, index));
         }
+        render();
       });
     });
     root.querySelector('#sba-play')?.addEventListener('click', () => playing ? stopPlayback() : startPlayback());
