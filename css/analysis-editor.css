@@ -1763,6 +1763,7 @@ body:not([data-theme="dark"]) .sr1-invalid {
 }
 #modal-box:has(.s2-root) .m-btns { flex: 0 0 auto; margin-top: 8px; }
 .s2-root { --sr1-play: var(--color-accent, #4d8dff); --sr1-play-bg: color-mix(in srgb, var(--sr1-play) 12%, var(--sr1-card-bg)); display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; color: var(--text-primary); }
+body[data-theme="dark"] .s2-root { --text-primary: rgba(255,255,255,.95); }
 .s2-scroll { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; overscroll-behavior: contain; padding: 2px 4px 8px 2px; }
 .s2-card-list { display: flex; flex-direction: column; gap: 0; }
 .s2-card {
