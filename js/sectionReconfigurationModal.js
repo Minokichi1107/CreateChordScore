@@ -376,9 +376,12 @@ export function openSectionReconfigurationModal(p) {
     if (!sec) return '<p class="sag-errors">Section がありません</p>';
     const diagList = diagnoseDraftSections(draft, buffer);
     const diag = diagList[sectionIdx] || diagnoseDraftSection(sec, buffer);
-    const typeOpts = (sectionTypes || []).map(t =>
-      `<option value="${esc(t.value)}" ${t.value === sec.type ? 'selected' : ''}>${esc(t.label)}</option>`
-    ).join('');
+    const typeOpts = [
+      ...(!sec.type ? ['<option value="" selected disabled>種類を選択してください</option>'] : []),
+      ...(sectionTypes || []).map(t =>
+        `<option value="${esc(t.value)}" ${t.value === sec.type ? 'selected' : ''}>${esc(t.label)}</option>`
+      ),
+    ].join('');
     const kind = classifySectionDiagForUi(diag);
     let invalidNote = '';
     if (kind === 'structural-invalid') {
@@ -731,10 +734,19 @@ export function openSectionReconfigurationModal(p) {
       : (sectionTypes?.find(item => item?.value === type)?.label
         || (typeof generateSectionName === 'function' ? generateSectionName(type) : type));
     const label = String(generated ?? type ?? 'Section').trim();
-    const count = draft.sections.filter(section =>
-      section?.id !== excludeSectionId && section?.type === type
-    ).length;
-    return count === 0 ? label : label + ' ' + (count + 1);
+    if (!type || !label) return '';
+    let maxNumber = 0;
+    for (const section of draft.sections) {
+      if (!section || section.id === excludeSectionId || section.type !== type) continue;
+      const name = String(section.name ?? '').trim();
+      if (name === label) {
+        maxNumber = Math.max(maxNumber, 1);
+      } else if (name.startsWith(label + ' ')) {
+        const suffix = name.slice(label.length + 1);
+        if (/^\d+$/.test(suffix)) maxNumber = Math.max(maxNumber, Number(suffix));
+      }
+    }
+    return maxNumber === 0 ? label : `${label} ${maxNumber + 1}`;
   }
 
   function applyNameTypeFromInputs() {
@@ -768,6 +780,7 @@ export function openSectionReconfigurationModal(p) {
 
   /** Live type change: update name immediately when not user-edited */
   function onTypeChangeLive() {
+    syncSectionSelection();
     const typeEl = root?.querySelector('.sr1-type');
     const nameEl = root?.querySelector('.sr1-name');
     const sec = draft.sections[sectionIdx];
@@ -1000,6 +1013,10 @@ export function openSectionReconfigurationModal(p) {
     uiMode = 'normal';
     resetPlayToSectionStart();
     message = r.noop ? '境界に変更はありません' : 'Section境界を変更しました';
+    if (!r.noop && returnToOverviewOnSplit) {
+      onReturnToOverview?.({ reason: 'boundary-change', sectionId: selectedSectionId, historyAction: lastHistoryAction });
+      return;
+    }
     fullRedraw();
   }
 
@@ -1052,11 +1069,11 @@ export function openSectionReconfigurationModal(p) {
     // UI stores next-section start; API wants last chord of front half
     const endChordIndex = splitCandidate - 1;
     const sectionBeforeSplit = draft.sections[sectionIdx];
-    const splitNameIsAuto = sectionBeforeSplit?.nameUserEdited !== true
-      && isAutoSectionName(sectionBeforeSplit?.name, sectionBeforeSplit?.type);
     const splitOptions = {
-      inheritBackMeta: splitContext?.inheritBackMeta === true,
-      ...(splitNameIsAuto
+      // A split creates a new Section: inherit the source category and assign a
+      // fresh automatic name. The original Section name is not modified.
+      inheritBackMeta: true,
+      ...(sectionBeforeSplit?.type
         ? { defaultNameForType: type => generateDraftSectionName(type, null) }
         : {}),
     };
@@ -1162,6 +1179,15 @@ export function openSectionReconfigurationModal(p) {
     }
 
     if (inField) {
+      // Enter commits the Section name and moves focus out of the text field.
+      if (e.code === 'Enter' && tag === 'INPUT' && e.target?.classList?.contains('sr1-name')) {
+        e.preventDefault();
+        e.stopPropagation();
+        applyNameTypeFromInputs();
+        e.target.blur();
+        root?.querySelector('.sr1-mode-btn.is-active')?.focus();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
@@ -1189,6 +1215,15 @@ export function openSectionReconfigurationModal(p) {
       else selectSectionIndex(sectionIdx + 1);
       resetPlayToSectionStart();
       fullRedraw();
+      return;
+    }
+    const modeKey = String(e.key || '').toLowerCase();
+    if (modeKey === 'p' || modeKey === 'b' || modeKey === 's') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (modeKey === 'p') enterPlayMode();
+      else if (modeKey === 'b') enterBoundaryMode();
+      else enterSplitMode();
       return;
     }
     if (e.code === 'Space') {
