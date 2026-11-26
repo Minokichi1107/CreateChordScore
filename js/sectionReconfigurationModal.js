@@ -719,7 +719,7 @@ export function openSectionReconfigurationModal(p) {
     if (!value || !base) return false;
     if (value === base) return true;
     if (!value.startsWith(base + ' ')) return false;
-    return /^\\d+$/.test(value.slice(base.length + 1));
+    return /^[0-9]+$/.test(value.slice(base.length + 1));
   }
 
   function generateDraftSectionName(type, excludeSectionId) {
