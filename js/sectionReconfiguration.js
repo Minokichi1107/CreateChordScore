@@ -720,6 +720,7 @@ export function createReconfigRuntime() {
     audioSnapshot: null,
     modalOpen: false,
     closed: false,
+    playGeneration: 0,
     view: {
       stage: 2,
       sectionId: null,
@@ -734,6 +735,7 @@ export function createReconfigRuntime() {
 export function teardownReconfigRuntime(runtime, opts = {}) {
   const restoreAudio = opts.restoreAudio === true;
   const hadDraft = runtime.draft != null;
+  runtime.playGeneration = (Number(runtime.playGeneration) || 0) + 1;
   const snap = runtime.audioSnapshot;
   const closeModal = runtime.modalOpen === true || hadDraft;
   runtime.draft = null;

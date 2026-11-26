@@ -505,20 +505,22 @@ function _stopSectionReconfigPlaybackMonitor() {
 function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime) {
   _stopSectionReconfigPlaybackMonitor();
   const epsilon = 0.03; // seconds tolerance
+  const generation = Number(_sectionReconfigRuntime.playGeneration) || 0;
+  const isCurrent = () => generation === (Number(_sectionReconfigRuntime.playGeneration) || 0);
   let ended = false;
   const reportTime = () => {
-    if (!onTime || !audio) return;
+    if (!onTime || !audio || !isCurrent()) return;
     try { onTime(audio.currentTime); } catch { /* ignore */ }
   };
   const finish = () => {
-    if (ended) return;
+    if (ended || !isCurrent()) return;
     ended = true;
     try { audio.pause(); } catch { /* ignore */ }
     _stopSectionReconfigPlaybackMonitor();
     try { onEnded?.(); } catch { /* ignore */ }
   };
   const tick = () => {
-    if (!audio || ended) return;
+    if (!audio || ended || !isCurrent()) return;
     try {
       if (audio.paused) {
         // Natural / external pause: clean up monitor without treating as range-end
@@ -536,7 +538,7 @@ function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime) {
     _sectionReconfigRaf = requestAnimationFrame(tick);
   };
   _sectionReconfigTimeUpdateHandler = () => {
-    if (ended) return;
+    if (ended || !isCurrent()) return;
     try {
       reportTime();
       if (audio.currentTime >= endSec - epsilon) finish();
@@ -3457,6 +3459,7 @@ function switchSectionReconfigStage(stage, options = {}) {
     openModal,
     mkMBtn,
     draft: _sectionReconfigRuntime.draft,
+    runtime: _sectionReconfigRuntime,
     buffer: analysisEditor.buffer,
     sectionTypes: _sectionReconfigTypes(),
     onKeyShield: () => { _setSectionReconfigSpaceShield(true); },

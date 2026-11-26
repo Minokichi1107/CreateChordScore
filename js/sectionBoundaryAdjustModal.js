@@ -18,7 +18,7 @@ function chordEnd(buffer, index) {
 
 export function openSectionBoundaryAdjustModal(p) {
   const {
-    openModal, mkMBtn, draft, buffer, prevId, nextId,
+    openModal, mkMBtn, draft, buffer, prevId, nextId, runtime = null,
     formatChord = chord => chord?.chord ?? '',
     onApply, onReturnToOverview, onTestPlay, onTestStop,
     onKeyShield, onKeyUnshield, isCurrent,
@@ -37,14 +37,22 @@ export function openSectionBoundaryAdjustModal(p) {
   let rangeStart = Math.max(0, Math.min(pair.prevEndIdx - 2, buffer.length - 4));
   let rangeEnd = Math.min(buffer.length - 1, rangeStart + 3);
   let playing = false;
-  let playGeneration = 0;
+  let localPlayGeneration = 0;
+  const currentPlayGeneration = () => runtime
+    ? (Number(runtime.playGeneration) || 0)
+    : localPlayGeneration;
+  const advancePlayGeneration = () => {
+    if (runtime) runtime.playGeneration = (Number(runtime.playGeneration) || 0) + 1;
+    else localPlayGeneration += 1;
+    return currentPlayGeneration();
+  };
   let keyHandler = null;
 
   const active = () => !closed && (typeof isCurrent !== 'function' || isCurrent());
   const inRange = () => candidate >= rangeStart && candidate <= rangeEnd;
 
   function invalidatePlayback() {
-    playGeneration += 1;
+    advancePlayGeneration();
     playing = false;
     onTestStop?.();
   }
@@ -126,18 +134,18 @@ export function openSectionBoundaryAdjustModal(p) {
       return;
     }
     invalidatePlayback();
-    const generation = ++playGeneration;
+    const generation = advancePlayGeneration();
     playing = true;
     render();
     onTestPlay?.({
       startSec, endSec,
       onTime: () => {
-        if (generation !== playGeneration || !active()) return;
+        if (generation !== currentPlayGeneration() || !active()) return;
       },
       onEnded: () => {
-        if (generation !== playGeneration || !active()) return;
+        if (generation !== currentPlayGeneration() || !active()) return;
+        advancePlayGeneration();
         playing = false;
-        playGeneration += 1;
         render();
       },
     });

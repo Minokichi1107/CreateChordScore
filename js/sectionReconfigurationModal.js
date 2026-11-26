@@ -114,7 +114,7 @@ export function buildDraftIssueBannersHtml(diagList, opts = {}) {
 
 export function openSectionReconfigurationModal(p) {
   const {
-    openModal, mkMBtn, draft, buffer, sectionTypes,
+    openModal, mkMBtn, draft, buffer, sectionTypes, runtime = null,
     onAdopt, onClose, onTestPlay, onTestStop, onKeyShield, onKeyUnshield, confirmChoice,
     generateSectionName, formatChord,
     initial = null, splitContext: initialSplitContext = null,
@@ -142,6 +142,15 @@ export function openSectionReconfigurationModal(p) {
   let playConfirmed = 0;
   /** Index used when current testPlay() started; restored on end. */
   let playStartIdx = null;
+  let localPlayGeneration = 0;
+  const currentPlayGeneration = () => runtime
+    ? (Number(runtime.playGeneration) || 0)
+    : localPlayGeneration;
+  const advancePlayGeneration = () => {
+    if (runtime) runtime.playGeneration = (Number(runtime.playGeneration) || 0) + 1;
+    else localPlayGeneration += 1;
+    return currentPlayGeneration();
+  };
   /** Number of chords to play (1..8). */
   let playChordCount = 4;
   let isPlaying = false;
@@ -312,6 +321,7 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function stopPlayIfNeeded() {
+    advancePlayGeneration();
     if (!isPlaying && playStartIdx == null) {
       playingChordIdx = null;
       onTestStop?.();
@@ -781,13 +791,17 @@ export function openSectionReconfigurationModal(p) {
       fullRedraw();
       return;
     }
-    // Capture start index for this playback session (not mutated by mid-play confirm)
+    // Capture both the start index and Runtime generation for this playback session.
+    stopPlayIfNeeded();
+    const generation = advancePlayGeneration();
     playStartIdx = startIdx;
     isPlaying = true;
     playCandidate = startIdx;
     playingChordIdx = startIdx;
     fullRedraw();
     const finishPlay = () => {
+      if (generation !== currentPlayGeneration()) return;
+      advancePlayGeneration();
       isPlaying = false;
       playingChordIdx = null;
       if (playStartIdx != null) playCandidate = playStartIdx;
@@ -800,7 +814,7 @@ export function openSectionReconfigurationModal(p) {
       endSec,
       onEnded: finishPlay,
       onTime: (tSec) => {
-        if (closed || (typeof isCurrent === 'function' && !isCurrent()) || !isPlaying) return;
+        if (generation !== currentPlayGeneration() || closed || (typeof isCurrent === 'function' && !isCurrent()) || !isPlaying) return;
         const idx = chordIndexAtTime(tSec);
         if (idx !== playingChordIdx) {
           playingChordIdx = idx;
@@ -994,6 +1008,7 @@ export function openSectionReconfigurationModal(p) {
 
   /** Listener / playback / shield only — does not touch parent Draft state. */
   function cleanupListeners() {
+    advancePlayGeneration();
     if (keyHandler) {
       document.removeEventListener('keydown', keyHandler, true);
       keyHandler = null;
