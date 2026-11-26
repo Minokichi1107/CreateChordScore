@@ -31,6 +31,7 @@ import {
   teardownReconfigRuntime,
   draftSectionChordSpans,
 } from '../js/sectionReconfiguration.js';
+import { openSectionBoundaryAdjustModal } from '../js/sectionBoundaryAdjustModal.js';
 import { replaceSectionsFromDraftCommand, applyGeneratedSectionsCommand } from '../js/analysisCommands.js';
 import { undoBuffer } from '../js/analysisSession.js';
 import {
@@ -39,6 +40,7 @@ import {
 } from '../js/sectionReconfigurationModal.js';
 
 assert.equal(typeof openSectionReconfigurationModal, 'function', 'Stage1 modal module imports');
+assert.equal(typeof openSectionBoundaryAdjustModal, 'function', 'Stage2 boundary modal module imports');
 
 const buf = (n = 4) => Array.from({ length: n }, (_, i) => ({
   _id: `k${i}`, chord: ['C', 'G', 'Am', 'F'][i % 4], start: i * 2, end: i * 2 + 2,
