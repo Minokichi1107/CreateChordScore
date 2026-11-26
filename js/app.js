@@ -3303,18 +3303,21 @@ function _generateSectionName(type) {
  * 明示的な手入力フラグがあるDraft名は、呼び出し側でそちらを優先する。
  */
 function _isAutoSectionName(name, type) {
-  // Legacy saved Sections do not persist nameUserEdited. Recognize any canonical
-  // Section-type label (JP or EN) so a previously auto-generated label remains
-  // recognizable even after its category was changed in an older workflow.
+  // Legacy records do not persist nameUserEdited. Infer auto names only when
+  // the name matches the canonical label for the CURRENT type.
+  // Matching every category label could overwrite intentional custom names.
   const n = String(name ?? '').trim();
-  if (!n) return false;
-  return SECTION_TYPES.some(item => {
-    const label = String(item?.label ?? '').trim();
+  const item = SECTION_TYPES.find(entry => entry.value === type);
+  const labels = [item?.label];
+  if (type === 'other') labels.push('その他', 'Other');
+  return labels.some(raw => {
+    const label = String(raw ?? '').trim();
     if (!label) return false;
     if (n === label) return true;
     if (!n.startsWith(label + ' ')) return false;
     return /^\d+$/.test(n.slice(label.length + 1));
   });
+}
 }
 
 /**
@@ -3497,7 +3500,7 @@ function switchSectionReconfigStage(stage, options = {}) {
       ...common,
       generateSectionName: type => _generateSectionName(type),
       isAutoSectionName: (name, type) => _isAutoSectionName(name, type),
-      getSectionNameBase: type => SECTION_TYPES.find(item => item.value === type)?.label ?? _sectionTypeLabel(type, _loadSectionTypeGroup()),
+      getSectionNameBase: type => _sectionTypeLabel(type, _loadSectionTypeGroup()),
       formatChord: _formatSectionReconfigChord,
       initial: { sectionId, mode: 'normal' },
       splitContext: _sectionReconfigRuntime.splitContext,
