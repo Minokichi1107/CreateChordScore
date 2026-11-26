@@ -252,7 +252,7 @@
 
 .s2-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   flex-wrap: nowrap;
   gap: 6px;
@@ -349,7 +349,7 @@
 #modal-box:has(.s2-root) .s2-actions {
   padding-left: 12px;
   gap: 6px;
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex-wrap: nowrap;
 }
 #modal-box:has(.s2-root) .s2-play-btn,
@@ -520,4 +520,18 @@
   padding: 3px 4px !important;
   font-size: 12px !important;
   box-sizing: border-box !important;
+}
+
+/* Phase150: Stage1 header offset — lower nav + header panel slightly */
+#modal-box:has(.sr1-root) .sr1-stage-nav,
+#sr1-root .sr1-stage-nav {
+  margin-top: 6px !important;
+  margin-bottom: 4px !important;
+}
+#modal-box:has(.sr1-root) .sr1-header,
+#sr1-root .sr1-header {
+  margin-top: 2px !important;
+}
+#modal-box:has(.sr1-root) #m-title {
+  margin-bottom: 4px;
 }
