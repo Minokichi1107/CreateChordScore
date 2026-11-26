@@ -1753,3 +1753,76 @@ body:not([data-theme="dark"]) .sr1-invalid {
   .s2-card-head { display: flex; }
   .s2-card-actions { flex-wrap: wrap; }
 }
+
+
+/* Phase150 boundary adjustment: make the adjacent Sections and audition range explicit. */
+.sba-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.sba-section-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--sr1-card-border);
+  border-radius: 8px;
+  background: var(--sr1-card-bg);
+}
+.sba-section-prev { border-left: 3px solid var(--text-secondary); }
+.sba-section-next { border-left: 3px solid var(--sr1-bound); }
+.sba-section-role,
+.sba-section-type {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+.sba-section-card strong {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.sba-pair-arrow {
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+.sba-audition {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--sr1-card-border);
+  border-radius: 8px;
+  background: var(--bg-secondary, var(--sr1-card-bg));
+}
+.sba-audition-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+.sba-audition-head strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.sba-audition-head span,
+.sba-range-summary {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.sba-range {
+  border-top: 0;
+  padding-top: 0;
+}
+.sba-range-summary {
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) {
+  .sba-pair { gap: 6px; }
+  .sba-section-card { padding: 8px; }
+  .sba-section-card strong { font-size: 12px; }
+  .sba-pair-arrow { font-size: 14px; }
+  .sba-audition { padding: 9px; }
+}
