@@ -1265,6 +1265,15 @@ body:not([data-theme="dark"]) .sr1-invalid {
 
 /* Phase150 Stage2 — all-Section overview */
 /* Phase150 Stage2 — shared boundary adjustment modal */
+.sba-root,
+.s2-root {
+  /* These variables were previously scoped only to .sr1-root (Stage1),
+     leaving Stage2 cards and comparison bars without valid colors. */
+  --sr1-bound: var(--color-amber, #f0a04b);
+  --sr1-bound-bg: var(--surface-selected, #3a2a18);
+  --sr1-card-bg: var(--surface-raised, #2a2f3a);
+  --sr1-card-border: var(--border-ui, #4a5160);
+}
 .sba-root {
   display: flex;
   flex-direction: column;
@@ -1484,7 +1493,7 @@ body:not([data-theme="dark"]) .sr1-invalid {
 }
 .s2-card-meta {
   display: grid;
-  grid-template-columns: minmax(110px, 1fr) minmax(180px, 1.5fr) minmax(80px, 0.7fr);
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   gap: 8px 14px;
   margin-top: 9px;
   font-size: 12px;
@@ -1497,27 +1506,29 @@ body:not([data-theme="dark"]) .sr1-invalid {
 .s2-card-meta small {
   display: block;
   margin-bottom: 2px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 500;
 }
 .s2-card-meta em {
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: 11px;
   font-style: normal;
   font-weight: 400;
 }
 .s2-compare {
   display: grid;
-  grid-template-columns: minmax(90px, 130px) minmax(80px, 1fr) 42px;
+  grid-template-columns: max-content minmax(80px, 1fr) 42px;
   align-items: center;
   gap: 8px;
   margin-top: 9px;
-  font-size: 10px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: var(--text-primary);
 }
 .s2-compare-track {
-  height: 7px;
+  display: block;
+  min-width: 80px;
+  height: 8px;
   overflow: hidden;
   border-radius: 999px;
   background: var(--sr1-card-border);
@@ -1547,7 +1558,7 @@ body:not([data-theme="dark"]) .sr1-invalid {
   font-size: 14px;
 }
 .s2-total {
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
