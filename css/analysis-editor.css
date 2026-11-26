@@ -1580,7 +1580,7 @@ body:not([data-theme="dark"]) .sr1-invalid {
 }
 .s2-card-meta {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  grid-template-columns: minmax(0, 1fr) max-content;
   gap: 8px 14px;
   margin-top: 9px;
   font-size: 12px;
