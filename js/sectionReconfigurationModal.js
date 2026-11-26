@@ -711,6 +711,15 @@ export function openSectionReconfigurationModal(p) {
     ensureChordRowVisible(focusIdx);
   }
 
+  function generateDraftSectionName(type, excludeSectionId) {
+    const label = sectionTypes?.find(item => item?.value === type)?.label
+      || (typeof generateSectionName === 'function' ? generateSectionName(type) : type);
+    const count = draft.sections.filter(section =>
+      section?.id !== excludeSectionId && section?.type === type
+    ).length;
+    return count === 0 ? String(label ?? type ?? 'Section') : `${label} ${count + 1}`;
+  }
+
   function applyNameTypeFromInputs() {
     syncSectionSelection();
     const nameEl = root?.querySelector('.sr1-name');
@@ -726,8 +735,8 @@ export function openSectionReconfigurationModal(p) {
     if (typeEl && typeEl.value !== sec.type) {
       patch.type = typeEl.value;
       // Only auto-rename when the user has not locked the name
-      if (!sec.nameUserEdited && !nameInputSoftLock && typeof generateSectionName === 'function') {
-        opts.defaultNameForType = generateSectionName;
+      if (!sec.nameUserEdited && !nameInputSoftLock) {
+        opts.defaultNameForType = type => generateDraftSectionName(type, sec.id);
       }
     }
     if (Object.keys(patch).length) {
@@ -751,8 +760,8 @@ export function openSectionReconfigurationModal(p) {
     const opts = {};
     const patch = { type: newType };
     const nameLocked = !!sec.nameUserEdited || nameInputSoftLock;
-    if (!nameLocked && typeof generateSectionName === 'function') {
-      opts.defaultNameForType = generateSectionName;
+    if (!nameLocked) {
+      opts.defaultNameForType = type => generateDraftSectionName(type, sec.id);
     }
     lastHistoryAction = null;
     updateDraftSection(draft, sec.id, patch, opts);
