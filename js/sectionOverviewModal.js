@@ -191,7 +191,6 @@ export function openSectionOverviewModal(p) {
           </div>
         </div>
         <div class="s2-card-meta">
-          <span><small>開始</small>${esc(row.view.startLabel)}</span>
           <span><small>長さ</small>${esc(row.view.lengthLabel)}${row.view.lengthSub ? ` <em>${esc(row.view.lengthSub)}</em>` : ''}</span>
           <span><small>時間</small>${esc(row.view.secondsLabel)}</span>
         </div>
