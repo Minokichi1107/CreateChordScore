@@ -717,14 +717,21 @@ export function openSectionReconfigurationModal(p) {
     const value = String(name ?? '').trim();
     const base = String(label ?? type ?? '').trim();
     if (!value || !base) return false;
-    return value === base || new RegExp(`^${base.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\  function generateDraftSectionName(type, excludeSectionId) {
+    if (value === base) return true;
+    if (!value.startsWith(base + ' ')) return false;
+    return /^\\d+$/.test(value.slice(base.length + 1));
+  }
+
+  function generateDraftSectionName(type, excludeSectionId) {
     const label = sectionTypes?.find(item => item?.value === type)?.label
       || (typeof generateSectionName === 'function' ? generateSectionName(type) : type);
     const count = draft.sections.filter(section =>
       section?.id !== excludeSectionId && section?.type === type
     ).length;
     return count === 0 ? String(label ?? type ?? 'Section') : `${label} ${count + 1}`;
-  }')} \\\\d+/**
+  }
+
+/**
  * Section reconfiguration Stage 1 modal (Phase150).
  * UI only — does not mutate analysisEditor.sections until onAdopt succeeds.
  */
