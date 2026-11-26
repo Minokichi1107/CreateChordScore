@@ -254,7 +254,6 @@ export function openSectionOverviewModal(p) {
       <div class="s2-root" id="s2-root">
         <div class="s2-toolbar">
           <div class="s2-heading">
-            <strong>全Section確認</strong>
             <span class="s2-total">全 ${(overview.rows?.length || 0) + (overview.invalidRows?.length || 0)} Sections</span>
             <span class="s2-draft-badge">Draft編集中</span>
           </div>

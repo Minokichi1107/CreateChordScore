@@ -1264,6 +1264,105 @@ body:not([data-theme="dark"]) .sr1-invalid {
 
 
 /* Phase150 Stage2 — all-Section overview */
+/* Phase150 Stage2 — shared boundary adjustment modal */
+.sba-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: min(68vh, 680px);
+  overflow: auto;
+  padding: 2px 1px;
+}
+.sba-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.sba-intro > span {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.sba-boundary-list {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 8px 2px 12px;
+}
+.sba-chord {
+  flex: 0 0 auto;
+  min-width: 66px;
+  max-width: 112px;
+  min-height: 54px;
+  border: 1px solid var(--sr1-card-border);
+  border-radius: 9px;
+  background: var(--sr1-card-bg);
+  color: var(--text-primary);
+  padding: 7px 8px;
+  cursor: pointer;
+}
+.sba-chord-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+}
+.sba-chord.is-boundary {
+  border: 2px solid var(--sr1-bound);
+  background: color-mix(in srgb, var(--sr1-bound) 9%, var(--sr1-card-bg));
+}
+.sba-boundary-caption {
+  display: block;
+  margin-top: 4px;
+  color: var(--sr1-bound);
+  font-size: 9px;
+  white-space: nowrap;
+}
+.sba-range {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid var(--sr1-card-border);
+  padding-top: 10px;
+}
+.sba-range label {
+  display: flex;
+  flex: 1 1 150px;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.sba-range select {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--sr1-card-border);
+  border-radius: 7px;
+  background: var(--bg-secondary, var(--sr1-card-bg));
+  color: var(--text-primary);
+  padding: 7px;
+  font-size: 12px;
+}
+.sba-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--sr1-bound) 8%, transparent);
+  padding: 8px 10px;
+  font-size: 11px;
+}
+.sba-message {
+  min-height: 16px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
 .s2-root {
   display: flex;
   flex-direction: column;
