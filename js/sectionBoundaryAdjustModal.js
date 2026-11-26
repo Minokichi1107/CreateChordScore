@@ -38,6 +38,7 @@ export function openSectionBoundaryAdjustModal(p) {
   let candidate = originalBoundary;
   let rangeStart = Math.max(0, Math.min(pair.prevEndIdx - 2, buffer.length - 4));
   let rangeEnd = Math.min(buffer.length - 1, rangeStart + 3);
+  let rangeEditTarget = 'start';
   let playing = false;
   let localPlayGeneration = 0;
   const currentPlayGeneration = () => runtime
@@ -82,8 +83,26 @@ export function openSectionBoundaryAdjustModal(p) {
     }
     return items.join('');
   }
-  function rangeOptions(selected) {
-    return buffer.map((chord, index) => `<option value="${index}" ${index === selected ? 'selected' : ''}>${index + 1}. ${esc(chordLabel(index))}</option>`).join('');
+  function rangeChordsHtml() {
+    const items = [];
+    for (let index = pair.prevStartIdx; index <= pair.nextEndIdx; index++) {
+      if (index === candidate + 1) {
+        items.push('<span class="sba-range-boundary" aria-label="ここから次のSection">次のSection →</span>');
+      }
+      const inRange = index >= rangeStart && index <= rangeEnd;
+      const isStart = index === rangeStart;
+      const isEnd = index === rangeEnd;
+      items.push(`
+        <button type="button"
+          class="sba-range-chord ${inRange ? 'is-in-range' : ''} ${isStart ? 'is-range-start' : ''} ${isEnd ? 'is-range-end' : ''}"
+          data-sba-range-index="${index}"
+          aria-pressed="${inRange}"
+          title="${esc(chordLabel(index))}">
+          <span>${esc(chordLabel(index))}</span>
+          ${isStart ? '<small>試聴開始</small>' : (isEnd ? '<small>試聴終了</small>' : '')}
+        </button>`);
+    }
+    return items.join('');
   }
   function bodyHtml() {
     const startSec = chordStart(buffer, rangeStart);
@@ -117,12 +136,13 @@ export function openSectionBoundaryAdjustModal(p) {
             <strong>試聴範囲</strong>
             <span>境界の前後を聴いて、切れ目が自然か確認します。</span>
           </div>
-          <div class="sba-range">
-            <label>開始コード<select id="sba-range-start">${rangeOptions(rangeStart)}</select></label>
-            <label>終了コード<select id="sba-range-end">${rangeOptions(rangeEnd)}</select></label>
+          <div class="sba-range-targets" role="group" aria-label="試聴範囲の選択対象">
+            <button type="button" class="sec-btn sba-range-target ${rangeEditTarget === 'start' ? 'is-active' : ''}" data-sba-range-target="start" aria-pressed="${rangeEditTarget === 'start'}">開始位置を選ぶ</button>
+            <button type="button" class="sec-btn sba-range-target ${rangeEditTarget === 'end' ? 'is-active' : ''}" data-sba-range-target="end" aria-pressed="${rangeEditTarget === 'end'}">終了位置を選ぶ</button>
             <button type="button" class="sec-btn" id="sba-play" ${playable ? '' : 'disabled'}>${playing ? '■ 停止' : '▶ 試聴'}</button>
           </div>
-          <div class="sba-range-summary">${rangeStart + 1}番目「${esc(chordLabel(rangeStart))}」～ ${rangeEnd + 1}番目「${esc(chordLabel(rangeEnd))}」</div>
+          <div class="sba-range-chords" role="group" aria-label="コード進行から試聴範囲を選択">${rangeChordsHtml()}</div>
+          <div class="sba-range-summary">試聴範囲：${Array.from({ length: rangeEnd - rangeStart + 1 }, (_, offset) => esc(chordLabel(rangeStart + offset))).join(' → ')}（${rangeEnd - rangeStart + 1}コード）</div>
         </section>
         ${!inRange() ? `
           <div class="sba-notice" role="status">
@@ -134,11 +154,14 @@ export function openSectionBoundaryAdjustModal(p) {
   }
   function render() {
     if (!active() || !root) return;
+    const previousScrollLeft = root.querySelector('.sba-range-chords')?.scrollLeft ?? 0;
     const wrap = document.createElement('div');
     wrap.innerHTML = bodyHtml();
     const next = wrap.firstElementChild;
     root.replaceWith(next);
     root = next;
+    const rangeChords = root.querySelector('.sba-range-chords');
+    if (rangeChords) rangeChords.scrollLeft = previousScrollLeft;
     bind();
   }
   function setCandidate(index) {
@@ -205,13 +228,21 @@ export function openSectionBoundaryAdjustModal(p) {
     root.querySelectorAll('[data-sba-candidate]').forEach(button => {
       button.addEventListener('click', () => setCandidate(Number(button.dataset.sbaCandidate)));
     });
-    root.querySelector('#sba-range-start')?.addEventListener('change', event => {
-      const start = Number(event.target.value);
-      setRange(start, start > rangeEnd ? start : rangeEnd);
+    root.querySelectorAll('[data-sba-range-target]').forEach(button => {
+      button.addEventListener('click', () => {
+        rangeEditTarget = button.dataset.sbaRangeTarget === 'end' ? 'end' : 'start';
+        render();
+      });
     });
-    root.querySelector('#sba-range-end')?.addEventListener('change', event => {
-      const end = Number(event.target.value);
-      setRange(end < rangeStart ? end : rangeStart, end);
+    root.querySelectorAll('[data-sba-range-index]').forEach(button => {
+      button.addEventListener('click', () => {
+        const index = Number(button.dataset.sbaRangeIndex);
+        if (rangeEditTarget === 'start') {
+          setRange(index, Math.max(index, rangeEnd));
+        } else {
+          setRange(Math.min(index, rangeStart), index);
+        }
+      });
     });
     root.querySelector('#sba-play')?.addEventListener('click', () => playing ? stopPlayback() : startPlayback());
     root.querySelector('#sba-align')?.addEventListener('click', () => {
