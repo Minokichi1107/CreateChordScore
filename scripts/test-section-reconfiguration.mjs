@@ -32,7 +32,6 @@ import {
   teardownReconfigRuntime,
   draftSectionChordSpans,
 } from '../js/sectionReconfiguration.js';
-import { openSectionBoundaryAdjustModal } from '../js/sectionBoundaryAdjustModal.js';
 import { replaceSectionsFromDraftCommand, applyGeneratedSectionsCommand } from '../js/analysisCommands.js';
 import { undoBuffer } from '../js/analysisSession.js';
 import {
