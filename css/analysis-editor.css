@@ -931,11 +931,25 @@ body:not([data-theme="dark"]) .sr1-chord.sr1-playing {
   background: var(--sr1-play);
   box-shadow: 0 0 0 1px var(--sr1-card-bg);
 }
+/* Structural candidates mark the actual edge between two chords:
+   split = before the selected chord; boundary = after the selected chord. */
 .sr1-mark-split,
 .sr1-mark-boundary-edit {
-  right: 5px;
-  background: var(--sr1-bound);
+  display: none;
 }
+.sr1-chord.sr1-split-cand::before,
+.sr1-chord.sr1-boundary-edit-cand::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--sr1-bound);
+  z-index: 2;
+  pointer-events: none;
+}
+.sr1-chord.sr1-split-cand::before { left: 0; }
+.sr1-chord.sr1-boundary-edit-cand::after { right: 0; }
 .sr1-mark-playing {
   left: 5px;
   background: var(--sr1-playing);
