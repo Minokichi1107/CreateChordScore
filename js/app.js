@@ -3304,12 +3304,18 @@ function _generateSectionName(type) {
  * 名前欄を追従させてよいかの判定に使う。
  */
 function _isAutoSectionName(name, type) {
-  const label = SECTION_TYPES.find(t => t.value === type)?.label;
-  if (!label) return false;
+  // Legacy saved Sections do not persist nameUserEdited. Recognize any canonical
+  // Section-type label (JP or EN) so a previously auto-generated label remains
+  // recognizable even after its category was changed in an older workflow.
   const n = String(name ?? '').trim();
-  if (n === label) return true;
-  if (!n.startsWith(label + ' ')) return false;
-  return /^\d+$/.test(n.slice(label.length + 1));
+  if (!n) return false;
+  return SECTION_TYPES.some(item => {
+    const label = String(item?.label ?? '').trim();
+    if (!label) return false;
+    if (n === label) return true;
+    if (!n.startsWith(label + ' ')) return false;
+    return /^\d+$/.test(n.slice(label.length + 1));
+  });
 }
 
 /**
