@@ -2,6 +2,7 @@
  * Phase150 Stage1 — Section reconfiguration unit tests
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   validateGeneratedSectionSet,
 } from '../js/sectionSetValidation.js';
@@ -40,7 +41,12 @@ import {
 } from '../js/sectionReconfigurationModal.js';
 
 assert.equal(typeof openSectionReconfigurationModal, 'function', 'Stage1 modal module imports');
-assert.equal(typeof openSectionBoundaryAdjustModal, 'function', 'Stage2 boundary modal module imports');
+// Stage1 keyboard/IME regressions are guarded at the actual event-handler layer.
+const stage1ModalSource = readFileSync(new URL('../js/sectionReconfigurationModal.js', import.meta.url), 'utf8');
+assert.match(stage1ModalSource, /if \(e\.isComposing \|\| e\.keyCode === 229\) return;/, 'IME composition blocks modal shortcuts');
+assert.match(stage1ModalSource, /if \(inField\) \{[\s\S]*?return;[\s\S]*?if \(e\.code === 'Tab'\)/, 'editable fields retain native Tab behavior');
+assert.match(stage1ModalSource, /updatePlayingHighlight\(null\);/, 'playback end updates highlight without rebuilding the name input');
+assert.match(stage1ModalSource, /isAutoSectionName: isAutoSectionNameFn, getSectionNameBase/, 'auto-name detection uses the authoritative naming rule');
 
 const buf = (n = 4) => Array.from({ length: n }, (_, i) => ({
   _id: `k${i}`, chord: ['C', 'G', 'Am', 'F'][i % 4], start: i * 2, end: i * 2 + 2,
