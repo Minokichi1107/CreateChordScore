@@ -3299,7 +3299,7 @@ function _generateSectionName(type) {
 /**
  * _isAutoSectionName — 既存Section名が自動命名パターンかを判定する。
  *
- * 旧保存データには手入力フラグがないため、全分類の標準ラベルと連番形式を照合する。
+ * 旧保存データには手入力フラグがないため、現在の分類に対応する標準ラベルと連番形式を照合する。
  * 明示的な手入力フラグがあるDraft名は、呼び出し側でそちらを優先する。
  */
 function _isAutoSectionName(name, type) {
