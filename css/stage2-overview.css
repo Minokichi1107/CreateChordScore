@@ -403,3 +403,47 @@
     flex-wrap: wrap;
   }
 }
+
+/* Phase150: Stage1 balance toward Stage2 overview */
+#modal-box:has(.sr1-root) {
+  max-width: min(880px, 94vw);
+  width: min(880px, 94vw);
+  padding: 12px 14px 10px;
+}
+#modal-box:has(.sr1-root) .sr1-mode-btn {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  gap: 4px;
+  border-width: 1.5px;
+  border-radius: 8px;
+  line-height: 1.25;
+}
+#modal-box:has(.sr1-root) .sr1-mode-btn .sr1-ico {
+  font-size: 11px;
+}
+#modal-box:has(.sr1-root) .sr1-header-row {
+  gap: 8px 10px;
+}
+#modal-box:has(.sr1-root) .sr1-chord-grid {
+  --sr1-row-h: 32px;
+  --sr1-row-gap: 4px;
+}
+#modal-box:has(.sr1-root) .sr1-chord {
+  min-height: 28px;
+  padding: 3px 4px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+#modal-box:has(.sr1-root) .sr1-chords-wrap {
+  padding: 4px;
+}
+#modal-box:has(.sr1-root) .sr1-chord-row {
+  gap: 4px;
+}
+@media (max-width: 900px) {
+  #modal-box:has(.sr1-root) {
+    max-width: 94vw;
+    width: 94vw;
+  }
+}
