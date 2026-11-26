@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -159,11 +159,13 @@
       </div>
     </div>
 
+    <!-- タブヘッダー -->
     <div id="left-tabs">
       <button class="left-tab active" data-tab="palette">パレット <span id="pal-count">0</span></button>
       <button class="left-tab" data-tab="lyric">歌詞入力</button>
     </div>
 
+    <!-- パレットタブ -->
     <div id="tab-palette" class="left-tab-content active">
       <div class="pbody" style="padding-bottom:5px">
         <div id="pal-filter-row">
@@ -184,6 +186,7 @@
       </div>
     </div>
 
+    <!-- 歌詞タブ -->
     <div id="tab-lyric" class="left-tab-content">
       <div id="lyric-import">
         <h4>歌詞テキスト入力（改行で行分割）</h4>
@@ -197,7 +200,9 @@
     </div>
   </aside>
 
+  <!-- CENTER -->
   <section id="panel-center">
+    <!-- ⑦ 置換バー -->
     <div id="replace-bar">
       <span>🔍 検索:</span>
       <input type="text" id="rb-find" class="rb-in" placeholder="検索コード">
@@ -232,13 +237,20 @@
         </div>
         <button class="trans-btn" id="btn-m5">−5s</button>
         <div class="speed-cluster">
-          <input type="range" id="speed-sel" min="25" max="300" step="1" value="100" title="再生速度 (1〜300%)">
-          <button id="speed-reset" title="100%にリセット">100%</button>
+          <input type="range" id="speed-sel" min="25" max="300" step="1" value="100"
+           
+            title="再生速度 (1〜300%)">
+          <button id="speed-reset" title="100%にリセット"
+           
+            >100%</button>
         </div>
         <button id="tap-btn" disabled>TAP</button>
+        <!-- 再生中コード表示は非表示（カポ・コード譜と連動していないため） -->
         <span id="cur-chord" style="display:none">-</span>
+        <!-- 音量バー -->
         <button id="vol-btn" title="ミュート切替">🔊</button>
-        <input type="range" id="vol-slider" min="0" max="100" value="80" title="音量">
+        <input type="range" id="vol-slider" min="0" max="100" value="80" title="音量"
+         >
       </div>
     </div>
 
@@ -248,11 +260,17 @@
     </div>
   </section>
 
+  <!-- RIGHT -->
+<!-- 変更後（修正版） -->
   <aside id="panel-right">
+
+    <!-- タブボタン行 -->
     <div id="right-tabs">
       <button id="tab-library" class="right-tab active">LIBRARY</button>
       <button id="tab-diagram" class="right-tab">DIAGRAM</button>
     </div>
+
+    <!-- ライブラリパネル（初期表示） -->
     <div id="panel-library">
       <div class="library-toolbar">
         <span class="library-toolbar-label">保存済みプロジェクト</span>
@@ -262,8 +280,12 @@
           <option value="artist">アーティスト順</option>
         </select>
       </div>
-      <div class="library-list" id="library-list"></div>
+      <div class="library-list" id="library-list">
+        <!-- JSで動的生成 -->
+      </div>
     </div>
+
+    <!-- ダイアグラムパネル（初期は非表示） -->
     <div id="panel-diagram" hidden>
       <div class="phdr">CHORD DIAGRAM<span id="diag-lock-badge">🔒</span></div>
       <div id="diag-search">
@@ -273,6 +295,7 @@
         <div id="diag-title"></div>
         <div id="diag-container"><div class="diag-empty">コードタグをホバーまたは<br>上の入力欄にコード名を入力</div></div>
       </div>
+      <!-- ⑧ 下部固定登録ボタン -->
       <div id="diag-footer">
         <button id="btn-add-diag-bottom">＋ ダイアグラムを手動登録</button>
         <div id="diag-footer-sub">
@@ -283,6 +306,7 @@
         </div>
       </div>
     </div>
+
   </aside>
 </main>
 
@@ -293,10 +317,11 @@
   自動保存:<span id="st-save">-</span>
 </div>
 
+<!-- TAP MODE OVERLAY -->
 <div id="tap-overlay">
   <div id="tap-ov-header">
     <div id="tap-ov-title">🎵 TAPモード — 再生しながら歌詞行に時刻をセット</div>
-    <div id="tap-ov-chord" style="display:none">-</div>
+    <!-- 再生中コード表示は非表示 --><div id="tap-ov-chord" style="display:none">-</div>
     <div id="tap-ov-time">0:00.0</div>
     <button id="btn-tapmode-close">✕ 閉じる</button>
   </div>
@@ -311,7 +336,9 @@
     </div>
     <button class="trans-btn" id="tov-m5">−5s</button>
     <div class="speed-cluster">
-      <input type="range" id="tov-speed" min="25" max="300" step="1" value="100" title="再生速度 (1〜300%)">
+      <input type="range" id="tov-speed" min="25" max="300" step="1" value="100"
+       
+        title="再生速度 (1〜300%)">
       <span id="tov-speed-label">100%</span>
       <button id="tov-speed-reset" class="speed-reset-btn" title="100%にリセット">↺</button>
     </div>
@@ -333,41 +360,70 @@
   </div>
 </div>
 
+<!-- PERFORM MODE OVERLAY -->
 <div id="perform-overlay" hidden>
   <div id="perform-header">
     <div id="perform-title">🎸 演奏モード</div>
     <span id="perform-capo-display" style="display:none"></span>
     <div class="perform-options">
-      <label><input type="radio" name="perform-mode" value="follow" checked> 追従</label>
-      <label><input type="radio" name="perform-mode" value="static"> 静止</label>
-      <label><input type="checkbox" id="perform-diag-toggle" checked> ダイアグラム</label>
-      <label class="control-inline">文字 <input type="range" id="perform-font-scale" min="0.7" max="1.5" step="0.1" value="1.0"></label>
+      <label>
+        <input type="radio" name="perform-mode" value="follow" checked>
+        追従
+      </label>
+      <label>
+        <input type="radio" name="perform-mode" value="static">
+        静止
+      </label>
+      <label>
+        <input type="checkbox" id="perform-diag-toggle" checked>
+        ダイアグラム
+      </label>
+      <label class="control-inline">
+        文字
+        <input type="range" id="perform-font-scale" min="0.7" max="1.5" step="0.1" value="1.0"
+         >
+      </label>
     </div>
-    <button id="btn-perform-close">✕ 閉じる</button>
+  <button id="btn-perform-close">✕ 閉じる</button>
   </div>
   <div id="perform-controls">
     <button class="play-btn" id="perform-play-btn">
       <svg class="btn-icon icon-play" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><polygon points="6,4 20,12 6,20" fill="currentColor"/></svg>
       <svg class="btn-icon icon-pause" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="4" width="4" height="16" fill="currentColor"/><rect x="15" y="4" width="4" height="16" fill="currentColor"/></svg>
     </button>
-    <div id="perform-time">0:00.0 / 0:00</div>
     <div id="perform-seek-wrap">
       <div id="perform-seek-track"><div id="perform-seek-fill"></div></div>
       <input type="range" id="perform-seek-in" min="0" max="1000" value="0">
     </div>
+    <span id="perform-time">0:00</span>
+    <button id="vol-btn-perform" title="ミュート切替">🔊</button>
+    <input type="range" id="vol-slider-perform" min="0" max="100" value="80" title="音量">
     <div class="speed-cluster">
-      <input type="range" id="perform-speed" min="25" max="300" step="1" value="100" title="再生速度">
+      <input type="range" id="perform-speed" min="25" max="300" step="1" value="100"
+       
+        title="再生速度">
       <span id="perform-speed-label">100%</span>
       <button id="perform-speed-reset" class="speed-reset-btn" title="100%にリセット">↺</button>
     </div>
-    <button id="vol-btn-perform" title="ミュート切替">🔊</button>
-    <input type="range" id="vol-slider-perform" min="0" max="100" value="80" title="音量">
   </div>
-  <div id="perform-content"></div>
+  <div id="perform-lines"></div>
 </div>
 
-<div id="chart-mode" hidden>
-  <div id="section-bar"></div>
+<div id="chart-overlay" hidden>
+  <div id="chart-header">
+    <span class="chart-header-label">CHART</span>
+    <span id="chart-header-info"></span>
+    <div id="chart-col-switcher">
+      <button class="chart-col-btn" data-cols="1">1列</button>
+      <button class="chart-col-btn" data-cols="2">2列</button>
+      <button class="chart-col-btn active" data-cols="3">3列</button>
+      <button class="chart-col-btn" data-cols="4">4列</button>
+    </div>
+    <button id="btn-analysis-edit" class="chart-edit-btn">✎ 編集</button>
+    <button id="btn-chart-close" class="hdr-btn">✕ 閉じる</button>
+  </div>
+  <!-- Phase101-1: Section Bar（app.js所有・読み取り専用一覧表示） -->
+  <div id="section-bar" hidden></div>
   <div id="chart-grid"></div>
 </div>
 
@@ -381,8 +437,98 @@
 
 <div id="toast"></div>
 
+<!-- Phase121: Debug Session Recorder — Recording中のみ表示するインジケータ。
+       Chart/Perform/TAP等の全画面overlayより確実に手前に出るよう、
+       state.cssで高いz-indexを明示する。Recorder自体のAuthorityは
+       持たない（app.js側が表示/非表示を切り替えるだけの純粋なDOM要素）。 -->
+<div id="debug-rec-indicator" hidden>● REC</div>
+
+
+<!-- SETTINGS PANEL -->
+<div id="settings-overlay"></div>
+<div id="settings-panel">
+  <div id="settings-header">
+    <span id="settings-title">⚙ 設定</span>
+    <button id="settings-close">✕</button>
+  </div>
+  <div id="settings-body">
+    <div class="settings-section">
+      <div class="settings-section-title">テーマ</div>
+      <div id="theme-options">
+        <button class="theme-btn active" data-theme="dark">
+          <span class="theme-preview dark-preview"></span>
+          Dark
+        </button>
+        <button class="theme-btn" data-theme="silver">
+          <span class="theme-preview silver-preview"></span>
+          Silver
+        </button>
+        <button class="theme-btn" data-theme="blue">
+          <span class="theme-preview blue-preview"></span>
+          Blue
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <audio id="audio-el" preload="auto"></audio>
 
+<script>
+// 左パネルタブ切り替え
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.left-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('.left-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.left-tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    });
+  });
+
+  // テーマ初期化
+  const savedTheme = localStorage.getItem('chordscore-theme') || 'dark';
+  applyTheme(savedTheme);
+
+  // 設定パネル開閉
+  const panel = document.getElementById('settings-panel');
+  const overlay = document.getElementById('settings-overlay');
+
+  document.getElementById('btn-open-settings-theme').addEventListener('click', () => {
+    panel.classList.add('open');
+    overlay.classList.add('open');
+  });
+  document.getElementById('project-title').addEventListener('blur', function() {
+    this.scrollLeft = 0;
+  });
+  document.getElementById('project-artist').addEventListener('blur', function() {
+    this.scrollLeft = 0;
+  });
+  document.getElementById('settings-close').addEventListener('click', closeSettings);
+  overlay.addEventListener('click', closeSettings);
+
+  function closeSettings() {
+    panel.classList.remove('open');
+    overlay.classList.remove('open');
+  }
+
+  // テーマ選択
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      applyTheme(btn.dataset.theme);
+      localStorage.setItem('chordscore-theme', btn.dataset.theme);
+    });
+  });
+
+  function applyTheme(theme) {
+    document.body.dataset.theme = theme;
+    document.querySelectorAll('.theme-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.theme === theme);
+    });
+  }
+});
+</script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
