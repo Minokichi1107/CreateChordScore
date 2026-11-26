@@ -376,7 +376,7 @@ export function buildSectionOverview(draft, buffer, timing, opts = {}) {
     const endBeat = beatAt && finite(tEnd) ? beatAt(tEnd) : null;
     const bStart = startBeat?.value ?? null;
     const bEnd = endBeat?.value ?? null;
-    const boundaries = measureBoundaries(measures, beatAt);
+    const boundaries = typeof beatAt === 'function' ? measureBoundaries(measures, beatAt) : [];
     const totalBeats = finite(bStart) && finite(bEnd) && bEnd > bStart ? bEnd - bStart : null;
     const displayBStart = snapBeatToBoundary(bStart, boundaries, breakdownTol);
     const displayBEnd = snapBeatToBoundary(bEnd, boundaries, breakdownTol);
