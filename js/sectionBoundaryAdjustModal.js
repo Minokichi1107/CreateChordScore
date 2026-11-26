@@ -19,6 +19,7 @@ function chordEnd(buffer, index) {
 export function openSectionBoundaryAdjustModal(p) {
   const {
     openModal, mkMBtn, draft, buffer, prevId, nextId, runtime = null,
+    sectionTypes = [],
     formatChord = chord => chord?.chord ?? '',
     onApply, onReturnToOverview, onTestPlay, onTestStop,
     onKeyShield, onKeyUnshield, isCurrent,
@@ -61,6 +62,13 @@ export function openSectionBoundaryAdjustModal(p) {
     try { return formatChord(buffer[index], index); }
     catch { return String(buffer[index]?.chord ?? ''); }
   }
+  function sectionIdentity(section) {
+    const name = String(section?.name ?? '').trim() || '名称未設定';
+    const type = sectionTypes.find(item => item?.value === section?.type)?.label
+      || section?.type
+      || '種類未設定';
+    return { name, type };
+  }
   function boundaryListHtml() {
     const items = [];
     for (let i = pair.prevStartIdx; i <= pair.nextEndIdx - 1; i++) {
@@ -81,18 +89,41 @@ export function openSectionBoundaryAdjustModal(p) {
     const startSec = chordStart(buffer, rangeStart);
     const endSec = chordEnd(buffer, rangeEnd);
     const playable = Number.isFinite(startSec) && Number.isFinite(endSec) && endSec > startSec;
+    const previousSection = draft.sections[pair.prevIndex];
+    const nextSection = draft.sections[pair.nextIndex];
+    const previousIdentity = sectionIdentity(previousSection);
+    const nextIdentity = sectionIdentity(nextSection);
     return `
       <div class="sba-root" id="sba-root">
         <div class="sba-intro">
-          <strong>「ここから次のSection」になる位置を選択します。</strong>
-          <span>選択したコードまでが「${esc(draft.sections[pair.prevIndex]?.name || '前のSection')}」、次のコードから「${esc(draft.sections[pair.nextIndex]?.name || '次のSection')}」に含まれます。</span>
+          <div class="sba-pair">
+            <div class="sba-section-card sba-section-prev">
+              <span class="sba-section-role">前のSection</span>
+              <strong>${esc(previousIdentity.name)}</strong>
+              <span class="sba-section-type">${esc(previousIdentity.type)}</span>
+            </div>
+            <span class="sba-pair-arrow" aria-hidden="true">→</span>
+            <div class="sba-section-card sba-section-next">
+              <span class="sba-section-role">次のSection</span>
+              <strong>${esc(nextIdentity.name)}</strong>
+              <span class="sba-section-type">${esc(nextIdentity.type)}</span>
+            </div>
+          </div>
+          <span>コードを選ぶと、そのコードまでが前のSection、次のコードからが次のSectionになります。</span>
         </div>
         <div class="sba-boundary-list" role="group" aria-label="境界位置">${boundaryListHtml()}</div>
-        <div class="sba-range">
-          <label>試聴開始<select id="sba-range-start">${rangeOptions(rangeStart)}</select></label>
-          <label>試聴終了<select id="sba-range-end">${rangeOptions(rangeEnd)}</select></label>
-          <button type="button" class="sec-btn" id="sba-play" ${playable ? '' : 'disabled'}>${playing ? '試聴停止' : '試聴'}</button>
-        </div>
+        <section class="sba-audition" aria-label="試聴範囲の設定">
+          <div class="sba-audition-head">
+            <strong>試聴範囲</strong>
+            <span>境界の前後を聴いて、切れ目が自然か確認します。</span>
+          </div>
+          <div class="sba-range">
+            <label>開始コード<select id="sba-range-start">${rangeOptions(rangeStart)}</select></label>
+            <label>終了コード<select id="sba-range-end">${rangeOptions(rangeEnd)}</select></label>
+            <button type="button" class="sec-btn" id="sba-play" ${playable ? '' : 'disabled'}>${playing ? '■ 停止' : '▶ 試聴'}</button>
+          </div>
+          <div class="sba-range-summary">${rangeStart + 1}番目「${esc(chordLabel(rangeStart))}」～ ${rangeEnd + 1}番目「${esc(chordLabel(rangeEnd))}」</div>
+        </section>
         ${!inRange() ? `
           <div class="sba-notice" role="status">
             境界位置が試聴範囲の外にあります。
