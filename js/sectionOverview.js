@@ -448,6 +448,35 @@ export function buildSectionOverview(draft, buffer, timing, opts = {}) {
   return { rows, invalidRows };
 }
 
+/**
+ * Resolve the first N chords of a Section into a playable time range.
+ * Returns null when the Section or chord timing is not usable.
+ */
+export function getSectionPreviewRange(row, buffer, chordCount = 4) {
+  const safeBuffer = Array.isArray(buffer) ? buffer : [];
+  const startIdx = row?.real?.startIdx;
+  const sectionEndIdx = row?.real?.endIdx;
+  if (!Number.isInteger(startIdx) || !Number.isInteger(sectionEndIdx) ||
+      startIdx < 0 || sectionEndIdx < startIdx || sectionEndIdx >= safeBuffer.length) {
+    return null;
+  }
+  const count = Number.isFinite(chordCount)
+    ? Math.max(1, Math.min(8, Math.round(chordCount)))
+    : 4;
+  const endIdx = Math.min(sectionEndIdx, startIdx + count - 1);
+  const startSec = safeBuffer[startIdx]?.start;
+  const lastChord = safeBuffer[endIdx];
+  const endSec = lastChord?.end ?? lastChord?.start;
+  if (!finite(startSec) || !finite(endSec) || endSec <= startSec) return null;
+  return {
+    startIdx,
+    endIdx,
+    startSec,
+    endSec,
+    chordCount: endIdx - startIdx + 1,
+  };
+}
+
 /** Pure merge eligibility check for a Section card. */
 export function canMergeWithPrevious(draft, buffer, sectionId) {
   const sections = Array.isArray(draft?.sections) ? draft.sections : [];
