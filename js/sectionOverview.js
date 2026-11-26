@@ -382,15 +382,16 @@ export function buildSectionOverview(draft, buffer, timing, opts = {}) {
     const bStart = startBeat?.value ?? null;
     const bEnd = endBeat?.value ?? null;
     const boundaries = measureBoundaries(measures, beatAt);
+    const totalBeats = finite(bStart) && finite(bEnd) && bEnd > bStart ? bEnd - bStart : null;
     const displayBStart = snapBeatToBoundary(bStart, boundaries, breakdownTol);
     const displayBEnd = snapBeatToBoundary(bEnd, boundaries, breakdownTol);
-    const totalBeats = finite(displayBStart) && finite(displayBEnd) && displayBEnd > displayBStart
+    const displayTotalBeats = finite(displayBStart) && finite(displayBEnd) && displayBEnd > displayBStart
       ? displayBEnd - displayBStart
       : null;
     const breakdown = calculateMeasureBreakdown(bStart, bEnd, measures, beatAt, breakdownTol);
     const startPosition = resolveMeasureContext(tStart, timing, measures, beatAt, isPickup, startSnapTol);
     const labels = makeLengthLabels(
-      totalBeats,
+      displayTotalBeats,
       breakdown,
       finite(bStart) && nearestBoundaryIndex(measureBoundaries(measures, beatAt), bStart, breakdownTol) >= 0,
       finite(bEnd) && nearestBoundaryIndex(measureBoundaries(measures, beatAt), bEnd, breakdownTol) >= 0,
