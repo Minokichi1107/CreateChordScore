@@ -2112,3 +2112,102 @@ body:not([data-theme="dark"]) .sr1-invalid {
     min-width: 0;
   }
 }
+
+
+/* Boundary editor: one chord timeline is shared by boundary and audition modes. */
+.sba-timeline-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--sr1-card-border);
+  border-radius: 9px;
+  background: var(--bg-secondary, var(--sr1-card-bg));
+}
+.sba-timeline-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.sba-timeline-toolbar .sec-btn.is-active {
+  border-color: var(--sr1-play);
+  background: var(--sr1-play-bg);
+  color: var(--s2-readable);
+  font-weight: 700;
+}
+.sba-timeline-toolbar .sba-range-step {
+  flex: 1 1 280px;
+  margin: 0 4px;
+}
+.sba-timeline {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+  gap: 7px;
+  max-height: min(34vh, 300px);
+  overflow: auto;
+  padding: 4px;
+  border-radius: 7px;
+  background: var(--surface-base);
+  overscroll-behavior: contain;
+}
+.sba-timeline-chord {
+  display: flex;
+  min-width: 0;
+  min-height: 54px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border: 1px solid var(--sr1-card-border);
+  border-radius: 7px;
+  background: var(--sr1-card-bg);
+  color: var(--s2-readable);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.sba-timeline-chord span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sba-timeline-chord small {
+  color: var(--s2-readable);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+.sba-timeline-chord.is-in-range {
+  border-color: var(--sr1-play);
+  background: var(--sr1-play-bg);
+}
+.sba-timeline-chord.is-range-start,
+.sba-timeline-chord.is-range-end {
+  outline: 2px solid var(--sr1-play);
+  outline-offset: 1px;
+}
+.sba-timeline-chord.is-boundary-candidate {
+  border: 2px solid var(--sr1-bound);
+}
+.sba-timeline-chord.is-current-boundary:not(.is-boundary-candidate) {
+  border-style: dashed;
+  border-color: var(--text-secondary);
+}
+.sba-timeline-chord:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.sba-range-summary {
+  color: var(--s2-readable);
+  font-size: 11px;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .sba-timeline-panel { padding: 9px; }
+  .sba-timeline-toolbar .sba-range-step { flex-basis: 100%; order: 3; }
+  .sba-timeline { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); max-height: 32vh; }
+}
