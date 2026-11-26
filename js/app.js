@@ -3717,7 +3717,17 @@ async function startSectionReconfiguration() {
   _sectionReconfigRuntime.closed = false;
 
   const previousToken = Number(_sectionReconfigRuntime.view?.token) || 0;
-  const initialSectionId = draft.sections[0]?.id ?? null;
+  const initialSection = draft.sections
+    .map((section, index) => ({
+      section,
+      index,
+      start: buffer.findIndex(chord => chord?._id === section?.startChordId),
+    }))
+    .filter(item => item.start >= 0)
+    .sort((a, b) => a.start - b.start || a.index - b.index)[0]?.section
+    ?? draft.sections[0]
+    ?? null;
+  const initialSectionId = initialSection?.id ?? null;
   _sectionReconfigRuntime.view = {
     stage: 1,
     sectionId: initialSectionId,
