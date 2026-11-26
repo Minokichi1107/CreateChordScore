@@ -55,7 +55,6 @@ export function openSectionOverviewModal(p) {
     sectionTypes = [],
     typeLabel,
     onEditSplit,
-    onAdjustBoundary,
     onAdopt,
     onClose,
     onTestPlay,
@@ -152,7 +151,6 @@ export function openSectionOverviewModal(p) {
     })[status] || '';
   }
 
-  function compareHtml() { return ''; }
   function cardHtml(row, index, invalid = false) {
     const status = rowStatusLabel(row.status);
     const preview = invalid ? null : getSectionPreviewRange(row, buffer, 4);
