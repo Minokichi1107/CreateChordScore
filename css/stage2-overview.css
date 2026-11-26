@@ -9,7 +9,7 @@
   flex-direction: column;
   box-sizing: border-box;
   overflow: hidden;
-  padding: 12px 14px 12px;
+  padding: 12px 14px 12px 12px;
 }
 #modal-box:has(.s2-root) #m-body {
   flex: 1 1 auto;
@@ -133,7 +133,7 @@
 
 .s2-scroll {
   flex: 1 1 auto; min-height: 0; overflow: auto;
-  overscroll-behavior: contain; padding: 2px 4px 8px;
+  overscroll-behavior: contain; padding: 2px 2px 8px 0;
 }
 .s2-card-list { display: flex; flex-direction: column; gap: 8px; }
 
@@ -148,7 +148,7 @@
   column-gap: 0;
   row-gap: 0;
   min-width: 0;
-  padding: 11px 12px;
+  padding: 10px 12px 10px 8px;
   border: 1px solid var(--s2-card-border);
   border-radius: 14px;
   background: var(--s2-card-bg);
@@ -181,9 +181,9 @@
 .s2-identity {
   flex-direction: row;
   align-items: center;
-  gap: 10px;
-  padding-right: 12px;
-  padding-left: 2px;
+  gap: 8px;
+  padding-right: 10px;
+  padding-left: 0;
 }
 .s2-meta-length { padding-left: 4px; }
 .s2-meta-time { padding-left: 4px; }
@@ -339,4 +339,55 @@
   .s2-actions { grid-column: 1; grid-row: auto; flex-direction: row; flex-wrap: wrap; }
   .s2-actions > * { width: auto; flex: 1 1 auto; }
   .s2-meta-time { display: flex; }
+}
+
+/* Override analysis-editor.css legacy .s2-* (higher specificity) */
+#modal-box:has(.s2-root) .s2-scroll {
+  padding: 2px 2px 6px 0;
+}
+#modal-box:has(.s2-root) .s2-card {
+  grid-template-columns:
+    minmax(130px, 1.05fr)
+    minmax(105px, 0.75fr)
+    minmax(75px, 0.5fr)
+    minmax(190px, 1.5fr);
+  gap: 0;
+  padding: 10px 12px 10px 8px;
+  align-items: center;
+}
+#modal-box:has(.s2-root) .s2-identity {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 10px 0 0;
+  margin: 0;
+  min-height: 40px;
+  border-right: 1px solid var(--s2-card-border, var(--border-ui, #4a5160));
+}
+#modal-box:has(.s2-root) .s2-num {
+  margin: 0;
+  flex: none;
+}
+#modal-box:has(.s2-root) .s2-meta-length,
+#modal-box:has(.s2-root) .s2-meta-time {
+  padding: 0 10px 0 6px;
+  margin: 0;
+  min-height: 40px;
+  border-right: 1px solid var(--s2-card-border, var(--border-ui, #4a5160));
+}
+#modal-box:has(.s2-root) .s2-actions {
+  padding-left: 8px;
+  gap: 5px;
+  justify-content: flex-end;
+}
+#modal-box:has(.s2-root) .s2-play-btn,
+#modal-box:has(.s2-root) .s2-edit-btn,
+#modal-box:has(.s2-root) .s2-merge-btn {
+  padding: 5px 9px;
+  font-size: 11px;
+}
+#modal-box:has(.s2-root) .s2-merge-btn {
+  padding: 5px 8px;
+  font-size: 10px;
 }
