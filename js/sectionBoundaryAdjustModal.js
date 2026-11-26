@@ -36,8 +36,11 @@ export function openSectionBoundaryAdjustModal(p) {
   let message = '';
   const originalBoundary = pair.prevEndIdx;
   let candidate = originalBoundary;
-  const initialRangeStart = Math.max(0, Math.min(pair.prevEndIdx - 2, buffer.length - 4));
-  const initialRangeEnd = Math.min(buffer.length - 1, initialRangeStart + 3);
+  const initialRangeStart = Math.max(
+    pair.prevStartIdx,
+    Math.min(pair.prevEndIdx - 2, pair.nextEndIdx - 3),
+  );
+  const initialRangeEnd = Math.min(pair.nextEndIdx, initialRangeStart + 3);
   let rangeStart = initialRangeStart;
   let rangeEnd = initialRangeEnd;
   let rangeEditTarget = 'start';
@@ -149,14 +152,14 @@ export function openSectionBoundaryAdjustModal(p) {
   }
   function render() {
     if (!active() || !root) return;
-    const previousScrollLeft = root.querySelector('.sba-range-chords')?.scrollLeft ?? 0;
+    const timelineScrollTop = root.querySelector('.sba-timeline')?.scrollTop ?? 0;
     const wrap = document.createElement('div');
     wrap.innerHTML = bodyHtml();
     const next = wrap.firstElementChild;
     root.replaceWith(next);
     root = next;
-    const rangeChords = root.querySelector('.sba-range-chords');
-    if (rangeChords) rangeChords.scrollLeft = previousScrollLeft;
+    const timeline = root.querySelector('.sba-timeline');
+    if (timeline) timeline.scrollTop = timelineScrollTop;
     bind();
   }
   function setCandidate(index) {
@@ -168,7 +171,7 @@ export function openSectionBoundaryAdjustModal(p) {
   }
   function setRange(start, end) {
     if (!Number.isInteger(start) || !Number.isInteger(end) ||
-        start < 0 || end >= buffer.length || start > end) return;
+        start < pair.prevStartIdx || end > pair.nextEndIdx || start > end) return;
     if (start === rangeStart && end === rangeEnd) return;
     invalidatePlayback();
     rangeStart = start;
@@ -220,9 +223,6 @@ export function openSectionBoundaryAdjustModal(p) {
     onReturnToOverview?.({ reason, applied, prevId, nextId });
   }
   function bind() {
-    root.querySelectorAll('[data-sba-candidate]').forEach(button => {
-      button.addEventListener('click', () => setCandidate(Number(button.dataset.sbaCandidate)));
-    });
     root.querySelectorAll('[data-sba-mode]').forEach(button => {
       button.addEventListener('click', () => {
         const nextMode = button.dataset.sbaMode === 'range' ? 'range' : 'boundary';
@@ -257,8 +257,8 @@ export function openSectionBoundaryAdjustModal(p) {
     });
     root.querySelector('#sba-play')?.addEventListener('click', () => playing ? stopPlayback() : startPlayback());
     root.querySelector('#sba-align')?.addEventListener('click', () => {
-      const start = Math.max(0, Math.min(candidate - 2, buffer.length - 4));
-      setRange(start, Math.min(buffer.length - 1, start + 3));
+      const start = Math.max(pair.prevStartIdx, Math.min(candidate - 2, pair.nextEndIdx - 3));
+      setRange(start, Math.min(pair.nextEndIdx, start + 3));
     });
   }
   keyHandler = event => {
