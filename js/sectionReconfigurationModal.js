@@ -1771,13 +1771,22 @@ export function openSectionReconfigurationModal(p) {
     }
     // UI stores next-section start; API wants last chord of front half
     const endChordIndex = splitCandidate - 1;
+    const sectionBeforeSplit = draft.sections[sectionIdx];
+    const splitNameIsAuto = sectionBeforeSplit?.nameUserEdited !== true
+      && isAutoSectionName(sectionBeforeSplit?.name, sectionBeforeSplit?.type);
+    const splitOptions = {
+      inheritBackMeta: splitContext?.inheritBackMeta === true,
+      ...(splitNameIsAuto
+        ? { defaultNameForType: type => generateDraftSectionName(type, null) }
+        : {}),
+    };
     const r = splitDraftAtChordIndex(
       draft,
       sectionIdx,
       endChordIndex,
       buffer,
       undefined,
-      { inheritBackMeta: splitContext?.inheritBackMeta === true },
+      splitOptions,
     );
     if (!r.ok) {
       message = `分割できません（${REASON_LABEL[r.reason] || r.reason}）`;
