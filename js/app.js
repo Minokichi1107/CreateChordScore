@@ -3530,7 +3530,9 @@ function switchSectionReconfigStage(stage, options = {}) {
     };
     _sectionReconfigRuntime.splitContext = {
       sectionId,
-      returnTo: 2,
+      // The initial Stage1 workflow stays in the single-Section editor after a split.
+      // Stage2-originated edits explicitly opt into returning to the overview.
+      returnTo: options.returnToOverviewOnSplit === true ? 2 : null,
       inheritBackMeta: true,
     };
     _sectionReconfigModalHandle = openSectionReconfigurationModal({
@@ -3586,7 +3588,10 @@ function switchSectionReconfigStage(stage, options = {}) {
     timing: _sectionReconfigTiming(),
     typeLabel: type => _sectionTypeLabel(type, _loadSectionTypeGroup()),
     initialHistoryAction: options.historyAction ?? null,
-    onEditSplit: id => switchSectionReconfigStage(1, { sectionId: id }),
+    onEditSplit: id => switchSectionReconfigStage(1, {
+      sectionId: id,
+      returnToOverviewOnSplit: true,
+    }),
     onAdjustBoundary: (prevId, nextId) => switchSectionReconfigStage(3, { prevId, nextId }),
     onTestPlay: ({ startSec, endSec, onEnded, onTime }) => {
       const audio = getAudioElement?.();
