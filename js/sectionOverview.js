@@ -289,7 +289,7 @@ function calculateMeasureBreakdown(bStart, bEnd, measures, beatAt, tolerance) {
   return { leadBeats, fullMeasures, tailBeats };
 }
 
-function makeLengthLabels(totalBeats, breakdown, alignedStart, alignedEnd) {
+function makeLengthLabels(totalBeats, breakdown) {
   if (!finite(totalBeats)) return { lengthLabel: '—', lengthSub: null };
   const total = `${formatSectionBeatValue(totalBeats)}拍`;
   const { leadBeats, fullMeasures, tailBeats } = breakdown;
@@ -297,21 +297,16 @@ function makeLengthLabels(totalBeats, breakdown, alignedStart, alignedEnd) {
     return { lengthLabel: total, lengthSub: null };
   }
 
-  if (alignedStart && alignedEnd && fullMeasures > 0) {
-    return { lengthLabel: `${fullMeasures}小節・${total}`, lengthSub: null };
-  }
-
   const hasLead = leadBeats > EPS;
   const hasTail = tailBeats > EPS;
-  if (fullMeasures === 0 && !(hasLead && hasTail)) {
-    return { lengthLabel: total, lengthSub: null };
+  if (fullMeasures > 0) {
+    let lengthSub = null;
+    if (hasLead && hasTail) lengthSub = '小節の途中から始まり、途中で終わります';
+    else if (hasLead) lengthSub = '小節の途中から始まります';
+    else if (hasTail) lengthSub = '小節の途中で終わります';
+    return { lengthLabel: `${fullMeasures}小節`, lengthSub };
   }
-
-  const parts = [];
-  if (hasLead) parts.push(`頭${formatSectionBeatValue(leadBeats)}拍`);
-  if (fullMeasures > 0) parts.push(`完全な${fullMeasures}小節`);
-  if (hasTail) parts.push(`末尾${formatSectionBeatValue(tailBeats)}拍`);
-  return { lengthLabel: total, lengthSub: parts.length ? `（${parts.join('＋')}）` : null };
+  return { lengthLabel: total, lengthSub: null };
 }
 
 function getSectionTimes(section, startIdx, endIdx, buffer) {
@@ -390,16 +385,13 @@ export function buildSectionOverview(draft, buffer, timing, opts = {}) {
       : null;
     const breakdown = calculateMeasureBreakdown(bStart, bEnd, measures, beatAt, breakdownTol);
     const startPosition = resolveMeasureContext(tStart, timing, measures, beatAt, isPickup, startSnapTol);
-    const labels = makeLengthLabels(
-      displayTotalBeats,
-      breakdown,
-      finite(bStart) && nearestBoundaryIndex(measureBoundaries(measures, beatAt), bStart, breakdownTol) >= 0,
-      finite(bEnd) && nearestBoundaryIndex(measureBoundaries(measures, beatAt), bEnd, breakdownTol) >= 0,
-    );
+    const labels = makeLengthLabels(displayTotalBeats, breakdown);
     const estimated = !!(startBeat?.extrapolated || endBeat?.extrapolated);
+    const hasPartialMeasure = finite(breakdown.leadBeats) && breakdown.leadBeats > EPS
+      || finite(breakdown.tailBeats) && breakdown.tailBeats > EPS;
     const lengthLabel = totalBeats == null
       ? '—'
-      : `${estimated ? '約' : ''}${labels.lengthLabel}`;
+      : `${estimated || hasPartialMeasure ? '約' : ''}${labels.lengthLabel}`;
     const lengthSub = labels.lengthSub;
 
     return {
