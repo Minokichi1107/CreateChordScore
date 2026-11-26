@@ -611,7 +611,7 @@ export function mergeDraftWithPrevious(draft, sectionIndex, buffer) {
 
 /**
  * Split section at sectionIndex so endChordIndex is the last chord of the front half.
- * Back half: new id, empty name/type.
+ * Back half: new id; optionally inherits category and receives a generated name.
  */
 export function splitDraftAtChordIndex(
   draft,
@@ -642,7 +642,6 @@ export function splitDraftAtChordIndex(
   };
   const inheritBackMeta = options?.inheritBackMeta === true;
   const autoBackName = inheritBackMeta
-    && section.nameUserEdited !== true
     && typeof options?.defaultNameForType === 'function';
   const back = {
     id: newId(),
