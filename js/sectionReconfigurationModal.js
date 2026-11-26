@@ -14,7 +14,9 @@ import {
   undoDraft,
   redoDraft,
   splitDraftAtChordIndex,
+  mergeDraftWithPrevious,
 } from './sectionReconfiguration.js';
+import { canMergeWithPrevious } from './sectionOverview.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -615,6 +617,14 @@ export function openSectionReconfigurationModal(p) {
   function bodyHtml() {
     const canUndo = (draft.undoStack?.length || 0) > 0;
     const canRedo = (draft.redoStack?.length || 0) > 0;
+    const mergeEligibility = canMergeWithPrevious(draft, buffer, selectedSectionId);
+    const mergeDisabled = !mergeEligibility.ok;
+    const mergeTitle = ({
+      'no-prev': '前に結合できるSectionがありません',
+      invalid: 'このSectionは構造的に不正です',
+      gap: 'Section間に隙間があるため結合できません',
+      overlap: 'Sectionが重複しているため結合できません',
+    })[mergeEligibility.reason] || '前のSectionと結合';
     const splitOn = uiMode === 'split';
     const boundaryOn = uiMode === 'boundary';
     const canSplitExec = splitOn && splitCandidate != null;
@@ -667,6 +677,7 @@ export function openSectionReconfigurationModal(p) {
         <div class="sr1-aux-toolbar" aria-label="構造編集">
           <button type="button" class="sec-btn" id="sr1-prev-sec" ${sectionIdx <= 0 ? 'disabled' : ''}>← Section</button>
           <button type="button" class="sec-btn" id="sr1-next-sec" ${sectionIdx >= draft.sections.length - 1 ? 'disabled' : ''}>Section →</button>
+          <button type="button" class="sec-btn" id="sr1-merge-prev" title="${esc(mergeTitle)}" ${mergeDisabled ? 'disabled' : ''}>前と結合</button>
           <button type="button" class="sec-btn" id="sr1-undo" ${canUndo ? '' : 'disabled'}>Undo</button>
           <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
@@ -749,6 +760,39 @@ export function openSectionReconfigurationModal(p) {
     if (nameEl && !draft.sections[sectionIdx].nameUserEdited && !nameInputSoftLock) {
       nameEl.value = draft.sections[sectionIdx].name;
     }
+  }
+
+  function mergeCurrentWithPrevious() {
+    beforeStructuralEdit();
+    const section = draft.sections[sectionIdx];
+    if (!section) return;
+    const eligibility = canMergeWithPrevious(draft, buffer, section.id);
+    if (!eligibility.ok) {
+      message = ({
+        'no-prev': '前に結合できるSectionがありません',
+        invalid: 'このSectionは構造的に不正です',
+        gap: 'Section間に隙間があるため結合できません',
+        overlap: 'Sectionが重複しているため結合できません',
+      })[eligibility.reason] || '結合できません';
+      fullRedraw();
+      return;
+    }
+    const result = mergeDraftWithPrevious(draft, sectionIdx, buffer);
+    if (!result.ok) {
+      message = `結合できません（${REASON_LABEL[result.reason] || result.reason}）`;
+      fullRedraw();
+      return;
+    }
+    uiMode = 'normal';
+    boundaryCandidate = null;
+    boundaryCandidateAtModeEnter = null;
+    splitCandidate = null;
+    splitCandidateAtModeEnter = null;
+    sectionIdx = result.mergedIndex;
+    selectedSectionId = result.merged.id;
+    resetPlayToSectionStart();
+    message = '前のSectionと結合しました';
+    fullRedraw();
   }
 
   function deleteCurrentInvalid() {
@@ -1241,6 +1285,7 @@ export function openSectionReconfigurationModal(p) {
       beforeStructuralEdit();
       if (redoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
     });
+    root.querySelector('#sr1-merge-prev')?.addEventListener('click', mergeCurrentWithPrevious);
     root.querySelector('#sr1-delete-sec')?.addEventListener('click', deleteCurrentInvalid);
     root.querySelector('.sr1-name')?.addEventListener('change', () => applyNameTypeFromInputs());
     root.querySelector('.sr1-type')?.addEventListener('change', () => onTypeChangeLive());
