@@ -1380,6 +1380,79 @@ body:not([data-theme="dark"]) .sr1-invalid {
   padding: 7px;
   font-size: 12px;
 }
+.sba-range-targets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  border-top: 1px solid var(--sr1-card-border);
+  padding-top: 10px;
+}
+.sba-range-target.is-active {
+  border-color: var(--sr1-bound);
+  background: var(--sr1-bound-bg);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.sba-range-chords {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  overflow-x: auto;
+  padding: 8px 2px 10px;
+  border-radius: 7px;
+  background: var(--surface-base);
+  scroll-behavior: auto;
+}
+.sba-range-chord {
+  position: relative;
+  display: flex;
+  flex: 0 0 76px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  min-height: 48px;
+  padding: 5px 4px;
+  border: 1px solid var(--sr1-card-border);
+  border-radius: 7px;
+  background: var(--sr1-card-bg);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sba-range-chord.is-in-range {
+  border-color: var(--sr1-play);
+  background: var(--sr1-play-bg);
+}
+.sba-range-chord.is-range-start,
+.sba-range-chord.is-range-end {
+  outline: 2px solid var(--sr1-bound);
+  outline-offset: 1px;
+}
+.sba-range-chord small {
+  color: var(--text-primary);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.sba-range-boundary {
+  display: flex;
+  flex: 0 0 58px;
+  align-items: center;
+  justify-content: center;
+  color: var(--sr1-bound);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+.sba-range-summary {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 .sba-notice {
   display: flex;
   align-items: center;
