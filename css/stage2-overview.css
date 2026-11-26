@@ -425,19 +425,6 @@
 #modal-box:has(.sr1-root) .sr1-header-row {
   gap: 8px 10px;
 }
-#modal-box:has(.sr1-root) .sr1-chord-grid {
-  --sr1-row-h: 32px;
-  --sr1-row-gap: 4px;
-}
-#modal-box:has(.sr1-root) .sr1-chord {
-  min-height: 28px;
-  padding: 3px 4px;
-  font-size: 12px;
-  border-radius: 7px;
-}
-#modal-box:has(.sr1-root) .sr1-chord-row {
-  gap: 4px;
-}
 @media (max-width: 900px) {
   #modal-box:has(.sr1-root) {
     max-width: 94vw;
@@ -484,21 +471,17 @@
   margin: 0 3px;
 }
 
-/* Phase150: Stage1 chord panel — tighten above, balance inside (force) */
+/* Phase150: Stage1 chord panel — equal top/bottom padding, fixed 3-row height */
 #modal-box:has(.sr1-root) .sr1-root,
 #sr1-root.sr1-root {
-  gap: 4px !important;
-}
-#modal-box:has(.sr1-root) .sr1-header,
-#sr1-root .sr1-header {
-  padding: 5px 10px !important;
-  gap: 4px !important;
+  gap: 5px !important;
 }
 #modal-box:has(.sr1-root) .sr1-chords-wrap,
 #sr1-root .sr1-chords-wrap {
-  margin-top: 0 !important;
-  margin-bottom: 4px !important;
-  padding: 6px 6px 6px 8px !important;
+  margin: 0 !important;
+  padding: 8px 8px !important;
+  align-items: center !important;
+  gap: 6px !important;
   box-sizing: border-box !important;
 }
 #modal-box:has(.sr1-root) .sr1-chord-grid,
@@ -507,12 +490,23 @@
   --sr1-row-gap: 6px !important;
   gap: 6px !important;
   padding: 0 !important;
+  flex: 1 1 auto !important;
+  height: calc(3 * 34px + 2 * 6px) !important;
+  max-height: calc(3 * 34px + 2 * 6px) !important;
+  min-height: calc(3 * 34px + 2 * 6px) !important;
+  box-sizing: border-box !important;
+}
+#modal-box:has(.sr1-root) .sr1-grid-scroller,
+#sr1-root .sr1-grid-scroller {
+  align-self: stretch !important;
+  height: calc(3 * 34px + 2 * 6px) !important;
 }
 #modal-box:has(.sr1-root) .sr1-chord-row,
 #sr1-root .sr1-chord-row {
   height: 34px !important;
   min-height: 34px !important;
   max-height: 34px !important;
+  flex: 0 0 34px !important;
   gap: 5px !important;
 }
 #modal-box:has(.sr1-root) .sr1-chord-row-cells,
@@ -526,8 +520,4 @@
   padding: 3px 4px !important;
   font-size: 12px !important;
   box-sizing: border-box !important;
-}
-#modal-box:has(.sr1-root) .sr1-panels,
-#sr1-root .sr1-panels {
-  margin-top: 2px !important;
 }
