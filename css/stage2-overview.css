@@ -447,3 +447,42 @@
     width: 94vw;
   }
 }
+
+/* Phase150: Stage1 bottom panels — less cramped */
+#modal-box:has(.sr1-root) .sr1-panels {
+  gap: 10px;
+  margin-top: 6px;
+}
+#modal-box:has(.sr1-root) .sr1-panel {
+  padding: 9px 12px;
+  gap: 10px;
+  min-height: 80px;
+}
+#modal-box:has(.sr1-root) .sr1-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+}
+#modal-box:has(.sr1-root) .sr1-panel-actions {
+  gap: 6px;
+}
+#modal-box:has(.sr1-root) .sr1-panel .sec-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 9px;
+  min-height: 28px;
+  line-height: 1.2;
+  border-radius: 7px;
+}
+#modal-box:has(.sr1-root) .sr1-panel input[type="number"],
+#modal-box:has(.sr1-root) .sr1-panel input[type="text"],
+#modal-box:has(.sr1-root) .sr1-panel .sec-input {
+  font-size: 11px;
+  padding: 4px 6px;
+  min-height: 28px;
+  border-radius: 6px;
+}
+#modal-box:has(.sr1-root) .sr1-panel-actions .sr1-vsep {
+  height: 1.2em;
+  margin: 0 3px;
+}
