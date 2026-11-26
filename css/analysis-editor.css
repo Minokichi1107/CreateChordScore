@@ -1313,6 +1313,17 @@ body:not([data-theme="dark"]) .sr1-invalid {
   border: 2px solid var(--sr1-bound);
   background: color-mix(in srgb, var(--sr1-bound) 9%, var(--sr1-card-bg));
 }
+.sba-chord.is-current-boundary:not(.is-boundary) {
+  border-style: dashed;
+  border-color: var(--text-secondary);
+}
+.sba-current-caption {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  white-space: nowrap;
+}
 .sba-boundary-caption {
   display: block;
   margin-top: 4px;

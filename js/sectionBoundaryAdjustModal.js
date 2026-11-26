@@ -33,7 +33,8 @@ export function openSectionBoundaryAdjustModal(p) {
   let closed = false;
   let busy = false;
   let message = '';
-  let candidate = pair.prevEndIdx;
+  const originalBoundary = pair.prevEndIdx;
+  let candidate = originalBoundary;
   let rangeStart = Math.max(0, Math.min(pair.prevEndIdx - 2, buffer.length - 4));
   let rangeEnd = Math.min(buffer.length - 1, rangeStart + 3);
   let playing = false;
@@ -64,10 +65,11 @@ export function openSectionBoundaryAdjustModal(p) {
     const items = [];
     for (let i = pair.prevStartIdx; i <= pair.nextEndIdx - 1; i++) {
       const selected = i === candidate;
+      const current = i === originalBoundary;
       items.push(`
-        <button type="button" class="sba-chord ${selected ? 'is-boundary' : ''}" data-sba-candidate="${i}" aria-pressed="${selected}">
+        <button type="button" class="sba-chord ${selected ? 'is-boundary' : ''} ${current ? 'is-current-boundary' : ''}" data-sba-candidate="${i}" aria-pressed="${selected}">
           <span class="sba-chord-name">${esc(chordLabel(i))}</span>
-          ${selected ? '<span class="sba-boundary-caption">ここまでが前Section</span>' : ''}
+          ${selected ? `<span class="sba-boundary-caption">${current ? '現在の境界' : '変更候補：ここまでが前Section'}</span>` : (current ? '<span class="sba-current-caption">現在の境界</span>' : '')}
         </button>`);
     }
     return items.join('');

@@ -883,4 +883,14 @@ const st = (b, sections = []) => ({
   assert.equal(adjustSharedBoundary(shortPrev, 'a', 'b', 0, b).reason, 'section-too-short');
 }
 
+
+/* Runtime playback generation is monotonic and invalidated on teardown. */
+{
+  const runtime = createReconfigRuntime();
+  assert.equal(runtime.playGeneration, 0);
+  runtime.playGeneration = 7;
+  teardownReconfigRuntime(runtime);
+  assert.equal(runtime.playGeneration, 8);
+}
+
 console.log('test-section-reconfiguration: ok');
