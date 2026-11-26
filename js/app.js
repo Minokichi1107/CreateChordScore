@@ -245,11 +245,9 @@ import {
   teardownReconfigRuntime,
   prepareDraftForAdopt,
   isDraftDirty,
-  adjustSharedBoundary,
 } from './sectionReconfiguration.js';
 import { openSectionReconfigurationModal } from './sectionReconfigurationModal.js';
 import { openSectionOverviewModal } from './sectionOverviewModal.js';
-import { openSectionBoundaryAdjustModal } from './sectionBoundaryAdjustModal.js';
 
 import { detectSectionBoundaries, measureIrregularity } from './sectionBoundaryDetection.js';
 import { createDraftFromBoundaries, buildSectionsFromDraft } from './sectionAutoGeneration.js';
