@@ -190,9 +190,14 @@ export function openSectionOverviewModal(p) {
             <button type="button" class="sec-btn s2-edit-btn" data-s2-edit="${esc(row.id)}">編集・分割</button>
           </div>
         </div>
-        <div class="s2-card-meta">
-          <span><small>長さ</small>${esc(row.view.lengthLabel)}${row.view.lengthSub ? ` <em>${esc(row.view.lengthSub)}</em>` : ''}</span>
-          <span><small>時間</small>${esc(row.view.secondsLabel)}</span>
+        <div class="s2-card-length">
+          <small>長さ</small>
+          <strong>${esc(row.view.lengthLabel)}</strong>
+          ${row.view.lengthSub ? `<em>${esc(row.view.lengthSub)}</em>` : ''}
+        </div>
+        <div class="s2-card-time">
+          <small>時間</small>
+          <strong>${esc(row.view.secondsLabel)}</strong>
         </div>
         ${invalid ? '<div class="s2-invalid-note">このSectionは構造的に不正です。編集・分割から確認してください</div>' : compareHtml(row)}
       </article>`;
@@ -232,8 +237,10 @@ export function openSectionOverviewModal(p) {
       const mergeEligibility = canMergeWithPrevious(draft, buffer, next.id);
       const boundaryEligibility = canAdjustBoundaryWithNext(draft, buffer, row.id);
       return card
+        + `<div class="s2-transition-actions">`
         + mergeButtonHtml(next.id, mergeEligibility.prevId, mergeEligibility, false)
-        + boundaryButtonHtml(row.id, next.id, boundaryEligibility);
+        + boundaryButtonHtml(row.id, next.id, boundaryEligibility)
+        + `</div>`;
     }).join('');
 
     const invalidHtml = invalidRows.map((row, index) => {
