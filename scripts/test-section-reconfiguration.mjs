@@ -841,17 +841,17 @@ const st = (b, sections = []) => ({
   assert.equal(undoDraft(draft), true);
   assert.equal(draft.sections.find(s => s.id === 'first').endChordId, 'k2');
   assert.equal(draft.sections.find(s => s.id === 'second').startChordId, 'k3');
-  assert.equal(redoDraft(draft), true);
-  assert.equal(draft.sections.find(s => s.id === 'first').endChordId, 'k3');
-  assert.equal(draft.sections.find(s => s.id === 'second').startChordId, 'k4');
 
   const history = draft.undoStack.length;
   const redoHistory = draft.redoStack.length;
-  const noop = adjustSharedBoundary(draft, 'first', 'second', 3, b);
+  const noop = adjustSharedBoundary(draft, 'first', 'second', 2, b);
   assert.equal(noop.ok, true);
   assert.equal(noop.noop, true);
   assert.equal(draft.undoStack.length, history, 'no-op does not add Undo');
   assert.equal(draft.redoStack.length, redoHistory, 'no-op does not clear Redo');
+  assert.equal(redoDraft(draft), true);
+  assert.equal(draft.sections.find(s => s.id === 'first').endChordId, 'k3');
+  assert.equal(draft.sections.find(s => s.id === 'second').startChordId, 'k4');
   assert.equal(adjustSharedBoundary(draft, 'first', 'second', 5, b).reason, 'next-section-too-short');
   assert.equal(adjustSharedBoundary(draft, 'first', 'second', -1, b).reason, 'bad-chord');
   assert.equal(adjustSharedBoundary(draft, 'first', 'third', 2, b).reason, 'not-adjacent');
