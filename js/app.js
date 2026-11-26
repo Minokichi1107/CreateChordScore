@@ -3318,7 +3318,6 @@ function _isAutoSectionName(name, type) {
     return /^\d+$/.test(n.slice(label.length + 1));
   });
 }
-}
 
 /**
  * startSectionAutoGeneration — Section自動生成を開始する（候補の確認画面を開く）
