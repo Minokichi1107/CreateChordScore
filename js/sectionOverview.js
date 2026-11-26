@@ -299,13 +299,9 @@ function makeLengthLabels(totalBeats, breakdown) {
 
   const hasLead = leadBeats > EPS;
   const hasTail = tailBeats > EPS;
-  if (fullMeasures > 0) {
-    let lengthSub = null;
-    if (hasLead && hasTail) lengthSub = '小節の途中から始まり、途中で終わります';
-    else if (hasLead) lengthSub = '小節の途中から始まります';
-    else if (hasTail) lengthSub = '小節の途中で終わります';
-    return { lengthLabel: `${fullMeasures}小節`, lengthSub };
-  }
+if (fullMeasures > 0) {
+  return { lengthLabel: `${fullMeasures}小節`, lengthSub: `(${total})` };
+}
   return { lengthLabel: total, lengthSub: null };
 }
 

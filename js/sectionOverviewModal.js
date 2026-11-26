@@ -173,10 +173,11 @@ export function openSectionOverviewModal(p) {
     const type = row.type ? esc(getTypeLabel(row.type)) : '種類未設定';
     const num = invalid ? '!' : formatIndex(index);
     const ariaLabel = invalid ? '要修正' : `Section ${index + 1}`;
-    const startLabel = row.view?.startLabel ? esc(row.view.startLabel) : '';
+    const startLabel = row.view?.startLabel ? String(row.view.startLabel) : '';
     const lengthLabel = row.view?.lengthLabel ? esc(row.view.lengthLabel) : '—';
     const lengthSub = row.view?.lengthSub ? esc(row.view.lengthSub) : '';
     const secondsLabel = row.view?.secondsLabel ? esc(row.view.secondsLabel) : '—';
+    const lengthTitle = startLabel ? `開始 ${startLabel}` : '';
     return `
       <article class="s2-card ${invalid ? 's2-card-invalid' : ''} ${highlighted ? 'is-highlighted' : ''} ${isPlaying ? 'is-playing' : ''}" id="s2-card-${esc(row.id)}" data-section-id="${esc(row.id)}">
         <div class="s2-identity">
@@ -187,18 +188,17 @@ export function openSectionOverviewModal(p) {
             ${status ? `<span class="s2-status s2-status-${esc(row.status)}">${esc(status)}</span>` : ''}
           </div>
         </div>
-        <div class="s2-meta-length">
-          <div class="s2-meta-label">長さ</div>
+        <div class="s2-meta-length"${lengthTitle ? ` title="${esc(lengthTitle)}"` : ''}>
+          <div class="s2-meta-label"><span class="s2-miniicon" aria-hidden="true">↔</span>長さ</div>
           <div class="s2-length">${lengthLabel}${lengthSub ? ` <em class="s2-length-sub">${lengthSub}</em>` : ''}</div>
-          ${startLabel ? `<div class="s2-start-sub">開始 ${startLabel}</div>` : ''}
         </div>
         <div class="s2-meta-time">
-          <div class="s2-meta-label">時間</div>
+          <div class="s2-meta-label"><span class="s2-miniicon" aria-hidden="true">◷</span>時間</div>
           <div class="s2-duration">${secondsLabel}</div>
         </div>
         <div class="s2-actions">
-          ${!invalid ? `<button type="button" class="s2-play-btn" data-s2-play="${esc(row.id)}" ${preview ? '' : 'disabled'} aria-label="${esc(ariaLabel)}の冒頭を試聴" title="${preview ? '冒頭' + preview.chordCount + 'コードを試聴' : '試聴できる時間情報がありません'}">${isPlaying ? '■ 停止' : '▶ 冒頭を試聴'}</button>` : ''}
-          <button type="button" class="s2-edit-btn" data-s2-edit="${esc(row.id)}">${invalid ? '修正' : '✎ 編集・分割'}</button>
+          ${!invalid ? `<button type="button" class="s2-play-btn" data-s2-play="${esc(row.id)}" ${preview ? '' : 'disabled'} aria-label="${esc(ariaLabel)}の冒頭を試聴" title="${preview ? '冒頭' + preview.chordCount + 'コードを試聴' : '試聴できる時間情報がありません'}"><span class="s2-btn-ico" aria-hidden="true">${isPlaying ? '■' : '▶'}</span>${isPlaying ? '停止' : '冒頭を試聴'}</button>` : ''}
+          <button type="button" class="s2-edit-btn" data-s2-edit="${esc(row.id)}"><span class="s2-btn-ico" aria-hidden="true">${invalid ? '!' : '✎'}</span>${invalid ? '修正' : '編集・分割'}</button>
           ${mergeHtml}
         </div>
         ${invalid ? '<div class="s2-invalid-note">このSectionは構造的に不正です。修正から確認してください</div>' : ''}
