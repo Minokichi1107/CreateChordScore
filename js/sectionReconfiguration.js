@@ -374,6 +374,98 @@ export function deleteDraftSection(draft, sectionId) {
 }
 
 /**
+ * Resolve a strictly adjacent, structurally valid pair in timeline order.
+ * Unlike setDraftSectionEndByChordIndex(), this API never repairs gaps/overlaps.
+ */
+function resolveSharedBoundaryPair(draft, buffer, prevSectionId, nextSectionId = null) {
+  if (!draft || !Array.isArray(draft.sections) || !Array.isArray(buffer) || !buffer.length ||
+      typeof prevSectionId !== 'string' || !prevSectionId) {
+    return { ok: false, reason: 'bad-args' };
+  }
+  const diagnostics = diagnoseDraftSections(draft, buffer);
+  const matches = diagnostics.filter(row => row.id === prevSectionId);
+  if (matches.length !== 1) return { ok: false, reason: matches.length ? 'invalid' : 'section-not-found' };
+  const prev = matches[0];
+  if (!prev.structurallyValid) {
+    return { ok: false, reason: 'invalid', details: prev.structuralReasons || prev.reasons };
+  }
+  if (diagnostics.some(row => !row.structurallyValid && row.start < 0 && row.end < 0)) {
+    return { ok: false, reason: 'unlocated-invalid' };
+  }
+  const positioned = diagnostics.slice().sort((a, b) => {
+    const aKey = a.start >= 0 ? a.start : (a.end >= 0 ? a.end : Number.MAX_SAFE_INTEGER);
+    const bKey = b.start >= 0 ? b.start : (b.end >= 0 ? b.end : Number.MAX_SAFE_INTEGER);
+    return aKey - bKey || a.index - b.index;
+  });
+  const at = positioned.findIndex(row => row.index === prev.index);
+  if (at < 0 || at === positioned.length - 1) return { ok: false, reason: 'last' };
+  const next = positioned[at + 1];
+  if (!next.structurallyValid) {
+    return { ok: false, reason: 'neighbour-invalid', details: next.structuralReasons || next.reasons };
+  }
+  if (nextSectionId != null && next.id !== nextSectionId) {
+    return { ok: false, reason: 'not-adjacent' };
+  }
+  if (next.start <= prev.end) return { ok: false, reason: 'overlap' };
+  if (next.start !== prev.end + 1) return { ok: false, reason: 'gap' };
+  return {
+    ok: true,
+    prevId: prev.id,
+    nextId: next.id,
+    prevIndex: prev.index,
+    nextIndex: next.index,
+    prevStartIdx: prev.start,
+    prevEndIdx: prev.end,
+    nextStartIdx: next.start,
+    nextEndIdx: next.end,
+  };
+}
+
+/** Check whether a Section's shared boundary with its next chronological neighbour is editable. */
+export function canAdjustBoundaryWithNext(draft, buffer, prevSectionId) {
+  return resolveSharedBoundaryPair(draft, buffer, prevSectionId);
+}
+
+/**
+ * Move one shared boundary atomically. Only the adjacent pair is changed;
+ * all Section metadata and the order of the Draft array are preserved.
+ */
+export function adjustSharedBoundary(draft, prevSectionId, nextSectionId, endChordIndex, buffer) {
+  if (!Number.isInteger(endChordIndex)) return { ok: false, reason: 'bad-chord' };
+  const pair = resolveSharedBoundaryPair(draft, buffer, prevSectionId, nextSectionId);
+  if (!pair.ok) return pair;
+  if (endChordIndex < 0 || endChordIndex >= buffer.length ||
+      !buffer[endChordIndex]?._id || !buffer[endChordIndex + 1]?._id) {
+    return { ok: false, reason: 'bad-chord' };
+  }
+  if (endChordIndex === pair.prevEndIdx) return { ok: true, noop: true };
+  if (endChordIndex < pair.prevStartIdx) return { ok: false, reason: 'section-too-short' };
+  if (endChordIndex >= pair.nextEndIdx) return { ok: false, reason: 'next-section-too-short' };
+
+  const prev = draft.sections[pair.prevIndex];
+  const next = draft.sections[pair.nextIndex];
+  const updatedPrev = { ...prev, endChordId: buffer[endChordIndex]._id };
+  const updatedNext = { ...next, startChordId: buffer[endChordIndex + 1]._id };
+
+  // Validate both replacements before committing either one.
+  const prevDiag = diagnoseDraftSection(updatedPrev, buffer);
+  const nextDiag = diagnoseDraftSection(updatedNext, buffer);
+  if (!prevDiag.structurallyValid || !nextDiag.structurallyValid) {
+    return { ok: false, reason: 'invalid', details: [
+      ...(prevDiag.structuralReasons || prevDiag.reasons),
+      ...(nextDiag.structuralReasons || nextDiag.reasons),
+    ] };
+  }
+
+  pushDraftUndo(draft);
+  const updated = draft.sections.slice();
+  updated[pair.prevIndex] = updatedPrev;
+  updated[pair.nextIndex] = updatedNext;
+  draft.sections = updated;
+  return { ok: true, changed: [pair.prevId, pair.nextId] };
+}
+
+/**
  * Set end of section at draft.sections[sectionIndex] to endChordIndex (B-method).
  *
  * Rules (Phase150 Stage1 fix):

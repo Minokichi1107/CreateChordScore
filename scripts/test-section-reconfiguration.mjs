@@ -13,6 +13,8 @@ import {
   undoDraft,
   redoDraft,
   setDraftSectionEndByChordIndex,
+  canAdjustBoundaryWithNext,
+  adjustSharedBoundary,
   splitDraftAtChordIndex,
   deleteDraftSection,
   deleteDraftSectionAt,
@@ -798,6 +800,82 @@ const st = (b, sections = []) => ({
   const r3 = splitDraftAtChordIndex(d3, 0, 4, buffer); // candidate F=5 → end=4
   assert(r3.ok && draftSectionChordSpans(d3, buffer)[1].start === 5, 'F becomes back start');
   console.log('splitCandidate maps to next-section start: ok');
+}
+
+
+/* Phase150 Stage2 shared-boundary API: strict adjacency, atomic updates, shared Undo/Redo. */
+{
+  const b = buf(9);
+  const draft = createReconfigurationDraft({
+    projectId: 'boundary-api', buffer: b,
+    sections: [
+      S('third', 6, 8, 'chorus', 'C'),
+      S('first', 0, 2, 'verse', 'A'),
+      S('second', 3, 5, 'chorus', 'B'),
+    ],
+  });
+  // Use deliberately reversed Draft array order; adjacency is timeline-based.
+  draft.sections = [draft.sections[2], draft.sections[1], draft.sections[0]];
+  draft.sections.find(s => s.id === 'first').custom = { x: 1 };
+  draft.sections.find(s => s.id === 'second').custom = 'metadata';
+  draft.sections.find(s => s.id === 'third').extra = 'kept';
+  const can = canAdjustBoundaryWithNext(draft, b, 'first');
+  assert.equal(can.ok, true, can.reason);
+  assert.equal(can.nextId, 'second');
+  const undoBefore = draft.undoStack.length;
+  const r = adjustSharedBoundary(draft, 'first', 'second', 3, b);
+  assert.equal(r.ok, true, r.reason);
+  assert.deepEqual(r.changed, ['first', 'second']);
+  const first = draft.sections.find(s => s.id === 'first');
+  const second = draft.sections.find(s => s.id === 'second');
+  const third = draft.sections.find(s => s.id === 'third');
+  assert.equal(first.endChordId, 'k3');
+  assert.equal(second.startChordId, 'k4');
+  assert.deepEqual(first.custom, { x: 1 });
+  assert.equal(second.custom, 'metadata');
+  assert.equal(third.startChordId, 'k6');
+  assert.equal(third.extra, 'kept');
+  assert.equal(draft.undoStack.length, undoBefore + 1, 'one shared Undo snapshot');
+  assert.equal(undoDraft(draft), true);
+  assert.equal(draft.sections.find(s => s.id === 'first').endChordId, 'k2');
+  assert.equal(draft.sections.find(s => s.id === 'second').startChordId, 'k3');
+  assert.equal(redoDraft(draft), true);
+  assert.equal(draft.sections.find(s => s.id === 'first').endChordId, 'k3');
+  assert.equal(draft.sections.find(s => s.id === 'second').startChordId, 'k4');
+
+  const history = draft.undoStack.length;
+  const redoHistory = draft.redoStack.length;
+  const noop = adjustSharedBoundary(draft, 'first', 'second', 3, b);
+  assert.equal(noop.ok, true);
+  assert.equal(noop.noop, true);
+  assert.equal(draft.undoStack.length, history, 'no-op does not add Undo');
+  assert.equal(draft.redoStack.length, redoHistory, 'no-op does not clear Redo');
+  assert.equal(adjustSharedBoundary(draft, 'first', 'second', 5, b).reason, 'next-section-too-short');
+  assert.equal(adjustSharedBoundary(draft, 'first', 'second', -1, b).reason, 'bad-chord');
+  assert.equal(adjustSharedBoundary(draft, 'first', 'third', 2, b).reason, 'not-adjacent');
+}
+
+{
+  const b = buf(8);
+  const make = (sections) => createReconfigurationDraft({ projectId: 'boundary-invalid', buffer: b, sections });
+  const gap = make([S('a', 0, 2), S('b', 4, 7)]);
+  assert.equal(canAdjustBoundaryWithNext(gap, b, 'a').reason, 'gap');
+  const overlap = make([S('a', 0, 4), S('b', 4, 7)]);
+  assert.equal(canAdjustBoundaryWithNext(overlap, b, 'a').reason, 'overlap');
+  const invalidNeighbour = make([
+    S('a', 0, 2),
+    { id: 'b', type: 'verse', name: 'B', startChordId: 'missing', endChordId: 'k7' },
+  ]);
+  assert.equal(canAdjustBoundaryWithNext(invalidNeighbour, b, 'a').reason, 'neighbour-invalid');
+  const unlocated = make([
+    S('a', 0, 2), S('b', 3, 4),
+    { id: 'x', type: '', name: '', startChordId: 'missing-start', endChordId: 'missing-end' },
+  ]);
+  assert.equal(canAdjustBoundaryWithNext(unlocated, b, 'a').reason, 'unlocated-invalid');
+  const last = make([S('a', 0, 7)]);
+  assert.equal(canAdjustBoundaryWithNext(last, b, 'a').reason, 'last');
+  const shortPrev = make([S('a', 1, 2), S('b', 3, 7)]);
+  assert.equal(adjustSharedBoundary(shortPrev, 'a', 'b', 0, b).reason, 'section-too-short');
 }
 
 console.log('test-section-reconfiguration: ok');
