@@ -139,10 +139,10 @@
 .s2-card {
   display: grid;
   grid-template-columns:
-    minmax(150px, 1.2fr)
-    minmax(120px, 0.85fr)
-    minmax(88px, 0.6fr)
-    minmax(210px, 1.5fr);
+    minmax(140px, 1.15fr)
+    minmax(110px, 0.8fr)
+    minmax(72px, 0.5fr)
+    minmax(200px, 1.55fr);
   align-items: center;
   column-gap: 0;
   row-gap: 0;
@@ -186,8 +186,8 @@
 }
 .s2-meta-length,
 .s2-meta-time {
-  padding-left: 12px;
-  padding-right: 12px;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .s2-num {
@@ -254,14 +254,15 @@
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  flex-wrap: nowrap;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 5px;
   min-width: 0;
-  padding-left: 12px;
+  padding-left: 8px;
+  padding-right: 0;
 }
 .s2-play-btn, .s2-edit-btn, .s2-merge-btn {
   font-family: inherit; font-size: 11px; font-weight: 700;
-  padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  padding: 5px 8px; border-radius: 8px; cursor: pointer;
   white-space: nowrap; border: 1px solid var(--s2-card-border);
   background: var(--surface-overlay, transparent); color: var(--text-primary);
   display: inline-flex; align-items: center; justify-content: center;
@@ -317,10 +318,10 @@
 }
 #modal-box:has(.s2-root) .s2-card {
   grid-template-columns:
-    minmax(150px, 1.2fr)
-    minmax(120px, 0.85fr)
-    minmax(88px, 0.6fr)
-    minmax(210px, 1.5fr);
+    minmax(140px, 1.15fr)
+    minmax(110px, 0.8fr)
+    minmax(72px, 0.5fr)
+    minmax(200px, 1.55fr);
   gap: 0;
   padding: 12px 14px;
   align-items: center;
@@ -341,25 +342,26 @@
 }
 #modal-box:has(.s2-root) .s2-meta-length,
 #modal-box:has(.s2-root) .s2-meta-time {
-  padding: 0 12px;
+  padding: 0 8px;
   margin: 0;
   min-height: 42px;
   border-right: 1px solid var(--s2-card-border, var(--border-ui, #4a5160));
 }
 #modal-box:has(.s2-root) .s2-actions {
-  padding-left: 12px;
-  gap: 6px;
+  padding-left: 8px;
+  padding-right: 0;
+  gap: 5px;
   justify-content: flex-start;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 #modal-box:has(.s2-root) .s2-play-btn,
 #modal-box:has(.s2-root) .s2-edit-btn,
 #modal-box:has(.s2-root) .s2-merge-btn {
-  padding: 6px 10px;
+  padding: 5px 8px;
   font-size: 11px;
 }
 #modal-box:has(.s2-root) .s2-merge-btn {
-  padding: 6px 9px;
+  padding: 5px 8px;
   font-size: 10px;
 }
 
@@ -373,7 +375,7 @@
     grid-template-columns:
       minmax(130px, 1.1fr)
       minmax(100px, 0.8fr)
-      minmax(80px, 0.55fr)
+      minmax(70px, 0.5fr)
       minmax(180px, 1.4fr);
     padding: 10px 12px;
   }
