@@ -1924,3 +1924,191 @@ body:not([data-theme="dark"]) .sr1-invalid {
   .sba-pair-arrow { font-size: 14px; }
   .sba-audition { padding: 9px; }
 }
+
+
+/* Phase150 Stage2 follow-up: compact information hierarchy and paired actions. */
+.s2-root,
+.sba-root {
+  --s2-readable: color-mix(in srgb, var(--text-primary) 95%, transparent);
+}
+.s2-card {
+  grid-template-columns:
+    minmax(300px, 1.15fr)
+    minmax(260px, 1.3fr)
+    max-content
+    minmax(170px, 220px);
+  align-items: center;
+  gap: 8px 16px;
+  padding: 9px 12px;
+}
+.s2-card-head {
+  grid-column: 1;
+  min-width: 0;
+}
+.s2-card-title {
+  gap: 5px 7px;
+}
+.s2-card-actions {
+  gap: 5px;
+}
+.s2-card-length,
+.s2-card-time {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  color: var(--s2-readable);
+  font-size: 12px;
+}
+.s2-card-length small,
+.s2-card-time small {
+  color: var(--s2-readable);
+  font-size: 10px;
+  font-weight: 500;
+}
+.s2-card-length strong,
+.s2-card-time strong {
+  color: var(--s2-readable);
+  font-size: 12px;
+  font-weight: 650;
+}
+.s2-card-length em {
+  color: var(--s2-readable);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 400;
+}
+.s2-compare {
+  display: grid;
+  grid-template-columns: max-content minmax(64px, 1fr) 36px;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 220px;
+  margin: 0;
+  color: var(--s2-readable);
+  font-size: 10px;
+}
+.s2-compare-label {
+  color: var(--s2-readable);
+  white-space: nowrap;
+}
+.s2-compare-track {
+  width: 100%;
+  min-width: 64px;
+  max-width: 118px;
+  height: 5px;
+  background: color-mix(in srgb, var(--text-primary) 15%, transparent);
+}
+.s2-compare-fill {
+  background: var(--sr1-play);
+}
+.s2-compare-value {
+  color: var(--s2-readable);
+  font-size: 10px;
+}
+.s2-invalid-note {
+  grid-column: 1 / -1;
+}
+.s2-card-index,
+.s2-card-type,
+.s2-status,
+.s2-total,
+.s2-draft-badge,
+.s2-merge-btn,
+.s2-boundary-reason,
+.s2-invalid-group h4,
+.s2-compare-unavailable {
+  color: var(--s2-readable);
+}
+.s2-transition-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 5px 0 7px;
+}
+.s2-transition-actions .s2-merge-row,
+.s2-transition-actions .s2-boundary-row {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 0;
+}
+.s2-merge-btn,
+.s2-boundary-btn {
+  min-width: 92px;
+  padding: 5px 12px;
+  text-align: center;
+}
+.s2-boundary-btn {
+  border-color: var(--sr1-play);
+  color: var(--s2-readable);
+}
+.s2-boundary-btn:not(:disabled):hover {
+  border-color: var(--sr1-play);
+  background: color-mix(in srgb, var(--sr1-play) 10%, transparent);
+}
+.sba-range-step {
+  flex: 1 1 260px;
+  color: var(--s2-readable);
+  font-size: 12px;
+  font-weight: 650;
+}
+.sba-range-summary,
+.sba-audition-head span,
+.sba-section-role,
+.sba-section-type {
+  color: var(--s2-readable);
+}
+.sba-range-chord {
+  flex-basis: 84px;
+  min-height: 54px;
+  color: var(--s2-readable);
+}
+.sba-range-chord small {
+  color: var(--s2-readable);
+}
+@media (max-width: 900px) {
+  .s2-card {
+    grid-template-columns: minmax(0, 1fr) max-content minmax(150px, 200px);
+  }
+  .s2-card-head {
+    grid-column: 1 / -1;
+  }
+  .s2-card-length { grid-column: 1; }
+  .s2-card-time { grid-column: 2; }
+  .s2-compare { grid-column: 3; }
+}
+@media (max-width: 640px) {
+  .s2-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 8px;
+  }
+  .s2-card-head {
+    grid-column: 1 / -1;
+  }
+  .s2-card-length {
+    grid-column: 1 / -1;
+  }
+  .s2-card-time {
+    grid-column: 1;
+  }
+  .s2-compare {
+    grid-column: 1 / -1;
+    max-width: 220px;
+  }
+  .s2-transition-actions {
+    gap: 8px;
+  }
+  .s2-transition-actions .s2-merge-row,
+  .s2-transition-actions .s2-boundary-row {
+    flex: 1 1 0;
+  }
+  .s2-transition-actions .s2-merge-btn,
+  .s2-transition-actions .s2-boundary-btn {
+    width: 100%;
+    min-width: 0;
+  }
+}
