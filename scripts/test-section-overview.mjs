@@ -74,11 +74,11 @@ const regularTiming = timingFor(
   assert.deepEqual(result.rows.map(row => row.id), ['short', 'long'], 'rows are chronological copies');
   assert.equal(result.invalidRows.length, 0);
   assert.equal(result.rows[0].real.totalBeats, 4);
-  assert.equal(result.rows[0].view.lengthLabel, '1小節・4拍');
+  assert.equal(result.rows[0].view.lengthLabel, '1小節');
   assert.equal(result.rows[0].view.startLabel, '小節1・1拍目');
   assert.equal(result.rows[0].view.secondsLabel, '約4秒');
   assert.equal(result.rows[1].real.totalBeats, 8);
-  assert.equal(result.rows[1].view.lengthLabel, '約2小節・8拍');
+  assert.equal(result.rows[1].view.lengthLabel, '約2小節');
   assert.equal(result.rows[0].compare.groupKey, 'verse');
   assert.equal(result.rows[0].compare.ratio, 0.5);
   assert.equal(result.rows[1].compare.ratio, 1);
@@ -109,7 +109,7 @@ const regularTiming = timingFor(
   assert.equal(result.rows[0].real.measures.fullMeasures, 0);
   assert.equal(result.rows[0].real.measures.tailBeats, 1);
   assert.equal(result.rows[0].view.lengthLabel, '4拍');
-  assert.equal(result.rows[0].view.lengthSub, '（頭3拍＋末尾1拍）');
+  assert.equal(result.rows[0].view.lengthSub, null);
 }
 
 {
@@ -224,8 +224,8 @@ const regularTiming = timingFor(
   assert.equal(result.rows[0].real.totalBeats, 136.4, 'raw beat span remains available for comparison');
   assert.equal(result.rows[0].real.measures.leadBeats, 0.5);
   assert.equal(result.rows[0].real.measures.fullMeasures, 34);
-  assert.equal(result.rows[0].view.lengthLabel, '約136と1/2拍');
-  assert.equal(result.rows[0].view.lengthSub, '（頭1/2拍＋完全な34小節）');
+  assert.equal(result.rows[0].view.lengthLabel, '約34小節');
+  assert.equal(result.rows[0].view.lengthSub, '小節の途中から始まります');
 }
 
 // Real anonymized song fixtures: 11 songs / 117 human-labelled Section ranges.
