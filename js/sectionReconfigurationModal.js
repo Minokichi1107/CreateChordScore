@@ -118,7 +118,7 @@ export function openSectionReconfigurationModal(p) {
   const {
     openModal, mkMBtn, draft, buffer, sectionTypes, runtime = null,
     onAdopt, onClose, onTestPlay, onTestStop, onKeyShield, onKeyUnshield, confirmChoice,
-    generateSectionName, formatChord,
+    generateSectionName, isAutoSectionName: isAutoSectionNameFn, getSectionNameBase, formatChord,
     initial = null, splitContext: initialSplitContext = null,
     onReturnToOverview, onSplitContextClear, isCurrent,
   } = p;
@@ -712,6 +712,9 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function isAutoSectionName(name, type) {
+    if (typeof isAutoSectionNameFn === 'function') {
+      try { return isAutoSectionNameFn(name, type) === true; } catch { /* use fallback */ }
+    }
     const label = sectionTypes?.find(item => item?.value === type)?.label
       || (typeof generateSectionName === 'function' ? generateSectionName(type) : type);
     const value = String(name ?? '').trim();
@@ -723,12 +726,15 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function generateDraftSectionName(type, excludeSectionId) {
-    const label = sectionTypes?.find(item => item?.value === type)?.label
-      || (typeof generateSectionName === 'function' ? generateSectionName(type) : type);
+    const generated = typeof getSectionNameBase === 'function'
+      ? getSectionNameBase(type)
+      : (sectionTypes?.find(item => item?.value === type)?.label
+        || (typeof generateSectionName === 'function' ? generateSectionName(type) : type));
+    const label = String(generated ?? type ?? 'Section').trim();
     const count = draft.sections.filter(section =>
       section?.id !== excludeSectionId && section?.type === type
     ).length;
-    return count === 0 ? String(label ?? type ?? 'Section') : String(label ?? type ?? 'Section') + ' ' + (count + 1);
+    return count === 0 ? label : label + ' ' + (count + 1);
   }
 
   function applyNameTypeFromInputs() {
@@ -871,8 +877,8 @@ export function openSectionReconfigurationModal(p) {
       playingChordIdx = null;
       if (playStartIdx != null) playCandidate = playStartIdx;
       playStartIdx = null;
-      if (!closed && (typeof isCurrent !== 'function' || isCurrent())) fullRedraw();
-      else updatePlayingHighlight(null);
+      // Avoid replacing the name input while an IME composition is active.
+      updatePlayingHighlight(null);
     };
     onTestPlay?.({
       startSec,
@@ -1137,6 +1143,7 @@ export function openSectionReconfigurationModal(p) {
     if (closed || (typeof isCurrent === 'function' && !isCurrent()) || !document.getElementById('sr1-root')) return;
     const tag = (e.target && e.target.tagName) || '';
     const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    if (e.isComposing || e.keyCode === 229) return;
 
     // Esc — cancel split mode first; otherwise close path
     if (e.code === 'Escape') {
@@ -1151,22 +1158,6 @@ export function openSectionReconfigurationModal(p) {
         return;
       }
       requestClose('esc').then(() => {});
-      return;
-    }
-
-    // Tab / Shift+Tab move section even when focus is in name/type fields
-    if (e.code === 'Tab') {
-      e.preventDefault();
-      e.stopPropagation();
-      applyNameTypeFromInputs();
-      nameInputSoftLock = false;
-      stopPlayIfNeeded();
-      if (uiMode === 'split') cancelSplitMode({ returnToOverview: false });
-      if (uiMode === 'boundary') cancelBoundaryMode();
-      if (e.shiftKey) selectSectionIndex(sectionIdx - 1);
-      else selectSectionIndex(sectionIdx + 1);
-      resetPlayToSectionStart();
-      fullRedraw();
       return;
     }
 
@@ -1186,6 +1177,20 @@ export function openSectionReconfigurationModal(p) {
       return;
     }
 
+    if (e.code === 'Tab') {
+      e.preventDefault();
+      e.stopPropagation();
+      applyNameTypeFromInputs();
+      nameInputSoftLock = false;
+      stopPlayIfNeeded();
+      if (uiMode === 'split') cancelSplitMode({ returnToOverview: false });
+      if (uiMode === 'boundary') cancelBoundaryMode();
+      if (e.shiftKey) selectSectionIndex(sectionIdx - 1);
+      else selectSectionIndex(sectionIdx + 1);
+      resetPlayToSectionStart();
+      fullRedraw();
+      return;
+    }
     if (e.code === 'Space') {
       e.preventDefault();
       e.stopPropagation();
