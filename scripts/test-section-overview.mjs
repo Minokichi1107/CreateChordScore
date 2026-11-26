@@ -14,6 +14,7 @@ import {
   canMergeWithPrevious,
   diffSections,
   formatSectionBeatValue,
+  getSectionPreviewRange,
 } from '../js/sectionOverview.js';
 
 const buffer = (n = 12, startOffset = 0) => Array.from({ length: n }, (_, i) => ({
@@ -82,6 +83,21 @@ const regularTiming = timingFor(
   assert.equal(result.rows[0].compare.ratio, 0.5);
   assert.equal(result.rows[1].compare.ratio, 1);
   assert.deepEqual(draft, before, 'projection must not mutate Draft');
+}
+
+{
+  const b = buffer(10);
+  const row = { real: { startIdx: 2, endIdx: 9 } };
+  assert.deepEqual(getSectionPreviewRange(row, b), {
+    startIdx: 2, endIdx: 5, startSec: 2, endSec: 6, chordCount: 4,
+  }, 'default preview covers the first four chords');
+  assert.deepEqual(getSectionPreviewRange({ real: { startIdx: 8, endIdx: 9 } }, b), {
+    startIdx: 8, endIdx: 9, startSec: 8, endSec: 10, chordCount: 2,
+  }, 'short Sections preview only their available chords');
+  assert.equal(getSectionPreviewRange({ real: { startIdx: 10, endIdx: 11 } }, b), null);
+  const untimed = buffer(4);
+  untimed[0].start = null;
+  assert.equal(getSectionPreviewRange({ real: { startIdx: 0, endIdx: 3 } }, untimed), null);
 }
 
 {
