@@ -3588,6 +3588,26 @@ function switchSectionReconfigStage(stage, options = {}) {
     initialHistoryAction: options.historyAction ?? null,
     onEditSplit: id => switchSectionReconfigStage(1, { sectionId: id }),
     onAdjustBoundary: (prevId, nextId) => switchSectionReconfigStage(3, { prevId, nextId }),
+    onTestPlay: ({ startSec, endSec, onEnded, onTime }) => {
+      const audio = getAudioElement?.();
+      if (!audio || !audio.src) {
+        toast('音源がありません');
+        try { onEnded?.(); } catch { /* ignore */ }
+        return;
+      }
+      _stopSectionReconfigPlaybackMonitor();
+      try {
+        audio.currentTime = Math.max(0, startSec);
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => { try { onEnded?.(); } catch { /* ignore */ } });
+        }
+        _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime);
+      } catch (err) {
+        console.warn('[section-reconfig] overview preview failed', err);
+        try { onEnded?.(); } catch { /* ignore */ }
+      }
+    },
   });
   return true;
 }
@@ -3697,15 +3717,16 @@ async function startSectionReconfiguration() {
   _sectionReconfigRuntime.closed = false;
 
   const previousToken = Number(_sectionReconfigRuntime.view?.token) || 0;
+  const initialSectionId = draft.sections[0]?.id ?? null;
   _sectionReconfigRuntime.view = {
-    stage: 2,
-    sectionId: null,
+    stage: 1,
+    sectionId: initialSectionId,
     scrollTop: 0,
     lastSeenSigs: null,
     token: previousToken,
   };
   _sectionReconfigRuntime.splitContext = null;
-  switchSectionReconfigStage(2, { initial: true });
+  switchSectionReconfigStage(1, { initial: true, sectionId: initialSectionId });
 }
 
 async function startSectionAutoGeneration() {
