@@ -926,4 +926,50 @@ const st = (b, sections = []) => ({
   assert.equal(runtime.playGeneration, 8);
 }
 
+
+// Auto-name/category behavior: type changes regenerate only auto names; explicit
+// user names remain intact. Splits inherit the category and create a new numbered name.
+{
+  const b = buf(8);
+  const draft = createReconfigurationDraft({
+    projectId: 'auto-name',
+    buffer: b,
+    sections: [S('a', 0, 7, 'jp-a-melo', 'Aメロ')],
+  });
+  const changed = updateDraftSection(draft, 'a', { type: 'jp-sabi' }, {
+    defaultNameForType: () => 'サビ',
+  });
+  assert.equal(changed.ok, true);
+  assert.equal(draft.sections[0].type, 'jp-sabi');
+  assert.equal(draft.sections[0].name, 'サビ');
+
+  const manual = createReconfigurationDraft({
+    projectId: 'manual-name',
+    buffer: b,
+    sections: [{ ...S('m', 0, 7, 'jp-a-melo', '1番Aメロ'), nameUserEdited: true }],
+  });
+  updateDraftSection(manual, 'm', { type: 'jp-sabi' }, { defaultNameForType: () => 'サビ' });
+  assert.equal(manual.sections[0].name, '1番Aメロ', 'manual names are not overwritten');
+
+  const split = createReconfigurationDraft({
+    projectId: 'split-name',
+    buffer: b,
+    sections: [S('s', 0, 7, 'jp-a-melo', 'Aメロ')],
+  });
+  const result = splitDraftAtChordIndex(split, 0, 3, b, () => 's-back', {
+    inheritBackMeta: true,
+    defaultNameForType: () => 'Aメロ 2',
+  });
+  assert.equal(result.ok, true);
+  assert.equal(split.sections[1].type, 'jp-a-melo', 'split inherits source category');
+  assert.equal(split.sections[1].name, 'Aメロ 2', 'split receives a new automatic name');
+}
+
+const stage1Source = readFileSync(new URL('../js/sectionReconfigurationModal.js', import.meta.url), 'utf8');
+assert.match(stage1Source, /inheritBackMeta: true/, 'Stage1 split always inherits source category');
+assert.match(stage1Source, /種類を選択してください/, 'empty type has an explicit placeholder, never the first category');
+assert.match(stage1Source, /modeKey === 'p' \|\| modeKey === 'b' \|\| modeKey === 's'/, 'P/B/S mode shortcuts are available');
+assert.match(stage1Source, /e\.code === 'Enter'.*sr1-name/s, 'Enter exits the Section name field');
+assert.match(stage1Source, /reason: 'boundary-change'/, 'successful Stage2-originated boundary changes return to overview');
+
 console.log('test-section-reconfiguration: ok');
