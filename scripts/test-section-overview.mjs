@@ -202,6 +202,31 @@ const regularTiming = timingFor(
   assert.equal(result.rows[0].view.secondsLabel, '約4秒', 'seconds remain available without valid beat mapping');
 }
 
+// Endpoint snapping must also be reflected in the displayed beat total.
+// Otherwise the measure breakdown can say "1/2 beat + 34 measures" while
+// the headline total still reports a different value.
+{
+  const b = [
+    { _id: 'k0', chord: 'C', start: -0.5, end: 135.9 },
+    { _id: 'k1', chord: 'G', start: 135.9, end: 136.5 },
+  ];
+  const measures = Array.from({ length: 34 }, (_, i) => ({
+    startTime: i * 4,
+    endTime: (i + 1) * 4,
+  }));
+  const beats = Array.from({ length: 137 }, (_, i) => i);
+  const timing = timingFor(beats, measures);
+  const result = buildSectionOverview(
+    { sections: [{ id: 'snap-end', type: 'verse', name: 'A', startChordId: 'k0', endChordId: 'k0' }] },
+    b,
+    timing,
+  );
+  assert.equal(result.rows[0].real.measures.leadBeats, 0.5);
+  assert.equal(result.rows[0].real.measures.fullMeasures, 34);
+  assert.equal(result.rows[0].view.lengthLabel, '約136と1/2拍');
+  assert.equal(result.rows[0].view.lengthSub, '（頭1/2拍＋完全な34小節）');
+}
+
 // Real anonymized song fixtures: 11 songs / 117 human-labelled Section ranges.
 {
   const fixtureUrl = new URL('./fixtures/section-boundary/songs.json', import.meta.url);
