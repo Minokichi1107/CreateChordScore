@@ -435,9 +435,6 @@
   font-size: 12px;
   border-radius: 7px;
 }
-#modal-box:has(.sr1-root) .sr1-chords-wrap {
-  padding: 4px;
-}
 #modal-box:has(.sr1-root) .sr1-chord-row {
   gap: 4px;
 }
@@ -487,17 +484,50 @@
   margin: 0 3px;
 }
 
-/* Phase150: Stage1 chord panel vertical spacing */
-#modal-box:has(.sr1-root) .sr1-root {
-  gap: 10px;
+/* Phase150: Stage1 chord panel — tighten above, balance inside (force) */
+#modal-box:has(.sr1-root) .sr1-root,
+#sr1-root.sr1-root {
+  gap: 4px !important;
 }
-#modal-box:has(.sr1-root) .sr1-chords-wrap {
-  margin: 6px 0 8px;
-  padding: 8px 6px 8px 8px;
+#modal-box:has(.sr1-root) .sr1-header,
+#sr1-root .sr1-header {
+  padding: 5px 10px !important;
+  gap: 4px !important;
 }
-#modal-box:has(.sr1-root) .sr1-header-row {
-  margin-bottom: 2px;
+#modal-box:has(.sr1-root) .sr1-chords-wrap,
+#sr1-root .sr1-chords-wrap {
+  margin-top: 0 !important;
+  margin-bottom: 4px !important;
+  padding: 6px 6px 6px 8px !important;
+  box-sizing: border-box !important;
 }
-#modal-box:has(.sr1-root) .sr1-panels {
-  margin-top: 4px;
+#modal-box:has(.sr1-root) .sr1-chord-grid,
+#sr1-root .sr1-chord-grid {
+  --sr1-row-h: 34px !important;
+  --sr1-row-gap: 6px !important;
+  gap: 6px !important;
+  padding: 0 !important;
+}
+#modal-box:has(.sr1-root) .sr1-chord-row,
+#sr1-root .sr1-chord-row {
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  gap: 5px !important;
+}
+#modal-box:has(.sr1-root) .sr1-chord-row-cells,
+#sr1-root .sr1-chord-row-cells {
+  gap: 6px !important;
+}
+#modal-box:has(.sr1-root) .sr1-chord,
+#sr1-root .sr1-chord {
+  min-height: 0 !important;
+  height: 100% !important;
+  padding: 3px 4px !important;
+  font-size: 12px !important;
+  box-sizing: border-box !important;
+}
+#modal-box:has(.sr1-root) .sr1-panels,
+#sr1-root .sr1-panels {
+  margin-top: 2px !important;
 }
