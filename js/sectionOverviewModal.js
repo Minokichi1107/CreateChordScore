@@ -7,7 +7,6 @@ import {
   undoDraft,
   redoDraft,
   isDraftDirty,
-  canAdjustBoundaryWithNext,
 } from './sectionReconfiguration.js';
 import {
   buildSectionOverview,
@@ -153,21 +152,7 @@ export function openSectionOverviewModal(p) {
     })[status] || '';
   }
 
-  function compareHtml(row) {
-    if (!row.compare || !Number.isFinite(row.compare.ratio)) {
-      return '<div class="s2-compare s2-compare-unavailable"><span>同カテゴリー比較</span><span>—</span></div>';
-    }
-    const percent = Math.max(0, Math.min(100, row.compare.ratio * 100));
-    return `
-      <div class="s2-compare">
-        <span class="s2-compare-label">${esc(getTypeLabel(row.compare.groupKey))}内の長さ</span>
-        <div class="s2-compare-track" aria-label="同カテゴリー内の長さ比較">
-          <span class="s2-compare-fill" style="width:${percent.toFixed(2)}%"></span>
-        </div>
-        <span class="s2-compare-value">${Math.round(percent)}%</span>
-      </div>`;
-  }
-
+  function compareHtml() { return ''; }
   function cardHtml(row, index, invalid = false) {
     const status = rowStatusLabel(row.status);
     const preview = invalid ? null : getSectionPreviewRange(row, buffer, 4);
@@ -185,48 +170,28 @@ export function openSectionOverviewModal(p) {
             <span class="s2-card-type">${type}</span>
             ${status ? `<span class="s2-status s2-status-${esc(row.status)}">${esc(status)}</span>` : ''}
           </div>
-          <div class="s2-card-actions">
-            ${!invalid ? `<button type="button" class="sec-btn s2-play-btn" data-s2-play="${esc(row.id)}" ${preview ? '' : 'disabled'} aria-label="${esc(label)}の冒頭4コードを試聴" title="${preview ? '冒頭' + preview.chordCount + 'コードを試聴' : '試聴できる時間情報がありません'}">${isPlaying ? '■ 停止' : '▶ 試聴'}</button>` : ''}
-            <button type="button" class="sec-btn s2-edit-btn" data-s2-edit="${esc(row.id)}">編集・分割</button>
-          </div>
         </div>
-        <div class="s2-card-length">
-          <small>長さ</small>
-          <strong>${esc(row.view.lengthLabel)}</strong>
-          ${row.view.lengthSub ? `<em>${esc(row.view.lengthSub)}</em>` : ''}
+        <div class="s2-card-start"><small>開始</small><strong>${esc(row.view.startLabel)}</strong></div>
+        <div class="s2-card-length"><small>長さ</small><strong>${esc(row.view.lengthLabel)}</strong>${row.view.lengthSub ? `<em>${esc(row.view.lengthSub)}</em>` : ''}</div>
+        <div class="s2-card-time"><small>時間</small><strong>${esc(row.view.secondsLabel)}</strong></div>
+        <div class="s2-card-actions">
+          ${!invalid ? `<button type="button" class="sec-btn s2-play-btn" data-s2-play="${esc(row.id)}" ${preview ? '' : 'disabled'} aria-label="${esc(label)}の冒頭4コードを試聴" title="${preview ? '冒頭' + preview.chordCount + 'コードを試聴' : '試聴できる時間情報がありません'}">${isPlaying ? '■ 停止' : '▶ 試聴'}</button>` : ''}
+          <button type="button" class="sec-btn s2-edit-btn" data-s2-edit="${esc(row.id)}">${invalid ? '修正' : '編集・分割'}</button>
         </div>
-        <div class="s2-card-time">
-          <small>時間</small>
-          <strong>${esc(row.view.secondsLabel)}</strong>
-        </div>
-        ${invalid ? '<div class="s2-invalid-note">このSectionは構造的に不正です。編集・分割から確認してください</div>' : compareHtml(row)}
+        ${invalid ? '<div class="s2-invalid-note">このSectionは構造的に不正です。修正から確認してください</div>' : ''}
       </article>`;
   }
-
   function mergeButtonHtml(sectionId, prevId, eligibility, invalidGroup = false) {
     const disabled = invalidGroup || !eligibility?.ok;
     const reason = invalidGroup ? '要修正' : reasonText(eligibility?.reason);
     const title = disabled ? reason : '直前のSectionと結合';
     return `
-      <div class="s2-merge-row">
+      <div class="s2-transition-actions">
         <button type="button" class="s2-merge-btn" data-s2-merge="${esc(sectionId)}" data-prev-id="${esc(prevId || '')}" title="${esc(title)}" ${disabled ? 'disabled' : ''}>
           <span aria-hidden="true">↕</span> ${disabled ? esc(reason) : '前と結合'}
         </button>
       </div>`;
   }
-
-  function boundaryButtonHtml(prevId, nextId, eligibility) {
-    const disabled = !eligibility?.ok;
-    const reason = disabled ? reasonText(eligibility?.reason) : '隣接するSectionの境界を調整';
-    return `
-      <div class="s2-boundary-row">
-        <button type="button" class="s2-boundary-btn" data-s2-boundary-prev="${esc(prevId)}" data-s2-boundary-next="${esc(nextId)}" title="${esc(reason)}" ${disabled ? 'disabled' : ''}>
-          境界調整
-        </button>
-        ${disabled ? `<span class="s2-boundary-reason">${esc(reason)}</span>` : ''}
-      </div>`;
-  }
-
   function listHtml() {
     const rows = overview.rows || [];
     const invalidRows = overview.invalidRows || [];
@@ -234,34 +199,20 @@ export function openSectionOverviewModal(p) {
       const card = cardHtml(row, index, false);
       if (index >= rows.length - 1) return card;
       const next = rows[index + 1];
-      const mergeEligibility = canMergeWithPrevious(draft, buffer, next.id);
-      const boundaryEligibility = canAdjustBoundaryWithNext(draft, buffer, row.id);
-      return card
-        + `<div class="s2-transition-actions">`
-        + mergeButtonHtml(next.id, mergeEligibility.prevId, mergeEligibility, false)
-        + boundaryButtonHtml(row.id, next.id, boundaryEligibility)
-        + `</div>`;
+      const eligibility = canMergeWithPrevious(draft, buffer, next.id);
+      return card + mergeButtonHtml(next.id, eligibility.prevId, eligibility, false);
     }).join('');
-
     const invalidHtml = invalidRows.map((row, index) => {
       const card = cardHtml(row, index, true);
       if (index >= invalidRows.length - 1) return card;
       return card + mergeButtonHtml(invalidRows[index + 1].id, null, { ok: false, reason: 'invalid' }, true);
     }).join('');
-
     return `
       <div class="s2-scroll" id="s2-scroll">
-        ${rows.length
-          ? `<div class="s2-card-list">${validHtml}</div>`
-          : '<div class="s2-empty">Sectionがありません</div>'}
-        ${invalidRows.length ? `
-          <section class="s2-invalid-group">
-            <h4>要修正（構造的に不正なSection）</h4>
-            <div class="s2-card-list">${invalidHtml}</div>
-          </section>` : ''}
+        ${rows.length ? `<div class="s2-card-list">${validHtml}</div>` : '<div class="s2-empty">Sectionがありません</div>'}
+        ${invalidRows.length ? `<section class="s2-invalid-group"><h4>要修正（構造的に不正なSection）</h4><div class="s2-card-list">${invalidHtml}</div></section>` : ''}
       </div>`;
   }
-
   function bodyHtml() {
     const canUndo = (draft.undoStack?.length || 0) > 0;
     const canRedo = (draft.redoStack?.length || 0) > 0;
@@ -399,21 +350,6 @@ export function openSectionOverviewModal(p) {
         saveScrollTop();
         const sectionId = button.dataset.s2Edit;
         onEditSplit?.(sectionId);
-      });
-    });
-    root.querySelectorAll('[data-s2-boundary-prev]').forEach(button => {
-      button.addEventListener('click', () => {
-        const prevId = button.dataset.s2BoundaryPrev;
-        const nextId = button.dataset.s2BoundaryNext;
-        const eligibility = canAdjustBoundaryWithNext(draft, buffer, prevId);
-        if (!eligibility.ok || eligibility.nextId !== nextId) {
-          showMessage(reasonText(eligibility.reason));
-          render({ skipDiff: true });
-          return;
-        }
-        stopPreviewPlayback();
-        saveScrollTop();
-        onAdjustBoundary?.(prevId, nextId);
       });
     });
     root.querySelectorAll('[data-s2-merge]').forEach(button => {
