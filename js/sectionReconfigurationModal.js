@@ -685,7 +685,7 @@ export function openSectionReconfigurationModal(p) {
           <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
         <div id="sr1-msg" class="sag-errors sr1-msg" role="status">${esc(message)}</div>
-        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> クリックで位置選択 · ←→ 移動 · Space 再生 · Esc 分割キャンセル／境界編集キャンセル／閉じる</p>
+        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> P 再生位置 · B 境界位置 · S 分割位置 · ←→ 移動 · Space 試聴 · Enter 確定 · 名前欄Enterで入力終了 · Tab/Shift+Tab Section移動</p>
       </div>`;
   }
 
