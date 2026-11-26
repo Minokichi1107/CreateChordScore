@@ -12,7 +12,7 @@ function chordStart(buffer, index) {
   return Number.isFinite(value) ? value : null;
 }
 function chordEnd(buffer, index) {
-  const value = index < buffer.length - 1 ? buffer[index + 1]?.start : buffer[index]?.end;
+  const value = buffer[index]?.end ?? buffer[index]?.start;
   return Number.isFinite(value) ? value : null;
 }
 
