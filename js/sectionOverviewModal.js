@@ -13,6 +13,7 @@ import {
   buildSectionOverview,
   canMergeWithPrevious,
   diffSections,
+  getSectionPreviewRange,
 } from './sectionOverview.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch =>
@@ -58,6 +59,7 @@ export function openSectionOverviewModal(p) {
     onAdjustBoundary,
     onAdopt,
     onClose,
+    onTestPlay,
     onTestStop,
     onKeyShield,
     onKeyUnshield,
@@ -76,6 +78,8 @@ export function openSectionOverviewModal(p) {
   let highlightIds = new Set();
   let clearTimer = null;
   let scrollHandler = null;
+  let playingSectionId = null;
+  let playbackGeneration = 0;
 
   function isActive() {
     return !closed && (typeof isCurrent !== 'function' || isCurrent());
@@ -166,12 +170,14 @@ export function openSectionOverviewModal(p) {
 
   function cardHtml(row, index, invalid = false) {
     const status = rowStatusLabel(row.status);
+    const preview = invalid ? null : getSectionPreviewRange(row, buffer, 4);
+    const isPlaying = playingSectionId === row.id;
     const highlighted = highlightIds.has(row.id);
     const name = row.name ? esc(row.name) : '名称未設定';
     const type = row.type ? esc(getTypeLabel(row.type)) : '種類未設定';
     const label = invalid ? '要修正' : `Section ${index + 1}`;
     return `
-      <article class="s2-card ${invalid ? 's2-card-invalid' : ''} ${highlighted ? 'is-highlighted' : ''}" id="s2-card-${esc(row.id)}" data-section-id="${esc(row.id)}">
+      <article class="s2-card ${invalid ? 's2-card-invalid' : ''} ${highlighted ? 'is-highlighted' : ''} ${isPlaying ? 'is-playing' : ''}" id="s2-card-${esc(row.id)}" data-section-id="${esc(row.id)}">
         <div class="s2-card-head">
           <div class="s2-card-title">
             <span class="s2-card-index">${label}</span>
@@ -179,7 +185,10 @@ export function openSectionOverviewModal(p) {
             <span class="s2-card-type">${type}</span>
             ${status ? `<span class="s2-status s2-status-${esc(row.status)}">${esc(status)}</span>` : ''}
           </div>
-          <button type="button" class="sec-btn s2-edit-btn" data-s2-edit="${esc(row.id)}">編集・分割</button>
+          <div class="s2-card-actions">
+            ${!invalid ? `<button type="button" class="sec-btn s2-play-btn" data-s2-play="${esc(row.id)}" ${preview ? '' : 'disabled'} aria-label="${esc(label)}の冒頭4コードを試聴" title="${preview ? '冒頭' + preview.chordCount + 'コードを試聴' : '試聴できる時間情報がありません'}">${isPlaying ? '■ 停止' : '▶ 試聴'}</button>` : ''}
+            <button type="button" class="sec-btn s2-edit-btn" data-s2-edit="${esc(row.id)}">編集・分割</button>
+          </div>
         </div>
         <div class="s2-card-meta">
           <span><small>開始</small>${esc(row.view.startLabel)}</span>
@@ -311,6 +320,49 @@ export function openSectionOverviewModal(p) {
     }
   }
 
+  function stopPreviewPlayback() {
+    playbackGeneration += 1;
+    playingSectionId = null;
+    onTestStop?.();
+  }
+
+  function playSectionPreview(row) {
+    const range = getSectionPreviewRange(row, buffer, 4);
+    if (!range) {
+      showMessage('このSectionの冒頭を試聴できる時間情報がありません');
+      render({ skipDiff: true });
+      return;
+    }
+    if (playingSectionId === row.id) {
+      stopPreviewPlayback();
+      render({ skipDiff: true });
+      return;
+    }
+    stopPreviewPlayback();
+    const generation = ++playbackGeneration;
+    playingSectionId = row.id;
+    render({ skipDiff: true });
+    if (typeof onTestPlay !== 'function') {
+      playingSectionId = null;
+      showMessage('試聴機能を利用できません');
+      render({ skipDiff: true });
+      return;
+    }
+    onTestPlay({
+      startSec: range.startSec,
+      endSec: range.endSec,
+      onEnded: () => {
+        if (generation !== playbackGeneration || !isActive()) return;
+        playbackGeneration += 1;
+        playingSectionId = null;
+        render({ skipDiff: true });
+      },
+      onTime: () => {
+        // The overview only needs section-level playback feedback.
+      },
+    });
+  }
+
   function saveScrollTop() {
     const scroll = root?.querySelector('#s2-scroll');
     if (scroll && runtime.view) runtime.view.scrollTop = scroll.scrollTop;
@@ -319,16 +371,25 @@ export function openSectionOverviewModal(p) {
   function bind() {
     if (!root) return;
     root.querySelector('#s2-close')?.addEventListener('click', () => { requestClose('external').then(() => {}); });
+    root.querySelectorAll('[data-s2-play]').forEach(button => {
+      button.addEventListener('click', () => {
+        const row = (overview.rows || []).find(item => item.id === button.dataset.s2Play);
+        if (row) playSectionPreview(row);
+      });
+    });
     root.querySelector('#s2-undo')?.addEventListener('click', () => {
+      stopPreviewPlayback();
       const before = signatures();
       if (undoDraft(draft)) render({ beforeOverride: before, historyAction: 'undo' });
     });
     root.querySelector('#s2-redo')?.addEventListener('click', () => {
+      stopPreviewPlayback();
       const before = signatures();
       if (redoDraft(draft)) render({ beforeOverride: before, historyAction: 'redo' });
     });
     root.querySelectorAll('[data-s2-edit]').forEach(button => {
       button.addEventListener('click', () => {
+        stopPreviewPlayback();
         saveScrollTop();
         const sectionId = button.dataset.s2Edit;
         onEditSplit?.(sectionId);
@@ -344,6 +405,7 @@ export function openSectionOverviewModal(p) {
           render({ skipDiff: true });
           return;
         }
+        stopPreviewPlayback();
         saveScrollTop();
         onAdjustBoundary?.(prevId, nextId);
       });
@@ -358,6 +420,7 @@ export function openSectionOverviewModal(p) {
           render({ skipDiff: true });
           return;
         }
+        stopPreviewPlayback();
         const before = signatures();
         const sectionIndex = draft.sections.findIndex(section => section?.id === sectionId);
         const result = mergeDraftWithPrevious(draft, sectionIndex, buffer);
@@ -385,7 +448,7 @@ export function openSectionOverviewModal(p) {
     }
     if (clearTimer) clearTimeout(clearTimer);
     clearTimer = null;
-    onTestStop?.();
+    stopPreviewPlayback();
     onKeyUnshield?.();
   }
 
@@ -472,7 +535,7 @@ export function openSectionOverviewModal(p) {
       if (clearTimer) clearTimeout(clearTimer);
       clearTimer = null;
       closed = true;
-      onTestStop?.();
+      stopPreviewPlayback();
       return { scrollTop: Number(runtime.view?.scrollTop) || 0 };
     },
     cleanup: () => {
