@@ -252,6 +252,13 @@ function nearestBoundaryIndex(boundaries, value, tolerance) {
   return bestDistance <= tolerance + EPS ? bestIndex : -1;
 }
 
+/** Apply the same boundary tolerance to the displayed beat total and bar breakdown. */
+function snapBeatToBoundary(value, boundaries, tolerance) {
+  if (!finite(value)) return null;
+  const index = nearestBoundaryIndex(boundaries, value, tolerance);
+  return index >= 0 ? boundaries[index].beat : value;
+}
+
 function calculateMeasureBreakdown(bStart, bEnd, measures, beatAt, tolerance) {
   const empty = { leadBeats: null, fullMeasures: null, tailBeats: null };
   if (!finite(bStart) || !finite(bEnd) || bEnd <= bStart || !measures.length) return empty;
@@ -374,7 +381,12 @@ export function buildSectionOverview(draft, buffer, timing, opts = {}) {
     const endBeat = beatAt && finite(tEnd) ? beatAt(tEnd) : null;
     const bStart = startBeat?.value ?? null;
     const bEnd = endBeat?.value ?? null;
-    const totalBeats = finite(bStart) && finite(bEnd) && bEnd > bStart ? bEnd - bStart : null;
+    const boundaries = measureBoundaries(measures, beatAt);
+    const displayBStart = snapBeatToBoundary(bStart, boundaries, breakdownTol);
+    const displayBEnd = snapBeatToBoundary(bEnd, boundaries, breakdownTol);
+    const totalBeats = finite(displayBStart) && finite(displayBEnd) && displayBEnd > displayBStart
+      ? displayBEnd - displayBStart
+      : null;
     const breakdown = calculateMeasureBreakdown(bStart, bEnd, measures, beatAt, breakdownTol);
     const startPosition = resolveMeasureContext(tStart, timing, measures, beatAt, isPickup, startSnapTol);
     const labels = makeLengthLabels(
