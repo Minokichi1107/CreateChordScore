@@ -3297,11 +3297,10 @@ function _generateSectionName(type) {
 }
 
 /**
- * _isAutoSectionName — 名前が「その種類の自動名」かどうかを判定する（Phase140 #96）
+ * _isAutoSectionName — 既存Section名が自動命名パターンかを判定する。
  *
- * 自動名 = 種類のラベルそのもの、または「ラベル 数字」（例: "Verse" / "Verse 2" / "サビ 3"）。
- * 手で付けた名前（例: "1番サビ"）は false。「変更」ダイアログで種類を替えたときに、
- * 名前欄を追従させてよいかの判定に使う。
+ * 旧保存データには手入力フラグがないため、全分類の標準ラベルと連番形式を照合する。
+ * 明示的な手入力フラグがあるDraft名は、呼び出し側でそちらを優先する。
  */
 function _isAutoSectionName(name, type) {
   // Legacy saved Sections do not persist nameUserEdited. Recognize any canonical
