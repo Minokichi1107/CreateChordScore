@@ -99,13 +99,14 @@ const st = (b, sections = []) => ({
 }
 
 {
+  // Stage2: the single-Section setter changes only its target; shared movement has a separate API.
   const b = buf(8);
   const draft = createReconfigurationDraft({ projectId: 'p', buffer: b, sections: [] });
   draft.sections = [S('a', 0, 2), S('b', 3, 7)];
-  const r = setDraftSectionEndByChordIndex(draft, 0, 4, b);
+  const r = setDraftSectionEndByChordIndex(draft, 0, 1, b);
   assert.equal(r.ok, true, r.reason);
-  assert.equal(draft.sections[0].endChordId, 'k4');
-  assert.equal(draft.sections[1].startChordId, 'k5');
+  assert.equal(draft.sections[0].endChordId, 'k1');
+  assert.equal(draft.sections[1].startChordId, 'k3');
   assert.equal(draft.sections[1].endChordId, 'k7');
 }
 
@@ -113,24 +114,25 @@ const st = (b, sections = []) => ({
   const b = buf(8);
   const draft = createReconfigurationDraft({ projectId: 'p', buffer: b, sections: [] });
   draft.sections = [S('a', 0, 2), S('b', 3, 5), S('c', 6, 7)];
-  const r = setDraftSectionEndByChordIndex(draft, 0, 5, b);
+  const r = adjustSharedBoundary(draft, 'a', 'b', 5, b);
   assert.equal(r.ok, false);
-  assert.equal(r.reason, 'crosses-next-section-end');
+  assert.equal(r.reason, 'next-section-too-short');
+  assert.equal(draft.sections[0].endChordId, 'k2');
+  assert.equal(draft.sections[1].startChordId, 'k3');
   assert.equal(draft.sections[2].startChordId, 'k6');
   assert.equal(draft.sections[2].endChordId, 'k7');
 }
 
 {
-  // A-5: Interior boundary on last section via setDraftSectionEnd → refuse (use split API)
+  // A-5: the last Section has no shared boundary; intentional subdivision uses the split API.
   const b = buf(6);
   const draft = createReconfigurationDraft({ projectId: 'p', buffer: b, sections: [] });
   draft.sections = [S('a', 0, 2), S('b', 3, 5)];
-  const r = setDraftSectionEndByChordIndex(draft, 1, 4, b);
-  assert.equal(r.ok, false);
-  assert.equal(r.reason, 'last-section-end-fixed');
+  const can = canAdjustBoundaryWithNext(draft, b, 'b');
+  assert.equal(can.ok, false);
+  assert.equal(can.reason, 'last');
   assert.equal(draft.sections.length, 2);
-  // Explicit split still works
-  const rSplit = splitDraftAtChordIndex(draft, 1, 4, b);
+  const rSplit = splitDraftAtChordIndex(draft, 'b', 4, b);
   assert.equal(rSplit.ok, true, rSplit.reason);
   assert.equal(draft.sections.length, 3);
   assert.equal(draft.sections[1].endChordId, 'k4');
@@ -141,7 +143,7 @@ const st = (b, sections = []) => ({
   const b = buf(9);
   const draft = createReconfigurationDraft({ projectId: 'p', buffer: b, sections: [] });
   draft.sections = [S('a', 0, 2), S('b', 3, 5), S('c', 6, 8)];
-  const r = setDraftSectionEndByChordIndex(draft, 0, 1, b);
+  const r = adjustSharedBoundary(draft, 'a', 'b', 1, b);
   assert.equal(r.ok, true, r.reason);
   assert.equal(draft.sections[0].endChordId, 'k1');
   assert.equal(draft.sections[1].startChordId, 'k2');
@@ -151,13 +153,14 @@ const st = (b, sections = []) => ({
 }
 
 {
+  // Stage2 rejects an already-overlapping pair instead of repairing it implicitly.
   const b = buf(8);
   const draft = createReconfigurationDraft({ projectId: 'p', buffer: b, sections: [] });
   draft.sections = [S('a', 0, 5), S('b', 3, 7)];
-  const r = setDraftSectionEndByChordIndex(draft, 0, 2, b);
-  assert.equal(r.ok, true, r.reason);
-  assert.equal(r.localOverlapRepair, true);
-  assert.equal(draft.sections[0].endChordId, 'k2');
+  const r = adjustSharedBoundary(draft, 'a', 'b', 2, b);
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'overlap');
+  assert.equal(draft.sections[0].endChordId, 'k5');
   assert.equal(draft.sections[1].startChordId, 'k3');
   assert.equal(draft.sections[1].endChordId, 'k7');
 }
@@ -242,8 +245,9 @@ const st = (b, sections = []) => ({
     { id: 'bad', type: 'verse', name: 'Bad', startChordId: 'missing', endChordId: 'k5' },
     S('c', 6, 7),
   ];
-  const r = setDraftSectionEndByChordIndex(draft, 0, 1, b);
+  const r = canAdjustBoundaryWithNext(draft, b, 'a');
   assert.equal(r.ok, false, 'should reject when immediate next is invalid');
+  assert.equal(r.reason, 'neighbour-invalid');
   assert.equal(draft.sections[1].startChordId, 'missing');
   assert.equal(draft.sections[2].startChordId, 'k6');
 }
@@ -258,9 +262,9 @@ const st = (b, sections = []) => ({
     S('c', 6, 7),
   ];
   const beforeC = JSON.stringify(draft.sections[2]);
-  const r = setDraftSectionEndByChordIndex(draft, 0, 1, b);
+  const r = canAdjustBoundaryWithNext(draft, b, 'a');
   assert.equal(r.ok, false, 'should reject when unlocated invalid exists');
-  assert.equal(r.reason, 'unlocated-invalid-section');
+  assert.equal(r.reason, 'unlocated-invalid');
   assert.equal(JSON.stringify(draft.sections[2]), beforeC, 'C must not change');
   assert.equal(draft.sections[0].endChordId, 'k2', 'A must not change on reject');
 }
@@ -293,11 +297,11 @@ const st = (b, sections = []) => ({
     buffer: b,
     sections: [S('only', 0, 7)],
   });
-  const r = setDraftSectionEndByChordIndex(draft, 0, 2, b);
-  assert.equal(r.ok, false);
-  assert.equal(r.reason, 'last-section-end-fixed');
+  const can = canAdjustBoundaryWithNext(draft, b, 'only');
+  assert.equal(can.ok, false);
+  assert.equal(can.reason, 'last');
   assert.equal(draft.sections.length, 1);
-  const rSplit = splitDraftAtChordIndex(draft, 0, 2, b);
+  const rSplit = splitDraftAtChordIndex(draft, 'only', 2, b);
   assert.equal(rSplit.ok, true, rSplit.reason);
   assert.equal(draft.sections.length, 2);
   assert.equal(draft.sections[0].id, 'only');
@@ -479,7 +483,7 @@ const st = (b, sections = []) => ({
   assert.equal(list[1].structurallyValid, true);
   assert.equal(list[1].complete, false);
   // boundary edit still works with incomplete back half
-  const br = setDraftSectionEndByChordIndex(draft, 0, 1, b);
+  const br = adjustSharedBoundary(draft, draft.sections[0].id, draft.sections[1].id, 1, b);
   assert.equal(br.ok, true, br.reason);
   // adopt rejected until fields filled
   let prep = prepareDraftForAdopt(draft, { projectId: 'p', buffer: b, isEditing: true });
@@ -604,7 +608,7 @@ const st = (b, sections = []) => ({
   });
   // Boundary change uses explicit end index, independent of any "play" concept
   const beforeBStart = draft.sections[1].startChordId;
-  const r = setDraftSectionEndByChordIndex(draft, 0, 1, b);
+  const r = adjustSharedBoundary(draft, 'a', 'b', 1, b);
   assert.equal(r.ok, true, r.reason);
   assert.equal(draft.sections[0].endChordId, 'k1');
   assert.equal(draft.sections[1].startChordId, 'k2');
@@ -694,7 +698,7 @@ const st = (b, sections = []) => ({
     sections: [S('a', 0, 2), S('b', 3, 5)],
   });
   // Changing boundary via API does not depend on any playCandidate state
-  const r = setDraftSectionEndByChordIndex(draft, 0, 1, b);
+  const r = adjustSharedBoundary(draft, 'a', 'b', 1, b);
   assert.equal(r.ok, true, r.reason);
   assert.equal(draft.sections[0].endChordId, 'k1');
   assert.equal(draft.sections[1].startChordId, 'k2');
