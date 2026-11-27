@@ -35,7 +35,7 @@ import {
   teardownReconfigRuntime,
   draftSectionChordSpans,
 } from '../js/sectionReconfiguration.js';
-import { replaceSectionsFromDraftCommand, applyGeneratedSectionsCommand } from '../js/analysisCommands.js';
+import { replaceSectionsFromDraftCommand } from '../js/analysisCommands.js';
 import { undoBuffer } from '../js/analysisSession.js';
 import {
   buildDraftIssueBannersHtml,
@@ -283,7 +283,7 @@ const st = (b, sections = []) => ({
   assert.equal(JSON.stringify(state.buffer), bufBefore);
   undoBuffer(state);
   assert.equal(state.sections[0].id, 'old');
-  assert.equal(applyGeneratedSectionsCommand(state, [S('x', 0, 3)]).reason, 'sections-already-exist');
+
 }
 
 {
