@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  validateSectionSet,
   validateGeneratedSectionSet,
 } from '../js/sectionSetValidation.js';
 import {
@@ -48,12 +49,13 @@ assert.match(stage1ModalSource, /if \(e\.isComposing \|\| e\.keyCode === 229\) r
 assert.match(stage1ModalSource, /if \(inField\) \{[\s\S]*?return;[\s\S]*?if \(e\.code === 'Tab'\)/, 'editable fields retain native Tab behavior');
 assert.match(stage1ModalSource, /updatePlayingHighlight\(null\);/, 'playback end updates highlight without rebuilding the name input');
 assert.match(stage1ModalSource, /patch\.nameUserEdited = false;[\s\S]*?opts\.defaultNameForType = type => generateDraftSectionName\(type, sec\.id\)/, 'type changes always regenerate names and clear manual-name metadata');
+assert.doesNotMatch(stage1ModalSource, /sr1-merge-prev|mergeCurrentWithPrevious|canMergeWithPrevious/, 'Section merge is available from Stage2 only');
 const appSource = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 assert.match(appSource, /SECTION_TYPES\.find\(entry => entry\.value === type\)/, 'legacy auto-name inference remains available to the separate rename dialog');
 assert.match(appSource, /calculateSectionCoverage\(currentSections, buffer\)/, 'existing Section coverage is computed before choosing a reconfiguration path');
 assert.match(appSource, /既存Sectionを活かす/, 'existing Section preservation is offered');
 assert.match(appSource, /最初から設定し直す/, 'starting from a clean full-span Draft is offered');
-assert.match(appSource, /OK = \\${firstLabel}\\nキャンセル = \\${secondLabel}/, 'both reconfiguration choices are mapped to the two-choice prompt');
+assert.match(appSource, /OK = \\\$\\{firstLabel\\}\\\\nキャンセル = \\\$\\{secondLabel\\}/, 'both reconfiguration choices are mapped to the two-choice prompt');
 
 const buf = (n = 4) => Array.from({ length: n }, (_, i) => ({
   _id: `k${i}`, chord: ['C', 'G', 'Am', 'F'][i % 4], start: i * 2, end: i * 2 + 2,
@@ -70,7 +72,8 @@ const st = (b, sections = []) => ({
 {
   const b = buf();
   const sections = [S('a', 0, 1, 'other', '未設定'), S('b', 2, 3, 'other', '未設定')];
-  assert.equal(validateGeneratedSectionSet(sections, b).valid, true);
+  assert.equal(validateSectionSet(sections, b).valid, true);
+  assert.equal(validateGeneratedSectionSet(sections, b).valid, true, 'legacy validator export remains compatible');
 }
 
 {
@@ -94,6 +97,7 @@ const st = (b, sections = []) => ({
   );
   assert.equal(built.overlapCount, 2);
   assert.equal(built.droppedCount, 1);
+  assert.deepEqual(built.droppedSections.map(section => section.name), ['V']);
   assert.equal(built.gapsFilled, 0);
 }
 
