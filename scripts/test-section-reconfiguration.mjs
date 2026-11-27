@@ -478,7 +478,7 @@ const st = (b, sections = []) => ({
       { id: 'a', type: 'verse', name: 'V', startChordId: 'k0', endChordId: 'k5' },
     ],
   });
-  const r = splitDraftAtChordIndex(draft, 0, 2, b);
+  const r = splitDraftAtChordIndex(draft, 'a', 2, b);
   assert.equal(r.ok, true, r.reason);
   assert.equal(draft.sections[1].name, '');
   assert.equal(draft.sections[1].type, '');
