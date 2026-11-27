@@ -980,4 +980,45 @@ assert.match(stage1Source, /modeKey === 'p' \|\| modeKey === 'b' \|\| modeKey ==
 assert.match(stage1Source, /e\.code === 'Enter'.*sr1-name/s, 'Enter exits the Section name field');
 assert.match(stage1Source, /reason: 'boundary-change'/, 'successful Stage2-originated boundary changes return to overview');
 
+
+// --- Stage1 UI boundary edits absorb an existing gap into the following Section ---
+{
+  const b = buf(8);
+  const draft = createReconfigurationDraft({
+    projectId: 'boundary-gap-ui',
+    buffer: b,
+    sections: [S('a', 0, 2), S('b', 5, 7)],
+  });
+  // Bypass creation-time gap filler to model an existing gap in the Draft.
+  draft.sections = [S('a', 0, 2), S('b', 5, 7)];
+  const r = adjustSharedBoundary(draft, 'a', 'b', 1, b);
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(draft.sections[0].endChordId, 'k1');
+  assert.equal(draft.sections[1].startChordId, 'k2');
+  assert.equal(draft.sections[1].endChordId, 'k7');
+  assert.equal(undoDraft(draft), true);
+  assert.equal(draft.sections[0].endChordId, 'k2');
+  assert.equal(draft.sections[1].startChordId, 'k5');
+}
+
+// --- Stage1 split passes Section ID and applies split metadata options ---
+{
+  const b = buf(6);
+  const draft = createReconfigurationDraft({
+    projectId: 'split-section-id',
+    buffer: b,
+    sections: [S('source-id', 0, 5, 'verse', 'Aメロ')],
+  });
+  const r = splitDraftAtChordIndex(draft, 'source-id', 2, b, () => 'back-id', {
+    inheritBackMeta: true,
+    defaultNameForType: () => 'Aメロ 2',
+  });
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(r.backIndex, 1);
+  assert.equal(draft.sections[1].id, 'back-id');
+  assert.equal(draft.sections[1].type, 'verse');
+  assert.equal(draft.sections[1].name, 'Aメロ 2');
+  assert.equal(draft.sections[1].nameUserEdited, undefined);
+}
+
 console.log('test-section-reconfiguration: ok');
