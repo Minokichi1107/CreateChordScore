@@ -29,7 +29,8 @@ Section設定に関係する既存機能を、ユーザーが一つの操作フ�
 - 新規設定では候補があれば初期候補として利用し、候補がなければ曲全体を1 Sectionとした状態から手動編集できる。
 - 既存Sectionがある曲にも再設定を許可する。再設定用Draftを作り、採用時のみ置き換える。
 - 既存Sectionの再設定・候補からの再設定・全範囲からのやり直しは、可能な限り同じDraft編集・確認フローを使う。
-- Draft編集中のUndo/Redoは、既に合意したB案を維持する。既存のAnalysis Editor Historyと二重に記録しない。
+- 既存Sectionの再設定はStage2（全Section一覧・確認画面）から開始し、各Sectionの「編集・分割」でStage1へ移動する。Stage1からStage2へ戻れる。Stage間の移動ではDraftとUndo/Redo履歴を維持する。
+- Draft編集中のUndo/Redoは、Draft内で一時管理し、Analysis Editor Historyへは採用時に1回だけ記録する。Undo/Redo時は上部に1行の通知を数秒表示し、変更されたSectionカードをハイライトする。履歴一覧は設けない。通知文言はUndo「元に戻しました（結合）」、Redo「やり直しました（分割）」を基本とする。
 - Stage1はコード進行上の境界編集と試聴を中心とする。Stage2は全Sectionの時系列確認、結合・分割の入口、長さ比較、採用を担う。
 - Sectionコピー（コード進行のコピー）は今回の対象外。
 - Section名・種類の入力に、転調・キー変更の入力を追加しない。
