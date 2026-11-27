@@ -128,6 +128,14 @@ const st = (b, sections = []) => ({
   assert.equal(coverage.ratio, 0.8);
   assert.equal(recommendSectionReconfiguration(coverage), 'keep-existing');
 
+  const uneven = buf(4);
+  uneven[0].start = 0; uneven[0].end = 1;
+  uneven[1].start = 1; uneven[1].end = 2;
+  uneven[2].start = 2; uneven[2].end = 9;
+  uneven[3].start = 9; uneven[3].end = 10;
+  const timeWeighted = calculateSectionCoverage([S('long', 0, 2)], uneven);
+  assert.equal(timeWeighted.ratio, 0.9, 'coverage follows playback duration, not chord count');
+
   const below = calculateSectionCoverage([S('a', 0, 3), S('b', 6, 7)], b);
   assert.equal(below.ratio, 0.6);
   assert.equal(recommendSectionReconfiguration(below), 'start-fresh');
