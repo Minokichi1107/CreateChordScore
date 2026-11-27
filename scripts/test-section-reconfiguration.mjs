@@ -184,7 +184,7 @@ const st = (b, sections = []) => ({
   draft.sections.push({ id: 'bad', type: 'verse', name: 'Bad', startChordId: 'nope', endChordId: 'nope2' });
   const prep = prepareDraftForAdopt(draft, { projectId: 'p', buffer: b, isEditing: true });
   assert.equal(prep.ok, false);
-  assert.equal(prep.reason, 'invalid-section-remaining');
+  assert.equal(prep.reason, 'section-invalid');
 }
 
 {
