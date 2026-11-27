@@ -170,6 +170,7 @@ export function buildDraftSectionsFromCurrent(buffer, sections, newId = () => cr
   let gapsFilled = 0;
   let overlapCount = 0;
   let droppedCount = 0;
+  const droppedSections = [];
 
   const addGap = (start, end) => {
     if (start > end) return;
@@ -190,6 +191,7 @@ export function buildDraftSectionsFromCurrent(buffer, sections, newId = () => cr
     // A fully covered later Section has no surviving chord range.
     if (effectiveStart > row.end) {
       droppedCount += 1;
+      droppedSections.push(structuredClone(row.section));
       continue;
     }
 
@@ -223,6 +225,7 @@ export function buildDraftSectionsFromCurrent(buffer, sections, newId = () => cr
     overlapCount,
     invalidCount: invalid.length,
     droppedCount,
+    droppedSections,
   };
 }
 
@@ -302,6 +305,13 @@ export function createReconfigurationDraft({ projectId, buffer, sections, newId 
     gapsFilled: built.gapsFilled,
     overlapCount: built.overlapCount,
     droppedCount: built.droppedCount ?? 0,
+    droppedSections: structuredClone(built.droppedSections ?? []),
+    normalization: {
+      gapsFilled: built.gapsFilled,
+      overlapCount: built.overlapCount,
+      droppedCount: built.droppedCount ?? 0,
+      droppedNames: (built.droppedSections ?? []).map(section => String(section?.name ?? '')).filter(Boolean),
+    },
     invalidCount: built.invalidCount,
     undoStack: [],
     redoStack: [],
