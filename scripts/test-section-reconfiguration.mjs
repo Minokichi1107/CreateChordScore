@@ -203,7 +203,7 @@ const st = (b, sections = []) => ({
 {
   const rt = createReconfigRuntime();
   assert.deepEqual(rt.view, {
-    stage: 2, sectionId: null, scrollTop: 0, lastSeenSigs: null, token: 0,
+    scrollTop: 0, lastSeenSigs: null,
   });
   assert.equal(rt.splitContext, null);
   rt.draft = createReconfigurationDraft({ projectId: 'old', buffer: buf(), sections: [S('a', 0, 3)] });
