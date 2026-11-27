@@ -233,7 +233,7 @@ import {
 
 } from './analysisCommands.js';
 
-import { hasSectionGenerationCodeEdits } from './sectionGeneration.js';
+import { hasSectionCodeEdits } from './sectionCodeBuffer.js';
 import {
   createReconfigurationDraft,
   createReconfigRuntime,
@@ -3552,7 +3552,7 @@ async function startSectionReconfiguration() {
 
   // 未保存コード編集: buffer と 保存済み raw.chords を比較（dirtyフラグに依存しない）
   const savedChords = project?.analysis?.raw?.chords;
-  if (Array.isArray(savedChords) && hasSectionGenerationCodeEdits(buffer, savedChords)) {
+  if (Array.isArray(savedChords) && hasSectionCodeEdits(buffer, savedChords)) {
     const ok = window.confirm(
       '未保存のコード編集があります。保存してからSection再設定を開始しますか？\n\n' +
       '「保存すると元に戻す履歴はリセットされます」\n\n' +

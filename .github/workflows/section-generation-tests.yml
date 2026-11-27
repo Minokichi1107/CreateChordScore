@@ -5,7 +5,7 @@ on:
     paths:
       - "section_save.py"
       - "section_txn.py"
-      - "js/sectionGeneration.js"
+      - "js/sectionCodeBuffer.js"
       - "js/sectionAutoGeneration.js"
       - "js/sectionBoundaryDetection.js"
       - "scripts/test_section_save.py"
@@ -20,7 +20,7 @@ on:
     paths:
       - "section_save.py"
       - "section_txn.py"
-      - "js/sectionGeneration.js"
+      - "js/sectionCodeBuffer.js"
       - "js/sectionAutoGeneration.js"
       - "js/sectionBoundaryDetection.js"
       - "scripts/test_section_save.py"

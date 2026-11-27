@@ -17,7 +17,7 @@ import {
   buildSectionsFromDraft,
   createDraftFromBoundaries,
 } from '../js/sectionAutoGeneration.js';
-import { hasSectionGenerationCodeEdits } from '../js/sectionGeneration.js';
+import { hasSectionCodeEdits } from '../js/sectionCodeBuffer.js';
 
 // ---- simplifyChord ----
 assert.equal(simplifyChord('C'), 'C');
@@ -203,14 +203,14 @@ const buf = (specs) => specs.map(([chord, start], i) => ({ _id: `k${i}`, chord, 
 {
   const b = buf([['C', 0], ['G', 2]]);
   const snapshot = structuredClone(b);
-  assert.equal(hasSectionGenerationCodeEdits(b, snapshot), false);
+  assert.equal(hasSectionCodeEdits(b, snapshot), false);
   const edited = structuredClone(b);
   edited[1].chord = 'Am';
-  assert.equal(hasSectionGenerationCodeEdits(edited, snapshot), true, 'chord rename is detected');
+  assert.equal(hasSectionCodeEdits(edited, snapshot), true, 'chord rename is detected');
   const moved = structuredClone(b);
   moved[1].start = 3;
-  assert.equal(hasSectionGenerationCodeEdits(moved, snapshot), true, 'timing change is detected');
-  assert.equal(hasSectionGenerationCodeEdits(b.slice(0, 1), snapshot), true, 'deleted chord is detected');
+  assert.equal(hasSectionCodeEdits(moved, snapshot), true, 'timing change is detected');
+  assert.equal(hasSectionCodeEdits(b.slice(0, 1), snapshot), true, 'deleted chord is detected');
 }
 
 
