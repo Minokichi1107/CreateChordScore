@@ -531,6 +531,10 @@ export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
 export function createReconfigRuntime() {
   return {
     playGeneration: 0,
+    modalOpen: false,
+    closed: true,
+    draft: null,
+    audioSnapshot: null,
     view: { scrollTop: 0, lastSeenSigs: null },
     splitContext: null,
   };
@@ -539,6 +543,10 @@ export function createReconfigRuntime() {
 export function teardownReconfigRuntime(runtime, opts = {}) {
   if (!runtime) return;
   runtime.playGeneration = (Number(runtime.playGeneration) || 0) + 1;
+  runtime.modalOpen = false;
+  runtime.closed = true;
+  runtime.draft = null;
+  runtime.audioSnapshot = null;
   if (opts.clearView) {
     runtime.view = { scrollTop: 0, lastSeenSigs: null };
   }
