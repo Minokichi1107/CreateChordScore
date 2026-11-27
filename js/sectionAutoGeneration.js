@@ -69,8 +69,8 @@ export function mapBoundariesToChordRanges(bars, buffer, measureOf) {
 
 
 /**
- * Convert a user-editable draft into a Section array ready for
- * applyGeneratedSectionsCommand(). The draft is never written to song data.
+ * Convert a user-editable boundary-candidate draft into validated Section objects
+ * for seeding the Section reconfiguration Draft. This does not adopt or persist them.
  *
  * @param {Array<{candidateId:string, startBar:number, name:string, type?:string}>} draft
  *   ordered by startBar; draft[0].startBar is ignored (always the song start).
@@ -102,7 +102,7 @@ export function buildSectionsFromDraft(draft, buffer, measureOf, newId = () => c
   };
 }
 
-/** Initial draft from detected boundary bars (names are left unset by design). */
+/** Initial candidate draft from detected boundary bars (names are left unset by design). */
 export function createDraftFromBoundaries(bars, diagnostics = []) {
   const diagByBar = new Map(diagnostics.map(d => [d.bar, d]));
   return [0, ...bars].map((startBar, i) => ({

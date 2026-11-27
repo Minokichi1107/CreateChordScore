@@ -214,7 +214,7 @@ const buf = (specs) => specs.map(([chord, start], i) => ({ _id: `k${i}`, chord, 
 }
 
 
-// ================= P0 review fixes: peak rule, add-position, 11-song regression =================
+// ================= candidate regression: peak rule and 11-song fixtures =================
 
 // ---- peak picking (replaces the fixed 8-bar spacing) ----
 assert.deepEqual(pickBoundaryPeaks([0, 0, 1, 1, 0, 0, 0, 0], 5), [2], 'plateau: leftmost bar only');
@@ -347,4 +347,4 @@ assert.deepEqual(totals, PINNED_TOTALS, 'accuracy pin changed: re-evaluate befor
   assert.deepEqual(built.sections, [], 'nothing is built when boundaries collapse');
 }
 
-console.log('Section auto-generation tests passed.');
+console.log('Section boundary candidate tests passed.');
