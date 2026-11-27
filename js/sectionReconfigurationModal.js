@@ -268,8 +268,16 @@ export function openSectionReconfigurationModal(p) {
 
   function clampBoundaryCandidate(idx) {
     const sp = currentSpan();
-    if (!sp || sp.start < 0 || sp.end < sp.start || !canEditCurrentBoundary()) return null;
-    const max = Math.max(sp.start, buffer.length - 2);
+    if (!sp || sp.start < 0 || sp.end <= sp.start) return null;
+    const diagnostics = diagnoseDraftSections(draft, buffer);
+    const positioned = diagnostics
+      .map(row => ({ ...row, sortKey: row.start >= 0 ? row.start : (row.end >= 0 ? row.end : Number.MAX_SAFE_INTEGER) }))
+      .sort((a, b) => a.sortKey - b.sortKey || a.index - b.index);
+    const orderIndex = positioned.findIndex(row => row.index === sectionIdx);
+    const nextRow = orderIndex >= 0 ? positioned[orderIndex + 1] : null;
+    const max = nextRow?.structurallyValid
+      ? Math.max(sp.start, nextRow.end - 1)
+      : sp.end - 1;
     return Math.max(sp.start, Math.min(max, Math.round(Number(idx) || 0)));
   }
 
@@ -391,7 +399,7 @@ export function openSectionReconfigurationModal(p) {
     const playOn = uiMode === 'normal';
     const boundaryOn = uiMode === 'boundary';
     const splitOn = uiMode === 'split';
-    const boundaryAvailable = canEditCurrentBoundary();
+    const boundaryAvailable = !!currentSpan() && currentSpan().end > currentSpan().start;
     return `
       <div class="sr1-header">
         <div class="sr1-header-row">
@@ -409,10 +417,7 @@ export function openSectionReconfigurationModal(p) {
               <span class="sr1-ico" aria-hidden="true">▶</span>再生位置
             </button>
             <button type="button" class="sr1-mode-btn sr1-mode-boundary ${boundaryOn ? 'is-active' : ''}" id="sr1-mode-boundary" aria-pressed="${boundaryOn}" ${boundaryAvailable ? '' : 'disabled'}>
-              <span class="sr1-ico" aria-hidden="true">↔</span>境界位置
-            </button>
-            <button type="button" class="sr1-mode-btn sr1-mode-split ${splitOn ? 'is-active' : ''}" id="sr1-mode-split" aria-pressed="${splitOn}">
-              <span class="sr1-ico" aria-hidden="true">✂</span>分割位置
+              <span class="sr1-ico" aria-hidden="true">↔✂</span>境界・分割位置
             </button>
           </div>
         </div>
@@ -477,35 +482,29 @@ export function openSectionReconfigurationModal(p) {
     const wrap = rootEl.querySelector('.sr1-chords-wrap');
     if (!wrap) return;
 
-    // Chord click (re-bind after window refresh)
+    // Chord blocks select playback position. Structural editing selects the gap between blocks.
     wrap.querySelectorAll('.sr1-chord').forEach(btn => {
       btn.addEventListener('click', () => {
-        const i = Number(btn.dataset.i);
-        if (uiMode === 'split') {
-          const next = clampSplitCandidate(i);
-          if (next == null) {
-            message = 'この位置では分割できません';
-            fullRedraw();
-            return;
-          }
-          splitCandidate = next;
-          message = `分割位置: コード ${splitCandidate + 1}（ここから次のSection）`;
+        setPlayPos(Number(btn.dataset.i));
+        fullRedraw();
+      });
+    });
+    wrap.querySelectorAll('.sr1-gap-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const gap = clampBoundaryCandidate(Number(btn.dataset.gap));
+        if (gap == null) {
+          message = 'この位置は選択できません';
           fullRedraw();
           return;
         }
-        if (uiMode === 'boundary') {
-          const next = clampBoundaryCandidate(i);
-          if (next == null) {
-            message = 'この位置には境界を設定できません';
-            fullRedraw();
-            return;
-          }
-          boundaryCandidate = next;
-          message = `境界位置: コード ${boundaryCandidate + 1}（ここまでが現在のSection）`;
-          fullRedraw();
-          return;
-        }
-        setPlayPos(i);
+        stopPlayIfNeeded();
+        applyNameTypeFromInputs();
+        boundaryCandidate = gap;
+        boundaryCandidateAtModeEnter = gap;
+        splitCandidate = gap + 1;
+        splitCandidateAtModeEnter = splitCandidate;
+        uiMode = 'boundary';
+        message = `選択位置: コード ${gap + 1} と ${gap + 2} の間`;
         fullRedraw();
       });
     });
@@ -555,7 +554,7 @@ export function openSectionReconfigurationModal(p) {
         const chord = buffer[i];
         const inSec = structOk && i >= active.start && i <= active.end;
         const isPlay = i === playCandidate;
-        const isSplitCand = uiMode === 'split' && splitCandidate === i;
+        const isSplitCand = false;
         const isBoundaryCand = uiMode === 'boundary' && boundaryCandidate === i;
         const isPlayingChord = playingChordIdx === i;
         const isBoundary = boundaryEnds.has(i);
@@ -574,9 +573,13 @@ export function openSectionReconfigurationModal(p) {
           isBoundaryCand ? '<span class="sr1-mark sr1-mark-boundary-edit" aria-hidden="true"></span>' : '',
           isPlayingChord ? '<span class="sr1-mark sr1-mark-playing" aria-hidden="true"></span>' : '',
         ].join('');
+        const gapButton = i < n - 1
+          ? `<button type="button" class="sr1-gap-btn ${isBoundaryCand ? 'is-selected' : ''}" data-gap="${i}" aria-label="コード ${i + 1} とコード ${i + 2} の間を選択" aria-pressed="${isBoundaryCand}"><span aria-hidden="true"></span></button>`
+          : '';
         cells.push(
+          `<div class="sr1-chord-cell">` +
           `<button type="button" class="${cls}" data-i="${i}" role="option" aria-selected="${isPlay}">` +
-          `<span class="sr1-chord-label">${esc(chordLabel(chord))}</span>${markers}</button>`
+          `<span class="sr1-chord-label">${esc(chordLabel(chord))}</span>${markers}</button>${gapButton}</div>`
         );
       }
       rowHtml.push(
@@ -628,8 +631,10 @@ export function openSectionReconfigurationModal(p) {
     })[mergeEligibility.reason] || '前のSectionと結合';
     const splitOn = uiMode === 'split';
     const boundaryOn = uiMode === 'boundary';
-    const canSplitExec = splitOn && splitCandidate != null;
-    const canBoundaryExec = boundaryOn && boundaryCandidate != null;
+    const activeSpan = currentSpan();
+    const canSplitExec = boundaryOn && splitCandidate != null && activeSpan
+      && splitCandidate > activeSpan.start && splitCandidate <= activeSpan.end;
+    const canBoundaryExec = boundaryOn && boundaryCandidate != null && canEditCurrentBoundary();
     return `
       <div id="sr1-root" class="sr1-root">
         <div class="sr1-stage-nav">
@@ -655,23 +660,16 @@ export function openSectionReconfigurationModal(p) {
               </label>
             </div>
           </section>
-          <section class="sr1-panel sr1-panel-bound ${splitOn || boundaryOn ? 'is-active' : ''}" data-sr1-mode="${boundaryOn ? 'boundary' : 'split'}" role="button" tabindex="0" aria-label="${boundaryOn ? '境界位置' : '分割位置'}パネル（クリックで切替）">
-            <h4 class="sr1-panel-title"><span class="sr1-ico" aria-hidden="true">${boundaryOn ? '↔' : '✂'}</span>${boundaryOn ? '境界位置' : '分割位置'}<span class="sr1-vsep" aria-hidden="true"></span>${splitOn || boundaryOn ? '<span class="sr1-active-tag" aria-label="操作中">✓ 選択中</span>' : ''}</h4>
+          <section class="sr1-panel sr1-panel-bound ${boundaryOn ? 'is-active' : ''}" aria-label="境界移動・Section分割">
+            <h4 class="sr1-panel-title"><span class="sr1-ico" aria-hidden="true">↔✂</span>境界移動・Section分割${boundaryOn ? '<span class="sr1-active-tag" aria-label="位置選択中">✓ 位置選択中</span>' : ''}</h4>
+            <p class="sr1-boundary-help">コードとコードの間をクリックして位置を選び、実行する操作を選択します</p>
             <div class="sr1-panel-actions">
-              ${boundaryOn ? `
-                <button type="button" class="sec-btn" id="sr1-boundary-left" title="境界位置を左へ">←</button>
-                <button type="button" class="sec-btn" id="sr1-boundary-right" title="境界位置を右へ">→</button>
-                <span class="sr1-vsep" aria-hidden="true"></span>
-                <button type="button" class="sec-btn sr1-btn-split-primary" id="sr1-boundary-exec" ${canBoundaryExec ? '' : 'disabled'}>境界を変更</button>
-                <button type="button" class="sec-btn" id="sr1-boundary-cancel">キャンセル</button>
-              ` : `
-                <button type="button" class="sec-btn" id="sr1-split-left" title="分割位置を左へ" ${splitOn ? '' : 'disabled'}>←</button>
-                <button type="button" class="sec-btn" id="sr1-split-right" title="分割位置を右へ" ${splitOn ? '' : 'disabled'}>→</button>
-                <span class="sr1-vsep" aria-hidden="true"></span>
-                <button type="button" class="sec-btn" id="sr1-split-edit">分割位置を変更</button>
-                <button type="button" class="sec-btn sr1-btn-split-primary" id="sr1-split-exec" ${canSplitExec ? '' : 'disabled'}>分割</button>
-                <button type="button" class="sec-btn" id="sr1-split-cancel" ${splitOn ? '' : 'disabled'}>キャンセル</button>
-              `}
+              <button type="button" class="sec-btn" id="sr1-boundary-left" title="選択位置を左へ" ${boundaryOn && boundaryCandidate != null ? '' : 'disabled'}>←</button>
+              <button type="button" class="sec-btn" id="sr1-boundary-right" title="選択位置を右へ" ${boundaryOn && boundaryCandidate != null ? '' : 'disabled'}>→</button>
+              <span class="sr1-vsep" aria-hidden="true"></span>
+              <button type="button" class="sec-btn sr1-btn-split-primary" id="sr1-boundary-exec" ${canBoundaryExec ? '' : 'disabled'}>境界を移動</button>
+              <button type="button" class="sec-btn" id="sr1-split-exec" ${canSplitExec ? '' : 'disabled'}>Sectionを分割</button>
+              <button type="button" class="sec-btn" id="sr1-boundary-cancel" ${boundaryOn ? '' : 'disabled'}>選択解除</button>
             </div>
           </section>
         </div>
@@ -683,7 +681,7 @@ export function openSectionReconfigurationModal(p) {
           <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
         <div id="sr1-msg" class="sag-errors sr1-msg" role="status">${esc(message)}</div>
-        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> P 再生位置 · B 境界位置 · S 分割位置 · ←→ 移動 · Space 試聴 · Enter 確定 · 名前欄Enterで入力終了 · Tab/Shift+Tab Section移動</p>
+        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> P 再生位置 · B/S 境界・分割位置 · ←→ 選択位置の移動 · Space 試聴 · Enter 境界移動 · Tab/Shift+Tab Section移動</p>
       </div>`;
   }
 
@@ -928,8 +926,10 @@ export function openSectionReconfigurationModal(p) {
       return;
     }
     const sp = currentSpan();
-    boundaryCandidate = sp ? clampBoundaryCandidate(sp.end) : null;
+    boundaryCandidate = sp ? clampBoundaryCandidate(canEditCurrentBoundary() ? sp.end : sp.end - 1) : null;
     boundaryCandidateAtModeEnter = boundaryCandidate;
+    splitCandidate = boundaryCandidate == null ? null : boundaryCandidate + 1;
+    splitCandidateAtModeEnter = splitCandidate;
     uiMode = 'boundary';
     message = '';
     fullRedraw();
@@ -938,8 +938,9 @@ export function openSectionReconfigurationModal(p) {
   function moveBoundaryCandidate(delta) {
     if (uiMode !== 'boundary' || boundaryCandidate == null) return;
     const next = clampBoundaryCandidate(boundaryCandidate + delta);
-    if (next == null) return;
+    if (next == null || next === boundaryCandidate) return;
     boundaryCandidate = next;
+    splitCandidate = next + 1;
     fullRedraw();
   }
 
@@ -947,6 +948,8 @@ export function openSectionReconfigurationModal(p) {
     if (uiMode !== 'boundary') return;
     boundaryCandidate = null;
     boundaryCandidateAtModeEnter = null;
+    splitCandidate = null;
+    splitCandidateAtModeEnter = null;
     uiMode = 'normal';
     message = '';
     fullRedraw();
@@ -985,6 +988,8 @@ export function openSectionReconfigurationModal(p) {
     }
     boundaryCandidate = null;
     boundaryCandidateAtModeEnter = null;
+    splitCandidate = null;
+    splitCandidateAtModeEnter = null;
     uiMode = 'normal';
     resetPlayToSectionStart();
     message = r.noop ? '境界に変更はありません' : 'Section境界を変更しました';
@@ -1028,6 +1033,8 @@ export function openSectionReconfigurationModal(p) {
     if (uiMode === 'boundary') {
       boundaryCandidate = null;
       boundaryCandidateAtModeEnter = null;
+      splitCandidate = null;
+      splitCandidateAtModeEnter = null;
     }
     uiMode = 'normal';
     message = '';
@@ -1036,12 +1043,13 @@ export function openSectionReconfigurationModal(p) {
 
   function executeSplit() {
     beforeStructuralEdit();
-    if (splitCandidate == null) {
-      message = '分割位置を選択してください';
+    const span = currentSpan();
+    if (splitCandidate == null || !span || splitCandidate <= span.start || splitCandidate > span.end) {
+      message = 'Section内部のコード間位置を選択してください';
       fullRedraw();
       return;
     }
-    // UI stores next-section start; API wants last chord of front half
+    // splitCandidate is the first chord after the selected gap.
     const endChordIndex = splitCandidate - 1;
     const sectionBeforeSplit = draft.sections[sectionIdx];
     const splitOptions = {
@@ -1066,6 +1074,8 @@ export function openSectionReconfigurationModal(p) {
       return;
     }
     uiMode = 'normal';
+    boundaryCandidate = null;
+    boundaryCandidateAtModeEnter = null;
     splitCandidate = null;
     splitCandidateAtModeEnter = null;
     selectSectionIndex(r.backIndex, { clearSplitContext: false });
@@ -1197,7 +1207,7 @@ export function openSectionReconfigurationModal(p) {
       e.stopPropagation();
       if (modeKey === 'p') enterPlayMode();
       else if (modeKey === 'b') enterBoundaryMode();
-      else enterSplitMode();
+      else enterBoundaryMode();
       return;
     }
     if (e.code === 'Space') {
@@ -1210,9 +1220,7 @@ export function openSectionReconfigurationModal(p) {
       e.preventDefault();
       e.stopPropagation();
       const delta = e.code === 'ArrowLeft' ? -1 : 1;
-      if (uiMode === 'split') {
-        moveSplitCandidate(delta);
-      } else if (uiMode === 'boundary') {
+      if (uiMode === 'boundary') {
         moveBoundaryCandidate(delta);
       } else {
         setPlayPos(playCandidate + delta);
@@ -1223,8 +1231,10 @@ export function openSectionReconfigurationModal(p) {
     if (e.code === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
-      if (uiMode === 'split') executeSplit();
-      else if (uiMode === 'boundary') executeBoundaryChange();
+      if (uiMode === 'boundary') {
+        if (canEditCurrentBoundary()) executeBoundaryChange();
+        else executeSplit();
+      }
       return;
     }
     if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -1286,14 +1296,10 @@ export function openSectionReconfigurationModal(p) {
     });
     root.querySelector('#sr1-mode-play')?.addEventListener('click', () => enterPlayMode());
     root.querySelector('#sr1-mode-boundary')?.addEventListener('click', () => enterBoundaryMode());
-    root.querySelector('#sr1-mode-split')?.addEventListener('click', () => enterSplitMode());
     root.querySelector('#sr1-split-edit')?.addEventListener('click', () => enterSplitMode());
     // Panel surface click also switches mode (buttons inside still work)
     root.querySelector('.sr1-panel-play')?.addEventListener('click', () => {
       if (uiMode !== 'normal') enterPlayMode();
-    });
-    root.querySelector('.sr1-panel-bound')?.addEventListener('click', () => {
-      if (uiMode !== 'split' && uiMode !== 'boundary') enterSplitMode();
     });
     root.querySelector('.sr1-panel-play')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -1301,20 +1307,11 @@ export function openSectionReconfigurationModal(p) {
         if (uiMode !== 'normal') enterPlayMode();
       }
     });
-    root.querySelector('.sr1-panel-bound')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        if (uiMode !== 'split') enterSplitMode();
-      }
-    });
     root.querySelector('#sr1-boundary-exec')?.addEventListener('click', () => executeBoundaryChange());
     root.querySelector('#sr1-boundary-left')?.addEventListener('click', () => moveBoundaryCandidate(-1));
     root.querySelector('#sr1-boundary-right')?.addEventListener('click', () => moveBoundaryCandidate(1));
     root.querySelector('#sr1-boundary-cancel')?.addEventListener('click', () => cancelBoundaryMode());
     root.querySelector('#sr1-split-exec')?.addEventListener('click', () => executeSplit());
-    root.querySelector('#sr1-split-left')?.addEventListener('click', () => moveSplitCandidate(-1));
-    root.querySelector('#sr1-split-right')?.addEventListener('click', () => moveSplitCandidate(1));
-    root.querySelector('#sr1-split-cancel')?.addEventListener('click', () => cancelSplitMode({ returnToOverview: returnToOverviewOnSplit }));
     root.querySelector('#sr1-return-overview')?.addEventListener('click', () => {
       applyNameTypeFromInputs();
       stopPlayIfNeeded();
