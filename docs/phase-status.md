@@ -243,15 +243,15 @@ Completed（完了済み）
 ✓ Issue #132 — テーマ検証基準をPR #162でmainへマージ。`docs/theme-validation.md` を正式ガイドとして参照する。
 ✓ Phase147 — Issue #167 右クリック時の拍内位置マーカー表示を実装し、PR #169でmainへマージ。Issue #167は完了。弱起関連はIssue #170へ分離して意図的保留。
 ✓ Phase148 — Issue #116のChart Mode既存コード編集モーダルを簡素化し、タイトルバーからのドラッグ移動を追加。PR #175 / #176マージ済み。PR #176のマージコミットは`e8cffa08b33e31b8b910d1da9eef09b798df7166`。CIの`JavaScript syntax check`は成功。Windows日本語IMEはユーザー実機確認済み。実機タッチ操作・非Windows環境のIMEは未確認。Issue #116全体のコードパレット再設計は未完了のためOpenを維持。
-✓ Phase150 — Section設定UX改善。二段階の再設定フロー、全Section確認画面、個別Sectionの境界移動・分割、Draft編集のUndo/Redo、テスト再生を実装。分割後は前半Sectionを選択したままにする挙動をユーザー実機で確認済み。作業ブランチ`phase150-stage2-implementation`上で受け入れ確認済み。main統合前。
+✓ Phase150 — Section設定UX改善。二段階の再設定フロー、全Section確認画面、個別Sectionの境界移動・分割、Draft編集のUndo/Redo、テスト再生を実装。分割後は前半Sectionを選択したままにする挙動をユーザー実機で確認済み。統合ブランチ`phase150-section-integration`のPR #189（Draft / Open）でStage1への統合確認中。ブラウザ確認③（候補の手動修正→採用→保存→再読込）は未完了。
 
-Current Work（現在の作業: 2026-11-27 Phase150の実装・ユーザー受け入れ確認完了。次は複数曲での実使用評価とサンプル収集）
+Current Work（現在の作業: 2026-11-27 Phase150の統合整理。PR #189はDraft / Open。ブラウザ確認③とStage1→main統合方針が残る）
 ------------------------------------------------------------
 Phase150ではSection設定UXの初回再設計・実装を完了し、ユーザー実機で主要操作を確認した。既存Sectionがある曲で全Section確認画面を開き、コードブロック間の位置選択、境界移動、Section分割、Undo/Redo、分割後の選択位置を確認済み。テスト再生が境界選択を妨げないことも確認したが、試験ケースは限定的である。
 
 編集時間は従来の約10分／曲に対し、1曲で6分を観測した（約40%短縮）。これは単一サンプルであり、安定した平均値とは扱わない。次は複数曲で時間・迷い・手戻り・設定ミスを記録し、操作への習熟、操作性、手順効率を分けて評価する。小さな改善はすぐ実装せず、サンプルを集めた後に次フェーズとしてまとめる。重大な不具合は随時修正する。
 
-作業ブランチは`phase150-stage2-implementation`、実機確認対象コードcommitは`5ae7ad1e89274d9688df234c10288b6b1b54d1df`。PR #188はOpen。CI run `45948314941` は既存のSection reconfiguration test assertion（実際値`k4`／期待値`k3`）で失敗している。同じ失敗は最新の分割後フォーカス変更より前から存在し、新規assertionは先行失敗により実行されていない。テスト全体PASSとは扱わない。mainへの統合状態はGitHub整理段階で再確認する。
+現在の統合ブランチは`phase150-section-integration`、Headは`9d11b235b946077ad1c0cfb5cb4973d698f907e2`。PR #189（Base: `fix/phase150-stage1-browser-review`）はDraft / Open。現在のHeadに対するGitHub ActionsはJavaScript syntax checkとSection generation foundation testsの2件が成功し、ユーザー実行のローカルテスト4系統も成功している。ブラウザ確認③（候補の手動修正・採用・保存・再読込）は未完了。PR #188の旧CI失敗は旧ブランチ上の結果であり、現行PR #189のCI状態とは区別する。Stage1はmainに対して39コミット先行・9コミット遅れで分岐しており、main側の9コミットには分割後の選択を後半Sectionへ移すコード変更が含まれる。ユーザー確認済みの前半Section維持を優先し、mainを無条件に取り込まない。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
