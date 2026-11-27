@@ -57,7 +57,7 @@ Section設定に関係する既存機能を、ユーザーが一つの操作フ�
 
 ### 3.2 現在のDraftとUI
 
-- `sectionReconfiguration.js`: Draftの生成、Sectionの診断、境界調整、分割、結合、削除、Undo/Redo、採用前検証を持つ。
+- `sectionReconfiguration.js`: Draft生成時の既存Section正規化、時間ベースのカバー率算出、Section診断、境界調整、分割、結合、削除、Undo/Redo、採用前検証を持つ。
 - `sectionReconfigurationModal.js`: Stage1のコード進行編集・試聴UI。現行実装には通常編集、境界編集、分割の各モードがある。
 - `sectionOverview.js` / `sectionOverviewModal.js`: Stage2の全Section表示、長さ表示、同種Section比較、結合、編集・分割への遷移を持つ。
 - Stage1とStage2は同じRuntime上のDraftを共有し、Stage切替時にDraftを作り直さない。
@@ -124,10 +124,10 @@ UIはDraftを直接書き換えず、この層の操作関数を通す。
 
 ### D. UI（Stage1 / Stage2）
 
-- Stage1: コード進行を見ながら境界を決める。試聴位置を調整して再生できる。Stage間移動時もDraftを維持する。
-- Stage2: Sectionを時系列順に確認し、小節数・拍数・同種Sectionとの長さ比較を表示する。結合・分割の操作をここから開始できる。
-- Stage2からの分割は、既存実装どおり必要に応じてStage1の編集へ遷移し、分割後にStage2へ戻る方式を維持できる。
-- Stage1とStage2の両方に同じ操作ボタンを重複配置しない。現行Stage1モジュールにも結合処理が存在するため、合意済みUI責務に合わせて配置を整理する。
+- Stage1: コード進行を見ながら境界を決める。試聴位置を調整して再生できる。Stage間移動時もDraftを維持する。結合操作は置かない。
+- Stage2: Sectionを時系列順に確認し、小節数・拍数・同種Sectionとの長さ比較を表示する。結合・分割の操作をここから開始できる。既存Sectionを整形した場合は、重複補正・隙間補完・除外Section名の概要を表示する。
+- Stage2からの分割は、既存実装どおり必要に応じてStage1の編集へ遷移し、分割後にStage2へ戻る方式を維持する。
+- Stage1とStage2の両方に同じ操作ボタンを重複配置しない。結合はStage2に集約する。
 
 ### E. 検証・採用（共通の出口）
 
@@ -162,7 +162,7 @@ UIはDraftを直接書き換えず、この層の操作関数を通す。
 4. 重複解消後に残るSection間の隙間を「その他」で補完する。
 5. 正規化後に全体が連続・非重複であることを共通検証する。
 
-この整形はDraft上だけで行う。ユーザーがキャンセルした場合、元のSectionデータは一切変更しない。採用時に初めて整形後のSectionへ置き換える。
+この整形はDraft上だけで行う。ユーザーがキャンセルした場合、元のSectionデータは一切変更しない。採用時に初めて整形後のSectionへ置き換える。整形によって変更・除外された内容はStage2上部に概要を表示し、ユーザーが確認できるようにする。
 
 新規設定・既存Sectionを活かす再設定・最初からの再設定のすべてに、同じ正規形と採用時検証を適用する。したがって、生成物専用の `validateGeneratedSectionSet()` を別の例外ポリシーで使い分けるのではなく、Draft全体に対する共通検証へ責務を整理する。
 
@@ -228,12 +228,12 @@ UIはDraftを直接書き換えず、この層の操作関数を通す。
 | ファイル | 分類 | 方針 |
 |---|---|---|
 | `js/sectionBoundaryDetection.js` | 再利用 | 候補検出の純粋関数として維持。精度改善は今回対象外 |
-| `js/sectionAutoGeneration.js` | 責務整理して再利用 | 小節→コード範囲変換を候補Draft生成層として再利用。旧自動生成専用の命名・コメントを整理する候補 |
+| `js/sectionAutoGeneration.js` | 責務整理して再利用 | 小節→コード範囲変換を候補Draft生成層として再利用。共通Section集合検証を使用 |
 | `js/sectionGeneration.js` | 分離・整理 | Buffer snapshot比較は共通ユーティリティとして残す。旧適格性判定は旧経路廃止時に参照監査 |
 | `js/sectionAutoGenerationModal.js` | 廃止候補 | 現行統合UIと二重化。旧経路以外の参照・テストを確認してから削除 |
-| `js/sectionSetValidation.js` | 責務再設計 | 共通正規化後の全Draftに対する連続性・非重複・参照整合性検証を担う。生成物専用検証は共通検証へ統合または廃止 |
+| `js/sectionSetValidation.js` | 共通検証へ整理 | `validateSectionSet()` が一括設定Draftの連続性・非重複・参照整合性を検証。旧 `validateGeneratedSectionSet()` は互換エイリアス |
 | `js/sectionReconfiguration.js` | 中核として維持 | Draft lifecycle（生成から破棄・採用までの状態管理）と編集操作を集約 |
-| `js/sectionReconfigurationModal.js` | UIとして維持・調整 | Stage1。main版との全面置換はしない。重複操作と合意済みUIを照合 |
+| `js/sectionReconfigurationModal.js` | UIとして維持・調整 | Stage1。結合操作を削除済み。main版との全面置換はしない |
 | `js/sectionOverview.js` | 再利用 | Stage2の一覧・比較・結合可否判定 |
 | `js/sectionOverviewModal.js` | 再利用・調整 | Stage2。再設定入口と結合・分割導線を整理 |
 | `js/analysisCommands.js` | 出口を一本化 | `replaceSectionsFromDraftCommand()` を採用経路とする。`applyGeneratedSectionsCommand()` は参照監査後に廃止候補 |
