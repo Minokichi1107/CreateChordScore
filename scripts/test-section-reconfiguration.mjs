@@ -9,6 +9,8 @@ import {
 import {
   RECONFIG_GAP_TYPE,
   buildDraftSectionsFromCurrent,
+  calculateSectionCoverage,
+  recommendSectionReconfiguration,
   createReconfigurationDraft,
   updateDraftSection,
   undoDraft,
@@ -72,6 +74,56 @@ const st = (b, sections = []) => ({
   const built = buildDraftSectionsFromCurrent(b, [S('a', 0, 1), S('c', 4, 5)]);
   assert.equal(built.gapsFilled, 1);
   assert.ok(built.sections.some(s => s.type === RECONFIG_GAP_TYPE));
+}
+
+{
+  // Existing overlaps are trimmed in chronological order; fully absorbed Sections are dropped.
+  const b = buf(8);
+  const built = buildDraftSectionsFromCurrent(b, [
+    S('first', 0, 5),
+    S('absorbed', 3, 4),
+    S('later', 4, 7),
+  ]);
+  assert.deepEqual(
+    built.sections.map(section => [section.id, section.startChordId, section.endChordId]),
+    [['first', 'k0', 'k5'], ['later', 'k6', 'k7']],
+  );
+  assert.equal(built.overlapCount, 2);
+  assert.equal(built.droppedCount, 1);
+  assert.equal(built.gapsFilled, 0);
+}
+
+{
+  // Gaps are filled after overlap trimming, not against the uncorrected start boundary.
+  const b = buf(8);
+  const built = buildDraftSectionsFromCurrent(b, [
+    S('first', 0, 2),
+    S('trimmed', 1, 4),
+    S('last', 6, 7),
+  ], (() => { let n = 0; return () => `gap-${++n}`; })());
+  assert.deepEqual(
+    built.sections.map(section => [section.id, section.startChordId, section.endChordId]),
+    [['first', 'k0', 'k2'], ['trimmed', 'k3', 'k4'], ['gap-1', 'k5', 'k5'], ['last', 'k6', 'k7']],
+  );
+  assert.equal(built.gapsFilled, 1);
+}
+
+{
+  // Coverage is time-weighted, unions overlaps once, and leaves gaps uncovered.
+  const b = buf(10);
+  const coverage = calculateSectionCoverage([
+    S('a', 0, 5),
+    S('b', 4, 7),
+  ], b);
+  assert.equal(coverage.totalSeconds, 20);
+  assert.equal(coverage.coveredSeconds, 16);
+  assert.equal(coverage.ratio, 0.8);
+  assert.equal(recommendSectionReconfiguration(coverage), 'keep-existing');
+
+  const below = calculateSectionCoverage([S('a', 0, 3), S('b', 6, 7)], b);
+  assert.equal(below.ratio, 0.6);
+  assert.equal(recommendSectionReconfiguration(below), 'start-fresh');
+  assert.equal(recommendSectionReconfiguration({ ratio: null }), null);
 }
 
 {
