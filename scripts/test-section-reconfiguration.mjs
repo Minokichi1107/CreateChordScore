@@ -307,7 +307,7 @@ const st = (b, sections = []) => ({
   assert.equal(draft.sections[1].type, '');
 }
 
-// --- type→name auto link vs nameUserEdited ---
+// --- type→name auto naming always overrides a prior manual name ---
 {
   const b = buf(4);
   const draft = createReconfigurationDraft({
@@ -418,7 +418,7 @@ const st = (b, sections = []) => ({
 
 
 
-// --- name soft-lock related Draft behavior (modal clears soft lock after apply) ---
+// --- Manual-name metadata is cleared by type changes; Undo/Redo restores it atomically ---
 {
   const b = buf(4);
   const draft = createReconfigurationDraft({
@@ -933,8 +933,8 @@ const st = (b, sections = []) => ({
 }
 
 
-// Auto-name/category behavior: type changes regenerate only auto names; explicit
-// user names remain intact. Splits inherit the category and create a new numbered name.
+// Auto-name/category behavior: every type change regenerates the name, including
+// manually edited names. Splits inherit the category and create a new numbered name.
 {
   const b = buf(8);
   const draft = createReconfigurationDraft({
