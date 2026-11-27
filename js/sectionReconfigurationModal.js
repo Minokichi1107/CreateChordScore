@@ -562,15 +562,11 @@ export function openSectionReconfigurationModal(p) {
           'sr1-chord',
           inSec ? 'sr1-in-sec' : '',
           isPlay ? 'sr1-play-cand sr1-play-conf' : '',
-          isSplitCand ? 'sr1-split-cand' : '',
-          isBoundaryCand ? 'sr1-boundary-edit-cand' : '',
           isPlayingChord ? 'sr1-playing' : '',
           isBoundary ? 'sr1-boundary' : '',
         ].filter(Boolean).join(' ');
         const markers = [
           isPlay ? '<span class="sr1-mark sr1-mark-play" aria-hidden="true"></span>' : '',
-          isSplitCand ? '<span class="sr1-mark sr1-mark-split" aria-hidden="true"></span>' : '',
-          isBoundaryCand ? '<span class="sr1-mark sr1-mark-boundary-edit" aria-hidden="true"></span>' : '',
           isPlayingChord ? '<span class="sr1-mark sr1-mark-playing" aria-hidden="true"></span>' : '',
         ].join('');
         const gapButton = i < n - 1
@@ -646,8 +642,8 @@ export function openSectionReconfigurationModal(p) {
         ${playHintHtml()}
         ${chordsHtml()}
         <div class="sr1-panels">
-          <section class="sr1-panel sr1-panel-play ${!splitOn ? 'is-active' : ''}" data-sr1-mode="play" role="button" tabindex="0" aria-label="再生位置パネル（クリックで切替）">
-            <h4 class="sr1-panel-title"><span class="sr1-ico" aria-hidden="true">▶</span>再生位置<span class="sr1-vsep" aria-hidden="true"></span>${!splitOn ? '<span class="sr1-active-tag" aria-label="操作中">✓ 選択中</span>' : ''}</h4>
+          <section class="sr1-panel sr1-panel-play ${!boundaryOn ? 'is-active' : ''}" data-sr1-mode="play" role="button" tabindex="0" aria-label="再生位置パネル（クリックで切替）">
+            <h4 class="sr1-panel-title"><span class="sr1-ico" aria-hidden="true">▶</span>再生位置<span class="sr1-vsep" aria-hidden="true"></span>${!boundaryOn ? '<span class="sr1-active-tag" aria-label="操作中">✓ 選択中</span>' : ''}</h4>
             <div class="sr1-panel-actions">
               <button type="button" class="sec-btn" id="sr1-play-left" title="再生位置を左へ">←</button>
               <button type="button" class="sec-btn" id="sr1-play-right" title="再生位置を右へ">→</button>
