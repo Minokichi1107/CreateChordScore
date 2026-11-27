@@ -468,18 +468,26 @@ export function isDraftBufferStale(draft, buffer) {
 
 export function mergeDraftWithPrevious(draft, sectionIndex, buffer) {
   if (!draft) return { ok: false, reason: 'no-draft' };
-  if (!Number.isInteger(sectionIndex) || sectionIndex <= 0 || sectionIndex >= draft.sections.length) {
+  if (!Number.isInteger(sectionIndex) || sectionIndex < 0 || sectionIndex >= draft.sections.length) {
     return { ok: false, reason: 'bad-index' };
   }
-  const cur = draft.sections[sectionIndex];
-  const prev = draft.sections[sectionIndex - 1];
-  if (!cur || !prev) return { ok: false, reason: 'no-previous-section' };
-  const prevEnd = chordIndex(buffer, prev.endChordId);
-  const curStart = chordIndex(buffer, cur.startChordId);
-  const curEnd = chordIndex(buffer, cur.endChordId);
-  if (prevEnd < 0 || curStart < 0 || curEnd < 0) return { ok: false, reason: 'chord-not-found' };
-  if (curStart <= prevEnd) return { ok: false, reason: 'sections-overlap' };
-  if (curStart !== prevEnd + 1) return { ok: false, reason: 'gap-between-sections' };
+
+  // The overview is chronological, but Draft array order is not a contract.
+  // Resolve the selected Section's predecessor by chord position, then retain
+  // the original array order for every unaffected Section.
+  const diagnostics = diagnoseDraftSections(draft, buffer);
+  const ordered = orderedValidSections(draft.sections, buffer, diagnostics);
+  const position = ordered.findIndex(row => row.index === sectionIndex);
+  if (position < 0) return { ok: false, reason: 'invalid' };
+  if (position === 0) return { ok: false, reason: 'no-previous-section' };
+
+  const curRow = ordered[position];
+  const prevRow = ordered[position - 1];
+  const cur = curRow.section;
+  const prev = prevRow.section;
+  if (curRow.start <= prevRow.end) return { ok: false, reason: 'sections-overlap' };
+  if (curRow.start !== prevRow.end + 1) return { ok: false, reason: 'gap-between-sections' };
+
   const merged = {
     id: prev.id, type: prev.type, name: prev.name,
     startChordId: prev.startChordId, endChordId: cur.endChordId,
@@ -487,11 +495,15 @@ export function mergeDraftWithPrevious(draft, sectionIndex, buffer) {
   };
   const inv = validateSectionInvariants(merged, buffer);
   if (!inv.valid) return { ok: false, reason: inv.reason };
+
   pushDraftUndo(draft);
-  const next = draft.sections.slice();
-  next.splice(sectionIndex - 1, 2, merged);
+  const insertAt = Math.min(curRow.index, prevRow.index);
+  const next = draft.sections.filter((_, index) =>
+    index !== curRow.index && index !== prevRow.index
+  );
+  next.splice(insertAt, 0, merged);
   draft.sections = next;
-  return { ok: true, section: merged };
+  return { ok: true, section: merged, mergedIndex: insertAt };
 }
 
 export function splitDraftAtChordIndex(
