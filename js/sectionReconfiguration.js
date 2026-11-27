@@ -355,7 +355,7 @@ export function deleteDraftSection(draft, sectionId) {
   return deleteDraftSectionAt(draft, idx);
 }
 
-function resolveSharedBoundaryPair(draft, buffer, prevSectionId, nextSectionId = null) {
+function resolveSharedBoundaryPair(draft, buffer, prevSectionId, nextSectionId = null, opts = {}) {
   if (!draft || !Array.isArray(draft.sections) || !Array.isArray(buffer) || !buffer.length ||
       typeof prevSectionId !== 'string' || !prevSectionId) {
     return { ok: false, reason: 'bad-args' };
@@ -385,7 +385,9 @@ function resolveSharedBoundaryPair(draft, buffer, prevSectionId, nextSectionId =
     return { ok: false, reason: 'not-adjacent' };
   }
   if (next.start <= prev.end) return { ok: false, reason: 'overlap' };
-  if (next.start !== prev.end + 1) return { ok: false, reason: 'gap' };
+  if (next.start !== prev.end + 1 && !(opts.allowGap === true && next.start > prev.end + 1)) {
+    return { ok: false, reason: 'gap' };
+  }
   return {
     ok: true,
     prevId: prev.id,
@@ -405,7 +407,8 @@ export function canAdjustBoundaryWithNext(draft, buffer, prevSectionId) {
 
 export function adjustSharedBoundary(draft, prevSectionId, nextSectionId, endChordIndex, buffer) {
   if (!Number.isInteger(endChordIndex)) return { ok: false, reason: 'bad-chord' };
-  const pair = resolveSharedBoundaryPair(draft, buffer, prevSectionId, nextSectionId);
+  // A boundary edit also absorbs any existing gap into the following Section.
+  const pair = resolveSharedBoundaryPair(draft, buffer, prevSectionId, nextSectionId, { allowGap: true });
   if (!pair.ok) return pair;
   if (endChordIndex < 0 || endChordIndex >= buffer.length ||
       !buffer[endChordIndex]?._id || !buffer[endChordIndex + 1]?._id) {
