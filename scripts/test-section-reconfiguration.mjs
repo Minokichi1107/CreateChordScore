@@ -45,9 +45,9 @@ const stage1ModalSource = readFileSync(new URL('../js/sectionReconfigurationModa
 assert.match(stage1ModalSource, /if \(e\.isComposing \|\| e\.keyCode === 229\) return;/, 'IME composition blocks modal shortcuts');
 assert.match(stage1ModalSource, /if \(inField\) \{[\s\S]*?return;[\s\S]*?if \(e\.code === 'Tab'\)/, 'editable fields retain native Tab behavior');
 assert.match(stage1ModalSource, /updatePlayingHighlight\(null\);/, 'playback end updates highlight without rebuilding the name input');
-assert.match(stage1ModalSource, /isAutoSectionName: isAutoSectionNameFn, getSectionNameBase/, 'auto-name detection uses the authoritative naming rule');
+assert.match(stage1ModalSource, /patch\.nameUserEdited = false;[\s\S]*?opts\.defaultNameForType = type => generateDraftSectionName\(type, sec\.id\)/, 'type changes always regenerate names and clear manual-name metadata');
 const appSource = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-assert.match(appSource, /SECTION_TYPES\.find\(entry => entry\.value === type\)/, 'legacy auto-name inference is restricted to the current category');
+assert.match(appSource, /SECTION_TYPES\.find\(entry => entry\.value === type\)/, 'legacy auto-name inference remains available to the separate rename dialog');
 
 const buf = (n = 4) => Array.from({ length: n }, (_, i) => ({
   _id: `k${i}`, chord: ['C', 'G', 'Am', 'F'][i % 4], start: i * 2, end: i * 2 + 2,
@@ -321,10 +321,17 @@ const st = (b, sections = []) => ({
   assert.equal(draft.sections[0].name, 'サビ');
   updateDraftSection(draft, 's', { name: '手動名' }, { fromUserNameEdit: true });
   assert.equal(draft.sections[0].nameUserEdited, true);
-  updateDraftSection(draft, 's', { type: 'verse' }, {
+  updateDraftSection(draft, 's', { type: 'verse', nameUserEdited: false }, {
     defaultNameForType: () => 'Aメロ',
   });
-  assert.equal(draft.sections[0].name, '手動名', 'user name must not be overwritten');
+  assert.equal(draft.sections[0].name, 'Aメロ', 'type change regenerates even a manually edited name');
+  assert.equal(draft.sections[0].nameUserEdited, false);
+  assert.equal(undoDraft(draft), true);
+  assert.equal(draft.sections[0].name, '手動名', 'Undo restores the manual name');
+  assert.equal(draft.sections[0].nameUserEdited, true);
+  assert.equal(redoDraft(draft), true);
+  assert.equal(draft.sections[0].name, 'Aメロ', 'Redo restores the generated name');
+  assert.equal(draft.sections[0].nameUserEdited, false);
 }
 
 
@@ -434,24 +441,23 @@ const st = (b, sections = []) => ({
   assert.equal(draft.sections[0].nameUserEdited, true);
   assert.equal(draft.undoStack.length, undoBefore + 1);
 
-  // Type change with nameUserEdited: must not auto-rename
-  updateDraftSection(draft, 's0', { type: 'chorus' }, {
+  // Type change always regenerates the name and clears the manual-name flag in one operation.
+  updateDraftSection(draft, 's0', { type: 'chorus', nameUserEdited: false }, {
     defaultNameForType: () => 'Chorus',
   });
   assert.equal(draft.sections[0].type, 'chorus');
-  assert.equal(draft.sections[0].name, 'サビ'); // not overwritten
-
-  // After undo of type+name chain: restore stepwise
-  assert.equal(undoDraft(draft), true); // undo type
-  assert.equal(undoDraft(draft), true); // undo name
-  assert.equal(draft.sections[0].name, '未設定');
-  assert.equal(!!draft.sections[0].nameUserEdited, false);
-
-  // Type change without nameUserEdited: auto-name applies
-  updateDraftSection(draft, 's0', { type: 'chorus' }, {
-    defaultNameForType: () => 'Chorus',
-  });
   assert.equal(draft.sections[0].name, 'Chorus');
+  assert.equal(draft.sections[0].nameUserEdited, false);
+
+  // Undo/Redo restores type, name and manual-name metadata together.
+  assert.equal(undoDraft(draft), true);
+  assert.equal(draft.sections[0].type, 'other');
+  assert.equal(draft.sections[0].name, 'サビ');
+  assert.equal(draft.sections[0].nameUserEdited, true);
+  assert.equal(redoDraft(draft), true);
+  assert.equal(draft.sections[0].type, 'chorus');
+  assert.equal(draft.sections[0].name, 'Chorus');
+  assert.equal(draft.sections[0].nameUserEdited, false);
 }
 
 
@@ -948,8 +954,9 @@ const st = (b, sections = []) => ({
     buffer: b,
     sections: [{ ...S('m', 0, 7, 'jp-a-melo', '1番Aメロ'), nameUserEdited: true }],
   });
-  updateDraftSection(manual, 'm', { type: 'jp-sabi' }, { defaultNameForType: () => 'サビ' });
-  assert.equal(manual.sections[0].name, '1番Aメロ', 'manual names are not overwritten');
+  updateDraftSection(manual, 'm', { type: 'jp-sabi', nameUserEdited: false }, { defaultNameForType: () => 'サビ' });
+  assert.equal(manual.sections[0].name, 'サビ', 'manual names are regenerated on type change');
+  assert.equal(manual.sections[0].nameUserEdited, false);
 
   const split = createReconfigurationDraft({
     projectId: 'split-name',
