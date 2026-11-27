@@ -1075,9 +1075,11 @@ export function openSectionReconfigurationModal(p) {
     boundaryCandidateAtModeEnter = null;
     splitCandidate = null;
     splitCandidateAtModeEnter = null;
-    selectSectionIndex(r.backIndex, { clearSplitContext: false });
+    // Keep focus on the original Section (the front half) after splitting.
+    // The newly created back half remains available through normal Section navigation.
+    selectSectionIndex(sectionIdx, { clearSplitContext: false });
     resetPlayToSectionStart();
-    message = '分割しました。後半Sectionの名称・種類を入力してください';
+    message = '分割しました。後半Sectionは必要に応じて選択して編集できます';
     if (returnToOverviewOnSplit) {
       onReturnToOverview?.({ reason: 'split-success', sectionId: selectedSectionId, historyAction: lastHistoryAction });
       return;
