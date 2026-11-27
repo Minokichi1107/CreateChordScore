@@ -267,7 +267,10 @@ export function mergeDraftSections(draft, sectionIds, buffer) {
   return { ok: true, section: merged };
 }
 
-export function splitDraftSection(draft, sectionId, endChordIdOfFirst, buffer, newId = () => crypto.randomUUID()) {
+export function splitDraftSection(
+  draft, sectionId, endChordIdOfFirst, buffer,
+  newId = () => crypto.randomUUID(), opts = {},
+) {
   if (!draft) return { ok: false, reason: 'no-draft' };
   const section = draft.sections.find(s => s.id === sectionId);
   if (!section) return { ok: false, reason: 'section-not-found' };
@@ -281,10 +284,20 @@ export function splitDraftSection(draft, sectionId, endChordIdOfFirst, buffer, n
     startChordId: buffer[start]._id, endChordId: buffer[mid]._id,
     ...(section.nameUserEdited ? { nameUserEdited: true } : {}),
   };
+  const inheritBackMeta = opts.inheritBackMeta === true;
+  const backType = inheritBackMeta ? section.type : '';
   const back = {
-    id: newId(), type: '', name: '',
-    startChordId: buffer[mid + 1]._id, endChordId: buffer[end]._id,
+    id: newId(),
+    type: backType,
+    name: inheritBackMeta ? section.name : '',
+    startChordId: buffer[mid + 1]._id,
+    endChordId: buffer[end]._id,
   };
+  if (inheritBackMeta && typeof opts.defaultNameForType === 'function') {
+    back.name = opts.defaultNameForType(backType);
+  } else if (inheritBackMeta && section.nameUserEdited) {
+    back.nameUserEdited = true;
+  }
   for (const s of [front, back]) {
     const inv = validateSectionInvariants(
       { ...s, name: s.name || 'x', type: s.type || 'other' },
@@ -297,7 +310,7 @@ export function splitDraftSection(draft, sectionId, endChordIdOfFirst, buffer, n
   const next = draft.sections.slice();
   next.splice(idx, 1, front, back);
   draft.sections = next;
-  return { ok: true, front, back };
+  return { ok: true, front, back, frontIndex: idx, backIndex: idx + 1 };
 }
 
 export function updateDraftSection(draft, sectionId, patch = {}, opts = {}) {
@@ -418,7 +431,7 @@ export function adjustSharedBoundary(draft, prevSectionId, nextSectionId, endCho
   pushDraftUndo(draft);
   draft.sections[pair.prevIndex] = updatedPrev;
   draft.sections[pair.nextIndex] = updatedNext;
-  return { ok: true, prev: updatedPrev, next: updatedNext };
+  return { ok: true, prev: updatedPrev, next: updatedNext, changed: [pair.prevId, pair.nextId] };
 }
 
 export function setDraftSectionEndByChordIndex(draft, sectionIndex, endChordIndex, buffer) {
@@ -479,7 +492,7 @@ export function mergeDraftWithPrevious(draft, sectionIndex, buffer) {
 }
 
 export function splitDraftAtChordIndex(
-  draft, sectionId, endChordIndex, buffer, newId = () => crypto.randomUUID(),
+  draft, sectionId, endChordIndex, buffer, newId = () => crypto.randomUUID(), opts = {},
 ) {
   if (!draft) return { ok: false, reason: 'no-draft' };
   const section = draft.sections.find(s => s.id === sectionId);
@@ -490,7 +503,7 @@ export function splitDraftAtChordIndex(
   if (!Number.isInteger(endChordIndex) || endChordIndex < start || endChordIndex >= end) {
     return { ok: false, reason: 'split-not-inside' };
   }
-  return splitDraftSection(draft, sectionId, buffer[endChordIndex]._id, buffer, newId);
+  return splitDraftSection(draft, sectionId, buffer[endChordIndex]._id, buffer, newId, opts);
 }
 
 export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
