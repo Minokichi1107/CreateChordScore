@@ -118,7 +118,7 @@ export function openSectionReconfigurationModal(p) {
   const {
     openModal, mkMBtn, draft, buffer, sectionTypes, runtime = null,
     onAdopt, onClose, onTestPlay, onTestStop, onKeyShield, onKeyUnshield, confirmChoice,
-    generateSectionName, isAutoSectionName: isAutoSectionNameFn, getSectionNameBase, formatChord,
+    getSectionNameBase, formatChord,
     initial = null, splitContext: initialSplitContext = null,
     onReturnToOverview, onSplitContextClear, isCurrent,
   } = p;
@@ -134,8 +134,6 @@ export function openSectionReconfigurationModal(p) {
   let splitContext = initialSplitContext ? { ...initialSplitContext } : null;
   const returnToOverviewOnSplit = initialSplitContext?.returnTo === 2;
   let lastHistoryAction = null;
-  /** UI-only: name field typed this visit; not written to Draft until change/blur. */
-  let nameInputSoftLock = false;
   /**
    * Play start position (blue). Click/arrows update immediately — no separate confirm.
    * playConfirmed is kept in sync for testPlay() start index.
@@ -714,20 +712,6 @@ export function openSectionReconfigurationModal(p) {
     ensureChordRowVisible(focusIdx);
   }
 
-  function isAutoSectionName(name, type) {
-    if (typeof isAutoSectionNameFn === 'function') {
-      try { return isAutoSectionNameFn(name, type) === true; } catch { /* use fallback */ }
-    }
-    const label = sectionTypes?.find(item => item?.value === type)?.label
-      || (typeof generateSectionName === 'function' ? generateSectionName(type) : type);
-    const value = String(name ?? '').trim();
-    const base = String(label ?? type ?? '').trim();
-    if (!value || !base) return false;
-    if (value === base) return true;
-    if (!value.startsWith(base + ' ')) return false;
-    return /^[0-9]+$/.test(value.slice(base.length + 1));
-  }
-
   function generateDraftSectionName(type, excludeSectionId) {
     const generated = typeof getSectionNameBase === 'function'
       ? getSectionNameBase(type)
@@ -763,22 +747,18 @@ export function openSectionReconfigurationModal(p) {
     }
     if (typeEl && typeEl.value !== sec.type) {
       patch.type = typeEl.value;
-      // Infer auto-generated names for older saved Sections that lack nameUserEdited metadata.
-      if (sec.nameUserEdited !== true && !nameInputSoftLock && isAutoSectionName(sec.name, sec.type)) {
-        opts.defaultNameForType = type => generateDraftSectionName(type, sec.id);
-      }
+      // A type change always regenerates the name, even if it was manually edited.
+      // Clear Draft-only manual-name metadata in the same history operation.
+      patch.nameUserEdited = false;
+      opts.defaultNameForType = type => generateDraftSectionName(type, sec.id);
     }
     if (Object.keys(patch).length) {
       lastHistoryAction = null;
       updateDraftSection(draft, sec.id, patch, opts);
     }
-    // Always clear soft lock after processing the name field for this section.
-    // Even when the typed value equals the Draft name (no patch.name / no undo),
-    // the lock must not carry over to another section or block later auto-naming.
-    nameInputSoftLock = false;
   }
 
-  /** Live type change: update name immediately when not user-edited */
+  /** A type change always replaces the name with the generated name for the new type. */
   function onTypeChangeLive() {
     syncSectionSelection();
     const typeEl = root?.querySelector('.sr1-type');
@@ -787,19 +767,14 @@ export function openSectionReconfigurationModal(p) {
     if (!sec || !typeEl) return;
     const newType = typeEl.value;
     if (newType === sec.type) return;
-    const opts = {};
-    const patch = { type: newType };
-    const nameLocked = sec.nameUserEdited === true || nameInputSoftLock;
-    const nameCanFollowType = !nameLocked && isAutoSectionName(sec.name, sec.type);
-    if (nameCanFollowType) {
-      opts.defaultNameForType = type => generateDraftSectionName(type, sec.id);
-    }
+    const patch = { type: newType, nameUserEdited: false };
+    const opts = {
+      defaultNameForType: type => generateDraftSectionName(type, sec.id),
+    };
     lastHistoryAction = null;
     updateDraftSection(draft, sec.id, patch, opts);
-    // Reflect new name into the input without marking as user-edited again
-    if (nameEl && !draft.sections[sectionIdx].nameUserEdited && !nameInputSoftLock) {
-      nameEl.value = draft.sections[sectionIdx].name;
-    }
+    // The generated name is reflected immediately; it is no longer a manual name.
+    if (nameEl) nameEl.value = draft.sections[sectionIdx].name;
   }
 
   function mergeCurrentWithPrevious() {
@@ -1192,13 +1167,13 @@ export function openSectionReconfigurationModal(p) {
         e.preventDefault();
         e.stopPropagation();
         beforeStructuralEdit();
-        if (undoDraft(draft)) { lastHistoryAction = 'undo'; nameInputSoftLock = false; fullRedraw(); }
+        if (undoDraft(draft)) { lastHistoryAction = 'undo'; fullRedraw(); }
       }
       if ((e.ctrlKey || e.metaKey) && ((e.key === 'y' || e.key === 'Y') || (e.shiftKey && (e.key === 'z' || e.key === 'Z')))) {
         e.preventDefault();
         e.stopPropagation();
         beforeStructuralEdit();
-        if (redoDraft(draft)) { lastHistoryAction = 'redo'; nameInputSoftLock = false; fullRedraw(); }
+        if (redoDraft(draft)) { lastHistoryAction = 'redo'; fullRedraw(); }
       }
       return;
     }
@@ -1207,7 +1182,6 @@ export function openSectionReconfigurationModal(p) {
       e.preventDefault();
       e.stopPropagation();
       applyNameTypeFromInputs();
-      nameInputSoftLock = false;
       stopPlayIfNeeded();
       if (uiMode === 'split') cancelSplitMode({ returnToOverview: false });
       if (uiMode === 'boundary') cancelBoundaryMode();
@@ -1263,10 +1237,10 @@ export function openSectionReconfigurationModal(p) {
       e.stopPropagation();
       if ((e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
         beforeStructuralEdit();
-        if (undoDraft(draft)) { lastHistoryAction = 'undo'; nameInputSoftLock = false; fullRedraw(); }
+        if (undoDraft(draft)) { lastHistoryAction = 'undo'; fullRedraw(); }
       } else if ((e.key === 'y' || e.key === 'Y') || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
         beforeStructuralEdit();
-        if (redoDraft(draft)) { lastHistoryAction = 'redo'; nameInputSoftLock = false; fullRedraw(); }
+        if (redoDraft(draft)) { lastHistoryAction = 'redo'; fullRedraw(); }
       }
     }
   }
@@ -1349,22 +1323,16 @@ export function openSectionReconfigurationModal(p) {
     root.querySelector('#sr1-close')?.addEventListener('click', () => { requestClose('external').then(() => {}); });
     root.querySelector('#sr1-undo')?.addEventListener('click', () => {
       beforeStructuralEdit();
-      if (undoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
+      if (undoDraft(draft)) { fullRedraw(); }
     });
     root.querySelector('#sr1-redo')?.addEventListener('click', () => {
       beforeStructuralEdit();
-      if (redoDraft(draft)) { nameInputSoftLock = false; fullRedraw(); }
+      if (redoDraft(draft)) { fullRedraw(); }
     });
     root.querySelector('#sr1-merge-prev')?.addEventListener('click', mergeCurrentWithPrevious);
     root.querySelector('#sr1-delete-sec')?.addEventListener('click', deleteCurrentInvalid);
     root.querySelector('.sr1-name')?.addEventListener('change', () => applyNameTypeFromInputs());
     root.querySelector('.sr1-type')?.addEventListener('change', () => onTypeChangeLive());
-    root.querySelector('.sr1-name')?.addEventListener('input', () => {
-      // Soft-lock auto type→name in UI only. Do NOT mutate Draft.sections here —
-      // nameUserEdited is committed on change/blur via applyNameTypeFromInputs
-      // (single undo entry). Avoids dirtying undo baselines on every keystroke.
-      nameInputSoftLock = true;
-    });
   }
 
   resetPlayToSectionStart();
