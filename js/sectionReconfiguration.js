@@ -2,7 +2,7 @@
  * Section reconfiguration Draft (Phase150 Stage1).
  * Independent of analysisEditor until adopt.
  */
-import { validateGeneratedSectionSet } from './sectionSetValidation.js';
+import { validateSectionSet } from './sectionSetValidation.js';
 import { validateSectionInvariants } from './analysisSession.js';
 
 export const RECONFIG_GAP_TYPE = 'other';
@@ -634,7 +634,7 @@ export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
     return { ok: false, reason: 'section-invalid', details: invalid };
   }
   const sections = toCanonicalSections(draft.sections);
-  const setResult = validateGeneratedSectionSet(sections, buffer);
+  const setResult = validateSectionSet(sections, buffer);
   if (!setResult.valid) {
     return { ok: false, reason: setResult.reason || 'invalid-set', details: setResult };
   }
