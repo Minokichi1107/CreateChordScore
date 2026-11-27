@@ -27,7 +27,7 @@
 // @property {number} [count]             - 対象件数（成功メッセージの件数表示用。ある場合のみ）
 
 import { pushHistory, refreshSelection, getSections, validateSectionInvariants, reconcile, predictSectionImpact } from './analysisSession.js';
-import { validateGeneratedSectionSet } from './sectionSetValidation.js';
+import { validateSectionSet } from './sectionSetValidation.js';
 
 /**
  * _isNoChordEntry — bufferエントリがno_chord（無音）プレースホルダーか判定
@@ -1058,7 +1058,7 @@ export function replaceSectionsFromDraftCommand(state, sections) {
       }
     }
   }
-  const setCheck = validateGeneratedSectionSet(candidate, state.buffer);
+  const setCheck = validateSectionSet(candidate, state.buffer);
   if (!setCheck.valid) {
     return { ok: false, reason: setCheck.errors[0]?.reason ?? 'invalid-section-set', errors: setCheck.errors };
   }
