@@ -8,9 +8,9 @@
  * policy for *generated sets only*; it is enforced here, not in
  * validateSectionInvariants().
  */
-import { validateGeneratedSectionSet } from './sectionSetValidation.js';
+import { validateSectionSet } from './sectionSetValidation.js';
 
-export { validateGeneratedSectionSet } from './sectionSetValidation.js';
+export { validateSectionSet, validateGeneratedSectionSet } from './sectionSetValidation.js';
 
 export const DEFAULT_GENERATED_SECTION_TYPE = 'other';
 export const DEFAULT_GENERATED_SECTION_NAME = '未設定';
@@ -93,7 +93,7 @@ export function buildSectionsFromDraft(draft, buffer, measureOf, newId = () => c
     startChordId: buffer[range.startIndex]._id,
     endChordId: buffer[range.endIndex]._id,
   }));
-  const check = validateGeneratedSectionSet(sections, buffer);
+  const check = validateSectionSet(sections, buffer);
   return {
     ok: check.valid,
     sections: check.valid ? sections : [],
