@@ -512,7 +512,8 @@ export function splitDraftAtChordIndex(
 export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
   if (!draft) return { ok: false, reason: 'no-draft' };
   const diagnostics = diagnoseDraftSections(draft, buffer);
-  const incomplete = diagnostics.filter(d => !d.complete);
+  // Structural failures and missing user-entered fields are independent; report each in its own pass.
+  const incomplete = diagnostics.filter(d => d.structurallyValid && !d.complete);
   if (incomplete.length) {
     return { ok: false, reason: 'incomplete-section-fields', details: incomplete };
   }
