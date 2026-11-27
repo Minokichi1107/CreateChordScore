@@ -45,6 +45,8 @@ const overviewModalSource = readFileSync(new URL('../js/sectionOverviewModal.js'
 assert.match(overviewModalSource, /title="\$\{esc\(lengthTitle\)\}"/, 'human-readable Section start position is available as a hover hint');
 assert.doesNotMatch(overviewModalSource, /data-s2-boundary-prev/, 'Stage2 does not expose a separate boundary-adjustment action');
 assert.doesNotMatch(overviewModalSource, /s2-compare-track/, 'unclear length-comparison gauge is not rendered');
+assert.match(overviewModalSource, /normalizationNoticeHtml\(\)/, 'Stage2 shows the Draft normalization summary');
+assert.match(overviewModalSource, /droppedNames/, 'Stage2 identifies Sections absorbed during normalization');
 
 const regularMeasures = [
   { startTime: 0, endTime: 4 },
