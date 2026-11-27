@@ -928,8 +928,16 @@ const st = (b, sections = []) => ({
   const runtime = createReconfigRuntime();
   assert.equal(runtime.playGeneration, 0);
   runtime.playGeneration = 7;
+  runtime.modalOpen = true;
+  runtime.closed = false;
+  runtime.draft = { sections: [] };
+  runtime.audioSnapshot = { timeSec: 12, speedPct: 100 };
   teardownReconfigRuntime(runtime);
   assert.equal(runtime.playGeneration, 8);
+  assert.equal(runtime.modalOpen, false, 'teardown clears modalOpen so the next Section settings click can open');
+  assert.equal(runtime.closed, true);
+  assert.equal(runtime.draft, null);
+  assert.equal(runtime.audioSnapshot, null);
 }
 
 
@@ -976,7 +984,10 @@ const st = (b, sections = []) => ({
 const stage1Source = readFileSync(new URL('../js/sectionReconfigurationModal.js', import.meta.url), 'utf8');
 assert.match(stage1Source, /inheritBackMeta: true/, 'Stage1 split always inherits source category');
 assert.match(stage1Source, /種類を選択してください/, 'empty type has an explicit placeholder, never the first category');
-assert.match(stage1Source, /modeKey === 'p' \|\| modeKey === 'b' \|\| modeKey === 's'/, 'P/B/S mode shortcuts are available');
+assert.match(stage1Source, /modeKey === 'p' \|\| modeKey === 'b' \|\| modeKey === 's'/, 'P/B/S shortcuts remain available');
+assert.match(stage1Source, /class="sr1-gap-btn[^"]*" data-gap=/, 'each adjacent chord gap has a direct selection target');
+assert.match(stage1Source, />境界を移動</, 'boundary movement is available from the unified panel');
+assert.match(stage1Source, />Sectionを分割</, 'split is available beside boundary movement');
 assert.match(stage1Source, /e\.code === 'Enter'.*sr1-name/s, 'Enter exits the Section name field');
 assert.match(stage1Source, /reason: 'boundary-change'/, 'successful Stage2-originated boundary changes return to overview');
 
