@@ -2,9 +2,10 @@
 
 作成日：2026-11-27  
 対象期間：2026-11-11〜2026-11-27（16日間）  
-状態：**Section設定UXの初回実装・ユーザー受け入れ確認完了。実使用評価期間へ移行。**  
-作業ブランチ：`phase150-stage2-implementation`  
-実機確認対象コードcommit：`5ae7ad1e89274d9688df234c10288b6b1b54d1df`
+状態：**Section設定UXの初回実装・主要操作の受け入れ確認完了。PR #189でStage1への統合確認中。ブラウザ確認③は未完了。**  
+作業ブランチ：`phase150-section-integration`  
+統合PR Head：`9d11b235b946077ad1c0cfb5cb4973d698f907e2`  
+初回実機確認対象コードcommit：`5ae7ad1e89274d9688df234c10288b6b1b54d1df`
 
 ## 1. 次の作業で最初に読むもの
 
@@ -12,7 +13,7 @@
 2. `docs/phase-status.md` — Phase150の完了内容と現在地。
 3. `docs/current-issues.md` — Section UXの継続課題と優先順位。
 4. GitHub Issue #173 — Section UX & Song Structure全体のProduct Intent。
-5. GitHub Issue #78 — Section自動生成。現在の優先方針との整合を次回GitHub整理で確認する。
+5. GitHub Issue #78 — Section自動生成。2026-11-11以降はアルゴリズム調査・実装を保留し、現在の候補は補助として扱う。
 6. `docs/section-model.md` — Section Modelの正本。Phase150ではデータモデルを変更していない。
 
 ## 2. Purpose（目的）
@@ -108,26 +109,40 @@ Section設定の自動生成精度をさらに追い込むことよりも、ユ�
 
 ### GitHub / CI
 
-- 作業ブランチ：`phase150-stage2-implementation`
-- 確認済みHEAD：`5ae7ad1e89274d9688df234c10288b6b1b54d1df`
-- PR #188（Phase150 Stage2 Step 1: Draftロジック基盤）はOpen。GitHub整理時に、PRの対象範囲・ブランチ関係・最終的な統合方法を確認する。
-- Commit `5ae7ad1e` に関連するGitHub Actions run `45948314941` はfailure。
-- 失敗箇所は `scripts/test-section-reconfiguration.mjs` の既存assertion（実際値 `k4`、期待値 `k3`）。同じ失敗は今回の分割後フォーカス変更より前の状態でも発生していた。
-- 新たに追加した「分割後は前半Sectionを選択する」assertionは、先行する既存assertionの失敗で処理が停止するため、このCI実行では到達・実行されていない。
-- JavaScript構文チェック自体はローカルで確認済み。テスト全体がPASSしたとは扱わない。
-- UIの分割後フォーカス変更はユーザー実機で確認済み。
+- 現在の統合ブランチ：`phase150-section-integration`
+- 現在のHead：`9d11b235b946077ad1c0cfb5cb4973d698f907e2`
+- PR #188は未マージでクローズ済み。旧Stage2ブランチからStage1へ取り込む旧PRであり、後継の統合PR #189へ役割を引き継いだ。
+- PR #189：Draft / Open。Baseは `fix/phase150-stage1-browser-review`、Headは `phase150-section-integration`。現時点でマージ・Draft解除は未実施。
+- 現在のPR Headに対するGitHub Actions（自動テスト）は2件とも成功：
+  - `JavaScript syntax check` — run `46009449999`
+  - `Section generation foundation tests` — run `46009449326`
+- 2026-11-27のローカル検証（ユーザー実行）：主要JavaScript構文チェック、Section候補生成テスト、Section再設定テスト、Section一覧・投影テストが成功。
+- PR #188の旧CI失敗（run `45952179305`、既存assertionの `k4` / `k3` 不一致）は旧ブランチ上の結果であり、現在のPR #189のCI状態と混同しない。
+- 2026-11-27のブラウザ受け入れ確認：
+  - ① Section未設定の曲から設定：OK
+  - ② 既存Sectionを引き継いで再設定：OK
+  - ③ 既存Sectionを最初から設定し直す：候補生成までは確認。候補の手動修正・採用・保存・再読み込み後の確認は未実施（適切なテスト曲がなく保留）
+  - ④ キャンセル・Undo／Redo：OK
+  - ⑤ 既存機能との組み合わせ：OK
+  - Stage1単一Section編集とStage2全Section確認画面からの編集遷移：対象Sectionの開始位置がコード一覧の1行目に表示されることを確認
+- PRレビューでは主要なSection編集・Draft採用経路にマージを止めるコード上の問題は確認されていない。未保存コード編集時の選択肢、およびW2追加作業・W3〜W10の凍結方針に関する文書指摘は対応済み。
+- Stage1ブランチは `main` に対して39コミット先行・9コミット遅れで分岐している。PR #189はStage1への統合用であり、mainへの統合PRではない。
+- main側のみの9コミットは確認済み。保存・復旧計画の凍結に関する文書内容は統合ブランチ側に新しい記述があるため、古い文書をそのまま戻さない。コード変更 `0263bc6` は分割後に後半Sectionを選択する挙動を含むが、現在の統合ブランチはユーザー確認済みの「前半Sectionを選択したままにする」挙動を採用している。mainを無条件に取り込まず、この差を保持する。
 
 ## 7. Remaining Issues（残課題）
 
-1. **複数曲での実使用評価**
+1. **ブラウザ受け入れ確認③**
+   - 既存Sectionを最初から再設定する流れで、候補を手動修正し、採用し、保存・再読み込み後にも反映されることを確認する。
+   - 現在は候補生成まで確認済み。適切なテスト曲がなく、後続確認を保留している。
+2. **PR #189とStage1→mainの統合**
+   - PR #189はDraft / Openで、Stage1への統合前。
+   - Stage1とmainの分岐差は確認済み。main側の9コミットを一括で取り込まず、ユーザー確認済みの分割後フォーカス（前半Sectionを維持）を保持して統合方法を決める。
+3. **テスト再生の実使用確認**
+   - 受け入れ確認で試したケースは限定的。異なる長さ・構成のSectionで境界選択と干渉しないか、実使用時に観察する。
+4. **複数曲での実使用評価**
    - 6分という結果は1曲のみ。曲の長さ・Section数・構成の複雑さによる差を観察する。
    - 編集時間だけでなく、迷い・誤操作・手戻り・設定ミスも記録する。
-2. **テスト再生の追加確認**
-   - 現時点の確認ケースは限定的。異なる長さ・構成のSectionで境界選択との干渉がないか観察する。
-3. **CI既存失敗の原因確認**
-   - `k4` / `k3` の不一致を、期待値だけ変更して解消しない。テストが前提とする境界移動の意味を確認してから扱う。
-4. **GitHub統合状態**
-   - PR #188を含むStage2関連PR・ブランチの状態をGitHub整理段階で確認する。未確認のままmainへ統合済みと記録しない。
+   - これは初回実装の統合後に行う評価期間であり、Phase150のコード統合を不必要に先送りする理由にはしない。
 
 ## 8. Next Phase（次の進め方）
 
