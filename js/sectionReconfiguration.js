@@ -240,8 +240,8 @@ export function calculateSectionCoverage(sections, buffer) {
   if (!Array.isArray(buffer) || buffer.length === 0) {
     return { coveredSeconds: 0, totalSeconds: null, ratio: null, percent: null };
   }
-  const songStart = Number(buffer[0]?.start);
-  const songEnd = Number(buffer[buffer.length - 1]?.end);
+  const songStart = buffer[0]?.start;
+  const songEnd = buffer[buffer.length - 1]?.end;
   const totalSeconds = songEnd - songStart;
   if (!Number.isFinite(songStart) || !Number.isFinite(songEnd) || totalSeconds <= 0) {
     return { coveredSeconds: 0, totalSeconds: null, ratio: null, percent: null };
@@ -254,10 +254,10 @@ export function calculateSectionCoverage(sections, buffer) {
     if (start < 0 || end < start) {
       return { coveredSeconds: null, totalSeconds, ratio: null, percent: null };
     }
-    const startTime = Number(buffer[start]?.start);
+    const startTime = buffer[start]?.start;
     const endTime = end === buffer.length - 1
-      ? Number(buffer[end]?.end)
-      : Number(buffer[end + 1]?.start);
+      ? buffer[end]?.end
+      : buffer[end + 1]?.start;
     if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
       return { coveredSeconds: null, totalSeconds, ratio: null, percent: null };
     }
