@@ -157,9 +157,9 @@ UIはDraftを直接書き換えず、この層の操作関数を通す。
 **既存データの整形順序:**
 
 1. Sectionを楽曲上の開始位置が早い順に並べる。元配列の順番ではなく、実際の開始位置を基準にする。
-2. Section間の隙間を「その他」で補完する。
-3. 重複がある場合は先行Sectionを優先し、後続Sectionの開始位置を先行Sectionの終了位置の次へ移動する。
-4. 重複補正によって範囲が完全になくなったSectionはDraftから除外する。例: Aメロ1〜12、サビ8〜10、Bメロ11〜16の場合、サビはAメロに吸収されDraftから除外される。
+2. 重複がある場合は先行Sectionを優先し、後続Sectionの開始位置を先行Sectionの終了位置の次へ移動する。
+3. 重複補正によって範囲が完全になくなったSectionはDraftから除外する。例: Aメロ1〜12、サビ8〜10、Bメロ11〜16の場合、サビはAメロに吸収されDraftから除外される。
+4. 重複解消後に残るSection間の隙間を「その他」で補完する。
 5. 正規化後に全体が連続・非重複であることを共通検証する。
 
 この整形はDraft上だけで行う。ユーザーがキャンセルした場合、元のSectionデータは一切変更しない。採用時に初めて整形後のSectionへ置き換える。
@@ -230,7 +230,7 @@ Stage2には結合ボタンがあり、Stage1にも `mergeDraftWithPrevious()` �
 | `js/sectionAutoGeneration.js` | 責務整理して再利用 | 小節→コード範囲変換を候補Draft生成層として再利用。旧自動生成専用の命名・コメントを整理する候補 |
 | `js/sectionGeneration.js` | 分離・整理 | Buffer snapshot比較は共通ユーティリティとして残す。旧適格性判定は旧経路廃止時に参照監査 |
 | `js/sectionAutoGenerationModal.js` | 廃止候補 | 現行統合UIと二重化。旧経路以外の参照・テストを確認してから削除 |
-| `js/sectionSetValidation.js` | 責務再設計 | 生成物専用の完全連続検証と、Draft採用に必要な個別・集合検証を分離 |
+| `js/sectionSetValidation.js` | 責務再設計 | 共通正規化後の全Draftに対する連続性・非重複・参照整合性検証を担う。生成物専用検証は共通検証へ統合または廃止 |
 | `js/sectionReconfiguration.js` | 中核として維持 | Draft lifecycle（生成から破棄・採用までの状態管理）と編集操作を集約 |
 | `js/sectionReconfigurationModal.js` | UIとして維持・調整 | Stage1。main版との全面置換はしない。重複操作と合意済みUIを照合 |
 | `js/sectionOverview.js` | 再利用 | Stage2の一覧・比較・結合可否判定 |
