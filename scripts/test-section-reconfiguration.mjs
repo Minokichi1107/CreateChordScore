@@ -55,9 +55,8 @@ assert.match(appSource, /SECTION_TYPES\.find\(entry => entry\.value === type\)/,
 assert.match(appSource, /calculateSectionCoverage\(currentSections, buffer\)/, 'existing Section coverage is computed before choosing a reconfiguration path');
 assert.match(appSource, /既存Sectionを活かす/, 'existing Section preservation is offered');
 assert.match(appSource, /最初から設定し直す/, 'starting from scratch is offered');
-assert.match(appSource, /seedSections = choice === 'keep-existing'\\s*\\? currentSections\\s*:\\s*generateCandidateSections\\(\\)/, 'starting fresh with existing Sections uses the shared candidate generator');
-assert.match(appSource, /else \\{\\s*seedSections = generateCandidateSections\\(\\);/, 'new setup uses the same candidate generator');
-assert.ok(appSource.includes('OK = ${firstLabel}\\nキャンセル = ${secondLabel}'), 'both reconfiguration choices are mapped to the two-choice prompt');
+assert.ok(appSource.includes("seedSections = choice === 'keep-existing'\n      ? currentSections\n      : generateCandidateSections();"), 'starting fresh with existing Sections uses the shared candidate generator');
+assert.ok(appSource.includes("} else {\n    seedSections = generateCandidateSections();"), 'new setup uses the same candidate generator');assert.ok(appSource.includes('OK = ${firstLabel}\\nキャンセル = ${secondLabel}'), 'both reconfiguration choices are mapped to the two-choice prompt');
 
 const buf = (n = 4) => Array.from({ length: n }, (_, i) => ({
   _id: `k${i}`, chord: ['C', 'G', 'Am', 'F'][i % 4], start: i * 2, end: i * 2 + 2,
