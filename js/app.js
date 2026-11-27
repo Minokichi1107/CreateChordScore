@@ -245,6 +245,8 @@ import {
   teardownReconfigRuntime,
   prepareDraftForAdopt,
   isDraftDirty,
+  calculateSectionCoverage,
+  recommendSectionReconfiguration,
 } from './sectionReconfiguration.js';
 import { openSectionReconfigurationModal } from './sectionReconfigurationModal.js';
 import { openSectionOverviewModal } from './sectionOverviewModal.js';
@@ -3623,12 +3625,47 @@ async function startSectionReconfiguration() {
   const currentSections = Array.isArray(analysisEditor.sections)
     ? structuredClone(analysisEditor.sections)
     : [];
+  const makeFullSpanSection = () => [{
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sec-${Date.now()}`,
+    type: 'other',
+    name: '未設定',
+    startChordId: buffer[0]._id,
+    endChordId: buffer[buffer.length - 1]._id,
+  }];
 
-  // Draft seed:
-  // - existing sections → keep them (never destroy until adopt)
-  // - empty → run existing boundary detection into Draft candidates
-  let seedSections = currentSections;
-  if (!seedSections.length) {
+  // Existing Sections: the user chooses whether to preserve or restart.
+  // The 80% recommendation is time-weighted, matching Section Overview's
+  // chord-ID -> playback-time projection. Both choices remain available.
+  let seedSections = [];
+  if (currentSections.length) {
+    const coverage = calculateSectionCoverage(currentSections, buffer);
+    const recommendation = recommendSectionReconfiguration(coverage);
+    const keepFirst = recommendation !== 'start-fresh';
+    const firstChoice = keepFirst ? 'keep-existing' : 'start-fresh';
+    const secondChoice = keepFirst ? 'start-fresh' : 'keep-existing';
+    const recommendationText = recommendation === 'keep-existing'
+      ? '推奨：既存Sectionを活かす'
+      : recommendation === 'start-fresh'
+        ? '推奨：最初から設定し直す'
+        : 'カバー率を算出できないため、推奨はありません';
+    const coverageText = Number.isFinite(coverage.percent)
+      ? `既存Sectionのカバー率：約${coverage.percent.toFixed(1)}%（${coverage.coveredSeconds.toFixed(2)}秒 / ${coverage.totalSeconds.toFixed(2)}秒）`
+      : '既存Sectionのカバー率：算出できません（コードの時間情報が不足しています）';
+    const firstLabel = firstChoice === 'keep-existing'
+      ? '既存Sectionを活かす'
+      : '最初から設定し直す';
+    const secondLabel = secondChoice === 'keep-existing'
+      ? '既存Sectionを活かす'
+      : '最初から設定し直す';
+    const choice = await _sectionReconfigConfirmChoice(
+      `既存のSection設定があります。再設定方法を選んでください。\n\n${coverageText}\n${recommendationText}\n\nOK = ${firstLabel}\nキャンセル = ${secondLabel}`,
+      [{ value: firstChoice }, { value: secondChoice }],
+    );
+    seedSections = choice === 'keep-existing'
+      ? currentSections
+      : makeFullSpanSection();
+  } else {
+    // New setup: prefer the current candidate generator; fall back to one full-span Section.
     try {
       const vm = chartState.viewModel;
       const model = vm?.model;
@@ -3642,23 +3679,12 @@ async function startSectionReconfiguration() {
         const detected = detectSectionBoundaries(buffer, intervals);
         const autoDraft = createDraftFromBoundaries(detected.bars, detected.diagnostics);
         const built = buildSectionsFromDraft(autoDraft, buffer, measureOf);
-        if (built.ok && built.sections.length) {
-          seedSections = built.sections;
-        }
+        if (built.ok && built.sections.length) seedSections = built.sections;
       }
     } catch (err) {
       console.warn('[section-reconfig] auto candidate seed failed', err);
     }
-    // Fallback: single full-span section so the user can still split manually
-    if (!seedSections.length && buffer.length) {
-      seedSections = [{
-        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sec-${Date.now()}`,
-        type: 'other',
-        name: '未設定',
-        startChordId: buffer[0]._id,
-        endChordId: buffer[buffer.length - 1]._id,
-      }];
-    }
+    if (!seedSections.length) seedSections = makeFullSpanSection();
   }
 
   const draft = createReconfigurationDraft({
