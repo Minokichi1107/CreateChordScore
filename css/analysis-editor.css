@@ -850,6 +850,8 @@ body:not([data-theme="dark"]) .sr1-root {
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
+  padding-right: 12px;
+  box-sizing: border-box;
 }
 .sr1-chord-cell {
   position: relative;
