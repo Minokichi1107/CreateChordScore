@@ -157,44 +157,138 @@ export function buildDraftSectionsFromCurrent(buffer, sections, newId = () => cr
   if (!Array.isArray(buffer) || buffer.length === 0) {
     return { sections: [], gapsFilled: 0, overlapCount: 0, invalidCount: 0 };
   }
+
+  // Normalize only valid, locatable ranges. Same-start ties retain source-array order.
+  // Invalid rows are preserved for Stage2 diagnostics rather than silently discarded.
   const ordered = orderSectionsOnBuffer(sections, buffer);
-  const invalidCount = ordered.filter(r => !r.valid).length;
-  let overlapCount = 0;
-  const valid = ordered.filter(r => r.valid);
-  for (let i = 1; i < valid.length; i++) {
-    if (valid[i].start <= valid[i - 1].end) overlapCount += 1;
-  }
+  const valid = ordered
+    .filter(row => row.valid)
+    .sort((a, b) => a.start - b.start || a.i - b.i);
+  const invalid = ordered.filter(row => !row.valid);
   const result = [];
   let cursor = 0;
   let gapsFilled = 0;
-  for (const row of valid) {
-    if (row.start > cursor) {
-      result.push({
-        id: newId(), type: RECONFIG_GAP_TYPE, name: RECONFIG_GAP_NAME,
-        startChordId: buffer[cursor]._id, endChordId: buffer[row.start - 1]._id,
-      });
-      gapsFilled += 1;
-    }
+  let overlapCount = 0;
+  let droppedCount = 0;
+
+  const addGap = (start, end) => {
+    if (start > end) return;
     result.push({
-      id: row.section.id, type: row.section.type, name: row.section.name,
-      startChordId: row.section.startChordId, endChordId: row.section.endChordId,
-    });
-    cursor = Math.max(cursor, row.end + 1);
-  }
-  if (cursor < buffer.length) {
-    result.push({
-      id: newId(), type: RECONFIG_GAP_TYPE, name: RECONFIG_GAP_NAME,
-      startChordId: buffer[cursor]._id, endChordId: buffer[buffer.length - 1]._id,
+      id: newId(),
+      type: RECONFIG_GAP_TYPE,
+      name: RECONFIG_GAP_NAME,
+      startChordId: buffer[start]._id,
+      endChordId: buffer[end]._id,
     });
     gapsFilled += 1;
-  }
-  for (const row of ordered.filter(r => !r.valid)) {
+  };
+
+  for (const row of valid) {
+    const effectiveStart = Math.max(row.start, cursor);
+    if (row.start < cursor) overlapCount += 1;
+
+    // A fully covered later Section has no surviving chord range.
+    if (effectiveStart > row.end) {
+      droppedCount += 1;
+      continue;
+    }
+
+    // Fill only the uncovered range after overlap trimming.
+    addGap(cursor, effectiveStart - 1);
     result.push({
-      id: row.section.id, type: row.section.type, name: row.section.name,
-      startChordId: row.section.startChordId, endChordId: row.section.endChordId,
+      id: row.section.id,
+      type: row.section.type,
+      name: row.section.name,
+      startChordId: buffer[effectiveStart]._id,
+      endChordId: buffer[row.end]._id,
+    });
+    cursor = row.end + 1;
+  }
+
+  addGap(cursor, buffer.length - 1);
+
+  for (const row of invalid) {
+    result.push({
+      id: row.section.id,
+      type: row.section.type,
+      name: row.section.name,
+      startChordId: row.section.startChordId,
+      endChordId: row.section.endChordId,
     });
   }
-  return { sections: result, gapsFilled, overlapCount, invalidCount };
+
+  return {
+    sections: result,
+    gapsFilled,
+    overlapCount,
+    invalidCount: invalid.length,
+    droppedCount,
+  };
+}
+
+/**
+ * Measure the union of existing Section time ranges against the whole song.
+ * Section boundaries are projected from chord IDs using the same convention
+ * as Section Overview: start chord's start time through the next chord's start
+ * (or the final chord's end). Overlaps are counted once; uncovered gaps are
+ * not counted. A null ratio means reliable timing coverage cannot be computed.
+ */
+export function calculateSectionCoverage(sections, buffer) {
+  if (!Array.isArray(buffer) || buffer.length === 0) {
+    return { coveredSeconds: 0, totalSeconds: null, ratio: null, percent: null };
+  }
+  const songStart = Number(buffer[0]?.start);
+  const songEnd = Number(buffer[buffer.length - 1]?.end);
+  const totalSeconds = songEnd - songStart;
+  if (!Number.isFinite(songStart) || !Number.isFinite(songEnd) || totalSeconds <= 0) {
+    return { coveredSeconds: 0, totalSeconds: null, ratio: null, percent: null };
+  }
+
+  const intervals = [];
+  for (const section of Array.isArray(sections) ? sections : []) {
+    const start = chordIndex(buffer, section?.startChordId);
+    const end = chordIndex(buffer, section?.endChordId);
+    if (start < 0 || end < start) continue;
+    const startTime = Number(buffer[start]?.start);
+    const endTime = end === buffer.length - 1
+      ? Number(buffer[end]?.end)
+      : Number(buffer[end + 1]?.start);
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) continue;
+    const clippedStart = Math.max(songStart, startTime);
+    const clippedEnd = Math.min(songEnd, endTime);
+    if (clippedEnd > clippedStart) intervals.push({ start: clippedStart, end: clippedEnd });
+  }
+
+  intervals.sort((a, b) => a.start - b.start || a.end - b.end);
+  let coveredSeconds = 0;
+  let activeStart = null;
+  let activeEnd = null;
+  for (const interval of intervals) {
+    if (activeStart === null) {
+      activeStart = interval.start;
+      activeEnd = interval.end;
+    } else if (interval.start <= activeEnd) {
+      activeEnd = Math.max(activeEnd, interval.end);
+    } else {
+      coveredSeconds += activeEnd - activeStart;
+      activeStart = interval.start;
+      activeEnd = interval.end;
+    }
+  }
+  if (activeStart !== null) coveredSeconds += activeEnd - activeStart;
+
+  const ratio = Math.max(0, Math.min(1, coveredSeconds / totalSeconds));
+  return {
+    coveredSeconds,
+    totalSeconds,
+    ratio,
+    percent: ratio * 100,
+  };
+}
+
+export function recommendSectionReconfiguration(coverage, threshold = 0.8) {
+  if (!Number.isFinite(coverage?.ratio)) return null;
+  return coverage.ratio >= threshold ? 'keep-existing' : 'start-fresh';
 }
 
 export function createReconfigurationDraft({ projectId, buffer, sections, newId }) {
