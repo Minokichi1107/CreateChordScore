@@ -251,12 +251,16 @@ export function calculateSectionCoverage(sections, buffer) {
   for (const section of Array.isArray(sections) ? sections : []) {
     const start = chordIndex(buffer, section?.startChordId);
     const end = chordIndex(buffer, section?.endChordId);
-    if (start < 0 || end < start) continue;
+    if (start < 0 || end < start) {
+      return { coveredSeconds: null, totalSeconds, ratio: null, percent: null };
+    }
     const startTime = Number(buffer[start]?.start);
     const endTime = end === buffer.length - 1
       ? Number(buffer[end]?.end)
       : Number(buffer[end + 1]?.start);
-    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) continue;
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
+      return { coveredSeconds: null, totalSeconds, ratio: null, percent: null };
+    }
     const clippedStart = Math.max(songStart, startTime);
     const clippedEnd = Math.min(songEnd, endTime);
     if (clippedEnd > clippedStart) intervals.push({ start: clippedStart, end: clippedEnd });
