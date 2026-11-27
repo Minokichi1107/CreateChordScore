@@ -1,6 +1,6 @@
 # 現在の課題・バックログ
 
-> 最終更新: 2026-10-24（Phase147〜148のDocumentation Checkpointを反映）。
+> 最終更新: 2026-11-27（Phase150のSection UX進捗・次の評価方針を反映）。
 > 既存の未解決事項と新たに確認した残課題を、GitHub Issueの状態に合わせて整理し、
 > 解決済みの実装事項はCurrent Issuesへ残さず、対応するhandover / phase-statusへ寄せる。
 > 本ファイルは現在認識している未解決課題（Current Issues・Technical Debt・UI改善）を管理する。
@@ -656,14 +656,9 @@ Section作成時にコピーされる。既存Sectionとはリンクせず、既
 最終UI/data modelは未確定。初期標準プリセットはPhase140/#104のEnglish＋日本式構成を基礎とする。
 #95/#104/#96の実装そのもの、既存Sectionの更新、曲単位のプリセット管理は本Issueのスコープ外。
 
-#### Section UX Epic — Section機能をアプリ全体の楽曲構造レイヤーへ拡張（Phase106発見）
-状態: 未着手・構想段階
-内容: 現在のSectionはAnalysis Editor限定の「編集時の補助機能（Previewハイライト）」
-に留まっている。これをAnalysis Editor専用機能から、Chart Mode・演奏モードを含む
-アプリ全体で共有する「楽曲構造（Song Structure）」レイヤーへ発展させる構想。
-Phase98〜108でデータ層（Specification→Session→UI→Preview→Persistence→
-History→Navigation→Boundary Editing→UX Polish→Boundary Reassignment）が
-一巡し安定したことを受けて浮上した、次の発展方向。
+#### Section UX Epic — Section機能をアプリ全体の楽曲構造レイヤーへ拡張（GitHub Issue #173）
+状態: 継続中。Phase141〜143でChart ModeのSection表示を実装し、Phase150でSection設定の再構成UXを初回実装。現在は複数曲での実使用評価中。
+内容: Sectionを、曲の構造を理解し、曲中を移動し、構造単位で編集・再利用するための楽曲構造レイヤーとして発展させる。Phase150では、低精度の自動候補に依存せず、ユーザーがコード進行上の境界を選択・移動・分割できる二段階の再設定フローを実装した。次の改善は、複数曲での実使用から操作への習熟・操作性・手順効率を分けて観察したうえで選定する。
 
 設計思想（Creator UX / Performer UX）:
 ```
@@ -695,12 +690,14 @@ P1  Section Navigation Across Modes
     共通利用できるようにする。演奏モードでは「前のSection／次のSectionへ
     ジャンプ」だけでもコードを探してスクロールする手間が大きく減る。
 
-P2  Section Header Rendering
+P2  Section Header Rendering（Phase141〜143で実装済み）
     Chart Mode内にSection名の区切り（見出し）を常時表示する。スクロール中も
-    「今どのSectionにいるか」が一目で分かる。
+    「今どのSectionにいるか」が一目で分かる。開始線・終了線・Section名の表示は実装済み。
 
 P3  Section Length Mismatch Detection（旧称: Section Metrics・Phase108後の
     設計議論で具体化・[ChatGPT未レビュー]）
+    Phase150の全Section確認画面では、小節数・拍数と同種Sectionの長さを表示する。
+    ただし、長さの不一致を自動検知して警告する機能は未実装であり、本項目は継続する。
     動機: 1番と2番のように同じtype（verse/chorus等）のSectionを人力で
     複数作成する際、コピペの起点となる範囲選択がズレて小節数が揃わない
     ことがある。「単なる長さの表示」ではなく「不一致の検知」まで行う
@@ -728,7 +725,11 @@ P3  Section Length Mismatch Detection（旧称: Section Metrics・Phase108後の
     着手条件: Compound Mutation対応・Section UX Epicの他項目の進捗を
     見た上で、詳細設計（実装箇所・API形状）に着手する。
 
-P4  Editing Interaction Modernization（旧称: Direct Section Manipulation）
+P4  Editing Interaction Modernization（Phase150で初回実装）
+    Phase150で、コード進行上の位置選択、境界移動・分割、Undo/Redo、テスト再生、
+    マウスとキーボードを併用する二段階のSection再構成UIを実装した。
+    今後は実使用サンプルから改善点を整理する。境界ドラッグ・Headerドラッグ・
+    Shift+ドラッグ・Touch-first等の拡張は未実装であり、必要性を観察して判断する。
     Section編集のインタラクション全般を、メニュー操作依存から
     「入力手段（Input Modality）ごとに最適な形」へ拡張する。
 
@@ -769,10 +770,12 @@ P6  Section Templates
     「似ている」を判定）とは異なり、こちらはユーザー主導の宣言的な
     紐付け。ライブ用途・楽譜編集での活用を想定。
 
-P7  Automatic Section Generation
+P7  Automatic Section Generation（GitHub Issue #78）
     コードパターン・小節数・リズム・Downbeat・繰り返し構造等から
-    Intro/Verse/Chorus等を自動生成する。ヒューリスティック解析や
-    将来的なAI活用を組み合わせる余地がある構想段階の項目。
+    Intro/Verse/Chorus等を自動生成する構想。
+    Phase150以降は、アルゴリズムの精度改善を継続するより、現在の候補を補助として残し、
+    手動で確認・修正できるUXと実使用評価を優先する。追加のアルゴリズム調査は、
+    複数曲の使用結果から改善価値が確認された場合に再開する。
 
 P8  Section Quick Actions
     定型Section（Verse/Chorus/Bridge等）をワンキーで作成する
