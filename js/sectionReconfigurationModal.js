@@ -268,7 +268,7 @@ export function openSectionReconfigurationModal(p) {
 
   function clampBoundaryCandidate(idx) {
     const sp = currentSpan();
-    if (!sp || sp.start < 0 || sp.end <= sp.start) return null;
+    if (!sp || sp.start < 0 || sp.end < sp.start) return null;
     const diagnostics = diagnoseDraftSections(draft, buffer);
     const positioned = diagnostics
       .map(row => ({ ...row, sortKey: row.start >= 0 ? row.start : (row.end >= 0 ? row.end : Number.MAX_SAFE_INTEGER) }))
@@ -276,8 +276,9 @@ export function openSectionReconfigurationModal(p) {
     const orderIndex = positioned.findIndex(row => row.index === sectionIdx);
     const nextRow = orderIndex >= 0 ? positioned[orderIndex + 1] : null;
     const max = nextRow?.structurallyValid
-      ? Math.max(sp.start, nextRow.end - 1)
+      ? nextRow.end - 1
       : sp.end - 1;
+    if (max < sp.start) return null;
     return Math.max(sp.start, Math.min(max, Math.round(Number(idx) || 0)));
   }
 
@@ -399,7 +400,8 @@ export function openSectionReconfigurationModal(p) {
     const playOn = uiMode === 'normal';
     const boundaryOn = uiMode === 'boundary';
     const splitOn = uiMode === 'split';
-    const boundaryAvailable = !!currentSpan() && currentSpan().end > currentSpan().start;
+    const span = currentSpan();
+    const boundaryAvailable = !!span && (canEditCurrentBoundary() || span.end > span.start);
     return `
       <div class="sr1-header">
         <div class="sr1-header-row">
@@ -491,8 +493,9 @@ export function openSectionReconfigurationModal(p) {
     });
     wrap.querySelectorAll('.sr1-gap-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const gap = clampBoundaryCandidate(Number(btn.dataset.gap));
-        if (gap == null) {
+        const requestedGap = Number(btn.dataset.gap);
+        const gap = clampBoundaryCandidate(requestedGap);
+        if (gap == null || gap !== requestedGap) {
           message = 'この位置は選択できません';
           fullRedraw();
           return;
@@ -913,7 +916,8 @@ export function openSectionReconfigurationModal(p) {
     stopPlayIfNeeded();
     applyNameTypeFromInputs();
     const sp = currentSpan();
-    if (!sp || sp.start < 0 || sp.end <= sp.start) {
+    if (!sp || sp.start < 0 || sp.end < sp.start
+      || (sp.end === sp.start && !canEditCurrentBoundary())) {
       message = 'このSectionには選択できるコード間位置がありません';
       fullRedraw();
       return;
