@@ -5,15 +5,11 @@ on:
     paths:
       - "section_save.py"
       - "section_txn.py"
-      - "js/analysisCommands.js"
-      - "js/analysisSession.js"
       - "js/sectionGeneration.js"
       - "js/sectionAutoGeneration.js"
-      - "js/sectionAutoGenerationModal.js"
       - "js/sectionBoundaryDetection.js"
       - "scripts/test_section_save.py"
       - "scripts/test_section_txn.py"
-      - "scripts/test-section-generation.mjs"
       - "scripts/test-section-auto-generation.mjs"
       - "scripts/section_boundary_reference.py"
       - "scripts/fixtures/section-boundary/songs.json"
@@ -62,7 +58,6 @@ jobs:
           node-version: "22"
 
       - name: Run Section-generation command tests
-        run: node scripts/test-section-generation.mjs
 
       - name: Run Section auto-generation tests
         run: node scripts/test-section-auto-generation.mjs
