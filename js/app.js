@@ -4353,7 +4353,7 @@ function _placeSectionGap(px, py) {
     if (!before) break;
     k++;
   }
-  const ref = others[k] ?? bar.querySelector('#sec-create-btn');
+  const ref = others[k] ?? bar.querySelector('#sec-setup-btn');
   let next = d.gapEl.nextElementSibling;
   if (next === d.chipEl) next = next.nextElementSibling; // 浮いているチップはDOM上の位置に意味がない
   if (next !== ref) bar.insertBefore(d.gapEl, ref);
@@ -4477,8 +4477,6 @@ function renderSectionBar() {
   const sections = getSections(analysisEditor);
   const buffer = analysisEditor.buffer || [];
   // [Phase101-2] 単一コードでも作成可能（startChordId === endChordIdも正当なSection）。
-  const canCreate = analysisEditor.selection.chordIds.length >= 1;
-
   const chipsHtml = sections.length
     ? sections.map(s => {
         // [Phase106] 境界ステッパーのdisabled判定用にbuffer上のindexを求める。
@@ -4522,11 +4520,9 @@ function renderSectionBar() {
   bar.innerHTML = `
     <span class="sec-label">Sections</span>
     ${chipsHtml}
-    <button class="sec-btn" id="sec-create-btn" title="選択中の範囲からSectionを作成" ${canCreate ? '' : 'disabled'}>＋ 作成</button>
     <button class="sec-btn" id="sec-setup-btn" title="Sectionを自動候補から設定・編集する">Section設定</button>
   `;
 
-  document.getElementById('sec-create-btn')?.addEventListener('click', openSectionModal);
   // Phase150: unified entry — single Section設定 button opens reconfiguration flow
   // (auto-seed when no sections; keep existing when present). Old autogen/reconfig IDs removed.
   document.getElementById('sec-setup-btn')?.addEventListener('click', () => {
