@@ -132,6 +132,14 @@ const st = (b, sections = []) => ({
   assert.equal(below.ratio, 0.6);
   assert.equal(recommendSectionReconfiguration(below), 'start-fresh');
   assert.equal(recommendSectionReconfiguration({ ratio: null }), null);
+
+  const missingTiming = buf(3);
+  missingTiming[2].end = null;
+  assert.equal(
+    calculateSectionCoverage([S('all', 0, 2)], missingTiming).ratio,
+    null,
+    'missing time data must not produce a misleading recommendation',
+  );
 }
 
 {
