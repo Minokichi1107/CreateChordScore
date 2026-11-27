@@ -1291,7 +1291,9 @@ export function openSectionReconfigurationModal(p) {
     root.querySelector('#sr1-mode-boundary')?.addEventListener('click', () => enterBoundaryMode());
     root.querySelector('#sr1-split-edit')?.addEventListener('click', () => enterSplitMode());
     // Panel surface click also switches mode (buttons inside still work)
-    root.querySelector('.sr1-panel-play')?.addEventListener('click', () => {
+    root.querySelector('.sr1-panel-play')?.addEventListener('click', (e) => {
+      // Clicking a playback control must not clear a selected structural gap.
+      if (e.target.closest('button, input, label')) return;
       if (uiMode !== 'normal') enterPlayMode();
     });
     root.querySelector('.sr1-panel-play')?.addEventListener('keydown', (e) => {
