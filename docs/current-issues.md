@@ -690,10 +690,6 @@ P1  Section Navigation Across Modes
     共通利用できるようにする。演奏モードでは「前のSection／次のSectionへ
     ジャンプ」だけでもコードを探してスクロールする手間が大きく減る。
 
-P2  Section Header Rendering（Phase141〜143で実装済み）
-    Chart Mode内にSection名の区切り（見出し）を常時表示する。スクロール中も
-    「今どのSectionにいるか」が一目で分かる。開始線・終了線・Section名の表示は実装済み。
-
 P3  Section Length Mismatch Detection（旧称: Section Metrics・Phase108後の
     設計議論で具体化・[ChatGPT未レビュー]）
     Phase150の全Section確認画面では、小節数・拍数と同種Sectionの長さを表示する。
