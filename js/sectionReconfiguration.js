@@ -511,6 +511,12 @@ export function splitDraftAtChordIndex(
 
 export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
   if (!draft) return { ok: false, reason: 'no-draft' };
+  // Reject unexpected Draft keys before canonical projection can silently drop them.
+  const hasUnknownKey = (draft.sections || []).some(section =>
+    section && typeof section === 'object' &&
+    Object.keys(section).some(key => !ALLOWED.has(key) && !DRAFT_ONLY_KEYS.has(key))
+  );
+  if (hasUnknownKey) return { ok: false, reason: 'unknown-section-key' };
   const diagnostics = diagnoseDraftSections(draft, buffer);
   // Structural failures and missing user-entered fields are independent; report each in its own pass.
   const incomplete = diagnostics.filter(d => d.structurallyValid && !d.complete);
