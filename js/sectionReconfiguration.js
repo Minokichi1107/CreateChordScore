@@ -648,7 +648,10 @@ export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
   if (invalid.length) {
     return { ok: false, reason: 'section-invalid', details: invalid };
   }
-  const sections = toCanonicalSections(draft.sections);
+  // Draft array order is not an invariant. Adopt in chronological buffer order,
+  // including rows that were repaired after being retained for diagnostics.
+  const sections = orderedValidSections(draft.sections, buffer, diagnostics)
+    .map(row => toCanonicalSection(row.section));
   const setResult = validateSectionSet(sections, buffer);
   if (!setResult.valid) {
     return { ok: false, reason: setResult.reason || 'invalid-set', details: setResult };
