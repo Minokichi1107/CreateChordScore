@@ -1088,7 +1088,8 @@ assert.match(stage1Source, />Sectionを分割</, 'split is available beside boun
 assert.match(stage1Source, /selectSectionIndex\(sectionIdx, \{ clearSplitContext: false \}\)/, 'Stage1 split keeps focus on the front half');
 assert.doesNotMatch(stage1Source, /selectSectionIndex\(r\.backIndex/, 'Stage1 split does not jump to the back half');
 assert.match(stage1Source, /e\.code === 'Enter'.*sr1-name/s, 'Enter exits the Section name field');
-assert.match(stage1Source, /reason: 'boundary-change'/, 'successful Stage2-originated boundary changes return to overview');
+assert.doesNotMatch(stage1Source, /reason: 'boundary-change'|reason: 'split-success'|reason: 'split-cancel'/, 'boundary changes, splits, and split cancellation stay in Stage1');
+assert.match(stage1Source, /id="sr1-return-overview"/, 'Stage2 return remains an explicit Stage1 action');
 
 
 // --- Stage1 UI boundary edits absorb an existing gap into the following Section ---
