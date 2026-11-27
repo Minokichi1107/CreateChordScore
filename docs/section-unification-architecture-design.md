@@ -178,7 +178,18 @@ Stage2には結合ボタンがあり、Stage1にも `mergeDraftWithPrevious()` �
 
 ### 5.5 Draft Undo/Redo
 
-現在のDraftは独立した `undoStack` / `redoStack` を持つ。採用前のDraft編集履歴とAnalysis Editorの保存対象Historyを混同しない。合意済みB案の詳細と現行テストを照合し、履歴の保持範囲・ステージ切替時の維持・採用時のHistory 1回を回帰テストで固定する。
+現在のDraftは独立した `undoStack` / `redoStack` を持つ。これは採用前の一時編集履歴であり、Analysis Editorの保存対象Historyとは別である。
+
+合意済みの動作:
+
+- Stage1 / Stage2を移動してもDraftとUndo/Redo履歴を維持する。
+- Undo/RedoはDraftだけを戻し、保存済みSectionやAnalysis Editor Historyを直接変更しない。
+- Undo/Redo時は上部に1行の通知を数秒表示し、変更されたSectionカードを同時にハイライトする。履歴一覧は設けない。
+- 通知文言はUndo「元に戻しました（結合）」、Redo「やり直しました（分割）」を基本とする。
+- Draft採用時にだけ、Analysis Editor HistoryへSection一括置換を1回記録する。採用後のUndo/Redoは既存の共同Historyを使う。
+- キャンセル時は保存済みSectionとAnalysis Editor Historyを変更しない。
+
+現行実装にDraft内のStackと採用時のHistory 1回は存在する。Stage切替時の履歴維持、通知・カードハイライトの細部は現行テストと照合し、合意済み表示仕様との差分を確認する。
 
 ## 6. ファイル別の扱い案
 
