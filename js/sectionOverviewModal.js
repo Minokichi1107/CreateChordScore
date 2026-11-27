@@ -229,6 +229,20 @@ export function openSectionOverviewModal(p) {
       </div>`;
   }
 
+  function normalizationNoticeHtml() {
+    const info = draft.normalization;
+    if (!info) return '';
+    const parts = [];
+    if (info.overlapCount > 0) parts.push(`重複補正 ${info.overlapCount}件`);
+    if (info.gapsFilled > 0) parts.push(`隙間補完 ${info.gapsFilled}箇所`);
+    if (info.droppedCount > 0) {
+      const names = Array.isArray(info.droppedNames) ? info.droppedNames.filter(Boolean) : [];
+      parts.push(`範囲を失ったSectionを${info.droppedCount}件除外${names.length ? `（${names.join('、')}）` : ''}`);
+    }
+    if (!parts.length) return '';
+    return `<div class="s2-message" role="status">既存SectionをDraft上で整形しました：${esc(parts.join('／'))}。必要に応じて内容を確認・修正してください。</div>`;
+  }
+
   function bodyHtml() {
     const canUndo = (draft.undoStack?.length || 0) > 0;
     const canRedo = (draft.redoStack?.length || 0) > 0;
@@ -247,6 +261,7 @@ export function openSectionOverviewModal(p) {
           </div>
           <button type="button" class="s2-close" id="s2-close" aria-label="閉じる">×</button>
         </div>
+        ${normalizationNoticeHtml()}
         <div class="s2-message" id="s2-message" role="status" aria-live="polite">${esc(message)}</div>
         ${listHtml()}
         <p class="s2-footnote">変更内容は採用するまで保存データに反映されません。</p>
