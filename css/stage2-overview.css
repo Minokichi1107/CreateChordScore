@@ -473,7 +473,7 @@
   margin: 0 3px;
 }
 
-/* Phase150: Stage1 chord panel — equal top/bottom padding, fixed 3-row height */
+/* Phase150: Stage1 chord panel — equal vertical padding, room for focus ring */
 #modal-box:has(.sr1-root) .sr1-root,
 #sr1-root.sr1-root {
   gap: 5px !important;
@@ -481,27 +481,35 @@
 #modal-box:has(.sr1-root) .sr1-chords-wrap,
 #sr1-root .sr1-chords-wrap {
   margin: 0 !important;
-  padding: 8px 8px !important;
+  padding: 10px 10px !important;
   align-items: center !important;
+  justify-content: flex-start !important;
   gap: 6px !important;
   box-sizing: border-box !important;
+  overflow: hidden !important;
 }
 #modal-box:has(.sr1-root) .sr1-chord-grid,
 #sr1-root .sr1-chord-grid {
   --sr1-row-h: 34px !important;
   --sr1-row-gap: 6px !important;
   gap: 6px !important;
-  padding: 0 !important;
+  padding: 2px 2px !important;
   flex: 1 1 auto !important;
-  height: calc(3 * 34px + 2 * 6px) !important;
-  max-height: calc(3 * 34px + 2 * 6px) !important;
-  min-height: calc(3 * 34px + 2 * 6px) !important;
+  height: calc(3 * 34px + 2 * 6px + 4px) !important;
+  max-height: none !important;
+  min-height: calc(3 * 34px + 2 * 6px + 4px) !important;
   box-sizing: border-box !important;
+  overflow: visible !important;
+}
+#modal-box:has(.sr1-root) .sr1-chord-grid--windowed,
+#sr1-root .sr1-chord-grid--windowed {
+  overflow: visible !important;
 }
 #modal-box:has(.sr1-root) .sr1-grid-scroller,
 #sr1-root .sr1-grid-scroller {
   align-self: stretch !important;
-  height: calc(3 * 34px + 2 * 6px) !important;
+  height: auto !important;
+  min-height: calc(3 * 34px + 2 * 6px + 4px) !important;
 }
 #modal-box:has(.sr1-root) .sr1-chord-row,
 #sr1-root .sr1-chord-row {
@@ -510,10 +518,12 @@
   max-height: 34px !important;
   flex: 0 0 34px !important;
   gap: 5px !important;
+  overflow: visible !important;
 }
 #modal-box:has(.sr1-root) .sr1-chord-row-cells,
 #sr1-root .sr1-chord-row-cells {
   gap: 6px !important;
+  overflow: visible !important;
 }
 #modal-box:has(.sr1-root) .sr1-chord,
 #sr1-root .sr1-chord {
@@ -522,6 +532,17 @@
   padding: 3px 4px !important;
   font-size: 12px !important;
   box-sizing: border-box !important;
+  outline-offset: -2px !important;
+}
+#modal-box:has(.sr1-root) .sr1-chord.sr1-play-cand,
+#modal-box:has(.sr1-root) .sr1-chord.sr1-play-conf,
+#modal-box:has(.sr1-root) .sr1-chord:focus,
+#modal-box:has(.sr1-root) .sr1-chord:focus-visible,
+#sr1-root .sr1-chord.sr1-play-cand,
+#sr1-root .sr1-chord.sr1-play-conf,
+#sr1-root .sr1-chord:focus,
+#sr1-root .sr1-chord:focus-visible {
+  outline-offset: -2px !important;
 }
 
 /* Phase150: Stage1 header offset — lower nav + header panel slightly */
