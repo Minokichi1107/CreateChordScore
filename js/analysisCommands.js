@@ -1024,6 +1024,11 @@ export function applyGeneratedSectionsCommand(state, generatedSections) {
     }
   }
 
+  const setCheck = validateSectionSet(candidate, state.buffer);
+  if (!setCheck.valid) {
+    return { ok: false, reason: setCheck.errors[0]?.reason ?? 'invalid-section-set', errors: setCheck.errors };
+  }
+
   // Exactly one history snapshot for the entire generated set.
   pushHistory(state);
   state.sections = candidate;
