@@ -4,9 +4,9 @@
  * editor-session mutation); the app layer decides when to call them.
  *
  * [DATA MODEL NOTE] The Section data model itself allows gaps/overlaps
- * (docs/section-model.md). The "contiguous, non-overlapping" rule below is a
- * policy for *generated sets only*; it is enforced here, not in
- * validateSectionInvariants().
+ * (docs/section-model.md). Contiguous, non-overlapping coverage is enforced
+ * by the bulk setup/reconfiguration workflow's shared set validator; it is
+ * not a global invariant and is not enforced by validateSectionInvariants().
  */
 import { validateSectionSet } from './sectionSetValidation.js';
 
