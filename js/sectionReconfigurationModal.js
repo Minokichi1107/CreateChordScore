@@ -204,6 +204,7 @@ export function openSectionReconfigurationModal(p) {
     if (opts.clearSplitContext !== false && splitContext && nextId !== splitContext.sectionId) clearSplitContext();
     sectionIdx = nextIndex;
     selectedSectionId = nextId;
+    scrollSectionStartToTop();
   }
 
   function spans() {
@@ -433,9 +434,23 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function clampGridScrollRow(r) {
-    const maxFirst = Math.max(0, totalChordGridRows() - 3);
+    // Allow the final chord row to become the first visible row when it is a
+    // Section start. The remaining two rows are padded with empty placeholders.
+    const maxFirst = Math.max(0, totalChordGridRows() - 1);
     const n = Math.round(Number(r) || 0);
     return Math.max(0, Math.min(maxFirst, n));
+  }
+
+  /**
+   * Align the active Section's first chord row to the top of the grid.
+   * Called on initial open and whenever Stage1 changes the active Section.
+   */
+  function scrollSectionStartToTop({ refresh = false } = {}) {
+    gridCols = computeGridCols();
+    const active = spans()[sectionIdx];
+    if (!active || active.start < 0) return;
+    gridScrollRow = clampGridScrollRow(Math.floor(active.start / gridCols));
+    if (refresh) refreshChordGridOnly();
   }
 
   /** Windowed grid: only 3 rows in DOM — no native mid-row scroll possible. */
@@ -593,7 +608,7 @@ export function openSectionReconfigurationModal(p) {
         `<div class="sr1-chord-row-cells" style="grid-template-columns:repeat(${cols},minmax(0,1fr))"></div></div>`
       );
     }
-    const maxFirst = Math.max(0, rowsTotal - 3);
+    const maxFirst = Math.max(0, rowsTotal - 1);
     const scroller = maxFirst > 0
       ? `<input type="range" class="sr1-grid-scroller" min="0" max="${maxFirst}" value="${gridScrollRow}" step="1" aria-label="コード進行の表示行を移動" />`
       : '';
@@ -1306,6 +1321,9 @@ export function openSectionReconfigurationModal(p) {
       if (closed || (typeof isCurrent === 'function' && !isCurrent())) return;
       root = document.getElementById('sr1-root');
       bind();
+      // The first chord of the selected Section must be the first visible row,
+      // whether Stage1 was opened directly or returned from the Stage2 overview.
+      scrollSectionStartToTop({ refresh: true });
       if (keyHandler) document.addEventListener('keydown', keyHandler, true);
       scrollCursorIntoView();
     },
