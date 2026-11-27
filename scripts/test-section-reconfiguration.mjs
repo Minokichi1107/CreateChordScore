@@ -264,6 +264,16 @@ const st = (b, sections = []) => ({
 }
 
 {
+  // A repaired Draft is adopted in chronological order, not stale array order.
+  const b = buf(4);
+  const draft = createReconfigurationDraft({ projectId: 'p', buffer: b, sections: [S('all', 0, 3)] });
+  draft.sections = [S('late', 2, 3), S('early', 0, 1)];
+  const prep = prepareDraftForAdopt(draft, { projectId: 'p', buffer: b, isEditing: true });
+  assert.equal(prep.ok, true, prep.reason);
+  assert.deepEqual(prep.sections.map(section => section.id), ['early', 'late']);
+}
+
+{
   const b = buf();
   const state = st(b, [S('old', 0, 3)]);
   const bufBefore = JSON.stringify(state.buffer);
