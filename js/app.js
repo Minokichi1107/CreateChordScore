@@ -3592,6 +3592,30 @@ async function startSectionReconfiguration() {
     endChordId: buffer[buffer.length - 1]._id,
   }];
 
+  // Both new setup and "start from scratch" use the same candidate-generation path.
+  // Candidate Sections are only Draft seeds; persisted Sections remain untouched until adopt.
+  const generateCandidateSections = () => {
+    try {
+      const vm = chartState.viewModel;
+      const model = vm?.model;
+      if (model && model.mode !== 'fallback' && Array.isArray(vm.measures) && vm.measures.length > 0) {
+        const measureCount = vm.measures.length;
+        const measureOf = (chord) => {
+          const q = model.quantize(chord.start);
+          return q.measure >= 0 && q.measure < measureCount ? q.measure : null;
+        };
+        const intervals = vm.measures.map(m => ({ start: m.startTime, end: m.endTime }));
+        const detected = detectSectionBoundaries(buffer, intervals);
+        const autoDraft = createDraftFromBoundaries(detected.bars, detected.diagnostics);
+        const built = buildSectionsFromDraft(autoDraft, buffer, measureOf);
+        if (built.ok && built.sections.length) return built.sections;
+      }
+    } catch (err) {
+      console.warn('[section-reconfig] auto candidate seed failed', err);
+    }
+    return makeFullSpanSection();
+  };
+
   // Existing Sections: the user chooses whether to preserve or restart.
   // The 80% recommendation is time-weighted, matching Section Overview's
   // chord-ID -> playback-time projection. Both choices remain available.
@@ -3622,28 +3646,9 @@ async function startSectionReconfiguration() {
     );
     seedSections = choice === 'keep-existing'
       ? currentSections
-      : makeFullSpanSection();
+      : generateCandidateSections();
   } else {
-    // New setup: prefer the current candidate generator; fall back to one full-span Section.
-    try {
-      const vm = chartState.viewModel;
-      const model = vm?.model;
-      if (model && model.mode !== 'fallback' && Array.isArray(vm.measures) && vm.measures.length > 0) {
-        const measureCount = vm.measures.length;
-        const measureOf = (chord) => {
-          const q = model.quantize(chord.start);
-          return q.measure >= 0 && q.measure < measureCount ? q.measure : null;
-        };
-        const intervals = vm.measures.map(m => ({ start: m.startTime, end: m.endTime }));
-        const detected = detectSectionBoundaries(buffer, intervals);
-        const autoDraft = createDraftFromBoundaries(detected.bars, detected.diagnostics);
-        const built = buildSectionsFromDraft(autoDraft, buffer, measureOf);
-        if (built.ok && built.sections.length) seedSections = built.sections;
-      }
-    } catch (err) {
-      console.warn('[section-reconfig] auto candidate seed failed', err);
-    }
-    if (!seedSections.length) seedSections = makeFullSpanSection();
+    seedSections = generateCandidateSections();
   }
 
   const draft = createReconfigurationDraft({
