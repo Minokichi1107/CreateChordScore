@@ -988,6 +988,8 @@ assert.match(stage1Source, /modeKey === 'p' \|\| modeKey === 'b' \|\| modeKey ==
 assert.match(stage1Source, /class="sr1-gap-btn[^"]*" data-gap=/, 'each adjacent chord gap has a direct selection target');
 assert.match(stage1Source, />境界を移動</, 'boundary movement is available from the unified panel');
 assert.match(stage1Source, />Sectionを分割</, 'split is available beside boundary movement');
+assert.match(stage1Source, /selectSectionIndex\(sectionIdx, \{ clearSplitContext: false \}\)/, 'Stage1 split keeps focus on the front half');
+assert.doesNotMatch(stage1Source, /selectSectionIndex\(r\.backIndex/, 'Stage1 split does not jump to the back half');
 assert.match(stage1Source, /e\.code === 'Enter'.*sr1-name/s, 'Enter exits the Section name field');
 assert.match(stage1Source, /reason: 'boundary-change'/, 'successful Stage2-originated boundary changes return to overview');
 
