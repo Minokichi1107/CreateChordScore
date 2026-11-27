@@ -208,14 +208,17 @@ const st = (b, sections = []) => ({
   assert.equal(rt.splitContext, null);
   rt.draft = createReconfigurationDraft({ projectId: 'old', buffer: buf(), sections: [S('a', 0, 3)] });
   rt.modalOpen = true;
-  rt.view = 'stage1';
+  rt.view = { scrollTop: 120, lastSeenSigs: ['old'] };
   rt.splitContext = { sectionId: 'a' };
   rt.audioSnapshot = { timeSec: 1, speedPct: 100 };
-  const r = teardownReconfigRuntime(rt, { restoreAudio: false });
-  assert.equal(r.adopt, false);
+  const result = teardownReconfigRuntime(rt, { clearView: true, clearSplitContext: true });
+  assert.equal(result, undefined, 'teardown is a state-reset operation and has no return value');
   assert.equal(rt.draft, null);
-  assert.equal(rt.view, null);
+  assert.deepEqual(rt.view, { scrollTop: 0, lastSeenSigs: null });
   assert.equal(rt.splitContext, null);
+  assert.equal(rt.modalOpen, false);
+  assert.equal(rt.closed, true);
+  assert.equal(rt.audioSnapshot, null);
 }
 
 {
