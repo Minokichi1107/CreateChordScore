@@ -5,7 +5,7 @@
 import {
   draftSectionChordSpans,
   updateDraftSection,
-  setDraftSectionEndByChordIndex,
+  adjustSharedBoundary,
   deleteDraftSectionAt,
   diagnoseDraftSection,
   diagnoseDraftSections,
@@ -977,7 +977,7 @@ export function openSectionReconfigurationModal(p) {
       fullRedraw();
       return;
     }
-    const r = setDraftSectionEndByChordIndex(draft, sectionIdx, boundaryCandidate, buffer);
+    const r = adjustSharedBoundary(draft, selectedSectionId, nextRow?.id ?? null, boundaryCandidate, buffer);
     if (!r.ok) {
       message = `境界を変更できません（${REASON_LABEL[r.reason] || r.reason}）`;
       fullRedraw();
@@ -1054,7 +1054,7 @@ export function openSectionReconfigurationModal(p) {
     };
     const r = splitDraftAtChordIndex(
       draft,
-      sectionIdx,
+      selectedSectionId,
       endChordIndex,
       buffer,
       undefined,
