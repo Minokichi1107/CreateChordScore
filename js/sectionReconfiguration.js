@@ -301,6 +301,7 @@ export function createReconfigurationDraft({ projectId, buffer, sections, newId 
     sectionsBaseline: cloneSections(sectionsClone),
     gapsFilled: built.gapsFilled,
     overlapCount: built.overlapCount,
+    droppedCount: built.droppedCount ?? 0,
     invalidCount: built.invalidCount,
     undoStack: [],
     redoStack: [],
