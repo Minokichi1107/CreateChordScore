@@ -569,7 +569,7 @@ const st = (b, sections = []) => ({
   });
   // nameUserEdited is Draft-only metadata, so seed it after canonical Draft creation.
   draft.sections[0].nameUserEdited = true;
-  const r = splitDraftAtChordIndex(draft, 0, 2, b, undefined, { inheritBackMeta: true });
+  const r = splitDraftAtChordIndex(draft, 'source', 2, b, undefined, { inheritBackMeta: true });
   assert.equal(r.ok, true, r.reason);
   const back = draft.sections[r.backIndex];
   assert.equal(back.type, 'chorus');
@@ -592,7 +592,7 @@ const st = (b, sections = []) => ({
       endChordId: 'k5',
     }],
   });
-  const r = splitDraftAtChordIndex(draft, 0, 2, b, undefined, {
+  const r = splitDraftAtChordIndex(draft, 'intro', 2, b, undefined, {
     inheritBackMeta: true,
     defaultNameForType: type => type === 'intro' ? 'イントロ 2' : type,
   });
@@ -829,7 +829,7 @@ const st = (b, sections = []) => ({
   const splitCandidate = 3; // D
   const endChordIndex = splitCandidate - 1;
   const draft = createReconfigurationDraft({ projectId: 'split-map', buffer, sections });
-  const r = splitDraftAtChordIndex(draft, 0, endChordIndex, buffer);
+  const r = splitDraftAtChordIndex(draft, 's1', endChordIndex, buffer);
   assert(r.ok, 'split at D should succeed');
   const spans = draftSectionChordSpans(draft, buffer);
   assert(spans.length === 2, 'two sections after split');
@@ -839,11 +839,11 @@ const st = (b, sections = []) => ({
   assert(r.backIndex === 1, 'select back section after split');
   // Edge: first interior chord C as new start
   const d2 = createReconfigurationDraft({ projectId: 'split-map2', buffer, sections: structuredClone(sections) });
-  const r2 = splitDraftAtChordIndex(d2, 0, 1, buffer); // candidate C=2 → end=1
+  const r2 = splitDraftAtChordIndex(d2, 's1', 1, buffer); // candidate C=2 → end=1
   assert(r2.ok && draftSectionChordSpans(d2, buffer)[1].start === 2, 'C becomes back start');
   // Edge: last chord as new start (front keeps all but last)
   const d3 = createReconfigurationDraft({ projectId: 'split-map3', buffer, sections: structuredClone(sections) });
-  const r3 = splitDraftAtChordIndex(d3, 0, 4, buffer); // candidate F=5 → end=4
+  const r3 = splitDraftAtChordIndex(d3, 's1', 4, buffer); // candidate F=5 → end=4
   assert(r3.ok && draftSectionChordSpans(d3, buffer)[1].start === 5, 'F becomes back start');
   console.log('splitCandidate maps to next-section start: ok');
 }
@@ -978,7 +978,7 @@ const st = (b, sections = []) => ({
     buffer: b,
     sections: [S('s', 0, 7, 'jp-a-melo', 'Aメロ')],
   });
-  const result = splitDraftAtChordIndex(split, 0, 3, b, () => 's-back', {
+  const result = splitDraftAtChordIndex(split, 's', 3, b, () => 's-back', {
     inheritBackMeta: true,
     defaultNameForType: () => 'Aメロ 2',
   });
