@@ -914,19 +914,16 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function enterBoundaryMode() {
-    if (uiMode === 'split') {
-      splitCandidate = null;
-      splitCandidateAtModeEnter = null;
-    }
     stopPlayIfNeeded();
     applyNameTypeFromInputs();
-    if (!canEditCurrentBoundary()) {
-      message = 'このSectionの境界は変更できません（次のSectionが不正、または最後のSectionです）';
+    const sp = currentSpan();
+    if (!sp || sp.start < 0 || sp.end <= sp.start) {
+      message = 'このSectionには選択できるコード間位置がありません';
       fullRedraw();
       return;
     }
-    const sp = currentSpan();
-    boundaryCandidate = sp ? clampBoundaryCandidate(canEditCurrentBoundary() ? sp.end : sp.end - 1) : null;
+    const defaultGap = canEditCurrentBoundary() ? sp.end : sp.end - 1;
+    boundaryCandidate = clampBoundaryCandidate(defaultGap);
     boundaryCandidateAtModeEnter = boundaryCandidate;
     splitCandidate = boundaryCandidate == null ? null : boundaryCandidate + 1;
     splitCandidateAtModeEnter = splitCandidate;
