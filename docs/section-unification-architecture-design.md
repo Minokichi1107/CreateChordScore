@@ -202,11 +202,11 @@ UIはDraftを直接書き換えず、この層の操作関数を通す。
 
 
 
-### 5.4 Stage1 / Stage2の操作重複
+### 5.4 Stage1 / Stage2の操作責務
 
-Stage2には結合ボタンがあり、Stage1にも `mergeDraftWithPrevious()` を呼ぶ処理がある。合意済みUI責務に合わせ、結合の入口をStage2に集約するか確認する。
+結合操作はStage2の全Section確認画面に集約する。Stage1にあった「前と結合」ボタン、結合可否表示、結合ハンドラーは削除済み。Stage1は単一Sectionの境界編集・分割・試聴に専念する。
 
-分割はStage2の「編集・分割」からStage1へ遷移する現行構造を維持できるが、分割後にどちらのSectionへフォーカスするかは、mainとStage2で挙動が異なる。mainは後半Section、Stage2は前半Sectionを選択する。これは一括移植せず、ユーザーの操作意図とテストを確認して決める。
+分割はStage2の「編集・分割」からStage1へ遷移する現行構造を維持する。分割後のフォーカスはStage2版の現行挙動（前半Sectionを選択）を維持し、main版の後半Sectionフォーカスを一括移植しない。
 
 ### 5.5 Draft Undo/Redo
 
