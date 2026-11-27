@@ -251,7 +251,7 @@ Phase150ではSection設定UXの初回再設計・実装を完了し、ユーザ
 
 編集時間は従来の約10分／曲に対し、1曲で6分を観測した（約40%短縮）。これは単一サンプルであり、安定した平均値とは扱わない。次は複数曲で時間・迷い・手戻り・設定ミスを記録し、操作への習熟、操作性、手順効率を分けて評価する。小さな改善はすぐ実装せず、サンプルを集めた後に次フェーズとしてまとめる。重大な不具合は随時修正する。
 
-作業ブランチは`phase150-stage2-implementation`、確認済みHEADは`5ae7ad1e89274d9688df234c10288b6b1b54d1df`。PR #188はOpen。CI run `45948314941` は既存のSection reconfiguration test assertion（実際値`k4`／期待値`k3`）で失敗している。同じ失敗は最新の分割後フォーカス変更より前から存在し、新規assertionは先行失敗により実行されていない。テスト全体PASSとは扱わない。mainへの統合状態はGitHub整理段階で再確認する。
+作業ブランチは`phase150-stage2-implementation`、実機確認対象コードcommitは`5ae7ad1e89274d9688df234c10288b6b1b54d1df`。PR #188はOpen。CI run `45948314941` は既存のSection reconfiguration test assertion（実際値`k4`／期待値`k3`）で失敗している。同じ失敗は最新の分割後フォーカス変更より前から存在し、新規assertionは先行失敗により実行されていない。テスト全体PASSとは扱わない。mainへの統合状態はGitHub整理段階で再確認する。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
