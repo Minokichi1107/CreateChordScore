@@ -3316,19 +3316,6 @@ function _isAutoSectionName(name, type) {
 }
 
 /**
- * startSectionAutoGeneration — Section自動生成を開始する（候補の確認画面を開く）
- *
- * [FLOW] ディスク上のデータで適格性を確認 → 境界候補を生成 → 確認画面。
- * 確認画面で「採用」されるまで、曲のSectionデータは一切変更しない。
- * 採用時（_adoptGeneratedSections）に、編集状態・ディスク・コード列を再検証してから
- * applyGeneratedSectionsCommand()（既存の一括適用）で1操作として適用する。
- * 永続化は既存のsaveAnalysisEdit()（保存ボタン）に任せる。新しい保存経路は作らない。
- */
-/**
- * startSectionReconfiguration — 既存SectionをDraftとして再設定UIを開く（Phase150 Stage1）
- * 既存 analysisEditor.sections は採用まで変更しない。
- */
-/**
  * startSectionReconfiguration — 既存SectionをDraftとして再設定UIを開く（Phase150 Stage1）
  * 既存 analysisEditor.sections は採用まで変更しない。
  */
