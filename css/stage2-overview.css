@@ -208,6 +208,37 @@
   font-size: 15px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
+.s2-name-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+.s2-name-input:hover {
+  border-color: var(--s2-card-border, var(--border-ui, #4a5160));
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+.s2-name-input:focus {
+  outline: none;
+  border-color: var(--s2-primary, var(--color-accent, #4d8dff));
+  background: var(--surface-overlay, transparent);
+}
+.s2-name-input::placeholder {
+  color: var(--text-secondary);
+  font-weight: 600;
+  opacity: 0.75;
+}
 .s2-kind {
   display: inline-flex; align-items: center; gap: 5px;
   border-radius: 6px; padding: 3px 8px;
