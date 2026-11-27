@@ -3497,8 +3497,6 @@ function switchSectionReconfigStage(stage, options = {}) {
     };
     _sectionReconfigModalHandle = openSectionReconfigurationModal({
       ...common,
-      generateSectionName: type => _generateSectionName(type),
-      isAutoSectionName: (name, type) => _isAutoSectionName(name, type),
       getSectionNameBase: type => _sectionTypeLabel(type, _loadSectionTypeGroup()),
       formatChord: _formatSectionReconfigChord,
       initial: { sectionId, mode: 'normal' },
