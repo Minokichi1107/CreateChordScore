@@ -91,7 +91,7 @@ const st = (b, sections = []) => ({
   const b = buf(8);
   const draft = createReconfigurationDraft({ projectId: 'p', buffer: b, sections: [] });
   draft.sections = [S('a', 0, 3), S('b', 4, 7)];
-  const r = setDraftSectionEndByChordIndex(draft, 0, 2, b);
+  const r = adjustSharedBoundary(draft, 'a', 'b', 2, b);
   assert.equal(r.ok, true, r.reason);
   assert.equal(draft.sections[0].endChordId, 'k2');
   assert.equal(draft.sections[1].startChordId, 'k3');
