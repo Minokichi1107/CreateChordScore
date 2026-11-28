@@ -101,6 +101,7 @@ class LocalOnlyServerTest(unittest.TestCase):
     def test_head_requests_obey_host_and_origin_guard(self):
         evil = {"Origin": "http://evil.example"}
         self.assertEqual(request("HEAD", "/index.html", evil)[0], 403)
+        self.assertEqual(request("HEAD", "/index.html", {"Host": f"evil.example:{PORT}"})[0], 403)
         self.assertEqual(request("HEAD", "/index.html")[0], 200)
 
     def test_foreign_origin_cannot_read_or_write(self):
