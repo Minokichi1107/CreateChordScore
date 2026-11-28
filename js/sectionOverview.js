@@ -74,7 +74,7 @@ function beatMapper(beats) {
   };
 }
 
-function nearestFraction(value) {
+function nearestFractionMatch(value) {
   let best = null;
   for (const candidate of FRACTION_CANDIDATES) {
     const distance = Math.abs(value - candidate.value);
@@ -95,25 +95,28 @@ function nearestFraction(value) {
       best = { candidate, distance };
     }
   }
-  return best?.candidate ?? FRACTION_CANDIDATES[0];
+  return best ?? { candidate: FRACTION_CANDIDATES[0], distance: 0 };
 }
 
-/** Format a real beat value using the fixed D2 fraction candidates. */
-export function formatSectionBeatValue(value) {
-  if (!finite(value)) return '—';
+function nearestFraction(value) {
+  return nearestFractionMatch(value).candidate;
+}
+
+/**
+ * Display beat lengths truncated to one decimal place.
+ * This is presentation-only; the underlying beat values remain unchanged.
+ */
+function formatSectionBeatValueDetails(value) {
+  if (!finite(value)) return { text: '—' };
   const sign = value < 0 ? '−' : '';
   const absolute = Math.abs(value);
-  let whole = Math.floor(absolute + EPS);
-  const fraction = absolute - whole;
-  const nearest = nearestFraction(fraction);
+  const truncated = Math.trunc(absolute * 10 + EPS) / 10;
+  const text = truncated.toFixed(1).replace(/\.0$/, '');
+  return { text: `${sign}${text}` };
+}
 
-  if (nearest.value >= 1 - EPS) whole += 1;
-  const fractionText = nearest.value <= EPS || nearest.value >= 1 - EPS
-    ? ''
-    : `${nearest.numerator}/${nearest.denominator}`;
-  if (!fractionText) return `${sign}${whole}`;
-  if (whole === 0) return `${sign}${fractionText}`;
-  return `${sign}${whole}と${fractionText}`;
+export function formatSectionBeatValue(value) {
+  return formatSectionBeatValueDetails(value).text;
 }
 
 function formatBeatOrdinal(position) {
@@ -291,17 +294,16 @@ function calculateMeasureBreakdown(bStart, bEnd, measures, beatAt, tolerance) {
 
 function makeLengthLabels(totalBeats, breakdown) {
   if (!finite(totalBeats)) return { lengthLabel: '—', lengthSub: null };
-  const total = `${formatSectionBeatValue(totalBeats)}拍`;
+  const formatted = formatSectionBeatValueDetails(totalBeats);
+  const total = `${formatted.text}拍`;
   const { leadBeats, fullMeasures, tailBeats } = breakdown;
   if (!finite(leadBeats) || !Number.isInteger(fullMeasures) || !finite(tailBeats)) {
     return { lengthLabel: total, lengthSub: null };
   }
 
-  const hasLead = leadBeats > EPS;
-  const hasTail = tailBeats > EPS;
-if (fullMeasures > 0) {
-  return { lengthLabel: `${fullMeasures}小節`, lengthSub: `(${total})` };
-}
+  if (fullMeasures > 0) {
+    return { lengthLabel: `${fullMeasures}小節`, lengthSub: `(${total})` };
+  }
   return { lengthLabel: total, lengthSub: null };
 }
 
@@ -382,10 +384,7 @@ export function buildSectionOverview(draft, buffer, timing, opts = {}) {
     const breakdown = calculateMeasureBreakdown(bStart, bEnd, measures, beatAt, breakdownTol);
     const startPosition = resolveMeasureContext(tStart, timing, measures, beatAt, isPickup, startSnapTol);
     const labels = makeLengthLabels(displayTotalBeats, breakdown);
-    const estimated = !!(startBeat?.extrapolated || endBeat?.extrapolated);
-    const lengthLabel = totalBeats == null
-      ? '—'
-      : `${estimated ? '約' : ''}${labels.lengthLabel}`;
+    const lengthLabel = totalBeats == null ? '—' : labels.lengthLabel;
     const lengthSub = labels.lengthSub;
 
     return {
