@@ -11,23 +11,13 @@ import {
   SECTION_BOUNDARY_ALGORITHM_VERSION,
 } from '../js/sectionBoundaryDetection.js';
 import { createTimingModel } from '../js/timing.js';
-import { suggestNewBoundaryBar } from '../js/sectionAutoGenerationModal.js';
 import {
   mapBoundariesToChordRanges,
   validateGeneratedSectionSet,
   buildSectionsFromDraft,
   createDraftFromBoundaries,
 } from '../js/sectionAutoGeneration.js';
-import {
-  applyGeneratedSectionsCommand,
-  renameSectionCommand,
-  updateSectionBoundaryCommand,
-} from '../js/analysisCommands.js';
-import { undoBuffer, redoBuffer, validateSectionInvariants } from '../js/analysisSession.js';
-import {
-  captureSectionGenerationBuffer,
-  hasSectionGenerationCodeEdits,
-} from '../js/sectionGeneration.js';
+import { hasSectionCodeEdits } from '../js/sectionCodeBuffer.js';
 
 // ---- simplifyChord ----
 assert.equal(simplifyChord('C'), 'C');
@@ -169,7 +159,7 @@ const buf = (specs) => specs.map(([chord, start], i) => ({ _id: `k${i}`, chord, 
   assert.deepEqual(validateGeneratedSectionSet([S('a', 0, 3)], []).errors.map(e => e.reason), ['no-buffer']);
 }
 
-// ---- draft -> Sections -> apply (Undo) ----
+// ---- candidate draft -> Section ranges ----
 {
   const b = buf([['C', 0], ['G', 2], ['Am', 4], ['F', 6], ['C', 8], ['G', 10]]);
   const draft = createDraftFromBoundaries([2, 4], [{ bar: 2, changeAround4Bars: 0.5, barsFromPrevious: 2, alignedTo4or8: false }]);
@@ -184,20 +174,11 @@ const buf = (specs) => specs.map(([chord, start], i) => ({ _id: `k${i}`, chord, 
   assert.deepEqual(built.sections.map(s => [s.id, s.startChordId, s.endChordId]),
     [['sec1', 'k0', 'k1'], ['sec2', 'k2', 'k3'], ['sec3', 'k4', 'k5']]);
   assert.ok(built.sections.every(s => Object.keys(s).sort().join() === 'endChordId,id,name,startChordId,type'),
-    'only keys accepted by applyGeneratedSectionsCommand');
-
-  const state = { active: true, buffer: b, sections: [], history: [], future: [], dirty: false,
-    selection: { chordIds: [], boundaryIndex: null, anchorChordId: null, editPoint: null } };
-  const applied = applyGeneratedSectionsCommand(state, built.sections);
-  assert.equal(applied.ok, true);
-  assert.equal(applied.count, 3);
-  assert.equal(state.history.length, 1, 'one undo step for the whole set');
-  assert.equal(undoBuffer(state), true);
-  assert.equal(state.sections.length, 0);
+    'candidate conversion emits the canonical Section shape');
 
   // user-edited draft: renamed and moved boundary
   const edited = draft.map(d => ({ ...d }));
-  edited[1].startBar = 3; // moved from bar 2 to bar 3
+  edited[1].startBar = 3;
   edited[1].name = 'Aメロ';
   edited[2].startBar = 5;
   const e = buildSectionsFromDraft(edited, b, measureOf, () => 'x' + (++n));
@@ -212,7 +193,6 @@ const buf = (specs) => specs.map(([chord, start], i) => ({ _id: `k${i}`, chord, 
   assert.equal(d.ok, false);
   assert.deepEqual(d.sections, []);
   assert.equal(d.errors[0].reason, 'not-ascending');
-  // empty name is rejected by set validation
   const blank = draft.map(d2 => ({ ...d2 }));
   blank[0].name = '';
   assert.equal(buildSectionsFromDraft(blank, b, measureOf).errors[0].reason, 'invalid-section-name');
@@ -222,19 +202,19 @@ const buf = (specs) => specs.map(([chord, start], i) => ({ _id: `k${i}`, chord, 
 // ---- stale-candidate detection reuses the existing buffer-snapshot helpers ----
 {
   const b = buf([['C', 0], ['G', 2]]);
-  const snapshot = captureSectionGenerationBuffer(b);
-  assert.equal(hasSectionGenerationCodeEdits(b, snapshot), false);
+  const snapshot = structuredClone(b);
+  assert.equal(hasSectionCodeEdits(b, snapshot), false);
   const edited = structuredClone(b);
   edited[1].chord = 'Am';
-  assert.equal(hasSectionGenerationCodeEdits(edited, snapshot), true, 'chord rename is detected');
+  assert.equal(hasSectionCodeEdits(edited, snapshot), true, 'chord rename is detected');
   const moved = structuredClone(b);
   moved[1].start = 3;
-  assert.equal(hasSectionGenerationCodeEdits(moved, snapshot), true, 'timing change is detected');
-  assert.equal(hasSectionGenerationCodeEdits(b.slice(0, 1), snapshot), true, 'deleted chord is detected');
+  assert.equal(hasSectionCodeEdits(moved, snapshot), true, 'timing change is detected');
+  assert.equal(hasSectionCodeEdits(b.slice(0, 1), snapshot), true, 'deleted chord is detected');
 }
 
 
-// ================= P0 review fixes: peak rule, add-position, 11-song regression =================
+// ================= candidate regression: peak rule and 11-song fixtures =================
 
 // ---- peak picking (replaces the fixed 8-bar spacing) ----
 assert.deepEqual(pickBoundaryPeaks([0, 0, 1, 1, 0, 0, 0, 0], 5), [2], 'plateau: leftmost bar only');
@@ -246,16 +226,6 @@ assert.deepEqual(pickBoundaryPeaks([0, 0, 5, 0, 4, 0, 0, 0, 0], 5, { peakRadius:
 assert.deepEqual(pickBoundaryPeaks([0, 0, 5, 0, 0, 4, 0, 0, 0], 5, { minDistance: 4 }), [2], 'optional explicit spacing still works');
 assert.deepEqual(pickBoundaryPeaks([9, 9, 1, 0, 0, 0, 3, 0, 0, 0, 2], 2), [6, 10], 'k limit; bars 0/1 never picked');
 assert.deepEqual(pickBoundaryPeaks([0, 0, 0, 0, 0], 3), [], 'non-positive scores are never boundaries');
-
-// ---- "add boundary" start position (no assumed section length) ----
-{
-  const d = starts => starts.map((startBar, i) => ({ candidateId: `c${i}`, startBar }));
-  assert.equal(suggestNewBoundaryBar(d([0, 10, 30]), 50), 20, 'middle of the longest section');
-  assert.equal(suggestNewBoundaryBar(d([0, 2, 3]), 4), 1, 'a 2-bar section can still be split');
-  assert.equal(suggestNewBoundaryBar(d([0, 1]), 2), null, 'no room');
-  assert.equal(suggestNewBoundaryBar(d([0, NaN]), 10), 5, 'half-edited rows are ignored');
-  assert.equal(suggestNewBoundaryBar(d([0]), 1), null, 'single bar song');
-}
 
 // ---- 11-song regression: JS == Python reference, on anonymized fixtures ----
 const fixture = JSON.parse(fs.readFileSync(new URL('./fixtures/section-boundary/songs.json', import.meta.url), 'utf8'));
@@ -311,52 +281,20 @@ for (const song of fixture.songs) {
   const bucket = totals[song.holdout ? 'holdout' : 'tuning'];
   bucket.tp += hits(detectedBars, gt, 1); bucket.pred += detectedBars.length; bucket.gt += gt.length;
 
-  // end-to-end for every song (including the two F=0 songs): bars -> Sections -> validated, applied, Undo, Redo
+  // end-to-end candidate conversion for every song (including the two F=0 songs)
   const buffer = song.chords.map((c, i) => ({ ...c, _id: `${song.id}-${i}` }));
   const draft = createDraftFromBoundaries(detectedBars);
   let n = 0;
   const built = buildSectionsFromDraft(draft, buffer, g.measureOf, () => `${song.id}-s${n++}`);
-  assert.equal(built.ok, true, `${song.id}: generated Sections must validate (${JSON.stringify(built.errors)})`);
+  assert.equal(built.ok, true, `${song.id}: generated Section candidates must validate (${JSON.stringify(built.errors)})`);
   assert.equal(built.sections.length, detectedBars.length + 1);
-  const state = { active: true, buffer, sections: [], history: [], future: [], dirty: false,
-    selection: { chordIds: [], boundaryIndex: null, anchorChordId: null, editPoint: null } };
-  assert.equal(applyGeneratedSectionsCommand(state, built.sections).ok, true);
-  assert.equal(state.history.length, 1, `${song.id}: one undo step`);
-  assert.equal(undoBuffer(state), true);
-  assert.equal(state.sections.length, 0, `${song.id}: Undo removes the whole set`);
-  assert.equal(state.history.length, 0);
-  assert.equal(redoBuffer(state), true);
-  assert.deepEqual(state.sections, built.sections, `${song.id}: Redo restores the whole set`);
-  assert.equal(state.future.length, 0);
-  assert.deepEqual(JSON.parse(JSON.stringify(state.sections)), built.sections, `${song.id}: survives a JSON save/load round trip`);
-  assert.equal(validateGeneratedSectionSet(JSON.parse(JSON.stringify(state.sections)), buffer).valid, true, `${song.id}: valid after reload`);
+  const serialized = JSON.parse(JSON.stringify(built.sections));
+  assert.deepEqual(serialized, built.sections, `${song.id}: candidate Sections survive a JSON round trip`);
+  assert.equal(validateGeneratedSectionSet(serialized, buffer).valid, true, `${song.id}: candidate Sections remain valid after reload`);
 }
 const fScore = ({ tp, pred, gt }) => { const p = tp / pred; const r = tp / gt; return 2 * p * r / (p + r); };
 console.log(`accuracy (+-1 bar, app grid): tuning F=${fScore(totals.tuning).toFixed(2)} holdout F=${fScore(totals.holdout).toFixed(2)}`, JSON.stringify(totals));
 assert.deepEqual(totals, PINNED_TOTALS, 'accuracy pin changed: re-evaluate before accepting (algorithm or grid behavior changed)');
-
-// ---- editing generated Sections with the existing commands (rename / boundary move) + Undo/Redo ----
-{
-  const b = buf([['C', 0], ['G', 2], ['Am', 4], ['F', 6], ['C', 8], ['G', 10]]);
-  const built = buildSectionsFromDraft(createDraftFromBoundaries([2, 4]), b, measureOf, (() => { let i = 0; return () => `g${i++}`; })());
-  const state = { active: true, buffer: b, sections: [], history: [], future: [], dirty: false,
-    selection: { chordIds: [], boundaryIndex: null, anchorChordId: null, editPoint: null } };
-  assert.equal(applyGeneratedSectionsCommand(state, built.sections).ok, true);
-  assert.equal(renameSectionCommand(state, 'g1', { name: 'Aメロ', type: 'jp-a-melo' }).ok, true);
-  assert.equal(updateSectionBoundaryCommand(state, 'g1', { endChordId: 'k2' }).ok, true, 'shorten a generated Section');
-  assert.equal(state.history.length, 3, 'generation + rename + boundary move = 3 undo steps');
-  assert.equal(state.sections.find(s => s.id === 'g1').name, 'Aメロ');
-  assert.equal(updateSectionBoundaryCommand(state, 'g1', { endChordId: 'nope' }).ok, false, 'invalid edit rejected, history unchanged');
-  assert.equal(state.history.length, 3);
-  assert.equal(undoBuffer(state), true);   // boundary move
-  assert.equal(state.sections.find(s => s.id === 'g1').endChordId, 'k3');
-  assert.equal(undoBuffer(state), true);   // rename
-  assert.equal(state.sections.find(s => s.id === 'g1').name, '未設定');
-  assert.equal(redoBuffer(state), true);
-  assert.equal(redoBuffer(state), true);
-  assert.equal(state.sections.find(s => s.id === 'g1').endChordId, 'k2');
-  assert.equal(validateSectionInvariants(state.sections.find(s => s.id === 'g1'), b).valid, true);
-}
 
 // ================= boundary cases =================
 {
@@ -409,4 +347,4 @@ assert.deepEqual(totals, PINNED_TOTALS, 'accuracy pin changed: re-evaluate befor
   assert.deepEqual(built.sections, [], 'nothing is built when boundaries collapse');
 }
 
-console.log('Section auto-generation tests passed.');
+console.log('Section boundary candidate tests passed.');

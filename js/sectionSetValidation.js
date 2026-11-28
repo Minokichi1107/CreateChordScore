@@ -1,6 +1,6 @@
 import { validateSectionInvariants } from './analysisSession.js';
 
-export function validateGeneratedSectionSet(sections, buffer) {
+export function validateSectionSet(sections, buffer) {
   const errors = [];
   if (!Array.isArray(sections) || sections.length === 0) {
     return { valid: false, errors: [{ reason: 'empty-set' }] };
@@ -43,3 +43,7 @@ export function validateGeneratedSectionSet(sections, buffer) {
   }
   return { valid: errors.length === 0, errors };
 }
+
+
+/** Backward-compatible name for the former generated-only validator. */
+export const validateGeneratedSectionSet = validateSectionSet;

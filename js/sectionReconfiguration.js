@@ -2,7 +2,7 @@
  * Section reconfiguration Draft (Phase150 Stage1).
  * Independent of analysisEditor until adopt.
  */
-import { validateGeneratedSectionSet } from './sectionSetValidation.js';
+import { validateSectionSet } from './sectionSetValidation.js';
 import { validateSectionInvariants } from './analysisSession.js';
 
 export const RECONFIG_GAP_TYPE = 'other';
@@ -53,20 +53,21 @@ export function orderSectionsOnBuffer(sections, buffer) {
 }
 
 /**
- * Diagnose a single section against buffer.
- * @returns {{ valid: boolean, reasons: string[], start: number, end: number, repairableByBoundary: boolean }}
+ * Return structurally valid Draft sections in chronological buffer order.
+ * Each row retains its original Draft array index for safe mutation.
  */
-/**
- * Structural issues block Draft editing (boundary/split/merge).
- * Completeness issues (empty name/type) only block adopt.
- */
+export function orderedValidSections(sections, buffer, diagnostics = null) {
+  const list = Array.isArray(diagnostics)
+    ? diagnostics
+    : diagnoseDraftSections({ sections: Array.isArray(sections) ? sections : [] }, buffer);
+  return list
+    .filter(row => row.structurallyValid && row.start >= 0 && row.end >= row.start)
+    .slice()
+    .sort((a, b) => a.start - b.start || a.end - b.end || a.index - b.index);
+}
+
 const COMPLETENESS_REASONS = new Set(['invalid-section-name', 'invalid-section-type']);
 
-
-/**
- * UI classification for a diagnoseDraftSections() row.
- * structural-invalid → show delete; incomplete-fields → soft notice; ok → nothing.
- */
 export function classifySectionDiagForUi(diag) {
   if (!diag) return 'structural-invalid';
   if (diag.structurallyValid === false) return 'structural-invalid';
@@ -85,7 +86,6 @@ export function diagnoseDraftSection(section, buffer) {
     };
   }
   if (typeof section.id !== 'string' || !section.id.trim()) structural.push('invalid-section-id');
-  // Name/type may be empty during Draft edit (e.g. after split); completeness only
   if (typeof section.type !== 'string' || !section.type.trim()) completeness.push('invalid-section-type');
   if (typeof section.name !== 'string' || !section.name.trim()) completeness.push('invalid-section-name');
   if (!section.startChordId) structural.push('missing-startChordId');
@@ -95,7 +95,6 @@ export function diagnoseDraftSection(section, buffer) {
   if (section.startChordId && start < 0) structural.push('start-chord-not-found');
   if (section.endChordId && end < 0) structural.push('end-chord-not-found');
   if (start >= 0 && end >= 0 && start > end) structural.push('start-after-end');
-  // Invariants that are purely range-related
   if (start >= 0 && end >= 0 && start <= end) {
     const inv = validateSectionInvariants(
       { ...section, name: section.name || 'x', type: section.type || 'other' },
@@ -108,7 +107,6 @@ export function diagnoseDraftSection(section, buffer) {
   const structurallyValid = structural.length === 0 && start >= 0 && end >= 0 && start <= end;
   const complete = structurallyValid && completeness.length === 0;
   const reasons = [...structural, ...completeness];
-  // valid: backward-compat = complete (adopt-grade). Editing uses structurallyValid.
   const valid = complete;
   const repairableByBoundary = start >= 0 && end >= 0;
   return {
@@ -149,7 +147,6 @@ export function diagnoseDraftSections(draft, buffer) {
       completenessReasons: completeness,
       structurallyValid,
       complete,
-      // valid kept as adopt-grade completeness for existing callers
       valid: complete,
       repairableByBoundary: base.repairableByBoundary && !structural.includes('duplicate-section-id'),
     };
@@ -160,45 +157,145 @@ export function buildDraftSectionsFromCurrent(buffer, sections, newId = () => cr
   if (!Array.isArray(buffer) || buffer.length === 0) {
     return { sections: [], gapsFilled: 0, overlapCount: 0, invalidCount: 0 };
   }
+
+  // Normalize only valid, locatable ranges. Same-start ties retain source-array order.
+  // Invalid rows are preserved for Stage2 diagnostics rather than silently discarded.
   const ordered = orderSectionsOnBuffer(sections, buffer);
-  const invalidCount = ordered.filter(r => !r.valid).length;
-  let overlapCount = 0;
-  const valid = ordered.filter(r => r.valid);
-  for (let i = 1; i < valid.length; i++) {
-    if (valid[i].start <= valid[i - 1].end) overlapCount += 1;
-  }
+  const valid = ordered
+    .filter(row => row.valid)
+    .sort((a, b) => a.start - b.start || a.i - b.i);
+  const invalid = ordered.filter(row => !row.valid);
   const result = [];
   let cursor = 0;
   let gapsFilled = 0;
-  for (const row of valid) {
-    if (row.start > cursor) {
-      result.push({
-        id: newId(), type: RECONFIG_GAP_TYPE, name: RECONFIG_GAP_NAME,
-        startChordId: buffer[cursor]._id, endChordId: buffer[row.start - 1]._id,
-      });
-      gapsFilled += 1;
-    }
+  let overlapCount = 0;
+  let droppedCount = 0;
+  const droppedSections = [];
+
+  const addGap = (start, end) => {
+    if (start > end) return;
     result.push({
-      id: row.section.id, type: row.section.type, name: row.section.name,
-      startChordId: row.section.startChordId, endChordId: row.section.endChordId,
-    });
-    cursor = Math.max(cursor, row.end + 1);
-  }
-  if (cursor < buffer.length) {
-    result.push({
-      id: newId(), type: RECONFIG_GAP_TYPE, name: RECONFIG_GAP_NAME,
-      startChordId: buffer[cursor]._id, endChordId: buffer[buffer.length - 1]._id,
+      id: newId(),
+      type: RECONFIG_GAP_TYPE,
+      name: RECONFIG_GAP_NAME,
+      startChordId: buffer[start]._id,
+      endChordId: buffer[end]._id,
     });
     gapsFilled += 1;
-  }
-  // Keep invalid sections visible (do not auto-repair / drop silently)
-  for (const row of ordered.filter(r => !r.valid)) {
+  };
+
+  for (const row of valid) {
+    const effectiveStart = Math.max(row.start, cursor);
+    if (row.start < cursor) overlapCount += 1;
+
+    // A fully covered later Section has no surviving chord range.
+    if (effectiveStart > row.end) {
+      droppedCount += 1;
+      droppedSections.push(structuredClone(row.section));
+      continue;
+    }
+
+    // Fill only the uncovered range after overlap trimming.
+    addGap(cursor, effectiveStart - 1);
     result.push({
-      id: row.section.id, type: row.section.type, name: row.section.name,
-      startChordId: row.section.startChordId, endChordId: row.section.endChordId,
+      id: row.section.id,
+      type: row.section.type,
+      name: row.section.name,
+      startChordId: buffer[effectiveStart]._id,
+      endChordId: buffer[row.end]._id,
+    });
+    cursor = row.end + 1;
+  }
+
+  addGap(cursor, buffer.length - 1);
+
+  for (const row of invalid) {
+    result.push({
+      id: row.section.id,
+      type: row.section.type,
+      name: row.section.name,
+      startChordId: row.section.startChordId,
+      endChordId: row.section.endChordId,
     });
   }
-  return { sections: result, gapsFilled, overlapCount, invalidCount };
+
+  return {
+    sections: result,
+    gapsFilled,
+    overlapCount,
+    invalidCount: invalid.length,
+    droppedCount,
+    droppedSections,
+  };
+}
+
+/**
+ * Measure the union of existing Section time ranges against the whole song.
+ * Section boundaries are projected from chord IDs using the same convention
+ * as Section Overview: start chord's start time through the next chord's start
+ * (or the final chord's end). Overlaps are counted once; uncovered gaps are
+ * not counted. A null ratio means reliable timing coverage cannot be computed.
+ */
+export function calculateSectionCoverage(sections, buffer) {
+  if (!Array.isArray(buffer) || buffer.length === 0) {
+    return { coveredSeconds: 0, totalSeconds: null, ratio: null, percent: null };
+  }
+  const songStart = buffer[0]?.start;
+  const songEnd = buffer[buffer.length - 1]?.end;
+  const totalSeconds = songEnd - songStart;
+  if (!Number.isFinite(songStart) || !Number.isFinite(songEnd) || totalSeconds <= 0) {
+    return { coveredSeconds: 0, totalSeconds: null, ratio: null, percent: null };
+  }
+
+  const intervals = [];
+  for (const section of Array.isArray(sections) ? sections : []) {
+    const start = chordIndex(buffer, section?.startChordId);
+    const end = chordIndex(buffer, section?.endChordId);
+    if (start < 0 || end < start) {
+      return { coveredSeconds: null, totalSeconds, ratio: null, percent: null };
+    }
+    const startTime = buffer[start]?.start;
+    const endTime = end === buffer.length - 1
+      ? buffer[end]?.end
+      : buffer[end + 1]?.start;
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
+      return { coveredSeconds: null, totalSeconds, ratio: null, percent: null };
+    }
+    const clippedStart = Math.max(songStart, startTime);
+    const clippedEnd = Math.min(songEnd, endTime);
+    if (clippedEnd > clippedStart) intervals.push({ start: clippedStart, end: clippedEnd });
+  }
+
+  intervals.sort((a, b) => a.start - b.start || a.end - b.end);
+  let coveredSeconds = 0;
+  let activeStart = null;
+  let activeEnd = null;
+  for (const interval of intervals) {
+    if (activeStart === null) {
+      activeStart = interval.start;
+      activeEnd = interval.end;
+    } else if (interval.start <= activeEnd) {
+      activeEnd = Math.max(activeEnd, interval.end);
+    } else {
+      coveredSeconds += activeEnd - activeStart;
+      activeStart = interval.start;
+      activeEnd = interval.end;
+    }
+  }
+  if (activeStart !== null) coveredSeconds += activeEnd - activeStart;
+
+  const ratio = Math.max(0, Math.min(1, coveredSeconds / totalSeconds));
+  return {
+    coveredSeconds,
+    totalSeconds,
+    ratio,
+    percent: ratio * 100,
+  };
+}
+
+export function recommendSectionReconfiguration(coverage, threshold = 0.8) {
+  if (!Number.isFinite(coverage?.ratio)) return null;
+  return coverage.ratio >= threshold ? 'keep-existing' : 'start-fresh';
 }
 
 export function createReconfigurationDraft({ projectId, buffer, sections, newId }) {
@@ -211,13 +308,20 @@ export function createReconfigurationDraft({ projectId, buffer, sections, newId 
     sectionsBaseline: cloneSections(sectionsClone),
     gapsFilled: built.gapsFilled,
     overlapCount: built.overlapCount,
+    droppedCount: built.droppedCount ?? 0,
+    droppedSections: structuredClone(built.droppedSections ?? []),
+    normalization: {
+      gapsFilled: built.gapsFilled,
+      overlapCount: built.overlapCount,
+      droppedCount: built.droppedCount ?? 0,
+      droppedNames: (built.droppedSections ?? []).map(section => String(section?.name ?? '')).filter(Boolean),
+    },
     invalidCount: built.invalidCount,
     undoStack: [],
     redoStack: [],
   };
 }
 
-/** True if draft sections differ from the baseline taken at open time. */
 export function isDraftDirty(draft) {
   if (!draft) return false;
   try {
@@ -272,7 +376,10 @@ export function mergeDraftSections(draft, sectionIds, buffer) {
   return { ok: true, section: merged };
 }
 
-export function splitDraftSection(draft, sectionId, endChordIdOfFirst, buffer, newId = () => crypto.randomUUID()) {
+export function splitDraftSection(
+  draft, sectionId, endChordIdOfFirst, buffer,
+  newId = () => crypto.randomUUID(), opts = {},
+) {
   if (!draft) return { ok: false, reason: 'no-draft' };
   const section = draft.sections.find(s => s.id === sectionId);
   if (!section) return { ok: false, reason: 'section-not-found' };
@@ -286,11 +393,20 @@ export function splitDraftSection(draft, sectionId, endChordIdOfFirst, buffer, n
     startChordId: buffer[start]._id, endChordId: buffer[mid]._id,
     ...(section.nameUserEdited ? { nameUserEdited: true } : {}),
   };
-  // Spec: back half gets new id; name and type left empty for user to fill before adopt
+  const inheritBackMeta = opts.inheritBackMeta === true;
+  const backType = inheritBackMeta ? section.type : '';
   const back = {
-    id: newId(), type: '', name: '',
-    startChordId: buffer[mid + 1]._id, endChordId: buffer[end]._id,
+    id: newId(),
+    type: backType,
+    name: inheritBackMeta ? section.name : '',
+    startChordId: buffer[mid + 1]._id,
+    endChordId: buffer[end]._id,
   };
+  if (inheritBackMeta && typeof opts.defaultNameForType === 'function') {
+    back.name = opts.defaultNameForType(backType);
+  } else if (inheritBackMeta && section.nameUserEdited) {
+    back.nameUserEdited = true;
+  }
   for (const s of [front, back]) {
     const inv = validateSectionInvariants(
       { ...s, name: s.name || 'x', type: s.type || 'other' },
@@ -303,7 +419,7 @@ export function splitDraftSection(draft, sectionId, endChordIdOfFirst, buffer, n
   const next = draft.sections.slice();
   next.splice(idx, 1, front, back);
   draft.sections = next;
-  return { ok: true, front, back };
+  return { ok: true, front, back, frontIndex: idx, backIndex: idx + 1 };
 }
 
 export function updateDraftSection(draft, sectionId, patch = {}, opts = {}) {
@@ -317,30 +433,20 @@ export function updateDraftSection(draft, sectionId, patch = {}, opts = {}) {
   if (patch.endChordId !== undefined) next.endChordId = patch.endChordId;
   if (patch.name !== undefined) {
     next.name = patch.name;
-    // Explicit name edits lock auto type→name linking unless caller opts out
     if (opts.fromUserNameEdit !== false) next.nameUserEdited = true;
   }
+  // Apply flag before type so defaultNameForType can run when unlocking
+  if (patch.nameUserEdited !== undefined) next.nameUserEdited = !!patch.nameUserEdited;
   if (patch.type !== undefined) {
     next.type = patch.type;
-    // Auto-fill name when user has not manually edited it
     if (!next.nameUserEdited && typeof opts.defaultNameForType === 'function') {
       next.name = opts.defaultNameForType(patch.type);
     }
   }
-  if (patch.nameUserEdited !== undefined) next.nameUserEdited = !!patch.nameUserEdited;
   draft.sections[idx] = next;
   return { ok: true };
 }
 
-/**
- * Delete a draft section (typically invalid / unrepairable). Draft-only.
- * Does not auto-fill gaps; adopt validation will reject incomplete coverage.
- */
-/**
- * Delete exactly one draft section by array index (safe with duplicate IDs).
- * @param {object} draft
- * @param {number} sectionIndex
- */
 export function deleteDraftSectionAt(draft, sectionIndex) {
   if (!draft) return { ok: false, reason: 'no-draft' };
   if (!Number.isInteger(sectionIndex) || sectionIndex < 0 || sectionIndex >= draft.sections.length) {
@@ -351,7 +457,6 @@ export function deleteDraftSectionAt(draft, sectionIndex) {
   return { ok: true };
 }
 
-/** @deprecated Prefer deleteDraftSectionAt — ID filter removes all duplicates. */
 export function deleteDraftSection(draft, sectionId) {
   if (!draft) return { ok: false, reason: 'no-draft' };
   const idx = draft.sections.findIndex(s => s.id === sectionId);
@@ -359,269 +464,227 @@ export function deleteDraftSection(draft, sectionId) {
   return deleteDraftSectionAt(draft, idx);
 }
 
-/**
- * Set end of section at draft.sections[sectionIndex] to endChordIndex (B-method).
- *
- * Rules (Phase150 Stage1 fix):
- * - Shared boundary with the next time-ordered valid neighbour only.
- * - Moving A's end left/right adjusts only B's start by the same shared boundary
- *   (B.start = A.end + 1). No cascade to later sections.
- * - Reject if A or B would become shorter than 1 chord.
- * - Reject if move would cross beyond B's current end (must move B first).
- * - Last section's end is fixed at buffer end; left/right moves rejected.
- * - Local overlap repair: A may end just before B.start without changing B's range
- *   when they currently overlap and the new end is strictly before B.start.
- * - Invalid sections are not rewritten by this operation; operate on valid pairs only.
- */
+function resolveSharedBoundaryPair(draft, buffer, prevSectionId, nextSectionId = null, opts = {}) {
+  if (!draft || !Array.isArray(draft.sections) || !Array.isArray(buffer) || !buffer.length ||
+      typeof prevSectionId !== 'string' || !prevSectionId) {
+    return { ok: false, reason: 'bad-args' };
+  }
+  const diagnostics = diagnoseDraftSections(draft, buffer);
+  const matches = diagnostics.filter(row => row.id === prevSectionId);
+  if (matches.length !== 1) return { ok: false, reason: matches.length ? 'invalid' : 'section-not-found' };
+  const prev = matches[0];
+  if (!prev.structurallyValid) {
+    return { ok: false, reason: 'invalid', details: prev.structuralReasons || prev.reasons };
+  }
+  if (diagnostics.some(row => !row.structurallyValid && row.start < 0 && row.end < 0)) {
+    return { ok: false, reason: 'unlocated-invalid' };
+  }
+  const positioned = diagnostics.slice().sort((a, b) => {
+    const aKey = a.start >= 0 ? a.start : (a.end >= 0 ? a.end : Number.MAX_SAFE_INTEGER);
+    const bKey = b.start >= 0 ? b.start : (b.end >= 0 ? b.end : Number.MAX_SAFE_INTEGER);
+    return aKey - bKey || a.index - b.index;
+  });
+  const at = positioned.findIndex(row => row.index === prev.index);
+  if (at < 0 || at === positioned.length - 1) return { ok: false, reason: 'last' };
+  const next = positioned[at + 1];
+  if (!next.structurallyValid) {
+    return { ok: false, reason: 'neighbour-invalid', details: next.structuralReasons || next.reasons };
+  }
+  if (nextSectionId != null && next.id !== nextSectionId) {
+    return { ok: false, reason: 'not-adjacent' };
+  }
+  if (next.start <= prev.end) return { ok: false, reason: 'overlap' };
+  if (next.start !== prev.end + 1 && !(opts.allowGap === true && next.start > prev.end + 1)) {
+    return { ok: false, reason: 'gap' };
+  }
+  return {
+    ok: true,
+    prevId: prev.id,
+    nextId: next.id,
+    prevIndex: prev.index,
+    nextIndex: next.index,
+    prevStartIdx: prev.start,
+    prevEndIdx: prev.end,
+    nextStartIdx: next.start,
+    nextEndIdx: next.end,
+  };
+}
+
+export function canAdjustBoundaryWithNext(draft, buffer, prevSectionId) {
+  return resolveSharedBoundaryPair(draft, buffer, prevSectionId);
+}
+
+export function adjustSharedBoundary(draft, prevSectionId, nextSectionId, endChordIndex, buffer) {
+  if (!Number.isInteger(endChordIndex)) return { ok: false, reason: 'bad-chord' };
+  // A boundary edit also absorbs any existing gap into the following Section.
+  const pair = resolveSharedBoundaryPair(draft, buffer, prevSectionId, nextSectionId, { allowGap: true });
+  if (!pair.ok) return pair;
+  if (endChordIndex < 0 || endChordIndex >= buffer.length ||
+      !buffer[endChordIndex]?._id || !buffer[endChordIndex + 1]?._id) {
+    return { ok: false, reason: 'bad-chord' };
+  }
+  if (endChordIndex === pair.prevEndIdx) return { ok: true, noop: true };
+  if (endChordIndex < pair.prevStartIdx) return { ok: false, reason: 'section-too-short' };
+  if (endChordIndex >= pair.nextEndIdx) return { ok: false, reason: 'next-section-too-short' };
+
+  const prev = draft.sections[pair.prevIndex];
+  const next = draft.sections[pair.nextIndex];
+  const updatedPrev = { ...prev, endChordId: buffer[endChordIndex]._id };
+  const updatedNext = { ...next, startChordId: buffer[endChordIndex + 1]._id };
+
+  const prevDiag = diagnoseDraftSection(updatedPrev, buffer);
+  const nextDiag = diagnoseDraftSection(updatedNext, buffer);
+  if (!prevDiag.structurallyValid || !nextDiag.structurallyValid) {
+    return { ok: false, reason: 'invalid', details: [
+      ...(prevDiag.structuralReasons || prevDiag.reasons || []),
+      ...(nextDiag.structuralReasons || nextDiag.reasons || []),
+    ] };
+  }
+  pushDraftUndo(draft);
+  draft.sections[pair.prevIndex] = updatedPrev;
+  draft.sections[pair.nextIndex] = updatedNext;
+  return { ok: true, prev: updatedPrev, next: updatedNext, changed: [pair.prevId, pair.nextId] };
+}
+
 export function setDraftSectionEndByChordIndex(draft, sectionIndex, endChordIndex, buffer) {
-  if (!draft || !Array.isArray(buffer)) return { ok: false, reason: 'bad-args' };
-  if (sectionIndex < 0 || sectionIndex >= draft.sections.length) return { ok: false, reason: 'bad-index' };
-  if (endChordIndex < 0 || endChordIndex >= buffer.length) return { ok: false, reason: 'bad-chord' };
-
-  const target = draft.sections[sectionIndex];
-  const allDiag = diagnoseDraftSections(draft, buffer);
-  const diag = allDiag[sectionIndex];
-  if (!diag || !diag.structurallyValid) return { ok: false, reason: 'section-invalid', details: diag?.structuralReasons || diag?.reasons };
-
-  const aStart = diag.start;
-  const aEnd = diag.end;
-  if (endChordIndex < aStart) return { ok: false, reason: 'end-before-start' };
-
-  // Immediate neighbour in buffer time order (includes invalids that have any chord span).
-  // Sort key: start if known, else end if known, else stable index (keeps unresolved near place).
-  const positioned = allDiag
-    .map(r => ({
-      ...r,
-      sortKey: r.start >= 0 ? r.start : (r.end >= 0 ? r.end : Number.MAX_SAFE_INTEGER),
-    }))
-    .slice()
-    .sort((a, b) => a.sortKey - b.sortKey || a.index - b.index);
-  const ordPos = positioned.findIndex(r => r.index === sectionIndex);
-  if (ordPos < 0) return { ok: false, reason: 'section-not-in-order' };
-
-  const isLast = ordPos === positioned.length - 1;
-  if (isLast) {
-    // Last section end is fixed at song end. Boundary tool must not implicitly split.
-    // Use splitDraftAtChordIndex for intentional splits.
-    if (endChordIndex === aEnd) return { ok: true, noop: true };
-    return { ok: false, reason: 'last-section-end-fixed' };
-  }
-
-  // F5: fully unlocated invalid sections must not be guessed into the timeline.
-  // If any exist, shared-boundary moves (which need a safe neighbour) are refused.
-  const hasUnlocatedInvalid = allDiag.some(
-    r => !r.structurallyValid && r.start < 0 && r.end < 0
-  );
-  if (hasUnlocatedInvalid) {
-    return { ok: false, reason: 'unlocated-invalid-section' };
-  }
-
-  const nextRow = positioned[ordPos + 1];
-  // Never skip an invalid neighbour to rewrite a later section
-  if (!nextRow.structurallyValid) {
-    return { ok: false, reason: 'neighbour-invalid', details: nextRow.structuralReasons || nextRow.reasons };
-  }
-  const bStart = nextRow.start;
-  const bEnd = nextRow.end;
-
-  // Local overlap repair: allow ending strictly before current B.start without moving B
-  if (aEnd >= bStart && endChordIndex < bStart) {
-    // A shrinks to clear overlap; B unchanged
-    if (endChordIndex < aStart) return { ok: false, reason: 'end-before-start' };
-    // A must remain >= 1 chord
-    if (endChordIndex < aStart) return { ok: false, reason: 'section-too-short' };
-    pushDraftUndo(draft);
-    draft.sections[sectionIndex] = { ...draft.sections[sectionIndex], endChordId: buffer[endChordIndex]._id };
-    return { ok: true, localOverlapRepair: true };
-  }
-
-  // Shared-boundary move: new B.start = endChordIndex + 1
-  const newBStart = endChordIndex + 1;
-  if (newBStart >= buffer.length) return { ok: false, reason: 'no-room-for-next' };
-  // A at least 1 chord: endChordIndex >= aStart (already)
-  // B at least 1 chord: newBStart <= bEnd
-  if (newBStart > bEnd) return { ok: false, reason: 'crosses-next-section-end' };
-  if (endChordIndex < aStart) return { ok: false, reason: 'section-too-short' };
-
-  // If not currently overlapping/adjacent in a simple way, still only touch A and B
-  pushDraftUndo(draft);
-  const bIdx = nextRow.index;
-  draft.sections[sectionIndex] = {
-    ...draft.sections[sectionIndex],
-    endChordId: buffer[endChordIndex]._id,
-  };
-  draft.sections[bIdx] = {
-    ...draft.sections[bIdx],
-    startChordId: buffer[newBStart]._id,
-  };
-  return { ok: true };
-}
-
-export function isDraftBufferStale(draft, buffer) {
-  if (!draft) return true;
-  try { return JSON.stringify(buffer) !== JSON.stringify(draft.bufferSnapshot); }
-  catch { return true; }
-}
-
-
-/**
- * Merge draft.sections[sectionIndex] into the previous time-ordered structural neighbour.
- * Keeps previous section id/name/type; range extends to current end.
- */
-export function mergeDraftWithPrevious(draft, sectionIndex, buffer) {
-  if (!draft || !Array.isArray(buffer)) return { ok: false, reason: 'bad-args' };
-  if (!Number.isInteger(sectionIndex) || sectionIndex <= 0 || sectionIndex >= draft.sections.length) {
-    return { ok: false, reason: 'no-previous-section' };
-  }
-  const list = diagnoseDraftSections(draft, buffer);
-  const cur = list[sectionIndex];
-  if (!cur || !cur.structurallyValid) return { ok: false, reason: 'section-invalid', details: cur?.structuralReasons };
-  const positioned = list
-    .filter(r => r.structurallyValid && r.start >= 0 && r.end >= 0)
-    .slice()
-    .sort((a, b) => a.start - b.start || a.end - b.end || a.index - b.index);
-  const ordPos = positioned.findIndex(r => r.index === sectionIndex);
-  if (ordPos <= 0) return { ok: false, reason: 'no-previous-section' };
-  const prev = positioned[ordPos - 1];
-  if (cur.start !== prev.end + 1) {
-    // Allow merge only when adjacent (no gap/overlap)
-    if (cur.start <= prev.end) return { ok: false, reason: 'sections-overlap' };
-    return { ok: false, reason: 'gap-between-sections' };
-  }
-  pushDraftUndo(draft);
-  const prevSec = draft.sections[prev.index];
-  const merged = {
-    ...prevSec,
-    endChordId: draft.sections[sectionIndex].endChordId,
-  };
-  // Remove current, replace previous with merged (handle index order)
-  const next = draft.sections.slice();
-  const hi = Math.max(prev.index, sectionIndex);
-  const lo = Math.min(prev.index, sectionIndex);
-  next.splice(hi, 1);
-  next[lo] = merged;
-  draft.sections = next;
-  return { ok: true, mergedIndex: lo, merged };
-}
-
-/**
- * Split section at sectionIndex so endChordIndex is the last chord of the front half.
- * Back half: new id, empty name/type.
- */
-export function splitDraftAtChordIndex(draft, sectionIndex, endChordIndex, buffer, newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sec-${Date.now()}`)) {
-  if (!draft || !Array.isArray(buffer)) return { ok: false, reason: 'bad-args' };
+  if (!draft) return { ok: false, reason: 'no-draft' };
   if (!Number.isInteger(sectionIndex) || sectionIndex < 0 || sectionIndex >= draft.sections.length) {
     return { ok: false, reason: 'bad-index' };
   }
-  const list = diagnoseDraftSections(draft, buffer);
-  const diag = list[sectionIndex];
-  if (!diag || !diag.structurallyValid) return { ok: false, reason: 'section-invalid', details: diag?.structuralReasons };
-  const aStart = diag.start;
-  const aEnd = diag.end;
-  if (endChordIndex < aStart || endChordIndex >= aEnd) return { ok: false, reason: 'split-not-inside' };
+  if (!Number.isInteger(endChordIndex) || endChordIndex < 0 || endChordIndex >= buffer.length) {
+    return { ok: false, reason: 'bad-chord' };
+  }
   const section = draft.sections[sectionIndex];
-  const front = {
-    id: section.id,
-    type: section.type,
-    name: section.name,
-    startChordId: buffer[aStart]._id,
-    endChordId: buffer[endChordIndex]._id,
-    ...(section.nameUserEdited ? { nameUserEdited: true } : {}),
-  };
-  const back = {
-    id: newId(),
-    type: '',
-    name: '',
-    startChordId: buffer[endChordIndex + 1]._id,
-    endChordId: buffer[aEnd]._id,
-  };
+  const start = chordIndex(buffer, section.startChordId);
+  if (start < 0) return { ok: false, reason: 'start-chord-not-found' };
+  if (endChordIndex < start) return { ok: false, reason: 'end-before-start' };
+  const next = { ...section, endChordId: buffer[endChordIndex]._id };
+  const diag = diagnoseDraftSection(next, buffer);
+  if (!diag.structurallyValid) return { ok: false, reason: 'invalid', details: diag.structuralReasons || diag.reasons };
   pushDraftUndo(draft);
-  const next = draft.sections.slice();
-  next.splice(sectionIndex, 1, front, back);
+  draft.sections[sectionIndex] = next;
+  return { ok: true, section: next };
+}
+
+export function isDraftBufferStale(draft, buffer) {
+  if (!draft || !Array.isArray(buffer)) return true;
+  try {
+    return JSON.stringify(draft.bufferSnapshot) !== JSON.stringify(buffer);
+  } catch {
+    return true;
+  }
+}
+
+export function mergeDraftWithPrevious(draft, sectionIndex, buffer) {
+  if (!draft) return { ok: false, reason: 'no-draft' };
+  if (!Number.isInteger(sectionIndex) || sectionIndex < 0 || sectionIndex >= draft.sections.length) {
+    return { ok: false, reason: 'bad-index' };
+  }
+
+  // The overview is chronological, but Draft array order is not a contract.
+  // Resolve the selected Section's predecessor by chord position, then retain
+  // the original array order for every unaffected Section.
+  const diagnostics = diagnoseDraftSections(draft, buffer);
+  const ordered = orderedValidSections(draft.sections, buffer, diagnostics);
+  const position = ordered.findIndex(row => row.index === sectionIndex);
+  if (position < 0) return { ok: false, reason: 'invalid' };
+  if (position === 0) return { ok: false, reason: 'no-previous-section' };
+
+  const curRow = ordered[position];
+  const prevRow = ordered[position - 1];
+  const cur = curRow.section;
+  const prev = prevRow.section;
+  if (curRow.start <= prevRow.end) return { ok: false, reason: 'sections-overlap' };
+  if (curRow.start !== prevRow.end + 1) return { ok: false, reason: 'gap-between-sections' };
+
+  const merged = {
+    id: prev.id, type: prev.type, name: prev.name,
+    startChordId: prev.startChordId, endChordId: cur.endChordId,
+    ...(prev.nameUserEdited ? { nameUserEdited: true } : {}),
+  };
+  const inv = validateSectionInvariants(merged, buffer);
+  if (!inv.valid) return { ok: false, reason: inv.reason };
+
+  pushDraftUndo(draft);
+  const insertAt = Math.min(curRow.index, prevRow.index);
+  const next = draft.sections.filter((_, index) =>
+    index !== curRow.index && index !== prevRow.index
+  );
+  next.splice(insertAt, 0, merged);
   draft.sections = next;
-  return { ok: true, frontIndex: sectionIndex, backIndex: sectionIndex + 1 };
+  return { ok: true, section: merged, mergedIndex: insertAt };
+}
+
+export function splitDraftAtChordIndex(
+  draft, sectionId, endChordIndex, buffer, newId = () => crypto.randomUUID(), opts = {},
+) {
+  if (!draft) return { ok: false, reason: 'no-draft' };
+  const section = draft.sections.find(s => s.id === sectionId);
+  if (!section) return { ok: false, reason: 'section-not-found' };
+  const start = chordIndex(buffer, section.startChordId);
+  const end = chordIndex(buffer, section.endChordId);
+  if (start < 0 || end < 0) return { ok: false, reason: 'chord-not-found' };
+  if (!Number.isInteger(endChordIndex) || endChordIndex < start || endChordIndex >= end) {
+    return { ok: false, reason: 'split-not-inside' };
+  }
+  return splitDraftSection(draft, sectionId, buffer[endChordIndex]._id, buffer, newId, opts);
 }
 
 export function prepareDraftForAdopt(draft, { projectId, buffer, isEditing }) {
   if (!draft) return { ok: false, reason: 'no-draft' };
-  if (!isEditing) return { ok: false, reason: 'editor-inactive' };
-  if (draft.projectId != null && projectId != null && draft.projectId !== projectId) {
-    return { ok: false, reason: 'project-mismatch' };
+  // Reject unexpected Draft keys before canonical projection can silently drop them.
+  const hasUnknownKey = (draft.sections || []).some(section =>
+    section && typeof section === 'object' &&
+    Object.keys(section).some(key => !ALLOWED.has(key) && !DRAFT_ONLY_KEYS.has(key))
+  );
+  if (hasUnknownKey) return { ok: false, reason: 'unknown-section-key' };
+  const diagnostics = diagnoseDraftSections(draft, buffer);
+  // Structural failures and missing user-entered fields are independent; report each in its own pass.
+  const incomplete = diagnostics.filter(d => d.structurallyValid && !d.complete);
+  if (incomplete.length) {
+    return { ok: false, reason: 'incomplete-section-fields', details: incomplete };
   }
-  if (isDraftBufferStale(draft, buffer)) return { ok: false, reason: 'buffer-stale' };
-  // 1) Inspect Draft rows BEFORE canonical projection so unknown keys are visible.
-  //    ALLOWED keys and known DRAFT_ONLY_KEYS (e.g. nameUserEdited) are permitted;
-  //    any other key is rejected as unknown-section-key.
-  const draftRows = Array.isArray(draft.sections) ? draft.sections : [];
-  for (const section of draftRows) {
-    if (!section || typeof section !== 'object') return { ok: false, reason: 'invalid-section' };
-    for (const key of Object.keys(section)) {
-      if (ALLOWED.has(key) || DRAFT_ONLY_KEYS.has(key)) continue;
-      return { ok: false, reason: 'unknown-section-key', key };
-    }
+  const invalid = diagnostics.filter(d => !d.structurallyValid);
+  if (invalid.length) {
+    return { ok: false, reason: 'section-invalid', details: invalid };
   }
-  // 2) Project to canonical Section shape (drops DRAFT_ONLY_KEYS).
-  const sections = toCanonicalSections(draftRows);
-  for (const section of sections) {
-    if (!section || typeof section !== 'object') return { ok: false, reason: 'invalid-section' };
-    if (Object.keys(section).some(k => !ALLOWED.has(k))) {
-      return { ok: false, reason: 'unknown-section-key' };
-    }
+  // Draft array order is not an invariant. Adopt in chronological buffer order,
+  // including rows that were repaired after being retained for diagnostics.
+  const sections = orderedValidSections(draft.sections, buffer, diagnostics)
+    .map(row => toCanonicalSection(row.section));
+  const setResult = validateSectionSet(sections, buffer);
+  if (!setResult.valid) {
+    return { ok: false, reason: setResult.reason || 'invalid-set', details: setResult };
   }
-  // Structural + completeness (name/type required at adopt)
-  {
-    const list = diagnoseDraftSections({ sections: draftRows }, buffer);
-    const structuralBad = list.filter(d => !d.structurallyValid);
-    if (structuralBad.length) {
-      return {
-        ok: false,
-        reason: 'invalid-section-remaining',
-        errors: structuralBad.map(d => ({ id: d.id, index: d.index, reasons: d.structuralReasons || d.reasons })),
-      };
-    }
-    const incomplete = list.filter(d => !d.complete);
-    if (incomplete.length) {
-      return {
-        ok: false,
-        reason: 'incomplete-section-fields',
-        errors: incomplete.map(d => ({
-          id: d.id,
-          index: d.index,
-          reasons: d.completenessReasons || d.reasons.filter(r => COMPLETENESS_REASONS.has(r)),
-        })),
-      };
-    }
-  }
-  const check = validateGeneratedSectionSet(sections, buffer);
-  if (!check.valid) {
-    return { ok: false, reason: check.errors[0]?.reason ?? 'invalid-section-set', errors: check.errors };
-  }
-  return { ok: true, sections };
+  return { ok: true, sections, projectId: projectId ?? draft.projectId };
 }
 
 export function createReconfigRuntime() {
-  return { draft: null, audioSnapshot: null, modalOpen: false, closed: false };
-}
-
-export function teardownReconfigRuntime(runtime, opts = {}) {
-  const restoreAudio = opts.restoreAudio === true;
-  const hadDraft = runtime.draft != null;
-  const snap = runtime.audioSnapshot;
-  const closeModal = runtime.modalOpen === true || hadDraft;
-  runtime.draft = null;
-  runtime.audioSnapshot = null;
-  runtime.modalOpen = false;
-  runtime.closed = true;
   return {
-    hadDraft, closeModal, pauseAudio: true,
-    restoreAudio: restoreAudio && snap ? snap : null,
-    adopt: false, save: false,
+    playGeneration: 0,
+    modalOpen: false,
+    closed: true,
+    draft: null,
+    audioSnapshot: null,
+    view: { scrollTop: 0, lastSeenSigs: null },
+    splitContext: null,
   };
 }
 
-/** Indices for UI: for each draft section, start/end chord index on buffer. */
+export function teardownReconfigRuntime(runtime, opts = {}) {
+  if (!runtime) return;
+  runtime.playGeneration = (Number(runtime.playGeneration) || 0) + 1;
+  runtime.modalOpen = false;
+  runtime.closed = true;
+  runtime.draft = null;
+  runtime.audioSnapshot = null;
+  if (opts.clearView) {
+    runtime.view = { scrollTop: 0, lastSeenSigs: null };
+  }
+  if (opts.clearSplitContext) runtime.splitContext = null;
+}
+
 export function draftSectionChordSpans(draft, buffer) {
-  // Preserve draft.sections array order for UI indexing (not re-sorted).
   return (draft?.sections || []).map((section, i) => {
     const start = chordIndex(buffer, section?.startChordId);
     const end = chordIndex(buffer, section?.endChordId);

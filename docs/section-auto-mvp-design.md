@@ -2,7 +2,9 @@
 
 状態: 実装済み（初版）。仕様の経緯は Claude プロジェクトの `claude/section-auto-mvp-*.md` を参照。
 
-## 動作
+> **現行実装との関係（2026-11-27）:** 本書は旧MVPの実装経緯を残す履歴資料です。本書に記載された自動生成ボタン・適格性判定・確認モーダル・適用コマンドの経路は、Phase150のSection設定フロー統合により廃止されています。現在の操作フローは [Section設定フロー統合アーキテクチャ設計案](section-unification-architecture-design.md) を参照してください。境界候補の検出と候補からSection Draftへの変換処理は、補助機能として引き続き利用されています。
+
+## 旧MVPの動作（履歴）
 
 1. Section編集バーの「✨ 自動生成」（Sectionが0件の曲のみ有効）を押す。
 2. ディスク上のデータで適格性を確認する（既存の `evaluateSectionGenerationEligibility()`）。

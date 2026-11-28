@@ -309,8 +309,8 @@ function launch({ buffer = baseBuffer(), selectedId = 'b', onCommit = () => true
   globalThis.confirm = savedConfirm;
   // Escape／背景クリックの配線（app.js）と、このモーダルに破棄確認の仕組みが残っていないこと
   const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-  assert.ok(/classList\.contains\('open'\)\) \{\s*requestCloseMod\(\);/.test(app), 'Escape routes through requestCloseMod');
-  assert.ok(/_mOvMouseDownOnOverlay\) requestCloseMod\(\)/.test(app), 'background click routes through requestCloseMod');
+  assert.ok(/classList\.contains\('open'\)\) \{\s*requestCloseMod\('escape'\);/.test(app), 'Escape routes through requestCloseMod with the escape source');
+  assert.ok(/_mOvMouseDownOnOverlay\) requestCloseMod\('overlay'\)/.test(app), 'background click routes through requestCloseMod with the overlay source');
   assert.ok(/onRequestClose/.test(app));
   const entry = app.slice(app.indexOf('function openChartChordEditSession'), app.indexOf('function shiftSelectedBoundary'));
   assert.ok(!entry.includes('confirmDiscard') && !entry.includes('confirm('), 'app.js passes no discard confirmation to the modal');

@@ -229,28 +229,25 @@ import {
   deleteSectionCommand, // Phase101-3
   reorderSectionCommand, // Phase140 #95
   updateSectionBoundaryCommand, // Phase106
-  applyGeneratedSectionsCommand, // Section自動生成（生成したSection群を1操作で適用）,
   replaceSectionsFromDraftCommand,
 
 } from './analysisCommands.js';
 
-import {
-  evaluateSectionGenerationEligibility,
-  captureSectionGenerationBuffer,
-  hasSectionGenerationCodeEdits,
-} from './sectionGeneration.js';
+import { hasSectionCodeEdits } from './sectionCodeBuffer.js';
 import {
   createReconfigurationDraft,
   createReconfigRuntime,
   teardownReconfigRuntime,
   prepareDraftForAdopt,
   isDraftDirty,
+  calculateSectionCoverage,
+  recommendSectionReconfiguration,
 } from './sectionReconfiguration.js';
 import { openSectionReconfigurationModal } from './sectionReconfigurationModal.js';
+import { openSectionOverviewModal } from './sectionOverviewModal.js';
 
 import { detectSectionBoundaries, measureIrregularity } from './sectionBoundaryDetection.js';
 import { createDraftFromBoundaries, buildSectionsFromDraft } from './sectionAutoGeneration.js';
-import { openSectionAutoGenerationModal } from './sectionAutoGenerationModal.js';
 
 import {
   isRecording as _recIsRecording,
@@ -502,20 +499,22 @@ function _stopSectionReconfigPlaybackMonitor() {
 function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime) {
   _stopSectionReconfigPlaybackMonitor();
   const epsilon = 0.03; // seconds tolerance
+  const generation = Number(_sectionReconfigRuntime.playGeneration) || 0;
+  const isCurrent = () => generation === (Number(_sectionReconfigRuntime.playGeneration) || 0);
   let ended = false;
   const reportTime = () => {
-    if (!onTime || !audio) return;
+    if (!onTime || !audio || !isCurrent()) return;
     try { onTime(audio.currentTime); } catch { /* ignore */ }
   };
   const finish = () => {
-    if (ended) return;
+    if (ended || !isCurrent()) return;
     ended = true;
     try { audio.pause(); } catch { /* ignore */ }
     _stopSectionReconfigPlaybackMonitor();
     try { onEnded?.(); } catch { /* ignore */ }
   };
   const tick = () => {
-    if (!audio || ended) return;
+    if (!audio || ended || !isCurrent()) return;
     try {
       if (audio.paused) {
         // Natural / external pause: clean up monitor without treating as range-end
@@ -533,7 +532,7 @@ function _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime) {
     _sectionReconfigRaf = requestAnimationFrame(tick);
   };
   _sectionReconfigTimeUpdateHandler = () => {
-    if (ended) return;
+    if (ended || !isCurrent()) return;
     try {
       reportTime();
       if (audio.currentTime >= endSec - epsilon) finish();
@@ -3294,60 +3293,250 @@ function _generateSectionName(type) {
 }
 
 /**
- * _isAutoSectionName — 名前が「その種類の自動名」かどうかを判定する（Phase140 #96）
+ * _isAutoSectionName — 既存Section名が自動命名パターンかを判定する。
  *
- * 自動名 = 種類のラベルそのもの、または「ラベル 数字」（例: "Verse" / "Verse 2" / "サビ 3"）。
- * 手で付けた名前（例: "1番サビ"）は false。「変更」ダイアログで種類を替えたときに、
- * 名前欄を追従させてよいかの判定に使う。
+ * 旧保存データには手入力フラグがないため、現在の分類に対応する標準ラベルと連番形式を照合する。
+ * 明示的な手入力フラグがあるDraft名は、呼び出し側でそちらを優先する。
  */
 function _isAutoSectionName(name, type) {
-  const label = SECTION_TYPES.find(t => t.value === type)?.label;
-  if (!label) return false;
+  // Legacy records do not persist nameUserEdited. Infer auto names only when
+  // the name matches the canonical label for the CURRENT type.
+  // Matching every category label could overwrite intentional custom names.
   const n = String(name ?? '').trim();
-  if (n === label) return true;
-  if (!n.startsWith(label + ' ')) return false;
-  return /^\d+$/.test(n.slice(label.length + 1));
-}
-
-/**
- * startSectionAutoGeneration — Section自動生成を開始する（候補の確認画面を開く）
- *
- * [FLOW] ディスク上のデータで適格性を確認 → 境界候補を生成 → 確認画面。
- * 確認画面で「採用」されるまで、曲のSectionデータは一切変更しない。
- * 採用時（_adoptGeneratedSections）に、編集状態・ディスク・コード列を再検証してから
- * applyGeneratedSectionsCommand()（既存の一括適用）で1操作として適用する。
- * 永続化は既存のsaveAnalysisEdit()（保存ボタン）に任せる。新しい保存経路は作らない。
- */
-const SECTION_AUTOGEN_REASON_TEXT = {
-  'sections-already-exist': 'すでにSectionがある曲は自動生成の対象外です',
-  'sections-not-array': 'Sectionの記録が想定外の形式のため、自動生成できません（データは変更していません）',
-  'chords-changed-on-disk': '保存されているデータと画面のコードが一致しません。曲を開き直してください',
-  'editor-has-unsaved-edits': '未保存の編集があります。先に保存してください',
-  'disk-chords-duplicate-id': 'コードのIDが重複しているため生成できません',
-};
-
-async function _checkSectionAutoGenEligibility() {
-  const loaded = await loadAnalysisFile(project.id);
-  const loadResult = loaded
-    ? { state: 'present', analysis: { projectId: project.id, generatedAt: loaded.generatedAt, raw: loaded.raw } }
-    : { state: 'read-error' };
-  return evaluateSectionGenerationEligibility({
-    loadResult,
-    expectedProjectId: project.id,
-    memoryRaw: project.analysis?.raw,
-    editorSession: analysisEditor,
+  const item = SECTION_TYPES.find(entry => entry.value === type);
+  const labels = [item?.label];
+  if (type === 'other') labels.push('その他', 'Other');
+  return labels.some(raw => {
+    const label = String(raw ?? '').trim();
+    if (!label) return false;
+    if (n === label) return true;
+    if (!n.startsWith(label + ' ')) return false;
+    return /^\d+$/.test(n.slice(label.length + 1));
   });
 }
 
+/**
+ * startSectionReconfiguration — 既存SectionをDraftとして再設定UIを開く（Phase150 Stage1）
+ * 既存 analysisEditor.sections は採用まで変更しない。
+ */
 
-/**
- * startSectionReconfiguration — 既存SectionをDraftとして再設定UIを開く（Phase150 Stage1）
- * 既存 analysisEditor.sections は採用まで変更しない。
- */
-/**
- * startSectionReconfiguration — 既存SectionをDraftとして再設定UIを開く（Phase150 Stage1）
- * 既存 analysisEditor.sections は採用まで変更しない。
- */
+function _sectionReconfigTypes() {
+  return typeof SECTION_TYPES !== 'undefined'
+    ? SECTION_TYPES.map(x => ({ value: x.value, label: _sectionTypeLabel(x.value, _loadSectionTypeGroup()) }))
+    : [{ value: 'other', label: 'その他' }];
+}
+
+function _formatSectionReconfigChord(c) {
+  try {
+    const capo = (typeof getCapo === 'function') ? getCapo() : 0;
+    const raw = c?.chord != null ? String(c.chord) : '';
+    if (!raw) return '(空)';
+    return toDisplayChord(toReadableChord(raw), capo);
+  } catch {
+    return c?.chord != null ? String(c.chord) : '(空)';
+  }
+}
+
+function _sectionReconfigConfirmChoice(message, choices) {
+  const ok = window.confirm(message);
+  return Promise.resolve(ok ? (choices?.[0]?.value ?? 'discard') : (choices?.[1]?.value ?? 'stay'));
+}
+
+function _handleSectionReconfigClose(reason) {
+  if (reason === 'adopt') {
+    _stopSectionReconfigPlaybackMonitor();
+    _setSectionReconfigSpaceShield(false);
+    const snap = _sectionReconfigRuntime.audioSnapshot;
+    _sectionReconfigModalHandle = null;
+    teardownReconfigRuntime(_sectionReconfigRuntime, { restoreAudio: false });
+    const audio = getAudioElement?.();
+    try { audio?.pause(); } catch { /* ignore */ }
+    if (snap && audio) {
+      try {
+        if (Number.isFinite(snap.timeSec)) audio.currentTime = Math.max(0, snap.timeSec);
+      } catch { /* ignore */ }
+      if (Number.isFinite(snap.speedPct)) {
+        try { setSpeed(snap.speedPct); } catch { /* ignore */ }
+      }
+    }
+    return;
+  }
+  closeSectionReconfiguration(reason || 'cancel', { restoreAudio: true });
+}
+
+async function _adoptSectionReconfigDraft(draft = _sectionReconfigRuntime.draft) {
+  const prep = prepareDraftForAdopt(draft, {
+    projectId: project?.id ?? null,
+    buffer: analysisEditor.buffer,
+    isEditing: isAnalysisEditing(),
+  });
+  if (!prep.ok) {
+    if (prep.reason === 'incomplete-section-fields' && Array.isArray(prep.errors)) {
+      const detail = prep.errors.map(e => {
+        const rs = (e.reasons || []).join(',');
+        return `Section${(e.index ?? 0) + 1}${rs ? '(' + rs + ')' : ''}`;
+      }).join(', ');
+      return { ok: false, message: `名称または種類が未設定です: ${detail}` };
+    }
+    return { ok: false, message: `採用できません（${prep.reason}）` };
+  }
+  const result = replaceSectionsFromDraftCommand(analysisEditor, prep.sections);
+  if (!result.ok) return { ok: false, message: `採用できません（${result.reason}）` };
+  try {
+    _refreshEditorView?.('replaceSectionsFromDraft');
+    renderSectionBar?.();
+  } catch { /* ignore */ }
+  toast(`Sectionを${result.count}件採用しました（未保存）`);
+  return { ok: true };
+}
+
+function _sectionReconfigTiming() {
+  const vm = chartState.viewModel;
+  const analysis = project?.analysis;
+  return {
+    model: vm?.model ?? null,
+    measures: Array.isArray(vm?.measures) ? vm.measures : [],
+    beats: analysis?.normalized?.beats ?? analysis?.beats ?? [],
+  };
+}
+
+function switchSectionReconfigStage(stage, options = {}) {
+  if (!_sectionReconfigRuntime.modalOpen || !_sectionReconfigRuntime.draft) return false;
+  if (stage !== 1 && stage !== 2) return false;
+
+  const previousView = _sectionReconfigRuntime.view && typeof _sectionReconfigRuntime.view === 'object'
+    ? _sectionReconfigRuntime.view
+    : { stage: 2, sectionId: null, scrollTop: 0, lastSeenSigs: null, token: 0 };
+  const oldHandle = _sectionReconfigModalHandle;
+  let oldState = {};
+  try {
+    if (typeof oldHandle?.suspend === 'function') oldState = oldHandle.suspend() || {};
+  } catch (err) {
+    console.warn('[section-reconfig] stage suspend failed', err);
+  }
+  _sectionReconfigModalHandle = null;
+  _stopSectionReconfigPlaybackMonitor();
+
+  const token = (Number(previousView.token) || 0) + 1;
+  const isCurrent = () => _sectionReconfigRuntime.modalOpen
+    && _sectionReconfigRuntime.view?.stage === stage
+    && _sectionReconfigRuntime.view?.token === token;
+  const common = {
+    openModal,
+    mkMBtn,
+    draft: _sectionReconfigRuntime.draft,
+    runtime: _sectionReconfigRuntime,
+    buffer: analysisEditor.buffer,
+    sectionTypes: _sectionReconfigTypes(),
+    onKeyShield: () => { _setSectionReconfigSpaceShield(true); },
+    onKeyUnshield: () => { _setSectionReconfigSpaceShield(false); },
+    onTestStop: () => {
+      _stopSectionReconfigPlaybackMonitor();
+      try { getAudioElement()?.pause(); } catch { /* ignore */ }
+    },
+    confirmChoice: _sectionReconfigConfirmChoice,
+    onClose: _handleSectionReconfigClose,
+    onAdopt: _adoptSectionReconfigDraft,
+    isCurrent,
+  };
+
+  if (stage === 1) {
+    const sectionId = options.sectionId ?? oldState.sectionId ?? previousView.sectionId
+      ?? _sectionReconfigRuntime.draft.sections[0]?.id ?? null;
+    _sectionReconfigRuntime.view = {
+      ...previousView,
+      stage: 1,
+      sectionId,
+      token,
+    };
+    _sectionReconfigRuntime.splitContext = {
+      sectionId,
+      // The initial Stage1 workflow stays in the single-Section editor after a split.
+      // Stage2-originated edits explicitly opt into returning to the overview.
+      returnTo: options.returnToOverviewOnSplit === true ? 2 : null,
+      inheritBackMeta: true,
+    };
+    _sectionReconfigModalHandle = openSectionReconfigurationModal({
+      ...common,
+      getSectionNameBase: type => _sectionTypeLabel(type, _loadSectionTypeGroup()),
+      formatChord: _formatSectionReconfigChord,
+      initial: { sectionId, mode: 'normal' },
+      splitContext: _sectionReconfigRuntime.splitContext,
+      onReturnToOverview: state => switchSectionReconfigStage(2, {
+        sectionId: state?.sectionId,
+        historyAction: state?.historyAction ?? null,
+      }),
+      onSplitContextClear: () => { _sectionReconfigRuntime.splitContext = null; },
+      onTestPlay: ({ startSec, endSec, onEnded, onTime }) => {
+        const audio = getAudioElement?.();
+        if (!audio || !audio.src) {
+          toast('音源がありません');
+          try { onEnded?.(); } catch { /* ignore */ }
+          return;
+        }
+        _stopSectionReconfigPlaybackMonitor();
+        try {
+          audio.currentTime = Math.max(0, startSec);
+          const playPromise = audio.play();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(() => { try { onEnded?.(); } catch { /* ignore */ } });
+          }
+          _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime);
+        } catch (err) {
+          console.warn('[section-reconfig] test play failed', err);
+          try { onEnded?.(); } catch { /* ignore */ }
+        }
+      },
+    });
+    return true;
+  }
+
+  const scrollTop = Number.isFinite(oldState.scrollTop)
+    ? oldState.scrollTop
+    : (Number(previousView.scrollTop) || 0);
+  const sectionId = options.sectionId ?? oldState.sectionId ?? previousView.sectionId ?? null;
+  _sectionReconfigRuntime.view = {
+    ...previousView,
+    stage: 2,
+    sectionId,
+    scrollTop,
+    token,
+  };
+  _sectionReconfigRuntime.splitContext = null;
+  _sectionReconfigModalHandle = openSectionOverviewModal({
+    ...common,
+    runtime: _sectionReconfigRuntime,
+    timing: _sectionReconfigTiming(),
+    typeLabel: type => _sectionTypeLabel(type, _loadSectionTypeGroup()),
+    initialHistoryAction: options.historyAction ?? null,
+    onEditSplit: id => switchSectionReconfigStage(1, {
+      sectionId: id,
+      returnToOverviewOnSplit: true,
+    }),
+    onTestPlay: ({ startSec, endSec, onEnded, onTime }) => {
+      const audio = getAudioElement?.();
+      if (!audio || !audio.src) {
+        toast('音源がありません');
+        try { onEnded?.(); } catch { /* ignore */ }
+        return;
+      }
+      _stopSectionReconfigPlaybackMonitor();
+      try {
+        audio.currentTime = Math.max(0, startSec);
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => { try { onEnded?.(); } catch { /* ignore */ } });
+        }
+        _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime);
+      } catch (err) {
+        console.warn('[section-reconfig] overview preview failed', err);
+        try { onEnded?.(); } catch { /* ignore */ }
+      }
+    },
+  });
+  return true;
+}
+
 async function startSectionReconfiguration() {
   if (!isAnalysisEditing()) {
     toast('解析編集モードで開いてください');
@@ -3363,7 +3552,7 @@ async function startSectionReconfiguration() {
 
   // 未保存コード編集: buffer と 保存済み raw.chords を比較（dirtyフラグに依存しない）
   const savedChords = project?.analysis?.raw?.chords;
-  if (Array.isArray(savedChords) && hasSectionGenerationCodeEdits(buffer, savedChords)) {
+  if (Array.isArray(savedChords) && hasSectionCodeEdits(buffer, savedChords)) {
     const ok = window.confirm(
       '未保存のコード編集があります。保存してからSection再設定を開始しますか？\n\n' +
       '「保存すると元に戻す履歴はリセットされます」\n\n' +
@@ -3395,12 +3584,17 @@ async function startSectionReconfiguration() {
   const currentSections = Array.isArray(analysisEditor.sections)
     ? structuredClone(analysisEditor.sections)
     : [];
+  const makeFullSpanSection = () => [{
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sec-${Date.now()}`,
+    type: 'other',
+    name: '未設定',
+    startChordId: buffer[0]._id,
+    endChordId: buffer[buffer.length - 1]._id,
+  }];
 
-  // Draft seed:
-  // - existing sections → keep them (never destroy until adopt)
-  // - empty → run existing boundary detection into Draft candidates
-  let seedSections = currentSections;
-  if (!seedSections.length) {
+  // Both new setup and "start from scratch" use the same candidate-generation path.
+  // Candidate Sections are only Draft seeds; persisted Sections remain untouched until adopt.
+  const generateCandidateSections = () => {
     try {
       const vm = chartState.viewModel;
       const model = vm?.model;
@@ -3414,23 +3608,47 @@ async function startSectionReconfiguration() {
         const detected = detectSectionBoundaries(buffer, intervals);
         const autoDraft = createDraftFromBoundaries(detected.bars, detected.diagnostics);
         const built = buildSectionsFromDraft(autoDraft, buffer, measureOf);
-        if (built.ok && built.sections.length) {
-          seedSections = built.sections;
-        }
+        if (built.ok && built.sections.length) return built.sections;
       }
     } catch (err) {
       console.warn('[section-reconfig] auto candidate seed failed', err);
     }
-    // Fallback: single full-span section so the user can still split manually
-    if (!seedSections.length && buffer.length) {
-      seedSections = [{
-        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sec-${Date.now()}`,
-        type: 'other',
-        name: '未設定',
-        startChordId: buffer[0]._id,
-        endChordId: buffer[buffer.length - 1]._id,
-      }];
-    }
+    return makeFullSpanSection();
+  };
+
+  // Existing Sections: the user chooses whether to preserve or restart.
+  // The 80% recommendation is time-weighted, matching Section Overview's
+  // chord-ID -> playback-time projection. Both choices remain available.
+  let seedSections = [];
+  if (currentSections.length) {
+    const coverage = calculateSectionCoverage(currentSections, buffer);
+    const recommendation = recommendSectionReconfiguration(coverage);
+    const keepFirst = recommendation !== 'start-fresh';
+    const firstChoice = keepFirst ? 'keep-existing' : 'start-fresh';
+    const secondChoice = keepFirst ? 'start-fresh' : 'keep-existing';
+    const recommendationText = recommendation === 'keep-existing'
+      ? '推奨：既存Sectionを活かす'
+      : recommendation === 'start-fresh'
+        ? '推奨：最初から設定し直す'
+        : 'カバー率を算出できないため、推奨はありません';
+    const coverageText = Number.isFinite(coverage.percent)
+      ? `既存Sectionのカバー率：約${coverage.percent.toFixed(1)}%（${coverage.coveredSeconds.toFixed(2)}秒 / ${coverage.totalSeconds.toFixed(2)}秒）`
+      : '既存Sectionのカバー率：算出できません（コードの時間情報が不足しています）';
+    const firstLabel = firstChoice === 'keep-existing'
+      ? '既存Sectionを活かす'
+      : '最初から設定し直す';
+    const secondLabel = secondChoice === 'keep-existing'
+      ? '既存Sectionを活かす'
+      : '最初から設定し直す';
+    const choice = await _sectionReconfigConfirmChoice(
+      `既存のSection設定があります。再設定方法を選んでください。\n\n${coverageText}\n${recommendationText}\n\nOK = ${firstLabel}\nキャンセル = ${secondLabel}`,
+      [{ value: firstChoice }, { value: secondChoice }],
+    );
+    seedSections = choice === 'keep-existing'
+      ? currentSections
+      : generateCandidateSections();
+  } else {
+    seedSections = generateCandidateSections();
   }
 
   const draft = createReconfigurationDraft({
@@ -3452,189 +3670,29 @@ async function startSectionReconfiguration() {
   _sectionReconfigRuntime.modalOpen = true;
   _sectionReconfigRuntime.closed = false;
 
-  const types = typeof SECTION_TYPES !== 'undefined'
-    ? SECTION_TYPES.map(x => ({ value: x.value, label: _sectionTypeLabel(x.value, _loadSectionTypeGroup()) }))
-    : [{ value: 'other', label: 'その他' }];
-
-  _sectionReconfigModalHandle = openSectionReconfigurationModal({
-    openModal,
-    mkMBtn,
-    draft,
-    buffer: analysisEditor.buffer,
-    sectionTypes: types,
-    generateSectionName: (type) => _generateSectionName(type),
-    formatChord: (c) => {
-      try {
-        const capo = (typeof getCapo === 'function') ? getCapo() : 0;
-        const raw = c?.chord != null ? String(c.chord) : '';
-        if (!raw) return '(空)';
-        return toDisplayChord(toReadableChord(raw), capo);
-      } catch {
-        return c?.chord != null ? String(c.chord) : '(空)';
-      }
-    },
-    onTestPlayEnded: () => {
-      // optional hook for modal to restore play UI state
-    },
-    onKeyShield: () => { _setSectionReconfigSpaceShield(true); },
-    onKeyUnshield: () => { _setSectionReconfigSpaceShield(false); },
-    onTestStop: () => {
-      _stopSectionReconfigPlaybackMonitor();
-      try { getAudioElement()?.pause(); } catch { /* ignore */ }
-    },
-    onTestPlay: ({ startSec, endSec, onEnded, onTime }) => {
-      const audio = getAudioElement?.();
-      if (!audio || !audio.src) {
-        toast('音源がありません');
-        try { onEnded?.(); } catch { /* ignore */ }
-        return;
-      }
-      _stopSectionReconfigPlaybackMonitor();
-      try {
-        audio.currentTime = Math.max(0, startSec);
-        const playPromise = audio.play();
-        if (playPromise && typeof playPromise.catch === 'function') {
-          playPromise.catch(() => { try { onEnded?.(); } catch { /* ignore */ } });
-        }
-        _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime);
-      } catch (err) {
-        console.warn('[section-reconfig] test play failed', err);
-        try { onEnded?.(); } catch { /* ignore */ }
-      }
-    },
-    confirmChoice: async (message, choices) => {
-      // Native confirm: first choice = OK, second = cancel
-      const ok = window.confirm(message);
-      return ok ? (choices?.[0]?.value ?? 'discard') : (choices?.[1]?.value ?? 'stay');
-    },
-    onClose: (reason) => {
-      if (reason === 'adopt') {
-        // adopt path already applied sections; only audio restore + shield clear
-        _stopSectionReconfigPlaybackMonitor();
-        _setSectionReconfigSpaceShield(false);
-        const snap = _sectionReconfigRuntime.audioSnapshot;
-        _sectionReconfigRuntime.draft = null;
-        _sectionReconfigRuntime.modalOpen = false;
-        _sectionReconfigRuntime.audioSnapshot = null;
-        const audio = getAudioElement?.();
-        try { audio?.pause(); } catch { /* ignore */ }
-        if (snap && audio) {
-          try {
-            if (Number.isFinite(snap.timeSec)) audio.currentTime = Math.max(0, snap.timeSec);
-          } catch { /* ignore */ }
-          if (Number.isFinite(snap.speedPct)) {
-            try { setSpeed(snap.speedPct); } catch { /* ignore */ }
-          }
-        }
-        return;
-      }
-      closeSectionReconfiguration(reason || 'cancel', { restoreAudio: true });
-    },
-    onAdopt: async () => {
-      const prep = prepareDraftForAdopt(_sectionReconfigRuntime.draft, {
-        projectId: project?.id ?? null,
-        buffer: analysisEditor.buffer,
-        isEditing: isAnalysisEditing(),
-      });
-      if (!prep.ok) {
-        if (prep.reason === 'incomplete-section-fields' && Array.isArray(prep.errors)) {
-          const detail = prep.errors.map(e => {
-            const rs = (e.reasons || []).join(',');
-            return `Section${(e.index ?? 0) + 1}${rs ? '(' + rs + ')' : ''}`;
-          }).join(', ');
-          return { ok: false, message: `名称または種類が未設定です: ${detail}` };
-        }
-        return { ok: false, message: `採用できません（${prep.reason}）` };
-      }
-      const result = replaceSectionsFromDraftCommand(analysisEditor, prep.sections);
-      if (!result.ok) {
-        return { ok: false, message: `採用できません（${result.reason}）` };
-      }
-      try {
-        _refreshEditorView?.('replaceSectionsFromDraft');
-        renderSectionBar?.();
-      } catch { /* ignore */ }
-      toast(`Sectionを${result.count}件採用しました（未保存）`);
-      return { ok: true };
-    },
-  });
-}
-
-async function startSectionAutoGeneration() {
-  if (!isAnalysisEditing()) return;
-  const eligibility = await _checkSectionAutoGenEligibility();
-  if (!eligibility.eligible) {
-    toast(`⚠ ${SECTION_AUTOGEN_REASON_TEXT[eligibility.reason] ?? `生成できません（${eligibility.reason}）`}`);
-    return;
-  }
-
-  const vm = chartState.viewModel;
-  const model = vm?.model;
-  if (!model || model.mode === 'fallback' || !Array.isArray(vm.measures) || vm.measures.length === 0) {
-    toast('⚠ 拍・小節の情報がないため、自動生成できません');
-    return;
-  }
-  const measureCount = vm.measures.length;
-  const measureOf = (chord) => {
-    const q = model.quantize(chord.start);
-    return q.measure >= 0 && q.measure < measureCount ? q.measure : null;
+  const previousToken = Number(_sectionReconfigRuntime.view?.token) || 0;
+  const initialSection = draft.sections
+    .map((section, index) => ({
+      section,
+      index,
+      start: buffer.findIndex(chord => chord?._id === section?.startChordId),
+    }))
+    .filter(item => item.start >= 0)
+    .sort((a, b) => a.start - b.start || a.index - b.index)[0]?.section
+    ?? draft.sections[0]
+    ?? null;
+  const initialSectionId = initialSection?.id ?? null;
+  _sectionReconfigRuntime.view = {
+    stage: 1,
+    sectionId: initialSectionId,
+    scrollTop: 0,
+    lastSeenSigs: null,
+    token: previousToken,
   };
-  const intervals = vm.measures.map(m => ({ start: m.startTime, end: m.endTime }));
-
-  const buffer = analysisEditor.buffer;
-  const snapshot = captureSectionGenerationBuffer(buffer);
-  const detected = detectSectionBoundaries(buffer, intervals);
-  const draft = createDraftFromBoundaries(detected.bars, detected.diagnostics);
-
-  const warnings = [];
-  const irregular = measureIrregularity(intervals);
-  if (irregular.irregularCount > 0) {
-    warnings.push(`小節の長さが不規則な箇所が${irregular.irregularCount}小節あります。区切り位置がずれる可能性があります`);
-  }
-  if (detected.bars.length === 0) warnings.push('区切りの候補が見つかりませんでした。必要なら境界を追加してください');
-
-  openSectionAutoGenerationModal({
-    openModal, mkMBtn, draft, buffer, measureOf, measureCount,
-    sectionTypes: SECTION_TYPES,
-    notes: { warnings },
-    onAdopt: finalDraft => _adoptGeneratedSections(finalDraft, snapshot, measureOf),
-  });
+  _sectionReconfigRuntime.splitContext = null;
+  // First setup begins in Stage1; an existing saved Section structure begins in Stage2.
+  switchSectionReconfigStage(currentSections.length ? 2 : 1, { initial: true, sectionId: initialSectionId });
 }
-
-async function _adoptGeneratedSections(finalDraft, snapshot, measureOf) {
-  if (!isAnalysisEditing()) return { ok: false, message: '編集モードが終了しています。もう一度生成してください' };
-  // 候補を作った後にコード列が変わっていないか（古い候補を適用しない）
-  if (hasSectionGenerationCodeEdits(analysisEditor.buffer, snapshot)) {
-    return { ok: false, message: '候補を作った後にコードが変更されました。閉じて、もう一度生成してください' };
-  }
-  if (analysisEditor.sections.length !== 0) {
-    return { ok: false, message: 'すでにSectionがあるため適用できません' };
-  }
-  // ディスク上の状態も適用直前に再確認する（未保存の編集は無いこと・Sectionが空であること）
-  const eligibility = await _checkSectionAutoGenEligibility();
-  if (!eligibility.eligible) {
-    return { ok: false, message: SECTION_AUTOGEN_REASON_TEXT[eligibility.reason] ?? `適用できません（${eligibility.reason}）` };
-  }
-  // 待っている間にモード終了・コード変更が起きていないか、もう一度確認する
-  if (!isAnalysisEditing() || hasSectionGenerationCodeEdits(analysisEditor.buffer, snapshot)) {
-    return { ok: false, message: '確認中に編集状態が変わりました。閉じて、もう一度生成してください' };
-  }
-  const built = buildSectionsFromDraft(finalDraft, analysisEditor.buffer, measureOf);
-  if (!built.ok) return { ok: false, message: '入力内容に問題があります。赤字の内容を直してください' };
-
-  const before = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
-  const result = applyGeneratedSectionsCommand(analysisEditor, built.sections);
-  if (!result.ok) {
-    _recRecord('applyGeneratedSections', result, before, before);
-    return { ok: false, message: `適用できませんでした（${result.reason}）` };
-  }
-  const after = _recIsRecording() ? _recSnapshot({ includeSections: true }) : null;
-  _recRecord('applyGeneratedSections', result, before, after);
-  _refreshEditorView('applyGeneratedSections');
-  toast(`✅ ${result.count}個のSectionを適用しました（保存で確定。元に戻すはUndo）`);
-  return { ok: true };
-}
-
 
 /**
  * openSectionModal — Section作成ダイアログ（Phase101-2）
@@ -4209,7 +4267,7 @@ function _placeSectionGap(px, py) {
     if (!before) break;
     k++;
   }
-  const ref = others[k] ?? bar.querySelector('#sec-create-btn');
+  const ref = others[k] ?? bar.querySelector('#sec-setup-btn');
   let next = d.gapEl.nextElementSibling;
   if (next === d.chipEl) next = next.nextElementSibling; // 浮いているチップはDOM上の位置に意味がない
   if (next !== ref) bar.insertBefore(d.gapEl, ref);
@@ -4333,8 +4391,6 @@ function renderSectionBar() {
   const sections = getSections(analysisEditor);
   const buffer = analysisEditor.buffer || [];
   // [Phase101-2] 単一コードでも作成可能（startChordId === endChordIdも正当なSection）。
-  const canCreate = analysisEditor.selection.chordIds.length >= 1;
-
   const chipsHtml = sections.length
     ? sections.map(s => {
         // [Phase106] 境界ステッパーのdisabled判定用にbuffer上のindexを求める。
@@ -4378,11 +4434,9 @@ function renderSectionBar() {
   bar.innerHTML = `
     <span class="sec-label">Sections</span>
     ${chipsHtml}
-    <button class="sec-btn" id="sec-create-btn" title="選択中の範囲からSectionを作成" ${canCreate ? '' : 'disabled'}>＋ 作成</button>
     <button class="sec-btn" id="sec-setup-btn" title="Sectionを自動候補から設定・編集する">Section設定</button>
   `;
 
-  document.getElementById('sec-create-btn')?.addEventListener('click', openSectionModal);
   // Phase150: unified entry — single Section設定 button opens reconfiguration flow
   // (auto-seed when no sections; keep existing when present). Old autogen/reconfig IDs removed.
   document.getElementById('sec-setup-btn')?.addEventListener('click', () => {

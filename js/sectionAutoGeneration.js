@@ -4,13 +4,13 @@
  * editor-session mutation); the app layer decides when to call them.
  *
  * [DATA MODEL NOTE] The Section data model itself allows gaps/overlaps
- * (docs/section-model.md). The "contiguous, non-overlapping" rule below is a
- * policy for *generated sets only*; it is enforced here, not in
- * validateSectionInvariants().
+ * (docs/section-model.md). Contiguous, non-overlapping coverage is enforced
+ * by the bulk setup/reconfiguration workflow's shared set validator; it is
+ * not a global invariant and is not enforced by validateSectionInvariants().
  */
-import { validateGeneratedSectionSet } from './sectionSetValidation.js';
+import { validateSectionSet } from './sectionSetValidation.js';
 
-export { validateGeneratedSectionSet } from './sectionSetValidation.js';
+export { validateSectionSet, validateGeneratedSectionSet } from './sectionSetValidation.js';
 
 export const DEFAULT_GENERATED_SECTION_TYPE = 'other';
 export const DEFAULT_GENERATED_SECTION_NAME = '未設定';
@@ -69,8 +69,8 @@ export function mapBoundariesToChordRanges(bars, buffer, measureOf) {
 
 
 /**
- * Convert a user-editable draft into a Section array ready for
- * applyGeneratedSectionsCommand(). The draft is never written to song data.
+ * Convert a user-editable boundary-candidate draft into validated Section objects
+ * for seeding the Section reconfiguration Draft. This does not adopt or persist them.
  *
  * @param {Array<{candidateId:string, startBar:number, name:string, type?:string}>} draft
  *   ordered by startBar; draft[0].startBar is ignored (always the song start).
@@ -93,7 +93,7 @@ export function buildSectionsFromDraft(draft, buffer, measureOf, newId = () => c
     startChordId: buffer[range.startIndex]._id,
     endChordId: buffer[range.endIndex]._id,
   }));
-  const check = validateGeneratedSectionSet(sections, buffer);
+  const check = validateSectionSet(sections, buffer);
   return {
     ok: check.valid,
     sections: check.valid ? sections : [],
@@ -102,7 +102,7 @@ export function buildSectionsFromDraft(draft, buffer, measureOf, newId = () => c
   };
 }
 
-/** Initial draft from detected boundary bars (names are left unset by design). */
+/** Initial candidate draft from detected boundary bars (names are left unset by design). */
 export function createDraftFromBoundaries(bars, diagnostics = []) {
   const diagByBar = new Map(diagnostics.map(d => [d.bar, d]));
   return [0, ...bars].map((startBar, i) => ({
