@@ -161,6 +161,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(str(e).encode())
 
+    def do_HEAD(self):
+        if not self._request_allowed():
+            return
+        return super().do_HEAD()
+
     # ★ 追加
     def do_OPTIONS(self):
         if not self._request_allowed():
