@@ -14,7 +14,9 @@ import {
   undoDraft,
   redoDraft,
   splitDraftAtChordIndex,
+  mergeDraftWithPrevious,
 } from './sectionReconfiguration.js';
+import { canMergeWithPrevious } from './sectionOverview.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -679,6 +681,7 @@ export function openSectionReconfigurationModal(p) {
         <div class="sr1-aux-toolbar" aria-label="構造編集">
           <button type="button" class="sec-btn" id="sr1-prev-sec" ${sectionIdx <= 0 ? 'disabled' : ''}>← Section</button>
           <button type="button" class="sec-btn" id="sr1-next-sec" ${sectionIdx >= draft.sections.length - 1 ? 'disabled' : ''}>Section →</button>
+          <button type="button" class="sec-btn" id="sr1-merge-prev" ${canMergeWithPrevious(draft, buffer, selectedSectionId).ok ? '' : 'disabled'}>前のSectionと結合</button>
           <button type="button" class="sec-btn" id="sr1-undo" ${canUndo ? '' : 'disabled'}>Undo</button>
           <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
@@ -1232,6 +1235,28 @@ export function openSectionReconfigurationModal(p) {
       if (uiMode === 'boundary') cancelBoundaryMode();
       selectSectionIndex(sectionIdx + 1);
       resetPlayToSectionStart();
+      fullRedraw();
+    });
+    root.querySelector('#sr1-merge-prev')?.addEventListener('click', () => {
+      beforeStructuralEdit();
+      const eligibility = canMergeWithPrevious(draft, buffer, selectedSectionId);
+      if (!eligibility.ok) {
+        message = REASON_LABEL[eligibility.reason] || '結合できません';
+        fullRedraw();
+        return;
+      }
+      const sectionIndex = draft.sections.findIndex(section => section?.id === selectedSectionId);
+      const result = mergeDraftWithPrevious(draft, sectionIndex, buffer);
+      if (!result.ok) {
+        message = REASON_LABEL[result.reason] || '結合できません';
+        fullRedraw();
+        return;
+      }
+      selectedSectionId = result.section.id;
+      sectionIdx = draft.sections.findIndex(section => section?.id === selectedSectionId);
+      clearSplitContext();
+      resetPlayToSectionStart();
+      message = '前のSectionと結合しました';
       fullRedraw();
     });
     root.querySelector('#sr1-play')?.addEventListener('click', testPlay);
