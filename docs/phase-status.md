@@ -251,7 +251,7 @@ Phase150ではSection設定UXの初回再設計・実装を完了し、ユーザ
 
 編集時間は従来の約10分／曲に対し、1曲で6分を観測した（約40%短縮）。これは単一サンプルであり、安定した平均値とは扱わない。次は複数曲で時間・迷い・手戻り・設定ミスを記録し、操作への習熟、操作性、手順効率を分けて評価する。小さな改善はすぐ実装せず、サンプルを集めた後に次フェーズとしてまとめる。重大な不具合は随時修正する。
 
-Stage1への統合はPR #189で完了し、Issue #191の修正はPR #192で取り込み済み。現在は`integration/stage1-to-main-review`から`main`への統合をPR #193（Draft / Open）でレビュー中。PR #193はBaseが`main`、Headが`integration/stage1-to-main-review`で、最新Headは`bb20d3e0dda34200bcb8556e54a11c2617a9e1e0`。main側だけに存在した9コミット・6ファイルを確認し、旧モーダル実装ではなくStage1側の実装を採用した。Stage1からの追加差分は、ローカル専用サーバーのセキュリティテストをCIへ追加したワークフロー変更と、旧handoverのarchive移動。PR #193のCI 2系統は成功。未解決事項は、Stage2の拍数表示で分割前後の合計が一致しない観測（表示丸めが原因の可能性があるが、実データの未丸め値は未確認）と、未保存コード編集の確認ダイアログで各ボタンを直接選択する実機確認。PRはDraftのまま維持し、mainへはまだマージしない。
+Stage1への統合はPR #189で完了し、Issue #191のStage1継続編集・前Section結合はPR #192で取り込み済み、ブラウザ受け入れ7項目もPASS。現在は`integration/stage1-to-main-review`から`main`への統合をPR #193（Draft / Open）でレビュー中。最新Headは`9503e634a4d20837d38e93ff4598c60f0778dd10`。main側だけに存在した9コミット・6ファイルを確認し、旧モーダル実装ではなくStage1側の実装を採用した。統合レビューではStage2のHTMLエスケープ不備、HEAD要求のHost/Originガード不足、Stage2完了メッセージ表記を修正し、回帰テストを追加。最新HeadのCI 2系統は成功（JavaScript 35ファイル、Section再設定／Overview、Phase146〜148、Section-save 17件、W2 transaction 46件、local-only server security 7件、候補テスト、11 songs / 117 Sections照合）。未解決事項は、未保存コード編集の確認ダイアログで各ボタンを直接選択する実機確認。Stage2拍数表示はIssue #194 / PR #195で小数第1位切り捨て・整数時小数省略・「約」削除へ変更中。PR #195はDraft / OpenでPR #193をbaseとする子PR、Issue #194はPR #195マージまでOpen。PR #193はDraftのまま維持し、mainへはまだマージしない。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
