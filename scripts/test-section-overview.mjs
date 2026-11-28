@@ -195,16 +195,16 @@ const regularTiming = timingFor(
 }
 
 {
-  assert.equal(formatSectionBeatValue(4.8), '4と4/5');
-  assert.equal(formatSectionBeatValue(0.97), '1');
+  assert.equal(formatSectionBeatValue(4.8), '4.8');
+  assert.equal(formatSectionBeatValue(0.97), '0.9', 'truncate rather than round');
   assert.equal(formatSectionBeatValue(0.03), '0');
-  assert.equal(formatSectionBeatValue(0.225), '1/4', 'equal-distance tie prefers smaller denominator');
-  assert.equal(formatSectionBeatValue(0.8), '4/5', 'common fractions retain compact display');
-  assert.equal(formatSectionBeatValue(0.875), '0.9', 'values too far from a common fraction use one decimal');
-  assert.equal(formatSectionBeatValue(33.875), '33.9', 'decimal fallback also works for multi-digit totals');
-  assert.equal(formatSectionBeatValue(0.949), '0.9', 'values outside the fraction tolerance are not forced to an integer');
-  assert.equal(formatSectionBeatValue(0.95), '1.0', 'decimal fallback retains one decimal place near a whole number');
-  assert.equal(formatSectionBeatValue(-0.875), '−0.9', 'negative values preserve their sign');
+  assert.equal(formatSectionBeatValue(0.225), '0.2', 'truncate to one decimal place');
+  assert.equal(formatSectionBeatValue(0.8), '0.8');
+  assert.equal(formatSectionBeatValue(0.875), '0.8');
+  assert.equal(formatSectionBeatValue(33.875), '33.8', 'multi-digit totals are also truncated');
+  assert.equal(formatSectionBeatValue(0.949), '0.9');
+  assert.equal(formatSectionBeatValue(0.95), '0.9', 'values near a whole number are still truncated');
+  assert.equal(formatSectionBeatValue(-0.875), '−0.8', 'negative values truncate toward zero and preserve their sign');
 }
 
 {
@@ -213,8 +213,8 @@ const regularTiming = timingFor(
     { _id: 'k1', chord: 'G', start: 0.875, end: 1.5 },
   ];
   const timing = timingFor([0, 1, 2, 3, 4], [{ startTime: 0, endTime: 4 }]);
-  const result = buildSectionOverview({ sections: [S('approx', 0, 0)] }, b, timing);
-  assert.equal(result.rows[0].view.lengthLabel, '約0.9拍', 'the overview marks decimal fallback as approximate');
+  const result = buildSectionOverview({ sections: [S('truncated', 0, 0)] }, b, timing);
+  assert.equal(result.rows[0].view.lengthLabel, '0.8拍', 'the overview displays a one-decimal truncated value without an approximation marker');
 }
 
 {
