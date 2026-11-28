@@ -384,10 +384,7 @@ export function buildSectionOverview(draft, buffer, timing, opts = {}) {
     const breakdown = calculateMeasureBreakdown(bStart, bEnd, measures, beatAt, breakdownTol);
     const startPosition = resolveMeasureContext(tStart, timing, measures, beatAt, isPickup, startSnapTol);
     const labels = makeLengthLabels(displayTotalBeats, breakdown);
-    const estimated = !!(startBeat?.extrapolated || endBeat?.extrapolated);
-    const lengthLabel = totalBeats == null
-      ? '—'
-      : `${estimated && !labels.lengthLabel.startsWith('約') ? '約' : ''}${labels.lengthLabel}`;
+    const lengthLabel = totalBeats == null ? '—' : labels.lengthLabel;
     const lengthSub = labels.lengthSub;
 
     return {
