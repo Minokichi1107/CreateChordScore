@@ -208,6 +208,16 @@ const regularTiming = timingFor(
 }
 
 {
+  const b = [
+    { _id: 'k0', chord: 'C', start: 0, end: 0.875 },
+    { _id: 'k1', chord: 'G', start: 0.875, end: 1.5 },
+  ];
+  const timing = timingFor([0, 1, 2, 3, 4], [{ startTime: 0, endTime: 4 }]);
+  const result = buildSectionOverview({ sections: [S('approx', 0, 0)] }, b, timing);
+  assert.equal(result.rows[0].view.lengthLabel, '約0.9拍', 'the overview marks decimal fallback as approximate');
+}
+
+{
   const b = buffer(4);
   const timing = timingFor([0, 0, 1], [{ startTime: 0, endTime: 4 }]);
   const result = buildSectionOverview({ sections: [S('no-beats', 0, 3)] }, b, timing);
