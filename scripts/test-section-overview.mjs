@@ -249,7 +249,7 @@ const regularTiming = timingFor(
   assert.equal(result.rows[0].real.measures.leadBeats, 0.5);
   assert.equal(result.rows[0].real.measures.fullMeasures, 34);
   assert.equal(result.rows[0].view.lengthLabel, '約34小節');
-  assert.equal(result.rows[0].view.lengthSub, '(136と1/2拍)');
+  assert.equal(result.rows[0].view.lengthSub, '(136.5拍)');
 }
 
 // Real anonymized song fixtures: 11 songs / 117 human-labelled Section ranges.
