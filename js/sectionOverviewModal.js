@@ -134,12 +134,12 @@ export function openSectionOverviewModal(p) {
       const removed = before.find(section => section.id === diff.removed[0]);
       const changed = after.find(section => section.id === diff.changed[0]);
       if (!removed || !changed) return '';
-      return `「「${sectionName(changed)}」と「${sectionName(removed)}」を結合しました」`;
+      return `「${sectionName(changed)}」と「${sectionName(removed)}」を結合しました`;
     }
     if (hasAdded && !hasRemoved) {
       const changed = after.find(section => section.id === diff.changed[0]);
       if (!changed) return '';
-      return `「「${sectionName(changed)}」を分割しました（後半は同じ名前・カテゴリー）」`;
+      return `「${sectionName(changed)}」を分割しました（後半は同じ名前・カテゴリー）`;
     }
     return '';
   }
