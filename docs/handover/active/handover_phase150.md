@@ -5,7 +5,7 @@
 対象期間：2026-11-11〜2026-11-28  
 状態：**Section設定UXの初回実装と主要なブラウザ受け入れ確認は完了。Issue #191の修正も統合ブランチへ取り込み済み。PR #189でStage1への統合レビュー中。**  
 作業ブランチ：`phase150-section-integration`  
-統合PR Head：`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`  
+Issue #191取り込みの機能コミット：`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`（その後の文書同期コミットを含む最新HeadはPR #189のGitHub表示を参照）  
 初回実機確認対象コードcommit：`5ae7ad1e89274d9688df234c10288b6b1b54d1df`
 
 ## 1. 次の作業で最初に読むもの
@@ -117,9 +117,9 @@ Section設定の自動生成精度をさらに追い込むことよりも、ユ�
 ### GitHub / CI
 
 - 現在の統合ブランチ：`phase150-section-integration`
-- 現在のHead：`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`
+- Issue #191取り込みの機能コミット：`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`。その後の文書同期コミットを含む最新HeadはPR #189のGitHub表示を参照。
 - PR #188は未マージでクローズ済み。旧Stage2ブランチからStage1へ取り込む旧PRであり、後継の統合PR #189へ役割を引き継いだ。
-- PR #189：Draft / Open。Baseは `fix/phase150-stage1-browser-review`、Headは `phase150-section-integration`。PR自体のマージ・Draft解除は未実施。Base→Headは234コミット先行・0コミット遅れで、GitHub上のmergeableはtrue。
+- PR #189：Draft / Open。Baseは `fix/phase150-stage1-browser-review`、Headは `phase150-section-integration`。PR自体のマージ・Draft解除は未実施。BaseブランチはHeadの祖先であり、GitHub上のmergeableはtrue。
 - 最新Head `07ff57b` に対するGitHub Actions（自動テスト）は2件とも成功：
   - `JavaScript syntax check` — run `46106562910`（#336）
   - `Section generation foundation tests` — run `46106562888`（#23）
@@ -130,7 +130,7 @@ Section設定の自動生成精度をさらに追い込むことよりも、ユ�
 - 子PR #192は `phase150-section-integration` にSquash merge済み（`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`）。Issue #191はcompletedとしてClose済み。#192のブラウザ受け入れ7項目・CIはすべてPASS。
 - PRレビューでは主要なSection編集・Draft採用経路にマージを止めるコード上の問題は確認されていない。未保存コード編集時の選択肢、およびW2追加作業・W3〜W10の凍結方針に関する文書指摘は対応済み。
 - PR #189のBaseであるStage1ブランチはHeadの祖先であり、Base→Headは234コミット先行・0コミット遅れ。PR #189はStage1への統合用で、`main` への統合PRではない。
-- `main` と統合ブランチは分岐しており、比較上は統合ブランチが273コミット先行、`main` 側に9コミットのみ存在する。main側のみの変更は6ファイル（文書5ファイルと、別実装の `js/sectionReconfigurationModal.js`）。そのStage1実装には分割後に後半Sectionへ選択を移す挙動が含まれる一方、統合ブランチはユーザー確認済みの「前半Sectionを選択したままにする」挙動を採用している。保存・復旧計画の凍結に関する文書も統合ブランチ側に新しい記録がある。`main` を一括で取り込まず、Stage1→mainの統合方法は別途判断する。
+- `main` と統合ブランチは分岐しており、`main` 側にのみ存在するコミットは9件。main側のみの変更は6ファイル（文書5ファイルと、別実装の `js/sectionReconfigurationModal.js`）。そのStage1実装には分割後に後半Sectionへ選択を移す挙動が含まれる一方、統合ブランチはユーザー確認済みの「前半Sectionを選択したままにする」挙動を採用している。保存・復旧計画の凍結に関する文書も統合ブランチ側に新しい記録がある。`main` を一括で取り込まず、Stage1→mainの統合方法は別途判断する。
 
 ## 7. Remaining Issues（残課題）
 
