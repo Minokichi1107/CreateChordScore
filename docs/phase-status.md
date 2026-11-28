@@ -1,12 +1,7 @@
 # フェーズ進行状況
 
-> 最終更新: 2026-11-04（Section設定自動化の優先順位更新を反映）。
+> 最終更新: 2026-11-28（Phase150の受け入れ確認③とIssue #191の完了を反映）。
 > Phase124以降は固定周期ではなくDocumentation Checkpoint方式で棚卸しする運用を継続する。
->
-> **現在の開発優先事項（2026-11-04）：Section設定自動化 #78 の試作・MVPを最優先とする。**
-> 従来の保存安全性拡張計画W2追加作業・W3〜W10は、MVPに必要と確認されるまで凍結。
-> 判断経緯と現行作業手順は [handover_section_auto_generation.md](handover/active/handover_section_auto_generation.md)、GitHub #78を参照。
-> #173はSection全体の製品構想、#130は必要な時間・小節構造上の技術的前提として維持するが、いずれも#78の開始条件にはしない。
 
 ---
 
@@ -248,14 +243,15 @@ Completed（完了済み）
 ✓ Issue #132 — テーマ検証基準をPR #162でmainへマージ。`docs/theme-validation.md` を正式ガイドとして参照する。
 ✓ Phase147 — Issue #167 右クリック時の拍内位置マーカー表示を実装し、PR #169でmainへマージ。Issue #167は完了。弱起関連はIssue #170へ分離して意図的保留。
 ✓ Phase148 — Issue #116のChart Mode既存コード編集モーダルを簡素化し、タイトルバーからのドラッグ移動を追加。PR #175 / #176マージ済み。PR #176のマージコミットは`e8cffa08b33e31b8b910d1da9eef09b798df7166`。CIの`JavaScript syntax check`は成功。Windows日本語IMEはユーザー実機確認済み。実機タッチ操作・非Windows環境のIMEは未確認。Issue #116全体のコードパレット再設計は未完了のためOpenを維持。
+✓ Phase150 — Section設定UX改善。二段階の再設定フロー、全Section確認画面、個別Sectionの境界移動・分割、Draft編集のUndo/Redo、テスト再生を実装。分割後は前半Sectionを選択したままにする挙動をユーザー実機で確認済み。ブラウザ受け入れ確認①〜⑤と、再設定時の候補手動修正→採用→保存→再読込（③）を完了。Issue #191のStage1継続編集・前Section結合もPR #192で実装・実機確認済み、統合ブランチへ取り込み済み。PR #189（Draft / Open）でStage1への統合レビュー中。
 
-Current Work（現在の作業: 2026-10-24 Documentation Checkpoint完了。Phase147〜148の完了記録と未解決事項を同期。次のProduct Intent（開発テーマの意図） / Taskは未選定）
+Current Work（現在の作業: 2026-11-28 Phase150の統合レビュー。PR #189はDraft / Open。Stage1→main統合方針は別途判断）
 ------------------------------------------------------------
-Phase147（PR #169）とPhase148（PR #175 / #176）はmainへマージ済み。今回のCheckpointではPhase147〜148のDeferred DocumentationをPhase番号順に適用し、phase-status.mdとcurrent-issues.mdを更新した。
+Phase150ではSection設定UXの初回再設計・実装を完了し、ユーザー実機で主要操作を確認した。既存Sectionがある曲で全Section確認画面を開き、コードブロック間の位置選択、境界移動、Section分割、Undo/Redo、分割後の選択位置を確認済み。テスト再生が境界選択を妨げないことも確認したが、試験ケースは限定的である。
 
-Issue #167は完了済み。弱起関連はIssue #170へ分離し、実曲で具体的な不具合が確認されるまで意図的に保留する。Issue #116は既存コード編集モーダルの改善が完了した一方、コードパレット全体の再設計が未完了のためOpenを維持する。
+編集時間は従来の約10分／曲に対し、1曲で6分を観測した（約40%短縮）。これは単一サンプルであり、安定した平均値とは扱わない。次は複数曲で時間・迷い・手戻り・設定ミスを記録し、操作への習熟、操作性、手順効率を分けて評価する。小さな改善はすぐ実装せず、サンプルを集めた後に次フェーズとしてまとめる。重大な不具合は随時修正する。
 
-Phase148で確認された400px幅でのヘッダー横はみ出しは、具体的な不具合箇所・ユーザー影響が未特定の観測として記録し、現段階ではIssue化しない。実機タッチ操作に関する未確認事項はGitHub Issue #177「タッチ操作の受け入れテストリストを整備する」へ切り出し、Phase148のクローズ条件から分離した。非Windows環境のIMEは未確認。次のPhase / Product Intentは次のChatで選定する。
+現在の統合ブランチは`phase150-section-integration`。Issue #191取り込みの機能コミットは`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`で、その後handover・phase-statusの同期コミットを追加している。最新HeadはPR #189のGitHub表示を参照。PR #189（Base: `fix/phase150-stage1-browser-review`）はDraft / Openで、BaseブランチはHeadの祖先。GitHub上のmergeableはtrue。Issue #191の修正は7項目の実機確認・CI成功後に統合済み。ブラウザ受け入れ確認①〜⑤および再設定時の確認③も完了。PR #188の旧CI失敗は旧ブランチ上の結果であり、現行PR #189のCI状態とは区別する。`main` 側には統合ブランチにない9コミットがあり、その中には別実装のStage1モーダルが含まれる。分割後フォーカスの挙動も異なるため、mainを無条件に取り込まずStage1→mainの統合方法は別途判断する。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
@@ -406,6 +402,7 @@ lifecycle記録は、実運用のバグ調査で情報不足が判明した場�
 | 139 | Analysis JSONファイル名の人間可読化（GitHub #118）。resolve_analysis_file()による実ファイル解決、rename、dryRun対応migration、既存Library 231件の移行を完了 | server.py / analysisLoader.js / app.js / tools/migrate-analysis-filenames.js |
 | 147 | Issue #167右クリック時の拍内位置マーカーを実装。PR #169でマージ、Issue #167は完了 | chartmode.js / chart.css |
 | 148 | Issue #116の既存コード編集モーダルを簡素化し、タイトルバーのドラッグ移動を追加。PR #176でマージ | chartChordEditModal.js / chordModalDrag.js / chordBuilderKeyboard.js / app.js / chordEntry.js / css/modal.css |
+| 150 | Section設定UX改善。二段階の再設定フロー、全Section確認、境界移動・分割、Draft Undo/Redo、テスト再生を実装。分割後は前半Sectionを選択する。作業ブランチ上でユーザー受け入れ確認済み | sectionReconfiguration.js / sectionReconfigurationModal.js / sectionOverview.js / sectionOverviewModal.js / app.js |
 
 ### Provenance / Data Provenance
 
@@ -490,8 +487,9 @@ P1  Section境界共有の正式サポート
     （current-issues.md Future Features参照）。
 
 P2  Section UX Epic
-    Section機能をAnalysis Editor専用から全モード共通の楽曲構造レイヤーへ
-    発展させる構想（current-issues.md参照）。
+    Phase141〜143でChart ModeのSection表示、Phase150でSection設定の再構成UXを実装。
+    現在は複数曲での実使用評価期間。次の操作性・手順改善はサンプル収集後に選定する
+    （current-issues.md参照）。
 ```
 
 ### Future Features（新機能・優先順位未定）

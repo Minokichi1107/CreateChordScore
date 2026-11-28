@@ -4,22 +4,30 @@ on:
   pull_request:
     paths:
       - "section_save.py"
-      - "js/analysisCommands.js"
-      - "js/analysisSession.js"
-      - "js/sectionGeneration.js"
+      - "section_txn.py"
+      - "js/sectionCodeBuffer.js"
+      - "js/sectionAutoGeneration.js"
+      - "js/sectionBoundaryDetection.js"
       - "scripts/test_section_save.py"
-      - "scripts/test-section-generation.mjs"
+      - "scripts/test_section_txn.py"
+      - "scripts/test-section-auto-generation.mjs"
+      - "scripts/section_boundary_reference.py"
+      - "scripts/fixtures/section-boundary/songs.json"
       - ".github/workflows/section-generation-tests.yml"
   push:
     branches:
       - main
     paths:
       - "section_save.py"
-      - "js/analysisCommands.js"
-      - "js/analysisSession.js"
-      - "js/sectionGeneration.js"
+      - "section_txn.py"
+      - "js/sectionCodeBuffer.js"
+      - "js/sectionAutoGeneration.js"
+      - "js/sectionBoundaryDetection.js"
       - "scripts/test_section_save.py"
-      - "scripts/test-section-generation.mjs"
+      - "scripts/test_section_txn.py"
+      - "scripts/test-section-auto-generation.mjs"
+      - "scripts/section_boundary_reference.py"
+      - "scripts/fixtures/section-boundary/songs.json"
       - ".github/workflows/section-generation-tests.yml"
 
 jobs:
@@ -37,10 +45,18 @@ jobs:
       - name: Run Section-save library tests
         run: python -m unittest discover -s scripts -p "test_section_save.py" -v
 
+      - name: Run Section-save transaction tests (W2, Linux)
+        run: python -m unittest discover -s scripts -p "test_section_txn.py" -v
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Run Section-generation command tests
-        run: node scripts/test-section-generation.mjs
+      - name: Run Section boundary candidate tests
+        run: node scripts/test-section-auto-generation.mjs
+
+      - name: Check Section boundary reference implementation (Python) against fixtures
+        run: |
+          python -m pip install numpy
+          python scripts/section_boundary_reference.py --check

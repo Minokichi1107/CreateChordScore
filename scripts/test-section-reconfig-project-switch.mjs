@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { createReconfigRuntime, teardownReconfigRuntime, createReconfigurationDraft } from '../js/sectionReconfiguration.js';
+const b=[{_id:'k0',chord:'C',start:0,end:2},{_id:'k1',chord:'G',start:2,end:4},{_id:'k2',chord:'Am',start:4,end:6},{_id:'k3',chord:'F',start:6,end:8}];
+const rt=createReconfigRuntime();
+rt.draft=createReconfigurationDraft({projectId:'old',buffer:b,sections:[{id:'a',type:'verse',name:'A',startChordId:'k0',endChordId:'k3'}]});
+rt.modalOpen=true;
+rt.audioSnapshot={timeSec:9,speedPct:80};
+const r=teardownReconfigRuntime(rt,{restoreAudio:false});
+assert.equal(r.closeModal,true);
+assert.equal(r.restoreAudio,null);
+assert.equal(r.adopt,false);
+assert.equal(r.save,false);
+assert.equal(rt.draft,null);
+console.log('test-section-reconfig-project-switch: ok');
