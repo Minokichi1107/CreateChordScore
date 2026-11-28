@@ -128,7 +128,7 @@ Section設定の自動生成精度をさらに追い込むことよりも、ユ�
 - 2026-11-27のブラウザ受け入れ確認：①〜⑤すべてOK。Stage1単一Section編集とStage2からの編集遷移では、対象Sectionの開始位置がコード一覧の1行目に表示されることも確認。
 - 2026-11-28にブラウザ受け入れ確認③を追加実施し、候補確認→手動修正→Stage2採用→保存→再読み込み後の保持までOK。③を含め、PR #189本文に記載していたブラウザ確認はすべて完了。
 - 子PR #192は `phase150-section-integration` にSquash merge済み（`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`）。Issue #191はcompletedとしてClose済み。#192のブラウザ受け入れ7項目・CIはすべてPASS。
-- 2026-11-28のPR #193統合レビューで、Stage2 HTMLエスケープ不備を発見して修正し、回帰テストを追加。`server.py` のHEAD要求にもHost/Originガードを適用し、Stage2の結合／分割完了メッセージ表記を修正。音声エンジンはmain版を維持し、Section設定モーダル中のSpaceキー保護だけを追加。最新コードHeadのCIは2系統とも成功。
+- 2026-11-28のPR #193統合レビューで、Stage2 HTMLエスケープ不備を発見して修正し、回帰テストを追加。`server.py` のHEAD要求にもHost/Originガードを適用し、Stage2の結合／分割完了メッセージ表記を修正。音声エンジンはmain版を維持し、Section設定モーダル中のSpaceキー保護と、試聴再生失敗時の再生監視クリーンアップを追加。最新コードHeadのCIは2系統とも成功。
 - Stage1の「前のSectionと結合」はIssue #191で追加を承認され、PR #192のブラウザ受け入れ7項目でもPASS済み。古いアーキテクチャ設計案の「Stage1に結合を置かない」という記述は、後続決定で superseded と明記した。
 - PR #189はStage1への統合用であり、`main` への統合PRではなかった。Stage1→mainの統合は後続PR #193で扱う。
 - `main` と統合ブランチは分岐しており、`main` 側にのみ存在するコミットは9件。main側のみの変更は6ファイル（文書5ファイルと、別実装の `js/sectionReconfigurationModal.js`）。そのStage1実装には分割後に後半Sectionへ選択を移す挙動が含まれる一方、統合ブランチはユーザー確認済みの「前半Sectionを選択したままにする」挙動を採用している。保存・復旧計画の凍結に関する文書も統合ブランチ側に新しい記録がある。`main` を一括で取り込まず、Stage1→mainの統合方法は別途判断する。
@@ -136,11 +136,11 @@ Section設定の自動生成精度をさらに追い込むことよりも、ユ�
 ## 7. Remaining Issues（残課題）
 
 1. **PR #193 — Stage1からmainへの統合レビュー**
-   - PR #193はDraft / Open。Baseは `main`、Headは `integration/stage1-to-main-review`。最新コード／テストHeadは `31f1175e205ba3af4059e78620c4d21281f89d9b`（以後のコミットは文書同期のみ）。
+   - PR #193はDraft / Open。Baseは `main`、Headは `integration/stage1-to-main-review`。最新コード／テストHeadは `c1592a30a52a3283b34c95c3c8863508f2c2a993`（以後のコミットは文書同期のみ）。
    - main側だけに存在した9コミット・6ファイルを確認し、旧モーダル実装ではなくStage1側の実装を採用。Stage1からの追加差分はローカル専用サーバーのセキュリティテスト追加と、旧handoverのarchive移動。
    - 2026-11-28の統合レビュー修正：Stage2のHTMLエスケープ不備を修正し回帰テスト追加。`server.py` のHEAD要求にHost/Originガードを適用。Stage2の結合／分割完了メッセージ表記を修正。Stage1の前Section結合はIssue #191 / PR #192で承認・ブラウザ確認済みのため維持。
-   - 最新コードHead `31f1175` のCI 2系統は成功：JavaScript 35ファイルの構文・Section再設定／Overview・Phase146〜148回帰テスト、Section-save 17件、W2 transaction 46件、local-only server security 7件、Section boundary candidate tests、11 songs / 117 Sectionsの参照照合。
-   - ブラウザ受け入れ済み：未設定曲の新規設定・境界編集・分割／結合・Undo/Redo・保存／再読込、既存Sectionを引き継ぐ経路、自動生成から始める経路、Draftキャンセル後の保存済みSection維持。新しいHTMLエスケープ・HEADガード・文言修正・Spaceキー保護についてはブラウザ再確認未実施。
+   - 最新コードHead `c1592a3` のCI 2系統は成功：JavaScript 35ファイルの構文・Section再設定／Overview・Phase146〜148回帰テスト、Section-save 17件、W2 transaction 46件、local-only server security 7件、Section boundary candidate tests、11 songs / 117 Sectionsの参照照合。
+   - ブラウザ受け入れ済み：未設定曲の新規設定・境界編集・分割／結合・Undo/Redo・保存／再読込、既存Sectionを引き継ぐ経路、自動生成から始める経路、Draftキャンセル後の保存済みSection維持。新しいHTMLエスケープ・HEADガード・文言修正・Spaceキー保護・試聴失敗時の監視解除についてはブラウザ再確認未実施。
    - 未保存コード編集時の確認ダイアログは表示と編集内容の保持を確認。各ボタンを直接選択する実機確認は未実施。
    - Stage2の拍数表示はIssue #194 / PR #195で表示規則を変更中。ユーザー決定は小数第1位で切り捨て、整数時は小数部を省略し、「約」を除去。PR #195はDraft / OpenでPR #193をbaseとする子PR、Issue #194はPR #195のマージまでOpenを維持。
    - PR #193はDraftのまま。`main` へのマージは未実施。
