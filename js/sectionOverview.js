@@ -74,7 +74,7 @@ function beatMapper(beats) {
   };
 }
 
-function nearestFraction(value) {
+function nearestFractionMatch(value) {
   let best = null;
   for (const candidate of FRACTION_CANDIDATES) {
     const distance = Math.abs(value - candidate.value);
@@ -95,7 +95,11 @@ function nearestFraction(value) {
       best = { candidate, distance };
     }
   }
-  return best?.candidate ?? FRACTION_CANDIDATES[0];
+  return best ?? { candidate: FRACTION_CANDIDATES[0], distance: 0 };
+}
+
+function nearestFraction(value) {
+  return nearestFractionMatch(value).candidate;
 }
 
 const FRACTION_MATCH_TOL = 0.05;
@@ -110,7 +114,7 @@ function formatSectionBeatValueDetails(value) {
   const absolute = Math.abs(value);
   let whole = Math.floor(absolute + EPS);
   const fraction = absolute - whole;
-  const nearest = nearestFraction(fraction);
+  const nearest = nearestFractionMatch(fraction);
 
   if (nearest.distance > FRACTION_MATCH_TOL + EPS) {
     const rounded = Math.round(absolute * 10) / 10;
