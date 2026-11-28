@@ -5,6 +5,8 @@ on:
     paths:
       - "section_save.py"
       - "section_txn.py"
+      - "server.py"
+      - "scripts/test_server_local_only.py"
       - "js/sectionCodeBuffer.js"
       - "js/sectionAutoGeneration.js"
       - "js/sectionBoundaryDetection.js"
@@ -20,6 +22,8 @@ on:
     paths:
       - "section_save.py"
       - "section_txn.py"
+      - "server.py"
+      - "scripts/test_server_local_only.py"
       - "js/sectionCodeBuffer.js"
       - "js/sectionAutoGeneration.js"
       - "js/sectionBoundaryDetection.js"
@@ -47,6 +51,9 @@ jobs:
 
       - name: Run Section-save transaction tests (W2, Linux)
         run: python -m unittest discover -s scripts -p "test_section_txn.py" -v
+
+      - name: Run local-only server security tests
+        run: python -m unittest discover -s scripts -p "test_server_local_only.py" -v
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
