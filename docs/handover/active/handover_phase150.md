@@ -3,7 +3,7 @@
 作成日：2026-11-27  
 最終更新：2026-11-28  
 対象期間：2026-11-11〜2026-11-28  
-状態：**Section設定UXの初回実装と主要なブラウザ受け入れ確認は完了。Issue #191の修正も統合ブランチへ取り込み済み。PR #189でStage1への統合レビュー中。**  
+状態：**Stage1への統合はPR #189で完了。Issue #191はPR #192で取り込み済み。現在はPR #193でStage1→mainの統合レビュー中（Draft）。**  
 作業ブランチ：`phase150-section-integration`  
 Issue #191取り込みの機能コミット：`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`（その後の文書同期コミットを含む最新HeadはPR #189のGitHub表示を参照）  
 初回実機確認対象コードcommit：`5ae7ad1e89274d9688df234c10288b6b1b54d1df`
@@ -116,10 +116,10 @@ Section設定の自動生成精度をさらに追い込むことよりも、ユ�
 
 ### GitHub / CI
 
-- 現在の統合ブランチ：`phase150-section-integration`
+- Phase150内の統合ブランチ：`phase150-section-integration`（PR #189でStage1へ統合済み）。現在のStage1→mainレビュー用ブランチ：`integration/stage1-to-main-review`。
 - Issue #191取り込みの機能コミット：`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`。その後の文書同期コミットを含む最新HeadはPR #189のGitHub表示を参照。
 - PR #188は未マージでクローズ済み。旧Stage2ブランチからStage1へ取り込む旧PRであり、後継の統合PR #189へ役割を引き継いだ。
-- PR #189：Draft / Open。Baseは `fix/phase150-stage1-browser-review`、Headは `phase150-section-integration`。PR自体のマージ・Draft解除は未実施。BaseブランチはHeadの祖先であり、GitHub上のmergeableはtrue。
+- PR #189：Merged。Baseは `fix/phase150-stage1-browser-review`、Headは `phase150-section-integration`。Stage1への統合は完了。
 - 最新Head `07ff57b` に対するGitHub Actions（自動テスト）は2件とも成功：
   - `JavaScript syntax check` — run `46106562910`（#336）
   - `Section generation foundation tests` — run `46106562888`（#23）
@@ -129,14 +129,18 @@ Section設定の自動生成精度をさらに追い込むことよりも、ユ�
 - 2026-11-28にブラウザ受け入れ確認③を追加実施し、候補確認→手動修正→Stage2採用→保存→再読み込み後の保持までOK。③を含め、PR #189本文に記載していたブラウザ確認はすべて完了。
 - 子PR #192は `phase150-section-integration` にSquash merge済み（`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`）。Issue #191はcompletedとしてClose済み。#192のブラウザ受け入れ7項目・CIはすべてPASS。
 - PRレビューでは主要なSection編集・Draft採用経路にマージを止めるコード上の問題は確認されていない。未保存コード編集時の選択肢、およびW2追加作業・W3〜W10の凍結方針に関する文書指摘は対応済み。
-- PR #189のBaseであるStage1ブランチはHeadの祖先であり、Base→Headは234コミット先行・0コミット遅れ。PR #189はStage1への統合用で、`main` への統合PRではない。
+- PR #189はStage1への統合用であり、`main` への統合PRではなかった。Stage1→mainの統合は後続PR #193で扱う。
 - `main` と統合ブランチは分岐しており、`main` 側にのみ存在するコミットは9件。main側のみの変更は6ファイル（文書5ファイルと、別実装の `js/sectionReconfigurationModal.js`）。そのStage1実装には分割後に後半Sectionへ選択を移す挙動が含まれる一方、統合ブランチはユーザー確認済みの「前半Sectionを選択したままにする」挙動を採用している。保存・復旧計画の凍結に関する文書も統合ブランチ側に新しい記録がある。`main` を一括で取り込まず、Stage1→mainの統合方法は別途判断する。
 
 ## 7. Remaining Issues（残課題）
 
-1. **PR #189とStage1→mainの統合**
-   - PR #189はDraft / Openで、Stage1への統合前。
-   - Stage1とmainの分岐差は確認済み。main側の9コミットを一括で取り込まず、ユーザー確認済みの分割後フォーカス（前半Sectionを維持）を保持して統合方法を決める。
+1. **PR #193 — Stage1からmainへの統合レビュー**
+   - PR #193はDraft / Open。Baseは `main`、Headは `integration/stage1-to-main-review`。最新確認時のHeadは `bb20d3e0dda34200bcb8556e54a11c2617a9e1e0`。
+   - main側だけに存在した9コミット・6ファイルを確認し、旧モーダル実装ではなくStage1側の実装を採用。Stage1からの追加差分はCIのローカル専用サーバーセキュリティテスト追加と、旧handoverのarchive移動。
+   - PR #193のCI 2系統は成功。ブラウザでは未設定曲の新規設定・境界編集・分割／結合・Undo/Redo・保存／再読込、既存Sectionを引き継ぐ経路、自動生成から始める経路、Draftキャンセル後の保存済みSection維持を確認済み。
+   - 未保存コード編集時の確認ダイアログは表示と編集内容の保持を確認。各ボタンを直接選択する実機確認は未実施。
+   - Stage2の拍数表示で分割前後の合計が一致しない観測がある。`formatSectionBeatValue()` の分数候補に7/8がないため、33.875拍が33⅘拍へ丸められる可能性がある。ただし対象曲の未丸め値は未取得であり、表示丸め由来の仮説として保持する。
+   - PR #193はDraftのまま。`main` へのマージは未実施。
 3. **テスト再生の実使用確認**
    - 受け入れ確認で試したケースは限定的。異なる長さ・構成のSectionで境界選択と干渉しないか、実使用時に観察する。
 4. **複数曲での実使用評価**
