@@ -98,22 +98,36 @@ function nearestFraction(value) {
   return best?.candidate ?? FRACTION_CANDIDATES[0];
 }
 
-/** Format a real beat value using the fixed D2 fraction candidates. */
-export function formatSectionBeatValue(value) {
-  if (!finite(value)) return '—';
+const FRACTION_MATCH_TOL = 0.05;
+
+/**
+ * Format a real beat value without forcing distant values into a fraction.
+ * Common fractions remain compact; other values use one decimal place.
+ */
+function formatSectionBeatValueDetails(value) {
+  if (!finite(value)) return { text: '—', approximate: false };
   const sign = value < 0 ? '−' : '';
   const absolute = Math.abs(value);
   let whole = Math.floor(absolute + EPS);
   const fraction = absolute - whole;
   const nearest = nearestFraction(fraction);
 
-  if (nearest.value >= 1 - EPS) whole += 1;
-  const fractionText = nearest.value <= EPS || nearest.value >= 1 - EPS
+  if (nearest.distance > FRACTION_MATCH_TOL + EPS) {
+    const rounded = Math.round(absolute * 10) / 10;
+    return { text: `${sign}${rounded}`, approximate: true };
+  }
+
+  if (nearest.candidate.value >= 1 - EPS) whole += 1;
+  const fractionText = nearest.candidate.value <= EPS || nearest.candidate.value >= 1 - EPS
     ? ''
-    : `${nearest.numerator}/${nearest.denominator}`;
-  if (!fractionText) return `${sign}${whole}`;
-  if (whole === 0) return `${sign}${fractionText}`;
-  return `${sign}${whole}と${fractionText}`;
+    : `${nearest.candidate.numerator}/${nearest.candidate.denominator}`;
+  if (!fractionText) return { text: `${sign}${whole}`, approximate: false };
+  if (whole === 0) return { text: `${sign}${fractionText}`, approximate: false };
+  return { text: `${sign}${whole}と${fractionText}`, approximate: false };
+}
+
+export function formatSectionBeatValue(value) {
+  return formatSectionBeatValueDetails(value).text;
 }
 
 function formatBeatOrdinal(position) {
@@ -291,17 +305,16 @@ function calculateMeasureBreakdown(bStart, bEnd, measures, beatAt, tolerance) {
 
 function makeLengthLabels(totalBeats, breakdown) {
   if (!finite(totalBeats)) return { lengthLabel: '—', lengthSub: null };
-  const total = `${formatSectionBeatValue(totalBeats)}拍`;
+  const formatted = formatSectionBeatValueDetails(totalBeats);
+  const total = `${formatted.approximate ? '約' : ''}${formatted.text}拍`;
   const { leadBeats, fullMeasures, tailBeats } = breakdown;
   if (!finite(leadBeats) || !Number.isInteger(fullMeasures) || !finite(tailBeats)) {
     return { lengthLabel: total, lengthSub: null };
   }
 
-  const hasLead = leadBeats > EPS;
-  const hasTail = tailBeats > EPS;
-if (fullMeasures > 0) {
-  return { lengthLabel: `${fullMeasures}小節`, lengthSub: `(${total})` };
-}
+  if (fullMeasures > 0) {
+    return { lengthLabel: `${fullMeasures}小節`, lengthSub: `(${total})` };
+  }
   return { lengthLabel: total, lengthSub: null };
 }
 
@@ -385,7 +398,7 @@ export function buildSectionOverview(draft, buffer, timing, opts = {}) {
     const estimated = !!(startBeat?.extrapolated || endBeat?.extrapolated);
     const lengthLabel = totalBeats == null
       ? '—'
-      : `${estimated ? '約' : ''}${labels.lengthLabel}`;
+      : `${estimated && !labels.lengthLabel.startsWith('約') ? '約' : ''}${labels.lengthLabel}`;
     const lengthSub = labels.lengthSub;
 
     return {
