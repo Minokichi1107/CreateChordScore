@@ -8,7 +8,7 @@ import {
   detectPickupMeasure,
   getDisplayMeasureNumber,
 } from '../js/chartmode.js';
-import { openSectionOverviewModal } from '../js/sectionOverviewModal.js';
+import { openSectionOverviewModal, escapeHtml } from '../js/sectionOverviewModal.js';
 import {
   buildSectionOverview,
   canMergeWithPrevious,
@@ -39,6 +39,8 @@ const timingFor = (beats, measures) => ({
   },
 });
 assert.equal(typeof openSectionOverviewModal, 'function', 'Stage2 modal module imports');
+assert.equal(escapeHtml(`&<>"'`), '&amp;&lt;&gt;&quot;&#39;', 'HTML metacharacters are escaped');
+assert.equal(escapeHtml('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;', 'HTML tags cannot become executable markup');
 
 // Stage2 UX regression checks: no ambiguous comparison gauge or separate boundary modal.
 const overviewModalSource = readFileSync(new URL('../js/sectionOverviewModal.js', import.meta.url), 'utf8');
