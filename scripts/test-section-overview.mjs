@@ -203,6 +203,7 @@ const regularTiming = timingFor(
   assert.equal(formatSectionBeatValue(0.875), '0.9', 'values too far from a common fraction use one decimal');
   assert.equal(formatSectionBeatValue(33.875), '33.9', 'decimal fallback also works for multi-digit totals');
   assert.equal(formatSectionBeatValue(0.949), '0.9', 'values outside the fraction tolerance are not forced to an integer');
+  assert.equal(formatSectionBeatValue(0.95), '1.0', 'decimal fallback retains one decimal place near a whole number');
   assert.equal(formatSectionBeatValue(-0.875), '−0.9', 'negative values preserve their sign');
 }
 
