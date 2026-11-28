@@ -243,15 +243,15 @@ Completed（完了済み）
 ✓ Issue #132 — テーマ検証基準をPR #162でmainへマージ。`docs/theme-validation.md` を正式ガイドとして参照する。
 ✓ Phase147 — Issue #167 右クリック時の拍内位置マーカー表示を実装し、PR #169でmainへマージ。Issue #167は完了。弱起関連はIssue #170へ分離して意図的保留。
 ✓ Phase148 — Issue #116のChart Mode既存コード編集モーダルを簡素化し、タイトルバーからのドラッグ移動を追加。PR #175 / #176マージ済み。PR #176のマージコミットは`e8cffa08b33e31b8b910d1da9eef09b798df7166`。CIの`JavaScript syntax check`は成功。Windows日本語IMEはユーザー実機確認済み。実機タッチ操作・非Windows環境のIMEは未確認。Issue #116全体のコードパレット再設計は未完了のためOpenを維持。
-✓ Phase150 — Section設定UX改善。二段階の再設定フロー、全Section確認画面、個別Sectionの境界移動・分割、Draft編集のUndo/Redo、テスト再生を実装。分割後は前半Sectionを選択したままにする挙動をユーザー実機で確認済み。ブラウザ受け入れ確認①〜⑤と、再設定時の候補手動修正→採用→保存→再読込（③）を完了。Issue #191のStage1継続編集・前Section結合もPR #192で実装・実機確認済み、統合ブランチへ取り込み済み。PR #189（Draft / Open）でStage1への統合レビュー中。
+✓ Phase150 — Section設定UX改善。二段階の再設定フロー、全Section確認画面、個別Sectionの境界移動・分割、Draft編集のUndo/Redo、テスト再生を実装。分割後は前半Sectionを選択したままにする挙動をユーザー実機で確認済み。ブラウザ受け入れ確認①〜⑤と、再設定時の候補手動修正→採用→保存→再読込（③）を完了。Issue #191のStage1継続編集・前Section結合もPR #192で実装・実機確認済み、統合ブランチへ取り込み済み。PR #189でStage1への統合を完了。現在はPR #193（Draft / Open）でStage1→mainの統合レビュー中。
 
-Current Work（現在の作業: 2026-11-28 Phase150の統合レビュー。PR #189はDraft / Open。Stage1→main統合方針は別途判断）
+Current Work（現在の作業: 2026-11-28 Phase150のStage1→main統合レビュー。PR #193はDraft / Open）
 ------------------------------------------------------------
 Phase150ではSection設定UXの初回再設計・実装を完了し、ユーザー実機で主要操作を確認した。既存Sectionがある曲で全Section確認画面を開き、コードブロック間の位置選択、境界移動、Section分割、Undo/Redo、分割後の選択位置を確認済み。テスト再生が境界選択を妨げないことも確認したが、試験ケースは限定的である。
 
 編集時間は従来の約10分／曲に対し、1曲で6分を観測した（約40%短縮）。これは単一サンプルであり、安定した平均値とは扱わない。次は複数曲で時間・迷い・手戻り・設定ミスを記録し、操作への習熟、操作性、手順効率を分けて評価する。小さな改善はすぐ実装せず、サンプルを集めた後に次フェーズとしてまとめる。重大な不具合は随時修正する。
 
-現在の統合ブランチは`phase150-section-integration`。Issue #191取り込みの機能コミットは`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`で、その後handover・phase-statusの同期コミットを追加している。最新HeadはPR #189のGitHub表示を参照。PR #189（Base: `fix/phase150-stage1-browser-review`）はDraft / Openで、BaseブランチはHeadの祖先。GitHub上のmergeableはtrue。Issue #191の修正は7項目の実機確認・CI成功後に統合済み。ブラウザ受け入れ確認①〜⑤および再設定時の確認③も完了。PR #188の旧CI失敗は旧ブランチ上の結果であり、現行PR #189のCI状態とは区別する。`main` 側には統合ブランチにない9コミットがあり、その中には別実装のStage1モーダルが含まれる。分割後フォーカスの挙動も異なるため、mainを無条件に取り込まずStage1→mainの統合方法は別途判断する。
+Stage1への統合はPR #189で完了し、Issue #191の修正はPR #192で取り込み済み。現在は`integration/stage1-to-main-review`から`main`への統合をPR #193（Draft / Open）でレビュー中。PR #193はBaseが`main`、Headが`integration/stage1-to-main-review`で、最新Headは`bb20d3e0dda34200bcb8556e54a11c2617a9e1e0`。main側だけに存在した9コミット・6ファイルを確認し、旧モーダル実装ではなくStage1側の実装を採用した。Stage1からの追加差分は、ローカル専用サーバーのセキュリティテストをCIへ追加したワークフロー変更と、旧handoverのarchive移動。PR #193のCI 2系統は成功。未解決事項は、Stage2の拍数表示で分割前後の合計が一致しない観測（表示丸めが原因の可能性があるが、実データの未丸め値は未確認）と、未保存コード編集の確認ダイアログで各ボタンを直接選択する実機確認。PRはDraftのまま維持し、mainへはまだマージしない。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
