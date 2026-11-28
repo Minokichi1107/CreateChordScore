@@ -63,6 +63,16 @@ assert.match(appSource, /既存Sectionを活かす/, 'existing Section preservat
 assert.match(appSource, /最初から設定し直す/, 'starting from scratch is offered');
 assert.ok(appSource.includes("seedSections = choice === 'keep-existing'\n      ? currentSections\n      : generateCandidateSections();"), 'starting fresh with existing Sections uses the shared candidate generator');
 assert.ok(appSource.includes("} else {\n    seedSections = generateCandidateSections();"), 'new setup uses the same candidate generator');assert.ok(appSource.includes('OK = ${firstLabel}\\nキャンセル = ${secondLabel}'), 'both reconfiguration choices are mapped to the two-choice prompt');
+const reconfigStart = appSource.indexOf('async function startSectionReconfiguration()');
+assert.notEqual(reconfigStart, -1, 'Section reconfiguration entry point exists');
+const reconfigPromptStart = appSource.indexOf('const ok = window.confirm(', reconfigStart);
+const reconfigPromptEnd = appSource.indexOf('if (_sectionReconfigRuntime.modalOpen) return;', reconfigPromptStart);
+assert.ok(reconfigPromptStart > reconfigStart && reconfigPromptEnd > reconfigPromptStart, 'unsaved-edit confirmation block is present');
+const reconfigPromptBlock = appSource.slice(reconfigPromptStart, reconfigPromptEnd);
+assert.match(reconfigPromptBlock, /if \(!ok\) return;/, 'Cancel exits before saving or creating a Section Draft');
+assert.match(reconfigPromptBlock, /const saved = await saveAnalysisEdit\(\);/, 'OK saves the unsaved code edits before opening Section reconfiguration');
+assert.match(reconfigPromptBlock, /if \(!saved\) \{[\s\S]*?return;/, 'save failure prevents Section reconfiguration from starting');
+assert.match(reconfigPromptBlock, /finally \{[\s\S]*?_sectionReconfigStarting = false;/, 'the startup lock is released after save success or failure');
 
 const buf = (n = 4) => Array.from({ length: n }, (_, i) => ({
   _id: `k${i}`, chord: ['C', 'G', 'Am', 'F'][i % 4], start: i * 2, end: i * 2 + 2,
