@@ -102,32 +102,17 @@ function nearestFraction(value) {
   return nearestFractionMatch(value).candidate;
 }
 
-const FRACTION_MATCH_TOL = 0.04;
-
 /**
- * Format a real beat value without forcing distant values into a fraction.
- * Common fractions remain compact; other values use one decimal place.
+ * Display beat lengths truncated to one decimal place.
+ * This is presentation-only; the underlying beat values remain unchanged.
  */
 function formatSectionBeatValueDetails(value) {
-  if (!finite(value)) return { text: '—', approximate: false };
+  if (!finite(value)) return { text: '—' };
   const sign = value < 0 ? '−' : '';
   const absolute = Math.abs(value);
-  let whole = Math.floor(absolute + EPS);
-  const fraction = absolute - whole;
-  const nearest = nearestFractionMatch(fraction);
-
-  if (nearest.distance > FRACTION_MATCH_TOL + EPS) {
-    const rounded = (Math.round(absolute * 10) / 10).toFixed(1);
-    return { text: `${sign}${rounded}`, approximate: true };
-  }
-
-  if (nearest.candidate.value >= 1 - EPS) whole += 1;
-  const fractionText = nearest.candidate.value <= EPS || nearest.candidate.value >= 1 - EPS
-    ? ''
-    : `${nearest.candidate.numerator}/${nearest.candidate.denominator}`;
-  if (!fractionText) return { text: `${sign}${whole}`, approximate: false };
-  if (whole === 0) return { text: `${sign}${fractionText}`, approximate: false };
-  return { text: `${sign}${whole}と${fractionText}`, approximate: false };
+  const truncated = Math.trunc(absolute * 10 + EPS) / 10;
+  const text = truncated.toFixed(1).replace(/\.0$/, '');
+  return { text: `${sign}${text}` };
 }
 
 export function formatSectionBeatValue(value) {
@@ -310,7 +295,7 @@ function calculateMeasureBreakdown(bStart, bEnd, measures, beatAt, tolerance) {
 function makeLengthLabels(totalBeats, breakdown) {
   if (!finite(totalBeats)) return { lengthLabel: '—', lengthSub: null };
   const formatted = formatSectionBeatValueDetails(totalBeats);
-  const total = `${formatted.approximate ? '約' : ''}${formatted.text}拍`;
+  const total = `${formatted.text}拍`;
   const { leadBeats, fullMeasures, tailBeats } = breakdown;
   if (!finite(leadBeats) || !Number.isInteger(fullMeasures) || !finite(tailBeats)) {
     return { lengthLabel: total, lengthSub: null };
