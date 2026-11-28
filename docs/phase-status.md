@@ -251,7 +251,7 @@ Phase150ではSection設定UXの初回再設計・実装を完了し、ユーザ
 
 編集時間は従来の約10分／曲に対し、1曲で6分を観測した（約40%短縮）。これは単一サンプルであり、安定した平均値とは扱わない。次は複数曲で時間・迷い・手戻り・設定ミスを記録し、操作への習熟、操作性、手順効率を分けて評価する。小さな改善はすぐ実装せず、サンプルを集めた後に次フェーズとしてまとめる。重大な不具合は随時修正する。
 
-現在の統合ブランチは`phase150-section-integration`、Headは`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`。PR #189（Base: `fix/phase150-stage1-browser-review`）はDraft / Open。Base→Headは234コミット先行・0コミット遅れで、GitHub上のmergeableはtrue。最新Headに対するGitHub ActionsはJavaScript syntax check（run #336）とSection generation foundation tests（run #23）の2件が成功。ブラウザ受け入れ確認①〜⑤および再設定時の確認③は完了し、Issue #191の追加修正（PR #192）も7項目の実機確認・CI成功後に統合済み。PR #188の旧CI失敗は旧ブランチ上の結果であり、現行PR #189のCI状態とは区別する。`main` 側には統合ブランチにない9コミットがあり、比較上は統合ブランチが273コミット先行。main側のみの変更には別実装のStage1モーダルが含まれ、分割後フォーカスの挙動も異なるため、mainを無条件に取り込まずStage1→mainの統合方法は別途判断する。
+現在の統合ブランチは`phase150-section-integration`。Issue #191取り込みの機能コミットは`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`で、その後handover・phase-statusの同期コミットを追加している。最新HeadはPR #189のGitHub表示を参照。PR #189（Base: `fix/phase150-stage1-browser-review`）はDraft / Openで、BaseブランチはHeadの祖先。GitHub上のmergeableはtrue。Issue #191の修正は7項目の実機確認・CI成功後に統合済み。ブラウザ受け入れ確認①〜⑤および再設定時の確認③も完了。PR #188の旧CI失敗は旧ブランチ上の結果であり、現行PR #189のCI状態とは区別する。`main` 側には統合ブランチにない9コミットがあり、その中には別実装のStage1モーダルが含まれる。分割後フォーカスの挙動も異なるため、mainを無条件に取り込まずStage1→mainの統合方法は別途判断する。
 ------------------------------------------------------------
 Phase124でRender Context Invariant Complianceを完了した後、Phase125〜126で
 演奏モードの視認性・UI改善（ブルーテーマ閉じるボタン・「復帰」プルダウン）
