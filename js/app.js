@@ -3479,7 +3479,7 @@ function switchSectionReconfigStage(stage, options = {}) {
           audio.currentTime = Math.max(0, startSec);
           const playPromise = audio.play();
           if (playPromise && typeof playPromise.catch === 'function') {
-            playPromise.catch(() => { try { onEnded?.(); } catch { /* ignore */ } });
+            playPromise.catch(() => { _stopSectionReconfigPlaybackMonitor(); try { onEnded?.(); } catch { /* ignore */ } });
           }
           _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime);
         } catch (err) {
@@ -3525,7 +3525,7 @@ function switchSectionReconfigStage(stage, options = {}) {
         audio.currentTime = Math.max(0, startSec);
         const playPromise = audio.play();
         if (playPromise && typeof playPromise.catch === 'function') {
-          playPromise.catch(() => { try { onEnded?.(); } catch { /* ignore */ } });
+          playPromise.catch(() => { _stopSectionReconfigPlaybackMonitor(); try { onEnded?.(); } catch { /* ignore */ } });
         }
         _startSectionReconfigPlaybackMonitor(audio, endSec, onEnded, onTime);
       } catch (err) {
