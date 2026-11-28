@@ -49,6 +49,7 @@ assert.doesNotMatch(overviewModalSource, /data-s2-boundary-prev/, 'Stage2 does n
 assert.doesNotMatch(overviewModalSource, /s2-compare-track/, 'unclear length-comparison gauge is not rendered');
 assert.match(overviewModalSource, /normalizationNoticeHtml\(\)/, 'Stage2 shows the Draft normalization summary');
 assert.match(overviewModalSource, /droppedNames/, 'Stage2 identifies Sections absorbed during normalization');
+assert.doesNotMatch(overviewModalSource, /「「\$\{sectionName\(changed\)\}/, 'Stage2 change messages do not duplicate the opening quote');
 
 const regularMeasures = [
   { startTime: 0, endTime: 4 },
