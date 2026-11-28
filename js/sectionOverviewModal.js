@@ -16,8 +16,9 @@ import {
   getSectionPreviewRange,
 } from './sectionOverview.js';
 
-const esc = value => String(value ?? '').replace(/[&<>"']/g, ch =>
-  ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[ch]));
+export const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const esc = escapeHtml;
 
 function captureSignatures(sections) {
   return (Array.isArray(sections) ? sections : [])
