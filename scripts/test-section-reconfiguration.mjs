@@ -45,6 +45,9 @@ import {
 assert.equal(typeof openSectionReconfigurationModal, 'function', 'Stage1 modal module imports');
 // Stage1 keyboard/IME regressions are guarded at the actual event-handler layer.
 const stage1ModalSource = readFileSync(new URL('../js/sectionReconfigurationModal.js', import.meta.url), 'utf8');
+const audioSource = readFileSync(new URL('../js/audio.js', import.meta.url), 'utf8');
+assert.match(audioSource, /if \(window\.__csSectionReconfigSpaceShield\) return;/, 'global Space playback is shielded while the Section modal owns Space');
+assert.match(audioSource, /export function setSectionReconfigSpaceShield\(on\)/, 'Section modal can enable and release the Space shield');
 assert.match(stage1ModalSource, /if \(e\.isComposing \|\| e\.keyCode === 229\) return;/, 'IME composition blocks modal shortcuts');
 assert.match(stage1ModalSource, /if \(inField\) \{[\s\S]*?return;[\s\S]*?if \(e\.code === 'Tab'\)/, 'editable fields retain native Tab behavior');
 assert.match(stage1ModalSource, /updatePlayingHighlight\(null\);/, 'playback end updates highlight without rebuilding the name input');
