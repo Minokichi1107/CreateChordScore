@@ -86,7 +86,7 @@ const regularTiming = timingFor(
   assert.equal(result.rows[0].view.startLabel, '小節1・1拍目');
   assert.equal(result.rows[0].view.secondsLabel, '約4秒');
   assert.equal(result.rows[1].real.totalBeats, 8);
-  assert.equal(result.rows[1].view.lengthLabel, '約2小節');
+  assert.equal(result.rows[1].view.lengthLabel, '2小節', 'extrapolated Section lengths do not add an approximation marker');
   assert.equal(result.rows[0].compare.groupKey, 'verse');
   assert.equal(result.rows[0].compare.ratio, 0.5);
   assert.equal(result.rows[1].compare.ratio, 1);
@@ -248,7 +248,7 @@ const regularTiming = timingFor(
   assert.equal(result.rows[0].real.totalBeats, 136.4, 'raw beat span remains available for comparison');
   assert.equal(result.rows[0].real.measures.leadBeats, 0.5);
   assert.equal(result.rows[0].real.measures.fullMeasures, 34);
-  assert.equal(result.rows[0].view.lengthLabel, '約34小節');
+  assert.equal(result.rows[0].view.lengthLabel, '34小節', 'extrapolated Section lengths omit the approximation marker');
   assert.equal(result.rows[0].view.lengthSub, '(136.5拍)');
 }
 
