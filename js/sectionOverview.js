@@ -102,7 +102,7 @@ function nearestFraction(value) {
   return nearestFractionMatch(value).candidate;
 }
 
-const FRACTION_MATCH_TOL = 0.05;
+const FRACTION_MATCH_TOL = 0.04;
 
 /**
  * Format a real beat value without forcing distant values into a fraction.
@@ -117,7 +117,7 @@ function formatSectionBeatValueDetails(value) {
   const nearest = nearestFractionMatch(fraction);
 
   if (nearest.distance > FRACTION_MATCH_TOL + EPS) {
-    const rounded = Math.round(absolute * 10) / 10;
+    const rounded = (Math.round(absolute * 10) / 10).toFixed(1);
     return { text: `${sign}${rounded}`, approximate: true };
   }
 
