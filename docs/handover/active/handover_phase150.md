@@ -1,10 +1,11 @@
 # 引き継ぎ：Phase150 — Section設定UX改善
 
 作成日：2026-11-27  
-対象期間：2026-11-11〜2026-11-27（16日間）  
-状態：**Section設定UXの初回実装・主要操作の受け入れ確認完了。PR #189でStage1への統合確認中。ブラウザ確認③は未完了。**  
+最終更新：2026-11-28  
+対象期間：2026-11-11〜2026-11-28  
+状態：**Section設定UXの初回実装と主要なブラウザ受け入れ確認は完了。Issue #191の修正も統合ブランチへ取り込み済み。PR #189でStage1への統合レビュー中。**  
 作業ブランチ：`phase150-section-integration`  
-統合PR Head：`9d11b235b946077ad1c0cfb5cb4973d698f907e2`  
+統合PR Head：`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`  
 初回実機確認対象コードcommit：`5ae7ad1e89274d9688df234c10288b6b1b54d1df`
 
 ## 1. 次の作業で最初に読むもの
@@ -94,6 +95,12 @@ Section設定の自動生成精度をさらに追い込むことよりも、ユ�
 - この1サンプルでは約40%短縮。ただし、平均値・安定した改善率とはみなさない。
 - 目標の2分／曲は維持するが、今後の評価では設定ミスや手戻りも合わせて確認する。
 
+### 2026-11-28 追加受け入れ確認
+
+- 既存Sectionをリセットして最初から再設定するブラウザ確認③を完了。
+- 自動生成候補の確認、候補境界の手動修正、Stage2での採用、保存・再読み込み、再読み込み後のSection名・開始／終了位置・手動修正境界・結合／分割結果の保持をすべて確認。
+- Issue #191の修正（Stage1内で境界変更・分割後もStage1に留まり、Section間を移動しながら編集を継続できること、および前Sectionとの結合）をPR #192で取り込み。ブラウザ受け入れ7項目すべてPASS。
+
 ## 6. Implementation（実装・検証状況）
 
 主な実装ファイル：
@@ -110,31 +117,24 @@ Section設定の自動生成精度をさらに追い込むことよりも、ユ�
 ### GitHub / CI
 
 - 現在の統合ブランチ：`phase150-section-integration`
-- 現在のHead：`9d11b235b946077ad1c0cfb5cb4973d698f907e2`
+- 現在のHead：`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`
 - PR #188は未マージでクローズ済み。旧Stage2ブランチからStage1へ取り込む旧PRであり、後継の統合PR #189へ役割を引き継いだ。
-- PR #189：Draft / Open。Baseは `fix/phase150-stage1-browser-review`、Headは `phase150-section-integration`。現時点でマージ・Draft解除は未実施。
-- 現在のPR Headに対するGitHub Actions（自動テスト）は2件とも成功：
-  - `JavaScript syntax check` — run `46009449999`
-  - `Section generation foundation tests` — run `46009449326`
+- PR #189：Draft / Open。Baseは `fix/phase150-stage1-browser-review`、Headは `phase150-section-integration`。PR自体のマージ・Draft解除は未実施。Base→Headは234コミット先行・0コミット遅れで、GitHub上のmergeableはtrue。
+- 最新Head `07ff57b` に対するGitHub Actions（自動テスト）は2件とも成功：
+  - `JavaScript syntax check` — run `46106562910`（#336）
+  - `Section generation foundation tests` — run `46106562888`（#23）
 - 2026-11-27のローカル検証（ユーザー実行）：主要JavaScript構文チェック、Section候補生成テスト、Section再設定テスト、Section一覧・投影テストが成功。
 - PR #188の旧CI失敗（run `45952179305`、既存assertionの `k4` / `k3` 不一致）は旧ブランチ上の結果であり、現在のPR #189のCI状態と混同しない。
-- 2026-11-27のブラウザ受け入れ確認：
-  - ① Section未設定の曲から設定：OK
-  - ② 既存Sectionを引き継いで再設定：OK
-  - ③ 既存Sectionを最初から設定し直す：候補生成までは確認。候補の手動修正・採用・保存・再読み込み後の確認は未実施（適切なテスト曲がなく保留）
-  - ④ キャンセル・Undo／Redo：OK
-  - ⑤ 既存機能との組み合わせ：OK
-  - Stage1単一Section編集とStage2全Section確認画面からの編集遷移：対象Sectionの開始位置がコード一覧の1行目に表示されることを確認
+- 2026-11-27のブラウザ受け入れ確認：①〜⑤すべてOK。Stage1単一Section編集とStage2からの編集遷移では、対象Sectionの開始位置がコード一覧の1行目に表示されることも確認。
+- 2026-11-28にブラウザ受け入れ確認③を追加実施し、候補確認→手動修正→Stage2採用→保存→再読み込み後の保持までOK。③を含め、PR #189本文に記載していたブラウザ確認はすべて完了。
+- 子PR #192は `phase150-section-integration` にSquash merge済み（`07ff57b3c472da65cd9bb250ac4c8fe4897c2437`）。Issue #191はcompletedとしてClose済み。#192のブラウザ受け入れ7項目・CIはすべてPASS。
 - PRレビューでは主要なSection編集・Draft採用経路にマージを止めるコード上の問題は確認されていない。未保存コード編集時の選択肢、およびW2追加作業・W3〜W10の凍結方針に関する文書指摘は対応済み。
-- Stage1ブランチは `main` に対して39コミット先行・9コミット遅れで分岐している。PR #189はStage1への統合用であり、mainへの統合PRではない。
-- main側のみの9コミットは確認済み。保存・復旧計画の凍結に関する文書内容は統合ブランチ側に新しい記述があるため、古い文書をそのまま戻さない。コード変更 `0263bc6` は分割後に後半Sectionを選択する挙動を含むが、現在の統合ブランチはユーザー確認済みの「前半Sectionを選択したままにする」挙動を採用している。mainを無条件に取り込まず、この差を保持する。
+- PR #189のBaseであるStage1ブランチはHeadの祖先であり、Base→Headは234コミット先行・0コミット遅れ。PR #189はStage1への統合用で、`main` への統合PRではない。
+- `main` と統合ブランチは分岐しており、比較上は統合ブランチが273コミット先行、`main` 側に9コミットのみ存在する。main側のみの変更は6ファイル（文書5ファイルと、別実装の `js/sectionReconfigurationModal.js`）。そのStage1実装には分割後に後半Sectionへ選択を移す挙動が含まれる一方、統合ブランチはユーザー確認済みの「前半Sectionを選択したままにする」挙動を採用している。保存・復旧計画の凍結に関する文書も統合ブランチ側に新しい記録がある。`main` を一括で取り込まず、Stage1→mainの統合方法は別途判断する。
 
 ## 7. Remaining Issues（残課題）
 
-1. **ブラウザ受け入れ確認③**
-   - 既存Sectionを最初から再設定する流れで、候補を手動修正し、採用し、保存・再読み込み後にも反映されることを確認する。
-   - 現在は候補生成まで確認済み。適切なテスト曲がなく、後続確認を保留している。
-2. **PR #189とStage1→mainの統合**
+1. **PR #189とStage1→mainの統合**
    - PR #189はDraft / Openで、Stage1への統合前。
    - Stage1とmainの分岐差は確認済み。main側の9コミットを一括で取り込まず、ユーザー確認済みの分割後フォーカス（前半Sectionを維持）を保持して統合方法を決める。
 3. **テスト再生の実使用確認**
