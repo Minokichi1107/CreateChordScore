@@ -3535,7 +3535,7 @@ function _observeMeasureSlotGeometry(container) {
  * @param {object[]} measures  - GridViewModel.measures
  * @returns {boolean}
  */
-function detectPickupMeasure(measures) {
+export function detectPickupMeasure(measures) {
   if (measures.length < 2) return false;
 
   // #129: 曲全体の組み直し（wholeSongDownbeat）で timing.js が付けた印がある場合は、
@@ -4143,7 +4143,7 @@ function _renderChartGridContinuous(container, analysis, { measuresPerRow = 3 } 
  * @param {boolean} isPickup  - pickup measure 判定結果
  * @returns {number}  表示番号
  */
-function getDisplayMeasureNumber(mi, isPickup) {
+export function getDisplayMeasureNumber(mi, isPickup) {
   if (isPickup) return mi;       // pickup: 0→0, 1→1, 2→2 ...
   return mi + 1;                 // 通常:   0→1, 1→2, 2→3 ...
 }

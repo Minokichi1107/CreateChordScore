@@ -52,6 +52,9 @@ const REASON_LABEL = {
   'unlocated-invalid-section': '位置を特定できない不正Sectionがあるため境界を移動できません',
   'split-not-inside': '分割位置がSection内部ではありません',
   'no-previous-section': '結合する前のSectionがありません',
+  'no-prev': '結合する前のSectionがありません',
+  overlap: 'Sectionが重複しているため結合できません',
+  gap: 'Section間に隙間があるため結合できません',
   'sections-overlap': 'Sectionが重複しているため結合できません',
   'gap-between-sections': 'Section間に隙間があるため結合できません',
   'incomplete-section-fields': '名称または種類が未設定のSectionがあります',
@@ -132,7 +135,6 @@ export function openSectionReconfigurationModal(p) {
     : Math.max(0, Math.min(Math.max(0, draft.sections.length - 1), requestedIndex));
   let selectedSectionId = draft.sections[sectionIdx]?.id ?? null;
   let splitContext = initialSplitContext ? { ...initialSplitContext } : null;
-  const returnToOverviewOnSplit = initialSplitContext?.returnTo === 2;
   let lastHistoryAction = null;
   /**
    * Play start position (blue). Click/arrows update immediately — no separate confirm.
@@ -206,6 +208,7 @@ export function openSectionReconfigurationModal(p) {
     if (opts.clearSplitContext !== false && splitContext && nextId !== splitContext.sectionId) clearSplitContext();
     sectionIdx = nextIndex;
     selectedSectionId = nextId;
+    scrollSectionStartToTop();
   }
 
   function spans() {
@@ -268,7 +271,7 @@ export function openSectionReconfigurationModal(p) {
 
   function clampBoundaryCandidate(idx) {
     const sp = currentSpan();
-    if (!sp || sp.start < 0 || sp.end <= sp.start) return null;
+    if (!sp || sp.start < 0 || sp.end < sp.start) return null;
     const diagnostics = diagnoseDraftSections(draft, buffer);
     const positioned = diagnostics
       .map(row => ({ ...row, sortKey: row.start >= 0 ? row.start : (row.end >= 0 ? row.end : Number.MAX_SAFE_INTEGER) }))
@@ -276,8 +279,9 @@ export function openSectionReconfigurationModal(p) {
     const orderIndex = positioned.findIndex(row => row.index === sectionIdx);
     const nextRow = orderIndex >= 0 ? positioned[orderIndex + 1] : null;
     const max = nextRow?.structurallyValid
-      ? Math.max(sp.start, nextRow.end - 1)
+      ? nextRow.end - 1
       : sp.end - 1;
+    if (max < sp.start) return null;
     return Math.max(sp.start, Math.min(max, Math.round(Number(idx) || 0)));
   }
 
@@ -399,7 +403,8 @@ export function openSectionReconfigurationModal(p) {
     const playOn = uiMode === 'normal';
     const boundaryOn = uiMode === 'boundary';
     const splitOn = uiMode === 'split';
-    const boundaryAvailable = !!currentSpan() && currentSpan().end > currentSpan().start;
+    const span = currentSpan();
+    const boundaryAvailable = !!span && (canEditCurrentBoundary() || span.end > span.start);
     return `
       <div class="sr1-header">
         <div class="sr1-header-row">
@@ -433,9 +438,23 @@ export function openSectionReconfigurationModal(p) {
   }
 
   function clampGridScrollRow(r) {
-    const maxFirst = Math.max(0, totalChordGridRows() - 3);
+    // Allow the final chord row to become the first visible row when it is a
+    // Section start. The remaining two rows are padded with empty placeholders.
+    const maxFirst = Math.max(0, totalChordGridRows() - 1);
     const n = Math.round(Number(r) || 0);
     return Math.max(0, Math.min(maxFirst, n));
+  }
+
+  /**
+   * Align the active Section's first chord row to the top of the grid.
+   * Called on initial open and whenever Stage1 changes the active Section.
+   */
+  function scrollSectionStartToTop({ refresh = false } = {}) {
+    gridCols = computeGridCols();
+    const active = spans()[sectionIdx];
+    if (!active || active.start < 0) return;
+    gridScrollRow = clampGridScrollRow(Math.floor(active.start / gridCols));
+    if (refresh) refreshChordGridOnly();
   }
 
   /** Windowed grid: only 3 rows in DOM — no native mid-row scroll possible. */
@@ -491,8 +510,9 @@ export function openSectionReconfigurationModal(p) {
     });
     wrap.querySelectorAll('.sr1-gap-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const gap = clampBoundaryCandidate(Number(btn.dataset.gap));
-        if (gap == null) {
+        const requestedGap = Number(btn.dataset.gap);
+        const gap = clampBoundaryCandidate(requestedGap);
+        if (gap == null || gap !== requestedGap) {
           message = 'この位置は選択できません';
           fullRedraw();
           return;
@@ -592,7 +612,7 @@ export function openSectionReconfigurationModal(p) {
         `<div class="sr1-chord-row-cells" style="grid-template-columns:repeat(${cols},minmax(0,1fr))"></div></div>`
       );
     }
-    const maxFirst = Math.max(0, rowsTotal - 3);
+    const maxFirst = Math.max(0, rowsTotal - 1);
     const scroller = maxFirst > 0
       ? `<input type="range" class="sr1-grid-scroller" min="0" max="${maxFirst}" value="${gridScrollRow}" step="1" aria-label="コード進行の表示行を移動" />`
       : '';
@@ -603,10 +623,7 @@ export function openSectionReconfigurationModal(p) {
   function playHintHtml() {
     // Always reserve one banner row so mode switch does not resize the modal.
     if (uiMode === 'split') {
-      const cancelText = returnToOverviewOnSplit
-        ? '全Section一覧へ戻ります'
-        : '開始時の位置に戻します';
-      return `<div class="sr1-mode-banner sr1-mode-split is-on" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で${cancelText}</div>`;
+      return '<div class="sr1-mode-banner sr1-mode-split is-on" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で開始時の位置に戻します</div>';
     }
     if (uiMode === 'boundary') {
       return '<div class="sr1-mode-banner sr1-mode-boundary is-on" role="status">境界位置の変更中 — 「境界を変更」で確定、「キャンセル」で元に戻します</div>';
@@ -617,14 +634,6 @@ export function openSectionReconfigurationModal(p) {
   function bodyHtml() {
     const canUndo = (draft.undoStack?.length || 0) > 0;
     const canRedo = (draft.redoStack?.length || 0) > 0;
-    const mergeEligibility = canMergeWithPrevious(draft, buffer, selectedSectionId);
-    const mergeDisabled = !mergeEligibility.ok;
-    const mergeTitle = ({
-      'no-prev': '前に結合できるSectionがありません',
-      invalid: 'このSectionは構造的に不正です',
-      gap: 'Section間に隙間があるため結合できません',
-      overlap: 'Sectionが重複しているため結合できません',
-    })[mergeEligibility.reason] || '前のSectionと結合';
     const splitOn = uiMode === 'split';
     const boundaryOn = uiMode === 'boundary';
     const activeSpan = currentSpan();
@@ -672,12 +681,12 @@ export function openSectionReconfigurationModal(p) {
         <div class="sr1-aux-toolbar" aria-label="構造編集">
           <button type="button" class="sec-btn" id="sr1-prev-sec" ${sectionIdx <= 0 ? 'disabled' : ''}>← Section</button>
           <button type="button" class="sec-btn" id="sr1-next-sec" ${sectionIdx >= draft.sections.length - 1 ? 'disabled' : ''}>Section →</button>
-          <button type="button" class="sec-btn" id="sr1-merge-prev" title="${esc(mergeTitle)}" ${mergeDisabled ? 'disabled' : ''}>前と結合</button>
+          <button type="button" class="sec-btn" id="sr1-merge-prev" ${canMergeWithPrevious(draft, buffer, selectedSectionId).ok ? '' : 'disabled'}>前のSectionと結合</button>
           <button type="button" class="sec-btn" id="sr1-undo" ${canUndo ? '' : 'disabled'}>Undo</button>
           <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
         <div id="sr1-msg" class="sag-errors sr1-msg" role="status">${esc(message)}</div>
-        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> P 再生位置 · B/S 境界・分割位置 · ←→ 選択位置の移動 · Space 試聴 · Enter 境界移動 · Tab/Shift+Tab Section移動</p>
+        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> P 再生位置 · B/S 境界・分割位置 · ←→ 選択位置の移動 · Space 試聴 · Enter 境界移動 · 入力欄以外で Tab/Shift+Tab Section移動</p>
       </div>`;
   }
 
@@ -769,39 +778,6 @@ export function openSectionReconfigurationModal(p) {
     updateDraftSection(draft, sec.id, patch, opts);
     // The generated name is reflected immediately; it is no longer a manual name.
     if (nameEl) nameEl.value = draft.sections[sectionIdx].name;
-  }
-
-  function mergeCurrentWithPrevious() {
-    beforeStructuralEdit();
-    const section = draft.sections[sectionIdx];
-    if (!section) return;
-    const eligibility = canMergeWithPrevious(draft, buffer, section.id);
-    if (!eligibility.ok) {
-      message = ({
-        'no-prev': '前に結合できるSectionがありません',
-        invalid: 'このSectionは構造的に不正です',
-        gap: 'Section間に隙間があるため結合できません',
-        overlap: 'Sectionが重複しているため結合できません',
-      })[eligibility.reason] || '結合できません';
-      fullRedraw();
-      return;
-    }
-    const result = mergeDraftWithPrevious(draft, sectionIdx, buffer);
-    if (!result.ok) {
-      message = `結合できません（${REASON_LABEL[result.reason] || result.reason}）`;
-      fullRedraw();
-      return;
-    }
-    uiMode = 'normal';
-    boundaryCandidate = null;
-    boundaryCandidateAtModeEnter = null;
-    splitCandidate = null;
-    splitCandidateAtModeEnter = null;
-    sectionIdx = result.mergedIndex;
-    selectedSectionId = result.merged.id;
-    resetPlayToSectionStart();
-    message = '前のSectionと結合しました';
-    fullRedraw();
   }
 
   function deleteCurrentInvalid() {
@@ -913,7 +889,8 @@ export function openSectionReconfigurationModal(p) {
     stopPlayIfNeeded();
     applyNameTypeFromInputs();
     const sp = currentSpan();
-    if (!sp || sp.start < 0 || sp.end <= sp.start) {
+    if (!sp || sp.start < 0 || sp.end < sp.start
+      || (sp.end === sp.start && !canEditCurrentBoundary())) {
       message = 'このSectionには選択できるコード間位置がありません';
       fullRedraw();
       return;
@@ -986,10 +963,6 @@ export function openSectionReconfigurationModal(p) {
     uiMode = 'normal';
     resetPlayToSectionStart();
     message = r.noop ? '境界に変更はありません' : 'Section境界を変更しました';
-    if (!r.noop && returnToOverviewOnSplit) {
-      onReturnToOverview?.({ reason: 'boundary-change', sectionId: selectedSectionId, historyAction: lastHistoryAction });
-      return;
-    }
     fullRedraw();
   }
 
@@ -1009,10 +982,6 @@ export function openSectionReconfigurationModal(p) {
     splitCandidate = null;
     splitCandidateAtModeEnter = null;
     message = '';
-    if (opts.returnToOverview === true && returnToOverviewOnSplit) {
-      onReturnToOverview?.({ reason: 'split-cancel', sectionId: selectedSectionId, historyAction: lastHistoryAction });
-      return;
-    }
     fullRedraw();
   }
 
@@ -1071,13 +1040,11 @@ export function openSectionReconfigurationModal(p) {
     boundaryCandidateAtModeEnter = null;
     splitCandidate = null;
     splitCandidateAtModeEnter = null;
-    selectSectionIndex(r.backIndex, { clearSplitContext: false });
+    // Keep focus on the original Section (the front half) after splitting.
+    // The newly created back half remains available through normal Section navigation.
+    selectSectionIndex(sectionIdx, { clearSplitContext: false });
     resetPlayToSectionStart();
-    message = '分割しました。後半Sectionの名称・種類を入力してください';
-    if (returnToOverviewOnSplit) {
-      onReturnToOverview?.({ reason: 'split-success', sectionId: selectedSectionId, historyAction: lastHistoryAction });
-      return;
-    }
+    message = '分割しました。後半Sectionは必要に応じて選択して編集できます';
     fullRedraw();
   }
 
@@ -1145,7 +1112,7 @@ export function openSectionReconfigurationModal(p) {
       e.preventDefault();
       e.stopPropagation();
       if (uiMode === 'split') {
-        cancelSplitMode({ returnToOverview: returnToOverviewOnSplit });
+        cancelSplitMode({ returnToOverview: false });
         return;
       }
       if (uiMode === 'boundary') {
@@ -1270,6 +1237,28 @@ export function openSectionReconfigurationModal(p) {
       resetPlayToSectionStart();
       fullRedraw();
     });
+    root.querySelector('#sr1-merge-prev')?.addEventListener('click', () => {
+      beforeStructuralEdit();
+      const eligibility = canMergeWithPrevious(draft, buffer, selectedSectionId);
+      if (!eligibility.ok) {
+        message = REASON_LABEL[eligibility.reason] || '結合できません';
+        fullRedraw();
+        return;
+      }
+      const sectionIndex = draft.sections.findIndex(section => section?.id === selectedSectionId);
+      const result = mergeDraftWithPrevious(draft, sectionIndex, buffer);
+      if (!result.ok) {
+        message = REASON_LABEL[result.reason] || '結合できません';
+        fullRedraw();
+        return;
+      }
+      selectedSectionId = result.section.id;
+      sectionIdx = draft.sections.findIndex(section => section?.id === selectedSectionId);
+      clearSplitContext();
+      resetPlayToSectionStart();
+      message = '前のSectionと結合しました';
+      fullRedraw();
+    });
     root.querySelector('#sr1-play')?.addEventListener('click', testPlay);
     root.querySelector('#sr1-play-left')?.addEventListener('click', () => {
       // scroll sync after move in handler below
@@ -1291,7 +1280,9 @@ export function openSectionReconfigurationModal(p) {
     root.querySelector('#sr1-mode-boundary')?.addEventListener('click', () => enterBoundaryMode());
     root.querySelector('#sr1-split-edit')?.addEventListener('click', () => enterSplitMode());
     // Panel surface click also switches mode (buttons inside still work)
-    root.querySelector('.sr1-panel-play')?.addEventListener('click', () => {
+    root.querySelector('.sr1-panel-play')?.addEventListener('click', (e) => {
+      // Clicking a playback control must not clear a selected structural gap.
+      if (e.target.closest('button, input, label')) return;
       if (uiMode !== 'normal') enterPlayMode();
     });
     root.querySelector('.sr1-panel-play')?.addEventListener('keydown', (e) => {
@@ -1319,7 +1310,6 @@ export function openSectionReconfigurationModal(p) {
       beforeStructuralEdit();
       if (redoDraft(draft)) { fullRedraw(); }
     });
-    root.querySelector('#sr1-merge-prev')?.addEventListener('click', mergeCurrentWithPrevious);
     root.querySelector('#sr1-delete-sec')?.addEventListener('click', deleteCurrentInvalid);
     root.querySelector('.sr1-name')?.addEventListener('change', () => applyNameTypeFromInputs());
     root.querySelector('.sr1-type')?.addEventListener('change', () => onTypeChangeLive());
@@ -1343,6 +1333,9 @@ export function openSectionReconfigurationModal(p) {
       if (closed || (typeof isCurrent === 'function' && !isCurrent())) return;
       root = document.getElementById('sr1-root');
       bind();
+      // The first chord of the selected Section must be the first visible row,
+      // whether Stage1 was opened directly or returned from the Stage2 overview.
+      scrollSectionStartToTop({ refresh: true });
       if (keyHandler) document.addEventListener('keydown', keyHandler, true);
       scrollCursorIntoView();
     },

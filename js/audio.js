@@ -187,6 +187,7 @@ _audioElement.addEventListener('play', () => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     
     if (e.code === 'Space') {
+      if (window.__csSectionReconfigSpaceShield) return;
       e.preventDefault();
       if (_audioElement.src) {
         _audioElement.paused ? _audioElement.play() : _audioElement.pause();
@@ -318,4 +319,9 @@ export function setAudioSource(url) {
   if (_audioElement) {
     _audioElement.src = url;
   }
+}
+
+/** Phase150: explicit Space-key shield while Section reconfiguration modal is open. */
+export function setSectionReconfigSpaceShield(on) {
+  window.__csSectionReconfigSpaceShield = !!on;
 }

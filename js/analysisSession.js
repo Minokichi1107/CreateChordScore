@@ -44,6 +44,25 @@ export function createAnalysisSession() {
 }
 
 /**
+ * checkRawSectionsShape — 保存済みデータ（analysis.raw）の `sections` の形を検査する（純粋・読み取りのみ）
+ *
+ * 正式な型は配列。キー欠落は「Sectionなし」として許可（Section自動生成のF7と同じ扱い）。
+ * `null`・オブジェクト・文字列・数値・真偽値は不正データとして拒否する。
+ * `null` を欠落と同じに扱ってはならない（編集開始時の `?? []` は null も `[]` にしてしまい、
+ * 通常保存で元の値が黙って消えるため）。この関数は値を変換・補完しない。
+ *
+ * @param {object} raw
+ * @returns {{ok:true, missing:boolean}|{ok:false, reason:'raw-invalid'|'sections-not-array'}}
+ */
+export function checkRawSectionsShape(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, reason: 'raw-invalid' };
+  if (!Object.prototype.hasOwnProperty.call(raw, 'sections')) return { ok: true, missing: true };
+  return Array.isArray(raw.sections)
+    ? { ok: true, missing: false }
+    : { ok: false, reason: 'sections-not-array' };
+}
+
+/**
  * resetSessionFields — session の各フィールドを初期状態へ戻す（純粋・副作用なし）
  *
  * [NOTE] app.js側の resetAnalysisEditor() はこの関数を呼んだ後、

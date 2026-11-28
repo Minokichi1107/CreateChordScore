@@ -22,7 +22,7 @@
 CreateChordScoreのドキュメントは、以下の区分で管理する。
 
 - **正式ドキュメント** — `docs/` 配下で管理する。プロジェクトの現在の状態・仕様・ルールを表す唯一の情報源。区分は下記「ドキュメント分類」を参照。
-- **handover** — `docs/handover/` に置く。フェーズごとの引き継ぎ資料。`active/` は進行中フェーズ、`archive/` は完了済みフェーズを10フェーズ帯単位で格納する。
+- **handover** — `docs/handover/` に置く。フェーズごとの引き継ぎ資料。`active/` は直近フェーズのhandoverを1件だけ置き、`archive/` はそれ以前のhandoverを10フェーズ帯単位で格納する。
 - **legacy** — `docs/legacy/` に置く。役目を終えた設計資料・作業メモのうち、後から参照する価値があるもの。
 
 ### 一時作業ファイルの扱い
@@ -53,6 +53,7 @@ CreateChordScoreのドキュメントは、以下の区分で管理する。
   - 設計時点の判断と、実装後に確認された結果・未確認事項は区別して記録する。
 - **セットアップ**（環境構築）
   `起動方法.txt` / `開発環境メモ.md`
+  - ローカルサーバーの待受範囲（このPCからのみ・LAN利用は未実装）：`server-network.md`
 - **レポート** — `reports/`。調査・検証・レビュー・監査レポートの索引と本文を管理する。レポートへの登録は、内容の正式決定を意味しない。
 - **handover** — `handover/`
 - **legacy** — `legacy/`
@@ -84,7 +85,8 @@ docs/
 │       ├── phase61-70/
 │       ├── phase71-80/
 │       ├── phase81-100/
-│       └── phase101-120/
+│       ├── phase101-120/
+│       └── phase141-150/
 ├── legacy/
 │   ├── design/
 │   ├── testing/
@@ -105,6 +107,8 @@ docs/
 ├── devlog.md
 ├── issue129-technical-design.md
 ├── section-save-technical-design.md
+├── section-auto-mvp-design.md
+├── server-network.md
 ├── phase136-a-technical-design.md
 ├── phase141-technical-design.md
 ├── phase142-technical-design.md
