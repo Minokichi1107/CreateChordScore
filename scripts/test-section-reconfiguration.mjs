@@ -49,7 +49,10 @@ assert.match(stage1ModalSource, /if \(e\.isComposing \|\| e\.keyCode === 229\) r
 assert.match(stage1ModalSource, /if \(inField\) \{[\s\S]*?return;[\s\S]*?if \(e\.code === 'Tab'\)/, 'editable fields retain native Tab behavior');
 assert.match(stage1ModalSource, /updatePlayingHighlight\(null\);/, 'playback end updates highlight without rebuilding the name input');
 assert.match(stage1ModalSource, /patch\.nameUserEdited = false;[\s\S]*?opts\.defaultNameForType = type => generateDraftSectionName\(type, sec\.id\)/, 'type changes always regenerate names and clear manual-name metadata');
-assert.doesNotMatch(stage1ModalSource, /sr1-merge-prev|mergeCurrentWithPrevious|canMergeWithPrevious/, 'Section merge is available from Stage2 only');
+assert.match(stage1ModalSource, /sr1-merge-prev/, 'Stage1 exposes previous-Section merge');
+assert.match(stage1ModalSource, /canMergeWithPrevious\(draft, buffer, selectedSectionId\)/, 'Stage1 reuses Stage2 merge eligibility');
+assert.match(stage1ModalSource, /mergeDraftWithPrevious\(draft, sectionIndex, buffer\)/, 'Stage1 reuses shared Draft merge command');
+assert.doesNotMatch(stage1ModalSource, /returnToOverviewOnSplit/, 'Stage1 no longer auto-returns to Stage2 after boundary/split actions');
 const appSource = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 assert.match(appSource, /SECTION_TYPES\.find\(entry => entry\.value === type\)/, 'legacy auto-name inference remains available to the separate rename dialog');
 assert.match(appSource, /calculateSectionCoverage\(currentSections, buffer\)/, 'existing Section coverage is computed before choosing a reconfiguration path');
@@ -1085,7 +1088,8 @@ assert.match(stage1Source, />Sectionを分割</, 'split is available beside boun
 assert.match(stage1Source, /selectSectionIndex\(sectionIdx, \{ clearSplitContext: false \}\)/, 'Stage1 split keeps focus on the front half');
 assert.doesNotMatch(stage1Source, /selectSectionIndex\(r\.backIndex/, 'Stage1 split does not jump to the back half');
 assert.match(stage1Source, /e\.code === 'Enter'.*sr1-name/s, 'Enter exits the Section name field');
-assert.match(stage1Source, /reason: 'boundary-change'/, 'successful Stage2-originated boundary changes return to overview');
+assert.doesNotMatch(stage1Source, /reason: 'boundary-change'|reason: 'split-success'|reason: 'split-cancel'/, 'boundary changes, splits, and split cancellation stay in Stage1');
+assert.match(stage1Source, /id="sr1-return-overview"/, 'Stage2 return remains an explicit Stage1 action');
 
 
 // --- Stage1 UI boundary edits absorb an existing gap into the following Section ---

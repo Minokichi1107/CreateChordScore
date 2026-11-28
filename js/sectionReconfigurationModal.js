@@ -14,7 +14,9 @@ import {
   undoDraft,
   redoDraft,
   splitDraftAtChordIndex,
+  mergeDraftWithPrevious,
 } from './sectionReconfiguration.js';
+import { canMergeWithPrevious } from './sectionOverview.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -50,6 +52,9 @@ const REASON_LABEL = {
   'unlocated-invalid-section': '位置を特定できない不正Sectionがあるため境界を移動できません',
   'split-not-inside': '分割位置がSection内部ではありません',
   'no-previous-section': '結合する前のSectionがありません',
+  'no-prev': '結合する前のSectionがありません',
+  overlap: 'Sectionが重複しているため結合できません',
+  gap: 'Section間に隙間があるため結合できません',
   'sections-overlap': 'Sectionが重複しているため結合できません',
   'gap-between-sections': 'Section間に隙間があるため結合できません',
   'incomplete-section-fields': '名称または種類が未設定のSectionがあります',
@@ -130,7 +135,6 @@ export function openSectionReconfigurationModal(p) {
     : Math.max(0, Math.min(Math.max(0, draft.sections.length - 1), requestedIndex));
   let selectedSectionId = draft.sections[sectionIdx]?.id ?? null;
   let splitContext = initialSplitContext ? { ...initialSplitContext } : null;
-  const returnToOverviewOnSplit = initialSplitContext?.returnTo === 2;
   let lastHistoryAction = null;
   /**
    * Play start position (blue). Click/arrows update immediately — no separate confirm.
@@ -619,10 +623,7 @@ export function openSectionReconfigurationModal(p) {
   function playHintHtml() {
     // Always reserve one banner row so mode switch does not resize the modal.
     if (uiMode === 'split') {
-      const cancelText = returnToOverviewOnSplit
-        ? '全Section一覧へ戻ります'
-        : '開始時の位置に戻します';
-      return `<div class="sr1-mode-banner sr1-mode-split is-on" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で${cancelText}</div>`;
+      return '<div class="sr1-mode-banner sr1-mode-split is-on" role="status">分割位置の変更中 — 「分割」で実行、「キャンセル」で開始時の位置に戻します</div>';
     }
     if (uiMode === 'boundary') {
       return '<div class="sr1-mode-banner sr1-mode-boundary is-on" role="status">境界位置の変更中 — 「境界を変更」で確定、「キャンセル」で元に戻します</div>';
@@ -680,11 +681,12 @@ export function openSectionReconfigurationModal(p) {
         <div class="sr1-aux-toolbar" aria-label="構造編集">
           <button type="button" class="sec-btn" id="sr1-prev-sec" ${sectionIdx <= 0 ? 'disabled' : ''}>← Section</button>
           <button type="button" class="sec-btn" id="sr1-next-sec" ${sectionIdx >= draft.sections.length - 1 ? 'disabled' : ''}>Section →</button>
+          <button type="button" class="sec-btn" id="sr1-merge-prev" ${canMergeWithPrevious(draft, buffer, selectedSectionId).ok ? '' : 'disabled'}>前のSectionと結合</button>
           <button type="button" class="sec-btn" id="sr1-undo" ${canUndo ? '' : 'disabled'}>Undo</button>
           <button type="button" class="sec-btn" id="sr1-redo" ${canRedo ? '' : 'disabled'}>Redo</button>
         </div>
         <div id="sr1-msg" class="sag-errors sr1-msg" role="status">${esc(message)}</div>
-        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> P 再生位置 · B/S 境界・分割位置 · ←→ 選択位置の移動 · Space 試聴 · Enter 境界移動 · Tab/Shift+Tab Section移動</p>
+        <p class="sr1-keys-hint"><span class="sr1-info-ico" aria-hidden="true">i</span> P 再生位置 · B/S 境界・分割位置 · ←→ 選択位置の移動 · Space 試聴 · Enter 境界移動 · 入力欄以外で Tab/Shift+Tab Section移動</p>
       </div>`;
   }
 
@@ -961,10 +963,6 @@ export function openSectionReconfigurationModal(p) {
     uiMode = 'normal';
     resetPlayToSectionStart();
     message = r.noop ? '境界に変更はありません' : 'Section境界を変更しました';
-    if (!r.noop && returnToOverviewOnSplit) {
-      onReturnToOverview?.({ reason: 'boundary-change', sectionId: selectedSectionId, historyAction: lastHistoryAction });
-      return;
-    }
     fullRedraw();
   }
 
@@ -984,10 +982,6 @@ export function openSectionReconfigurationModal(p) {
     splitCandidate = null;
     splitCandidateAtModeEnter = null;
     message = '';
-    if (opts.returnToOverview === true && returnToOverviewOnSplit) {
-      onReturnToOverview?.({ reason: 'split-cancel', sectionId: selectedSectionId, historyAction: lastHistoryAction });
-      return;
-    }
     fullRedraw();
   }
 
@@ -1051,10 +1045,6 @@ export function openSectionReconfigurationModal(p) {
     selectSectionIndex(sectionIdx, { clearSplitContext: false });
     resetPlayToSectionStart();
     message = '分割しました。後半Sectionは必要に応じて選択して編集できます';
-    if (returnToOverviewOnSplit) {
-      onReturnToOverview?.({ reason: 'split-success', sectionId: selectedSectionId, historyAction: lastHistoryAction });
-      return;
-    }
     fullRedraw();
   }
 
@@ -1122,7 +1112,7 @@ export function openSectionReconfigurationModal(p) {
       e.preventDefault();
       e.stopPropagation();
       if (uiMode === 'split') {
-        cancelSplitMode({ returnToOverview: returnToOverviewOnSplit });
+        cancelSplitMode({ returnToOverview: false });
         return;
       }
       if (uiMode === 'boundary') {
@@ -1245,6 +1235,28 @@ export function openSectionReconfigurationModal(p) {
       if (uiMode === 'boundary') cancelBoundaryMode();
       selectSectionIndex(sectionIdx + 1);
       resetPlayToSectionStart();
+      fullRedraw();
+    });
+    root.querySelector('#sr1-merge-prev')?.addEventListener('click', () => {
+      beforeStructuralEdit();
+      const eligibility = canMergeWithPrevious(draft, buffer, selectedSectionId);
+      if (!eligibility.ok) {
+        message = REASON_LABEL[eligibility.reason] || '結合できません';
+        fullRedraw();
+        return;
+      }
+      const sectionIndex = draft.sections.findIndex(section => section?.id === selectedSectionId);
+      const result = mergeDraftWithPrevious(draft, sectionIndex, buffer);
+      if (!result.ok) {
+        message = REASON_LABEL[result.reason] || '結合できません';
+        fullRedraw();
+        return;
+      }
+      selectedSectionId = result.section.id;
+      sectionIdx = draft.sections.findIndex(section => section?.id === selectedSectionId);
+      clearSplitContext();
+      resetPlayToSectionStart();
+      message = '前のSectionと結合しました';
       fullRedraw();
     });
     root.querySelector('#sr1-play')?.addEventListener('click', testPlay);
